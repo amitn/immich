@@ -2,6 +2,7 @@
   import AgentSettings from './AgentSettings.svelte';
   import AuthSettings from './AuthSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
+  import BookSettings from './BookSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
   import JobSettings from './JobSettings.svelte';
@@ -29,6 +30,7 @@
     mdiAccountOutline,
     mdiBackupRestore,
     mdiBellOutline,
+    mdiBookOpenPageVariantOutline,
     mdiBookshelf,
     mdiClockOutline,
     mdiDatabaseOutline,
@@ -155,6 +157,13 @@
       subtitle: $t('admin.notification_settings_description'),
       key: 'notifications',
       icon: mdiBellOutline,
+    },
+    {
+      component: BookSettings,
+      title: $t('admin.book_settings'),
+      subtitle: $t('admin.book_settings_description'),
+      key: 'photo-books',
+      icon: mdiBookOpenPageVariantOutline,
     },
     {
       component: ServerSettings,

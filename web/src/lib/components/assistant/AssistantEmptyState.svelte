@@ -21,7 +21,7 @@
       : [
           $t('assistant_example_beach_album'),
           $t('assistant_example_italy_book'),
-          $t('assistant_example_watercolor'),
+          $t('assistant_example_book_with_maps'),
           $t('assistant_example_best_of_year'),
         ],
   );
