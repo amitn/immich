@@ -6,7 +6,7 @@ import { Duration } from 'luxon';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { Writable } from 'node:stream';
-import sharp, { Sharp } from 'sharp';
+import sharp, { OverlayOptions, Sharp } from 'sharp';
 import type {
   Bitmap,
   DecodeToBufferOptions,
@@ -38,6 +38,7 @@ import {
   RawExtractedFormat,
 } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { BookPageComposeResult, BookPageComposeSpec, getCropRegion } from 'src/utils/book/render.js';
 import { handlePromiseError } from 'src/utils/misc.js';
 import { createAffineMatrix } from 'src/utils/transform.js';
 
@@ -287,6 +288,56 @@ export class MediaRepository {
       .toBuffer({ resolveWithObject: true });
 
     return Buffer.from(rgbaToThumbHash(info.width, info.height, data));
+  }
+
+  /** Draws book page slots one at a time (to bound memory), then the text overlay, and encodes the page as JPEG */
+  async composeBookPage(spec: BookPageComposeSpec): Promise<BookPageComposeResult> {
+    const layers: OverlayOptions[] = [];
+    const slots: BookPageComposeResult['slots'] = [];
+    const options = { autoOrient: true, failOn: 'none', limitInputPixels: false, unlimited: true } as const;
+
+    for (const slot of spec.slots) {
+      if (!slot) {
+        slots.push(null);
+        continue;
+      }
+
+      try {
+        const { autoOrient } = await sharp(slot.input, options).metadata();
+        const region = getCropRegion(slot.crop, autoOrient.width, autoOrient.height);
+        const { data, info } = await sharp(slot.input, options)
+          .extract(region)
+          .resize(slot.width, slot.height, { fit: 'cover', position: 'centre' })
+          .flatten({ background: spec.background })
+          .toColourspace('srgb')
+          .raw()
+          .toBuffer({ resolveWithObject: true });
+
+        layers.push({
+          input: data,
+          raw: { width: info.width, height: info.height, channels: info.channels },
+          left: slot.left,
+          top: slot.top,
+        });
+        slots.push({ width: region.width, height: region.height });
+      } catch (error: any) {
+        this.logger.warn(`Could not draw book slot: ${error?.message ?? error}`);
+        slots.push({ error: String(error?.message ?? error) });
+      }
+    }
+
+    if (spec.overlay) {
+      layers.push({ input: Buffer.from(spec.overlay), left: 0, top: 0 });
+    }
+
+    const data = await sharp({
+      create: { width: spec.width, height: spec.height, channels: 3, background: spec.background },
+    })
+      .composite(layers)
+      .jpeg({ quality: spec.quality, chromaSubsampling: spec.quality >= 90 ? '4:4:4' : '4:2:0' })
+      .toBuffer();
+
+    return { data, slots };
   }
 
   async probe(input: string, options?: ProbeOptions): Promise<VideoInfo> {
