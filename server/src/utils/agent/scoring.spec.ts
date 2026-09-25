@@ -1,14 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import {
+  aestheticScore,
+  colorfulnessScore,
+  compositionScore,
+  contrastScore,
   exposureScore,
   faceScore,
   normalizeFaceBox,
   overallScore,
   scorePhoto,
   sharpnessScore,
+  vividnessScore,
 } from 'src/utils/agent/scoring.js';
 
-const analysis = { width: 512, height: 384, laplacianVariance: 1500, meanLuma: 0.5, shadowClip: 0, highlightClip: 0 };
+const analysis = {
+  width: 512,
+  height: 384,
+  laplacianVariance: 1500,
+  meanLuma: 0.5,
+  shadowClip: 0,
+  highlightClip: 0,
+  colorfulness: 70,
+  contrast: 0.25,
+  saturation: 0.4,
+  focusX: 1 / 3,
+  focusY: 1 / 3,
+};
 
 describe('sharpnessScore', () => {
   it('should be 0 for a flat image', () => {
@@ -71,10 +88,13 @@ describe('faceScore', () => {
 
 describe('overallScore', () => {
   it('should combine the weights', () => {
-    expect(overallScore({ sharpness: 1, exposure: 1, faceScore: 1 })).toBe(1);
-    expect(overallScore({ sharpness: 1, exposure: 0, faceScore: 0 })).toBeCloseTo(0.55);
-    expect(overallScore({ sharpness: 0, exposure: 1, faceScore: 0 })).toBeCloseTo(0.35);
-    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 1 })).toBeCloseTo(0.1);
+    expect(overallScore({ sharpness: 1, exposure: 1, faceScore: 1, aesthetic: 1 })).toBe(1);
+    expect(overallScore({ sharpness: 1, exposure: 0, faceScore: 0, aesthetic: 0 })).toBeCloseTo(0.4);
+    expect(overallScore({ sharpness: 0, exposure: 1, faceScore: 0, aesthetic: 0 })).toBeCloseTo(0.25);
+    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 0, aesthetic: 1 })).toBeCloseTo(0.25);
+    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 1, aesthetic: 0 })).toBeCloseTo(0.1);
+    // a neutral aesthetic score without an image
+    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 0 })).toBeCloseTo(0.125);
   });
 
   it('should reward favorites and ratings', () => {
@@ -86,7 +106,42 @@ describe('overallScore', () => {
 
   it('should stay within 0..1', () => {
     expect(overallScore({ sharpness: 1, exposure: 1, faceScore: 1, isFavorite: true, rating: 5 })).toBe(1);
-    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 0, rating: 1 })).toBe(0);
+    expect(overallScore({ sharpness: 0, exposure: 0, faceScore: 0, aesthetic: 0, rating: 1 })).toBe(0);
+  });
+});
+
+describe('aesthetic scores', () => {
+  it('should rate colourfulness on the Hasler–Süsstrunk scale', () => {
+    expect(colorfulnessScore(0)).toBe(0);
+    expect(colorfulnessScore(35)).toBeCloseTo(0.5);
+    expect(colorfulnessScore(120)).toBe(1);
+  });
+
+  it('should prefer a clear but not harsh contrast', () => {
+    expect(contrastScore(0)).toBe(0);
+    expect(contrastScore(0.25)).toBe(1);
+    expect(contrastScore(0.5)).toBeLessThan(0.6);
+  });
+
+  it('should prefer vivid over grey or garish colours', () => {
+    expect(vividnessScore(0)).toBe(0);
+    expect(vividnessScore(0.4)).toBe(1);
+    expect(vividnessScore(0.8)).toBe(0);
+    expect(vividnessScore(0.3)).toBeGreaterThan(vividnessScore(0.7));
+  });
+
+  it('should reward the detail on a rule-of-thirds point', () => {
+    expect(compositionScore(1 / 3, 2 / 3)).toBe(1);
+    expect(compositionScore(0.5, 0.5)).toBeCloseTo(0.6);
+    expect(compositionScore(0.02, 0.98)).toBe(0);
+  });
+
+  it('should prefer the vivid photo over the dull one', () => {
+    const vivid = { ...analysis, colorfulness: 62, contrast: 0.24, saturation: 0.42, focusX: 0.35, focusY: 0.6 };
+    const dull = { ...analysis, colorfulness: 6, contrast: 0.06, saturation: 0.05, focusX: 0.5, focusY: 0.5 };
+    expect(aestheticScore(vivid)).toBeGreaterThan(0.85);
+    expect(aestheticScore(dull)).toBeLessThan(0.3);
+    expect(scorePhoto(vivid, []).overall).toBeGreaterThan(scorePhoto(dull, []).overall + 0.1);
   });
 });
 
@@ -98,6 +153,7 @@ describe('scorePhoto', () => {
       faces: 0,
       faceArea: 0,
       faceScore: 0,
+      aesthetic: 1,
       overall: 0.9,
     });
   });

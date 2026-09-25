@@ -143,6 +143,7 @@ describe(BookService.name, () => {
       rows.map((row) => renderAsset({ id: row.id, width: row.width, height: row.height })),
     );
     mocks.search.getEmbeddings.mockResolvedValue([]);
+    mocks.book.getStackInfo.mockResolvedValue([]);
     mocks.book.replacePages.mockResolvedValue();
   };
 
@@ -1050,6 +1051,11 @@ describe(BookService.name, () => {
           meanLuma: 0.5,
           shadowClip: 0,
           highlightClip: 0,
+          colorfulness: 40,
+          contrast: 0.2,
+          saturation: 0.3,
+          focusX: 0.4,
+          focusY: 0.4,
         });
 
         await sut.createFromAlbum(auth, { albumId });
@@ -1057,6 +1063,27 @@ describe(BookService.name, () => {
 
         await sut.createFromAlbum(auth, { albumId });
         expect(mocks.media.analyzeImage).toHaveBeenCalledTimes(rows.length);
+      });
+
+      it('should place one photo per stack, pairing an artwork with its original', async () => {
+        const rows = trip();
+        const [original, crop, artwork] = [rows[4], rows[5], rows[6]];
+        const { albumId } = setupAlbum(rows);
+        mocks.book.getStackInfo.mockResolvedValue([
+          { id: original.id, stackId: 'stack', isPrimary: true, isArtwork: false, originalFileName: 'IMG_1.jpg' },
+          { id: crop.id, stackId: 'stack', isPrimary: false, isArtwork: false, originalFileName: 'IMG_1-crop.jpg' },
+          { id: artwork.id, stackId: 'stack', isPrimary: false, isArtwork: true, originalFileName: 'IMG_1-art.png' },
+        ]);
+
+        const { plan } = await sut.createFromAlbumWithPlan(auth, { albumId });
+        expect(plan.dropReasons).toEqual({ [crop.id]: 'stack' });
+
+        expect(mocks.book.getStackInfo).toHaveBeenCalledWith(expect.arrayContaining([original.id, artwork.id]));
+        const pages = plannedPages();
+        const placed = pages.flatMap((page) => page.assets.map((asset) => asset.assetId));
+        expect(placed).not.toContain(crop.id);
+        const pair = pages.find((page) => page.assets.some((asset) => asset.assetId === artwork.id))!;
+        expect(pair.assets.map((asset) => asset.assetId).toSorted()).toEqual([original.id, artwork.id].toSorted());
       });
 
       it('should delete the book when there is nothing to lay out', async () => {

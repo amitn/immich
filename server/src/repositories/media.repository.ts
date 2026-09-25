@@ -789,11 +789,17 @@ export class MediaRepository {
       .toBuffer();
   }
 
-  /** raw sharpness and exposure metrics of the image downscaled to fit in `size` x `size` */
+  /** raw sharpness, exposure, colour and composition metrics of the image downscaled to fit in `size` x `size` */
   async analyzeImage(input: string | Buffer, size = 512): Promise<ImageAnalysis> {
-    const { data, info } = await sharp(input, { failOn: 'none' })
+    const { data: rgb, info: rgbInfo } = await sharp(input, { failOn: 'none' })
       .resize(size, size, { fit: 'inside', withoutEnlargement: true })
       .removeAlpha()
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const { data, info } = await sharp(rgb, {
+      raw: { width: rgbInfo.width, height: rgbInfo.height, channels: rgbInfo.channels },
+    })
       .greyscale()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -807,26 +813,67 @@ export class MediaRepository {
     const { channels } = await sharp(laplacian, { raw }).stats();
 
     let sum = 0;
+    let sumSquares = 0;
     let shadows = 0;
     let highlights = 0;
+    let energy = 0;
+    let energyX = 0;
+    let energyY = 0;
     const pixels = info.width * info.height;
-    for (let i = 0; i < data.length; i += info.channels) {
+    // the convolution may come back with three channels
+    const laplacianChannels = Math.max(1, Math.round(laplacian.length / pixels));
+    for (let i = 0, pixel = 0; i < data.length; i += info.channels, pixel++) {
       const value = data[i];
       sum += value;
+      sumSquares += value * value;
       if (value <= 5) {
         shadows++;
       } else if (value >= 250) {
         highlights++;
       }
+      const response = (laplacian[pixel * laplacianChannels] - 128) ** 2;
+      energy += response;
+      energyX += response * ((pixel % info.width) + 0.5);
+      energyY += response * (Math.floor(pixel / info.width) + 0.5);
     }
+
+    // Hasler–Süsstrunk colourfulness and mean HSV saturation
+    let rgSum = 0;
+    let rgSquares = 0;
+    let ybSum = 0;
+    let ybSquares = 0;
+    let saturation = 0;
+    const step = rgbInfo.channels;
+    for (let i = 0; i + 2 < rgb.length; i += step) {
+      const [r, g, b] = [rgb[i], rgb[i + 1], rgb[i + 2]];
+      const rg = r - g;
+      const yb = 0.5 * (r + g) - b;
+      rgSum += rg;
+      rgSquares += rg * rg;
+      ybSum += yb;
+      ybSquares += yb * yb;
+      const max = Math.max(r, g, b);
+      saturation += max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+    }
+    const rgbPixels = rgbInfo.width * rgbInfo.height;
+    const rgMean = rgSum / rgbPixels;
+    const ybMean = ybSum / rgbPixels;
+    const rgVariance = Math.max(0, rgSquares / rgbPixels - rgMean ** 2);
+    const ybVariance = Math.max(0, ybSquares / rgbPixels - ybMean ** 2);
+    const meanLuma = sum / pixels / 255;
 
     return {
       width: info.width,
       height: info.height,
       laplacianVariance: channels[0].stdev ** 2,
-      meanLuma: sum / pixels / 255,
+      meanLuma,
       shadowClip: shadows / pixels,
       highlightClip: highlights / pixels,
+      colorfulness: Math.sqrt(rgVariance + ybVariance) + 0.3 * Math.hypot(rgMean, ybMean),
+      contrast: Math.sqrt(Math.max(0, sumSquares / pixels / 255 ** 2 - meanLuma ** 2)),
+      saturation: saturation / rgbPixels,
+      focusX: energy > 0 ? energyX / energy / info.width : 0.5,
+      focusY: energy > 0 ? energyY / energy / info.height : 0.5,
     };
   }
 

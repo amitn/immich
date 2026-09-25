@@ -165,6 +165,33 @@ const illustratedMaps = z
   .optional()
   .describe('Also redraw every map as an illustration with the art agent (default false)');
 
+export const bookCaptionModes = ['none', 'place', 'place-time', 'people'] as const;
+
+export const BookCaptionModeSchema = z
+  .enum(bookCaptionModes)
+  .describe(
+    'Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time) ' +
+      'or people (place and the names of the people); default place',
+  )
+  .meta({ id: 'BookCaptionMode' });
+
+const layoutTuning = {
+  captions: BookCaptionModeSchema.optional(),
+  maxArtworkShare: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe('Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row')
+    .meta({ format: 'double' }),
+  maxStackPairs: z
+    .int()
+    .min(0)
+    .max(20)
+    .optional()
+    .describe('Artworks shown next to their original on the same page (default 2)'),
+};
+
 const BookFromAlbumSchema = z
   .object({
     albumId: z.uuidv4().describe('Album whose photos are laid out'),
@@ -177,6 +204,7 @@ const BookFromAlbumSchema = z
     includeMaps,
     mapStyle: BookMapStyleOptionSchema.optional(),
     illustratedMaps,
+    ...layoutTuning,
   })
   .meta({ id: 'BookFromAlbumDto' });
 
@@ -197,6 +225,7 @@ const BookAutoLayoutSchema = z
       .boolean()
       .optional()
       .describe('Append the new pages to the existing ones instead of replacing them (default false)'),
+    ...layoutTuning,
   })
   .meta({ id: 'BookAutoLayoutDto' });
 

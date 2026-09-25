@@ -54,11 +54,19 @@ import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
-import { splitEvents } from 'src/utils/agent/events.js';
+import { getAdaptiveEventOptions, splitEvents } from 'src/utils/agent/events.js';
 import { ImageAnalysis, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
-import { selectBest } from 'src/utils/agent/selection.js';
+import { MAIN_PEOPLE_DEFAULTS, getMainPeople, selectBest } from 'src/utils/agent/selection.js';
 import { getDimensions } from 'src/utils/asset.util.js';
-import { AutoLayoutPage, AutoLayoutPhoto, AutoLayoutPlan, planAutoLayout } from 'src/utils/book/auto-layout.js';
+import {
+  AutoLayoutCaptions,
+  AutoLayoutPage,
+  AutoLayoutPerson,
+  AutoLayoutPhoto,
+  AutoLayoutPlan,
+  getPhotoKind,
+  planAutoLayout,
+} from 'src/utils/book/auto-layout.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -135,6 +143,9 @@ type LayOutOptions = {
   illustratedMaps?: boolean;
   heroAssetIds?: string[];
   keepExisting?: boolean;
+  captions?: AutoLayoutCaptions;
+  maxArtworkShare?: number;
+  maxStackPairs?: number;
 };
 
 const DEFAULT_PAGE_SIZE_MM = 210;
@@ -235,17 +246,27 @@ const toPageValues = (page: AutoLayoutPage): BookPageWithPlacements => ({
   assets: page.slots.map((slot, index) => ({ slot: index, assetId: slot.assetId, crop: slot.crop, caption: null })),
 });
 
-/** event index of every photo, see `splitEvents` */
+/** event index of every photo, see `splitEvents`; a single day is split into chapters by its own gaps */
 const getEventIndex = (rows: AgentAsset[]) => {
-  const events = splitEvents(
-    rows.map((row) => ({
-      id: row.id,
-      time: row.localDateTime.getTime(),
-      latitude: row.latitude,
-      longitude: row.longitude,
-    })),
-  );
+  const points = rows.map((row) => ({
+    id: row.id,
+    time: row.localDateTime.getTime(),
+    latitude: row.latitude,
+    longitude: row.longitude,
+  }));
+  const events = splitEvents(points, getAdaptiveEventOptions(points));
   return new Map(events.flatMap((event, index) => event.map(({ id }) => [id, index] as const)));
+};
+
+/** the people in a photo, once each */
+const getPeople = (row: Pick<AgentAsset, 'faces'>): AutoLayoutPerson[] => {
+  const people = new Map<string, AutoLayoutPerson>();
+  for (const face of row.faces) {
+    if (face.personId && !people.get(face.personId)?.name) {
+      people.set(face.personId, { id: face.personId, name: face.name });
+    }
+  }
+  return people.values().toArray();
 };
 
 const toCountryOutlines = (rows: Array<{ admin: string; coordinates: string }>) =>
@@ -325,6 +346,9 @@ export class BookService extends BaseService {
         includeMaps: dto.includeMaps,
         mapStyle: dto.mapStyle,
         illustratedMaps: dto.illustratedMaps,
+        captions: dto.captions,
+        maxArtworkShare: dto.maxArtworkShare,
+        maxStackPairs: dto.maxStackPairs,
       });
     } catch (error) {
       await this.bookRepository.delete(created.id);
@@ -1181,6 +1205,9 @@ export class BookService extends BaseService {
       mapStyle,
       heroIds: [...heroIds],
       cover: existing.length === 0,
+      captions: options.captions,
+      maxArtworkShare: options.maxArtworkShare,
+      maxStackPairs: options.maxStackPairs,
     });
 
     if (options.illustratedMaps && plan.pages.some((page) => page.map)) {
@@ -1258,32 +1285,41 @@ export class BookService extends BaseService {
 
     if (rows.length > MAX_LAYOUT_PHOTOS) {
       const eventIndex = getEventIndex(rows);
-      const { ids } = selectBest(
-        rows.map((row) => ({
-          id: row.id,
-          time: row.localDateTime.getTime(),
-          score: scorePhoto(
-            null,
-            row.faces.map((face) => normalizeFaceBox(face)),
-            { isFavorite: row.isFavorite, rating: row.rating },
-          ).overall,
-          event: eventIndex.get(row.id) ?? null,
-        })),
-        { count: MAX_LAYOUT_PHOTOS, minPerEvent: 1, mustIncludeIds: [...heroIds], chronological: true },
-      );
+      const candidates = rows.map((row) => ({
+        id: row.id,
+        time: row.localDateTime.getTime(),
+        score: scorePhoto(
+          null,
+          row.faces.map((face) => normalizeFaceBox(face)),
+          { isFavorite: row.isFavorite, rating: row.rating },
+        ).overall,
+        event: eventIndex.get(row.id) ?? null,
+        personIds: getPeople(row).map(({ id }) => id),
+      }));
+      const { ids } = selectBest(candidates, {
+        count: MAX_LAYOUT_PHOTOS,
+        minPerEvent: 1,
+        requirePersonIds: getMainPeople(candidates),
+        minPerPerson: MAIN_PEOPLE_DEFAULTS.perBook,
+        minPerPersonPerEvent: MAIN_PEOPLE_DEFAULTS.perEvent,
+        mustIncludeIds: [...heroIds],
+        chronological: true,
+      });
       const selected = new Set(ids);
       warnings.push(`There are ${rows.length} photos, so the best ${selected.size} of them were laid out`);
       rows = rows.filter((row) => selected.has(row.id));
     }
 
     const ids = rows.map((row) => row.id);
-    const [renderAssets, embeddings, { machineLearning }] = await Promise.all([
+    const [renderAssets, embeddings, stackInfo, { machineLearning }] = await Promise.all([
       this.bookRepository.getAssetsForRender(ids),
       this.searchRepository.getEmbeddings(ids),
+      this.bookRepository.getStackInfo(ids),
       this.getConfig({ withCache: true }),
     ]);
 
     const assets = new Map(renderAssets.map((asset) => [asset.id, asset]));
+    const stacks = new Map(stackInfo.map((info) => [info.id, info]));
     const vectors = new Map(embeddings.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
     const clusters = clusterSimilar(
       rows.map((row) => ({ id: row.id, time: row.fileCreatedAt.getTime(), embedding: vectors.get(row.id) })),
@@ -1322,6 +1358,10 @@ export class BookService extends BaseService {
         isFavorite: row.isFavorite,
         clusterId: clusterIndex.get(row.id) ?? null,
         eventIndex: eventIndex.get(row.id) ?? 0,
+        stackId: stacks.get(row.id)?.stackId ?? null,
+        kind: getPhotoKind(stacks.get(row.id) ?? {}),
+        people: getPeople(row),
+        embedding: vectors.get(row.id) ?? null,
       };
     });
   }

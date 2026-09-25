@@ -8,6 +8,7 @@ import { DB } from 'src/schema/index.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
+import { anyUuid } from 'src/utils/database.js';
 
 const omitUndefined = <T extends object>(values: T) =>
   Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as T;
@@ -465,6 +466,29 @@ export class BookRepository {
       .where('asset_face.assetId', 'in', assetIds)
       .where('asset_face.deletedAt', 'is', null)
       .where('asset_face.isVisible', 'is', true)
+      .execute();
+  }
+
+  /** stack, primary asset, artwork (the result of an art job) and file name of assets, to tell originals from copies */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getStackInfo(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('stack', 'stack.id', 'asset.stackId')
+      .select(['asset.id', 'asset.stackId', 'asset.originalFileName'])
+      .select(sql<boolean>`coalesce("stack"."primaryAssetId" = "asset"."id", false)`.as('isPrimary'))
+      .select((eb) =>
+        eb
+          .exists(eb.selectFrom('art_job').select('art_job.id').whereRef('art_job.resultAssetId', '=', 'asset.id'))
+          .$castTo<boolean>()
+          .as('isArtwork'),
+      )
+      .where('asset.id', '=', anyUuid(ids))
+      .where('asset.deletedAt', 'is', null)
       .execute();
   }
 }

@@ -1,8 +1,20 @@
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
-import { DEFAULT_EVENT_OPTIONS, EventSplitOptions, splitEvents } from 'src/utils/agent/events.js';
-import { BookLayout, PageSize, bookLayouts, getSlotAspectRatios } from 'src/utils/book/layouts.js';
+import { cosineDistance } from 'src/utils/agent/clustering.js';
+import { EventSplitOptions, getAdaptiveEventOptions, isShortSpan, splitEvents } from 'src/utils/agent/events.js';
+import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.js';
+import { BookLayout, LayoutRect, PageSize, bookLayouts, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
-import { getSmartCrop } from 'src/utils/book/render.js';
+import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
+
+/**
+ * What an asset is: an original photo, or a copy stacked with it (the original is the primary asset of the stack).
+ * Artwork (the result of an art job) is artwork even outside a stack.
+ */
+export type AutoLayoutPhotoKind = 'original' | 'artwork' | 'crop' | 'enhanced' | 'copy';
+
+export type AutoLayoutPerson = { id: string; name?: string | null };
+
+export type AutoLayoutCaptions = 'none' | 'place' | 'place-time' | 'people';
 
 export type AutoLayoutPhoto = {
   id: string;
@@ -24,6 +36,13 @@ export type AutoLayoutPhoto = {
   clusterId?: number | null;
   /** event the photo belongs to; events are computed when any photo lacks one */
   eventIndex?: number | null;
+  stackId?: string | null;
+  /** default original */
+  kind?: AutoLayoutPhotoKind;
+  /** people (named or not) in the photo */
+  people?: AutoLayoutPerson[];
+  /** L2-normalized CLIP embedding, to keep similar photos off neighbouring pages */
+  embedding?: Float32Array | null;
 };
 
 export type AutoLayoutOptions = {
@@ -40,8 +59,21 @@ export type AutoLayoutOptions = {
   cover?: boolean;
   /** end with a text page */
   closing?: { title?: string; caption?: string };
+  /** default: scaled to the photos, see `getAdaptiveEventOptions` */
   events?: EventSplitOptions;
   layouts?: readonly BookLayout[];
+  /** most pages with artwork, as a share of the pages, default 0.2; never two artwork pages in a row */
+  maxArtworkShare?: number;
+  /** artworks shown next to their original on the same page, default 2 */
+  maxStackPairs?: number;
+  /** factual captions drafted for the pages, default place */
+  captions?: AutoLayoutCaptions;
+  /** people spread over the sections; default: the people who appear most often (see `getMainPeople`) */
+  mainPersonIds?: string[];
+  /** photos of every main person in each section they appear in, default 1 */
+  minPerPersonPerSection?: number;
+  /** photos of every main person in the book, default 4 */
+  minPerPersonPerBook?: number;
 };
 
 export type AutoLayoutSlot = { assetId: string; crop: NormalizedRect };
@@ -58,12 +90,20 @@ export type AutoLayoutPage = {
 
 export type AutoLayoutSection = { title: string; dates: string; photoIds: string[]; located: boolean };
 
+export type AutoLayoutDropReason = 'duplicate' | 'stack' | 'artwork' | 'resolution' | 'budget';
+
+export type AutoLayoutPersonCoverage = { personId: string; name?: string; photos: number; placed: number };
+
 export type AutoLayoutPlan = {
   pages: AutoLayoutPage[];
   sections: AutoLayoutSection[];
   usedIds: string[];
-  /** photos left out because of near-duplicates or the page budget */
+  /** photos left out because of near-duplicates, stacks, artwork limits, low resolution or the page budget */
   droppedIds: string[];
+  /** why each photo of `droppedIds` was left out */
+  dropReasons: Record<string, AutoLayoutDropReason>;
+  /** how often the main people appear in the photos and in the book */
+  people: AutoLayoutPersonCoverage[];
 };
 
 /** a crop that loses more than this share of the photo is not acceptable */
@@ -71,6 +111,12 @@ export const MAX_CROP_LOSS = 0.45;
 export const PHOTOS_PER_PAGE = 2.5;
 export const MIN_AUTO_PAGES = 4;
 export const MAX_AUTO_PAGES = 80;
+export const DEFAULT_MAX_ARTWORK_SHARE = 0.2;
+export const DEFAULT_MAX_STACK_PAIRS = 2;
+export const MAX_SINGLES_IN_A_ROW = 2;
+/** photos closer than this (CLIP cosine distance) count as similar, fully so at `SIMILAR_FULL_DISTANCE` */
+export const SIMILAR_DISTANCE = 0.2;
+const SIMILAR_FULL_DISTANCE = 0.08;
 /** more photos per content page than this and the lowest ranked photos are dropped */
 const MAX_DENSITY = 4;
 const MIN_SECTION_SIZE = 3;
@@ -80,15 +126,40 @@ const SIZE_REPEAT_PENALTY = 0.15;
 const LAYOUT_REPEAT_PENALTY = 2;
 const HERO_SHARED_PENALTY = 5;
 const SAME_CLUSTER_PENALTY = 3;
+const SINGLES_PENALTY = 3;
+const ARTWORK_REPEAT_PENALTY = 4;
+/** penalty for similar photos on facing pages; half of it across a page turn */
+const SIMILAR_SPREAD_PENALTY = 1.5;
+/** a copy (crop, enhanced) replaces the original of its stack only when it scores this much better */
+const CROP_MARGIN = 0.03;
+const COPY_MARGIN = 0.05;
+const MAIN_PERSON_BONUS = 0.05;
 const OPENER_LAYOUTS = new Set(['cover', 'section-opener', 'text', 'map', 'map-photo']);
 
-type Candidate = AutoLayoutPhoto & { importance: number; hero: boolean; located: boolean };
+type Candidate = AutoLayoutPhoto & {
+  importance: number;
+  hero: boolean;
+  located: boolean;
+  artwork: boolean;
+  /** an artwork and its original, placed together on one page */
+  pair?: [Candidate, Candidate];
+};
 
 type LayoutChoice = { layout: BookLayout; cost: number; order: Candidate[]; crops: NormalizedRect[] };
 
-type Group = { photos: Candidate[]; choices: LayoutChoice[] };
+type Group = { photos: Candidate[]; choices: LayoutChoice[]; artwork: boolean };
 
 type PlannedPage = LayoutChoice;
+
+/** the page before a run of pages */
+type PartitionContext = {
+  previous?: string;
+  previousPhotos?: Candidate[];
+  /** single-photo pages right before */
+  singles: number;
+  /** one-based number of the first page */
+  pageNumber: number;
+};
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -103,11 +174,65 @@ const isLocated = (photo: AutoLayoutPhoto) =>
   Number.isFinite(photo.lon) &&
   !(photo.lat === 0 && photo.lon === 0);
 
-export const getImportance = (photo: AutoLayoutPhoto, hero = false) =>
-  clamp(photo.score, 0, 1) + (photo.isFavorite ? 0.2 : 0) + (photo.faces.length > 0 ? 0.05 : 0) + (hero ? 1 : 0);
+const membersOf = (candidate: Candidate): Candidate[] => candidate.pair ?? [candidate];
+
+export const getImportance = (photo: AutoLayoutPhoto, hero = false, mainPeople?: Set<string>) =>
+  clamp(photo.score, 0, 1) +
+  (photo.isFavorite ? 0.2 : 0) +
+  (photo.faces.length > 0 ? 0.05 : 0) +
+  (mainPeople && photo.people?.some(({ id }) => mainPeople.has(id)) ? MAIN_PERSON_BONUS : 0) +
+  (hero ? 1 : 0);
 
 export const getTargetPageCount = (photoCount: number) =>
   clamp(Math.round(photoCount / PHOTOS_PER_PAGE), MIN_AUTO_PAGES, MAX_AUTO_PAGES);
+
+/** see `AutoLayoutPhotoKind`; copies are told apart by the suffix of their file name (e.g. IMG_1-crop.jpg) */
+export const getPhotoKind = (asset: {
+  isArtwork?: boolean | null;
+  stackId?: string | null;
+  isPrimary?: boolean | null;
+  originalFileName?: string | null;
+}): AutoLayoutPhotoKind => {
+  if (asset.isArtwork) {
+    return 'artwork';
+  }
+  if (!asset.stackId || asset.isPrimary) {
+    return 'original';
+  }
+  const name = (asset.originalFileName ?? '').replace(/\.[^.]*$/, '').toLowerCase();
+  if (name.endsWith('-crop')) {
+    return 'crop';
+  }
+  return name.endsWith('-enhanced') ? 'enhanced' : 'copy';
+};
+
+/** 0 for different photos, 1 for near-duplicates, by the CLIP distance; photos of one stack are not compared */
+export const getPhotoSimilarity = (a: AutoLayoutPhoto, b: AutoLayoutPhoto) => {
+  if (!a.embedding || !b.embedding || a.id === b.id || (a.stackId && a.stackId === b.stackId)) {
+    return 0;
+  }
+  const distance = cosineDistance(a.embedding, b.embedding);
+  return clamp((SIMILAR_DISTANCE - distance) / (SIMILAR_DISTANCE - SIMILAR_FULL_DISTANCE), 0, 1);
+};
+
+/** a page that shows one photo on its own; the cover and map pages don't count */
+export const isSinglePhotoPage = (layout: string | BookLayout | undefined) => {
+  const definition = typeof layout === 'string' ? getLayout(layout) : layout;
+  return !!definition && definition.slots.length === 1 && !definition.map && definition.id !== 'cover';
+};
+
+/** pages whose facing page is the previous page: 2|3, 4|5, … (page 1 is alone on the right) */
+export const isRightPage = (pageNumber: number) => pageNumber > 1 && pageNumber % 2 === 1;
+
+/** print resolution of a crop of the photo in a slot, Infinity when the size of the photo is unknown */
+export const getPlacementDpi = (
+  photo: { width: number; height: number },
+  crop: NormalizedRect,
+  slotMm: Pick<LayoutRect, 'width' | 'height'>,
+) =>
+  photo.width > 0 && photo.height > 0
+    ? getEffectiveDpi({ width: crop.width * photo.width, height: crop.height * photo.height }, slotMm)
+    : Infinity;
 
 const dateFormat = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
@@ -133,6 +258,17 @@ export const formatDateRange = (start: number, end: number) => {
     ? `${dayMonthFormat.format(a)} – ${dateFormat.format(b)}`
     : `${dateFormat.format(a)} – ${dateFormat.format(b)}`;
 };
+
+/** local wall-clock time, e.g. "2:15 pm" */
+export const formatTime = (time: number) => {
+  const date = new Date(time);
+  const hours = date.getUTCHours();
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${hours % 12 || 12}:${minutes} ${hours < 12 ? 'am' : 'pm'}`;
+};
+
+const formatList = (items: string[]) =>
+  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 
 const countValues = (values: Array<string | null | undefined>) => {
   const counts = new Map<string, number>();
@@ -166,6 +302,43 @@ export const getSectionTitle = (photos: AutoLayoutPhoto[]) => {
   return formatDateRange(Math.min(...times), Math.max(...times));
 };
 
+/**
+ * A short caption made only of facts about the photos of a page: the main place (from EXIF), the local time of the
+ * first photo and the names of the named people, e.g. "Westcott · 2:15 pm" or "Box Hill with Amit". It never
+ * describes what the photos look like. `place` skips a place that repeats the section title or the previous caption.
+ */
+export const getFactualCaption = (
+  photos: AutoLayoutPhoto[],
+  mode: AutoLayoutCaptions,
+  context: { sectionTitle?: string; previous?: string } = {},
+): string | undefined => {
+  if (mode === 'none' || photos.length === 0) {
+    return;
+  }
+
+  const [place] = countValues(photos.map((photo) => photo.city)).map(([city]) => city);
+  const time = formatTime(Math.min(...photos.map((photo) => photo.takenAt)));
+  const isNew = (value: string) => value !== context.sectionTitle && value !== context.previous;
+
+  switch (mode) {
+    case 'place': {
+      return place && isNew(place) ? place : undefined;
+    }
+    case 'place-time': {
+      return [place, time].filter(Boolean).join(' · ');
+    }
+    case 'people': {
+      const names = countValues(photos.flatMap((photo) => (photo.people ?? []).map((person) => person.name)))
+        .slice(0, 3)
+        .map(([name]) => name);
+      if (names.length === 0) {
+        return place && isNew(place) ? place : undefined;
+      }
+      return place ? `${place} with ${formatList(names)}` : `With ${formatList(names)}`;
+    }
+  }
+};
+
 const getEvents = (photos: Candidate[], options?: EventSplitOptions): Candidate[][] => {
   if (photos.every((photo) => typeof photo.eventIndex === 'number')) {
     return Map.groupBy(photos, (photo) => photo.eventIndex!)
@@ -176,13 +349,14 @@ const getEvents = (photos: Candidate[], options?: EventSplitOptions): Candidate[
   }
 
   const points = photos.map((photo) => ({
-    ...photo,
+    id: photo.id,
     time: photo.takenAt,
     latitude: photo.lat,
     longitude: photo.lon,
+    photo,
   }));
-  return splitEvents(points, options ?? DEFAULT_EVENT_OPTIONS).map((event) =>
-    event.map(({ time: _, ...photo }) => photo),
+  return splitEvents(points, options ?? getAdaptiveEventOptions(points)).map((event) =>
+    event.map(({ photo }) => photo),
   );
 };
 
@@ -222,7 +396,164 @@ const permutations = <T>(items: T[]): T[][] => {
   );
 };
 
-type SlotShape = { aspect: number; area: number };
+type SlotShape = { aspect: number; area: number; rectMm: LayoutRect };
+
+/**
+ * One photo per stack: the original, unless a copy (crop, enhanced) scores clearly better. Artwork is a separate,
+ * limited resource: the best artworks up to `budget`, shown next to their original as an intentional pair (at most
+ * `maxPairs`), or instead of it when they rank higher. Heroes are always kept on their own.
+ */
+const resolveStacks = (
+  photos: Candidate[],
+  budget: number,
+  maxPairs: number,
+  drop: (photo: Candidate, reason: AutoLayoutDropReason) => void,
+): Candidate[] => {
+  const result: Candidate[] = [];
+  const artworks: Array<{ artwork: Candidate; original?: Candidate }> = [];
+  const stacks = Map.groupBy(
+    photos.filter((photo) => photo.stackId),
+    (photo) => photo.stackId!,
+  );
+
+  for (const photo of photos) {
+    if (photo.stackId) {
+      continue;
+    }
+    if (photo.artwork && !photo.hero) {
+      artworks.push({ artwork: photo });
+    } else {
+      result.push(photo);
+    }
+  }
+
+  for (const members of stacks.values()) {
+    const heroes = members.filter((photo) => photo.hero);
+    result.push(...heroes);
+    if (heroes.length > 0) {
+      for (const photo of members) {
+        if (!photo.hero) {
+          drop(photo, 'stack');
+        }
+      }
+      continue;
+    }
+
+    const copies = members.filter((photo) => !photo.artwork).toSorted(byImportance);
+    const original = copies.find((photo) => (photo.kind ?? 'original') === 'original');
+    let chosen = copies[0];
+    if (chosen && original && chosen !== original) {
+      const margin = chosen.kind === 'crop' ? CROP_MARGIN : COPY_MARGIN;
+      chosen = chosen.importance > original.importance + margin ? chosen : original;
+    }
+    for (const photo of copies) {
+      if (photo !== chosen) {
+        drop(photo, 'stack');
+      }
+    }
+
+    const [artwork, ...others] = members.filter((photo) => photo.artwork).toSorted(byImportance);
+    for (const photo of others) {
+      drop(photo, 'stack');
+    }
+
+    if (artwork) {
+      artworks.push({ artwork, original: chosen });
+    } else if (chosen) {
+      result.push(chosen);
+    }
+  }
+
+  let used = 0;
+  let pairs = 0;
+  for (const { artwork, original } of artworks.toSorted((a, b) => byImportance(a.artwork, b.artwork))) {
+    if (used >= budget) {
+      drop(artwork, 'artwork');
+      if (original) {
+        result.push(original);
+      }
+      continue;
+    }
+
+    if (!original) {
+      result.push(artwork);
+      used++;
+    } else if (pairs < maxPairs) {
+      result.push({
+        ...original,
+        id: `pair:${original.id}`,
+        importance: Math.max(original.importance, artwork.importance),
+        artwork: true,
+        pair: [original, artwork],
+      });
+      used++;
+      pairs++;
+    } else if (artwork.importance > original.importance) {
+      result.push(artwork);
+      drop(original, 'stack');
+      used++;
+    } else {
+      result.push(original);
+      drop(artwork, 'stack');
+    }
+  }
+
+  return result.toSorted(byTime);
+};
+
+/**
+ * Photos of the main people that the page budget must keep: the best `perSection` of every person in each section
+ * they appear in, then the best others until every person has `perBook` photos (spread over the sections).
+ */
+export const getPersonMinimums = <
+  T extends { id: string; importance: number; takenAt: number; people?: AutoLayoutPerson[] },
+>(
+  sections: T[][],
+  personIds: string[],
+  perSection: number,
+  perBook: number,
+) => {
+  const keep = new Set<string>();
+  const order = (a: T, b: T) => b.importance - a.importance || a.takenAt - b.takenAt || a.id.localeCompare(b.id);
+  const has = (photo: T, personId: string) => photo.people?.some(({ id }) => id === personId) ?? false;
+
+  for (const personId of personIds) {
+    const perSectionCount = sections.map(() => 0);
+    for (const [index, section] of sections.entries()) {
+      for (const photo of section
+        .filter((item) => has(item, personId))
+        .toSorted(order)
+        .slice(0, perSection)) {
+        keep.add(photo.id);
+        perSectionCount[index]++;
+      }
+    }
+
+    let total = sections.flat().filter((photo) => keep.has(photo.id) && has(photo, personId)).length;
+    while (total < perBook) {
+      let best: { photo: T; section: number } | undefined;
+      for (const [index, section] of sections.entries()) {
+        const photo = section.filter((item) => has(item, personId) && !keep.has(item.id)).toSorted(order)[0];
+        if (
+          photo &&
+          (!best ||
+            perSectionCount[index] < perSectionCount[best.section] ||
+            (perSectionCount[index] === perSectionCount[best.section] && order(photo, best.photo) < 0))
+        ) {
+          best = { photo, section: index };
+        }
+      }
+      if (!best) {
+        break;
+      }
+      keep.add(best.photo.id);
+      perSectionCount[best.section]++;
+      total++;
+    }
+  }
+
+  return keep;
+};
 
 class LayoutPlanner {
   private crops = new Map<string, ReturnType<typeof getSmartCrop>>();
@@ -252,8 +583,11 @@ class LayoutPlanner {
   getShapes(layout: BookLayout) {
     let shapes = this.shapes.get(layout.id);
     if (!shapes) {
-      const aspects = getSlotAspectRatios(layout, this.size, this.style);
-      shapes = layout.slots.map((slot, i) => ({ aspect: aspects[i], area: slot.width * slot.height }));
+      shapes = getSlotRectsMm(layout, this.size, this.style).map((rectMm, i) => ({
+        aspect: rectMm.height > 0 ? rectMm.width / rectMm.height : 1,
+        area: layout.slots[i].width * layout.slots[i].height,
+        rectMm,
+      }));
       this.shapes.set(layout.id, shapes);
     }
     return shapes;
@@ -269,11 +603,27 @@ class LayoutPlanner {
     return crop;
   }
 
-  /** cost of the photo in a slot, Infinity when the crop cuts a face or loses too much of the photo */
+  /** whether the crop of the photo for the slot prints at `MIN_PRINT_DPI` or more */
+  isSharpEnough(photo: AutoLayoutPhoto, shape: SlotShape) {
+    return getPlacementDpi(photo, this.getCrop(photo, shape.aspect).crop, shape.rectMm) >= MIN_PRINT_DPI;
+  }
+
+  /** whether the photo prints sharp enough in any slot of the content layouts */
+  isPrintable(photo: AutoLayoutPhoto) {
+    return this.layoutList.some((layout) => this.getShapes(layout).some((shape) => this.isSharpEnough(photo, shape)));
+  }
+
+  /**
+   * cost of the photo in a slot, Infinity when the slot is too large for its resolution, or (when strict) the crop cuts
+   * a face or loses too much of the photo
+   */
   slotCost(photo: Candidate, shape: SlotShape, ideal: number, strict: boolean) {
     const crop = this.getCrop(photo, shape.aspect);
     const loss = 1 - crop.kept;
     if (strict && (!crop.feasible || loss > MAX_CROP_LOSS)) {
+      return Infinity;
+    }
+    if (getPlacementDpi(photo, crop.crop, shape.rectMm) < MIN_PRINT_DPI) {
       return Infinity;
     }
     return 3 * loss + 0.5 * crop.droppedFaces + (crop.feasible ? 0 : 2) + 0.5 * Math.log(shape.area / ideal) ** 2;
@@ -313,16 +663,22 @@ class LayoutPlanner {
     };
   }
 
-  group(photos: Candidate[], ideals: Map<string, number>, strict: boolean): Group | null {
+  group(units: Candidate[], ideals: Map<string, number>, strict: boolean): Group | null {
+    const pair = units.length === 1 ? units[0].pair : undefined;
+    if (!pair && units.some((unit) => unit.pair)) {
+      return null;
+    }
+
+    const photos = pair ?? units;
     const layouts = this.contentLayouts.get(photos.length) ?? [];
-    const sharedHero = photos.length > 1 && photos.some((photo) => photo.hero);
+    const sharedHero = !pair && photos.length > 1 && photos.some((photo) => photo.hero);
     if (sharedHero && strict) {
       return null;
     }
     let clusterPenalty = sharedHero ? HERO_SHARED_PENALTY : 0;
     for (const [i, a] of photos.entries()) {
       for (const b of photos.slice(i + 1)) {
-        if (a.clusterId !== null && a.clusterId !== undefined && a.clusterId === b.clusterId) {
+        if (!pair && a.clusterId !== null && a.clusterId !== undefined && a.clusterId === b.clusterId) {
           clusterPenalty += SAME_CLUSTER_PENALTY;
         }
       }
@@ -334,46 +690,81 @@ class LayoutPlanner {
       .map((choice) => ({ ...choice, cost: choice.cost + clusterPenalty + SIZE_PENALTY[photos.length] }))
       .toSorted((a, b) => a.cost - b.cost);
 
-    return choices.length > 0 ? { photos, choices } : null;
+    return choices.length > 0 ? { photos, choices, artwork: photos.some((photo) => photo.artwork) } : null;
   }
 
   /**
    * Splits the time-ordered photos of a section into `pages` pages and picks their layouts, choosing page sizes by
-   * importance and fit, and avoiding the layout (and preferably the size) of the previous page.
+   * importance and fit. It avoids the layout (and preferably the size) of the previous page, more than
+   * `MAX_SINGLES_IN_A_ROW` single-photo pages in a row, artwork on consecutive pages and similar photos on
+   * neighbouring pages (on facing pages most of all); when `strict`, the first two are ruled out.
    */
-  partition(photos: Candidate[], pages: number, strict: boolean, previous?: string): PlannedPage[] | null {
-    const n = photos.length;
-    const ideals = getIdealAreas(photos, pages);
+  partition(units: Candidate[], pages: number, strict: boolean, context: PartitionContext): PlannedPage[] | null {
+    const n = units.length;
+    const ideals = getIdealAreas(units, pages);
 
     const groups = new Map<string, Group | null>();
     const getGroup = (start: number, size: number) => {
       const key = `${start}:${size}`;
       if (!groups.has(key)) {
-        groups.set(key, this.group(photos.slice(start, start + size), ideals, strict));
+        groups.set(key, this.group(units.slice(start, start + size), ideals, strict));
       }
       return groups.get(key)!;
     };
 
-    // cost[j][i][l]: the first i photos on j pages, the last page having layout l (none = the page before the section)
+    // states: the layout of the last page (none = the page before the section) and the single-photo pages before it
+    const runs = MAX_SINGLES_IN_A_ROW + 2;
     const none = this.layoutList.length;
-    const states = none + 1;
+    const states = (none + 1) * runs;
+
+    // the units on the page that ends at `end`, with layout `layout`
+    const previousUnits = (end: number, layout: number): Candidate[] => {
+      if (end === 0 || layout === none) {
+        return context.previousPhotos ?? [];
+      }
+      const size = units[end - 1]?.pair ? 1 : this.layoutList[layout].slots.length;
+      return units.slice(end - size, end);
+    };
+
+    const similarities = new Map<string, number>();
+    const getSimilarity = (end: number, layout: number, size: number) => {
+      const key = `${end}:${layout}:${size}`;
+      let value = similarities.get(key);
+      if (value === undefined) {
+        value = 0;
+        const before = previousUnits(end, layout).flatMap((unit) => membersOf(unit));
+        const after = units.slice(end, end + size).flatMap((unit) => membersOf(unit));
+        for (const a of before) {
+          for (const b of after) {
+            value = Math.max(value, getPhotoSimilarity(a, b));
+          }
+        }
+        similarities.set(key, value);
+      }
+      return value;
+    };
+
     const cost: Float64Array[][] = [];
     const from: Int32Array[][] = [];
     for (let j = 0; j <= pages; j++) {
       cost.push(Array.from({ length: n + 1 }, () => new Float64Array(states).fill(Infinity)));
       from.push(Array.from({ length: n + 1 }, () => new Int32Array(states).fill(-1)));
     }
-    const initial = previous === undefined ? none : (this.layoutIndex.get(previous) ?? none);
-    cost[0][0][initial] = 0;
+    const initialLayout = context.previous === undefined ? none : (this.layoutIndex.get(context.previous) ?? none);
+    cost[0][0][initialLayout * runs + Math.min(context.singles, runs - 1)] = 0;
 
     for (let j = 0; j < pages; j++) {
+      const sameSpread = isRightPage(context.pageNumber + j);
       for (let i = 0; i < n; i++) {
         for (let last = 0; last < states; last++) {
           const current = cost[j][i][last];
           if (current === Infinity) {
             continue;
           }
-          const lastSize = last === none ? 0 : this.layoutList[last].slots.length;
+          const lastLayout = Math.floor(last / runs);
+          const run = last % runs;
+          const lastSize = lastLayout === none ? 0 : this.layoutList[lastLayout].slots.length;
+          const lastArtwork = previousUnits(i, lastLayout).some((unit) => unit.artwork);
           for (const size of PAGE_SIZES) {
             if (i + size > n) {
               break;
@@ -382,10 +773,27 @@ class LayoutPlanner {
             if (!group) {
               continue;
             }
-            const sizeRepeat = lastSize === size ? SIZE_REPEAT_PENALTY * (size === 6 ? 4 : 1) : 0;
+            const artworkRepeat = lastArtwork && group.artwork;
+            if (strict && artworkRepeat) {
+              continue;
+            }
+            const slots = group.photos.length;
+            const sizeRepeat = lastSize === slots ? SIZE_REPEAT_PENALTY * (slots === 6 ? 4 : 1) : 0;
+            const similar = getSimilarity(i, lastLayout, size) * SIMILAR_SPREAD_PENALTY * (sameSpread ? 1 : 0.5);
+            const base = current + sizeRepeat + similar + (artworkRepeat ? ARTWORK_REPEAT_PENALTY : 0);
             for (const choice of group.choices) {
-              const state = this.layoutIndex.get(choice.layout.id)!;
-              const next = current + choice.cost + sizeRepeat + (state === last ? LAYOUT_REPEAT_PENALTY : 0);
+              const layout = this.layoutIndex.get(choice.layout.id)!;
+              const nextRun = isSinglePhotoPage(choice.layout) ? Math.min(run + 1, runs - 1) : 0;
+              const tooManySingles = nextRun > MAX_SINGLES_IN_A_ROW;
+              if (strict && tooManySingles) {
+                continue;
+              }
+              const state = layout * runs + nextRun;
+              const next =
+                base +
+                choice.cost +
+                (layout === lastLayout ? LAYOUT_REPEAT_PENALTY : 0) +
+                (tooManySingles ? SINGLES_PENALTY : 0);
               if (next >= cost[j + 1][i + size][state] - 1e-9) {
                 continue;
               }
@@ -398,7 +806,7 @@ class LayoutPlanner {
     }
 
     let best = -1;
-    for (let state = 0; state < none; state++) {
+    for (let state = 0; state < none * runs; state++) {
       if (cost[pages][n][state] < Infinity && (best === -1 || cost[pages][n][state] < cost[pages][n][best] - 1e-9)) {
         best = state;
       }
@@ -411,8 +819,8 @@ class LayoutPlanner {
     let i = n;
     let state = best;
     for (let j = pages; j > 0; j--) {
-      const layout = this.layoutList[state];
-      const size = layout.slots.length;
+      const layout = this.layoutList[Math.floor(state / runs)];
+      const size = units[i - 1].pair ? 1 : layout.slots.length;
       const group = getGroup(i - size, size)!;
       result.unshift(group.choices.find((choice) => choice.layout.id === layout.id)!);
       state = from[j][i][state];
@@ -424,11 +832,13 @@ class LayoutPlanner {
 
 /**
  * The share of a page each photo deserves: proportional to exp(4 × importance), with a bonus for the best two photos
- * of the section, so that the sum over all photos matches the number of pages. Heroes get a whole page.
+ * of the section, so that the sum over all photos matches the number of pages. Heroes get a whole page, and the two
+ * photos of a pair half a page each.
  */
 export const getIdealAreas = (photos: Candidate[], pages: number) => {
   const heroes = photos.filter((photo) => photo.hero);
-  const others = photos.filter((photo) => !photo.hero);
+  const pairs = photos.filter((photo) => photo.pair);
+  const others = photos.filter((photo) => !photo.hero && !photo.pair);
   const featured = new Map(
     photos.length >= 4
       ? others
@@ -439,12 +849,28 @@ export const getIdealAreas = (photos: Candidate[], pages: number) => {
   );
   const weights = others.map((photo) => Math.exp(4 * (photo.importance + (featured.get(photo.id) ?? 0))));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
-  const available = Math.max(pages - heroes.length, others.length / 6);
+  const available = Math.max(pages - heroes.length - pairs.length, others.length / 6);
 
   return new Map([
     ...heroes.map((photo) => [photo.id, 1] as const),
+    ...pairs.flatMap((pair) => pair.pair!.map((photo) => [photo.id, 0.5] as const)),
     ...others.map((photo, i) => [photo.id, clamp((available * weights[i]) / total, 0.12, 1)] as const),
   ]);
+};
+
+/** the fewest pages for the photos: six per page, and a page of its own for every pair */
+const getMinimumPages = (units: Candidate[]) => {
+  let pages = 0;
+  let run = 0;
+  for (const unit of units) {
+    if (unit.pair) {
+      pages += Math.ceil(run / 6) + 1;
+      run = 0;
+    } else {
+      run++;
+    }
+  }
+  return pages + Math.ceil(run / 6);
 };
 
 /** splits `total` pages over sections proportional to their photos: at least one page each, at most six photos per page */
@@ -468,10 +894,13 @@ export const allocatePages = (sizes: number[], total: number) => {
 };
 
 /**
- * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many),
- * each opened by a map (with GPS) or a section opener, followed by content pages. Important photos (heroes,
- * favourites, high scores, faces) get whole pages or hero slots, the others fill denser layouts. Page sizes, layouts
- * and the order of photos in them minimize crop loss, never cut faces and avoid repeating the previous layout.
+ * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
+ * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
+ * opener, followed by content pages. Stacks show one photo (or an artwork next to its original), artwork is limited,
+ * and no photo is placed in a slot it can't fill at print resolution. Important photos (heroes, favourites, high
+ * scores, faces) get whole pages or hero slots, the others fill denser layouts, and the main people are kept in every
+ * section. Page sizes, layouts and the order of photos in them minimize crop loss, never cut faces, and avoid
+ * repeated layouts, long runs of single photos, artwork back to back and similar photos on neighbouring pages.
  * The result only depends on the input.
  */
 export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOptions): AutoLayoutPlan => {
@@ -481,28 +910,68 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const includeMaps = options.includeMaps ?? true;
   const mapStyle = options.mapStyle ?? 'sketch';
   const withCover = options.cover ?? true;
+  const captions = options.captions ?? 'place';
   const layoutIds = new Set(layouts.map((layout) => layout.id));
   const hasLayout = (id: string) => layoutIds.has(id);
 
   const seen = new Set<string>();
-  const photos: Candidate[] = input
-    .filter((photo) => !seen.has(photo.id) && !!seen.add(photo.id))
+  const unique = input.filter((photo) => !seen.has(photo.id) && !!seen.add(photo.id));
+  const mainPersonIds =
+    options.mainPersonIds ?? getMainPeople(unique.map((photo) => ({ personIds: photo.people?.map(({ id }) => id) })));
+  const mainPeople = new Set(mainPersonIds);
+  const photos: Candidate[] = unique
     .map((photo) => ({
       ...photo,
       hero: heroes.has(photo.id),
-      importance: getImportance(photo, heroes.has(photo.id)),
+      importance: getImportance(photo, heroes.has(photo.id), mainPeople),
       located: isLocated(photo),
+      artwork: photo.kind === 'artwork',
     }))
     .toSorted(byTime);
 
-  const empty: AutoLayoutPlan = { pages: [], sections: [], usedIds: [], droppedIds: [] };
+  const empty: AutoLayoutPlan = {
+    pages: [],
+    sections: [],
+    usedIds: [],
+    droppedIds: [],
+    dropReasons: {},
+    people: [],
+  };
   if (photos.length === 0) {
     return empty;
   }
 
-  const target = Math.max(1, Math.round(options.targetPageCount ?? getTargetPageCount(photos.length)));
+  const dropReasons = new Map<string, AutoLayoutDropReason>();
+  const drop = (photo: Candidate, reason: AutoLayoutDropReason) => {
+    for (const member of membersOf(photo)) {
+      if (!dropReasons.has(member.id)) {
+        dropReasons.set(member.id, reason);
+      }
+    }
+  };
+
+  // photos too small for every slot, then one photo (or an intentional pair) per stack
+  const printable: Candidate[] = [];
+  for (const photo of photos) {
+    if (planner.isPrintable(photo)) {
+      printable.push(photo);
+    } else {
+      drop(photo, 'resolution');
+    }
+  }
+  const stackCount = new Set(printable.map((photo) => photo.stackId ?? photo.id)).size;
+  const target = Math.max(1, Math.round(options.targetPageCount ?? getTargetPageCount(stackCount)));
+  const artworkBudget = Math.round(target * clamp(options.maxArtworkShare ?? DEFAULT_MAX_ARTWORK_SHARE, 0, 1));
+  const units = resolveStacks(
+    printable,
+    artworkBudget,
+    Math.max(0, options.maxStackPairs ?? DEFAULT_MAX_STACK_PAIRS),
+    drop,
+  );
+
   const pages: AutoLayoutPage[] = [];
   const used = new Set<string>();
+  const pagePhotos = new Map<AutoLayoutPage, Candidate[]>();
   const place = (photo: Candidate, layout: BookLayout, slot = 0): AutoLayoutSlot => {
     used.add(photo.id);
     const aspect = planner.getShapes(layout)[slot].aspect;
@@ -510,22 +979,26 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   };
 
   const fitsSlot = (photo: Candidate, layout: BookLayout, slot = 0) => {
-    const crop = planner.getCrop(photo, planner.getShapes(layout)[slot].aspect);
+    const shape = planner.getShapes(layout)[slot];
+    const crop = planner.getCrop(photo, shape.aspect);
     return crop.feasible && 1 - crop.kept <= MAX_CROP_LOSS;
   };
 
-  /** the best of the top candidates that fits the slot well, or the best candidate */
+  /** the best of the top photos that fits the slot well, or the best photo; never artwork or a too small photo */
   const pickFor = (candidates: Candidate[], layout: BookLayout, top = 3) => {
-    const ranked = candidates.toSorted(byImportance);
+    const shape = planner.getShapes(layout)[0];
+    const ranked = candidates
+      .filter((photo) => !photo.artwork && !photo.pair && planner.isSharpEnough(photo, shape))
+      .toSorted(byImportance);
     return ranked.slice(0, top).find((photo) => fitsSlot(photo, layout)) ?? ranked[0];
   };
 
-  let pool = photos;
+  let pool = units;
   const coverLayout = layouts.find((layout) => layout.id === 'cover');
-  if (withCover && coverLayout && photos.length > 1) {
-    const cover = pickFor(photos, coverLayout, 5);
+  const cover = withCover && coverLayout && units.length > 1 ? pickFor(units, coverLayout, 5) : undefined;
+  if (cover && coverLayout) {
     pages.push({ layout: 'cover', slots: [place(cover, coverLayout)] });
-    pool = photos.filter((photo) => photo.id !== cover.id);
+    pool = units.filter((photo) => photo.id !== cover.id);
   }
 
   // one photo per near-duplicate cluster, unless that leaves too few photos for the pages
@@ -539,7 +1012,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   }
   for (const [clusterId, members] of byCluster) {
     // a cluster already represented on the cover counts as used
-    const offset = used.size > 0 && photos.some((p) => used.has(p.id) && p.clusterId === clusterId) ? 1 : 0;
+    const offset = cover?.clusterId === clusterId ? 1 : 0;
     for (const [rank, photo] of members.toSorted(byImportance).entries()) {
       clusterRanks.set(photo.id, rank + offset);
     }
@@ -554,10 +1027,19 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       .slice(0, wanted - kept.length);
     kept = [...kept, ...extras].toSorted(byTime);
   }
+  for (const photo of pool) {
+    if (!kept.includes(photo)) {
+      drop(photo, 'duplicate');
+    }
+  }
 
-  // sections
-  const maxSections = Math.max(1, Math.round(contentEstimate / 4.5));
+  // sections; a short book gets more, smaller chapters
+  const shortBook = isShortSpan(photos.map((photo) => ({ time: photo.takenAt })));
+  const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
   const sections = mergeEvents(getEvents(kept, options.events), maxSections, MIN_SECTION_SIZE);
+  const singleDay =
+    sections.length > 1 &&
+    formatDateRange(photos[0].takenAt, photos.at(-1)!.takenAt) === dateFormat.format(photos[0].takenAt);
 
   type SectionPlan = {
     photos: Candidate[];
@@ -569,7 +1051,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   };
 
   const sectionPlans: SectionPlan[] = sections.map((section) => {
-    const ids = new Set(section.map((photo) => photo.id));
+    const ids = new Set(section.flatMap((unit) => membersOf(unit).map((photo) => photo.id)));
     const all = photos.filter((photo) => ids.has(photo.id));
     const located = section.some((photo) => photo.located);
     let opener: SectionPlan['opener'] = null;
@@ -578,11 +1060,12 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     } else if (sections.length > 1 && section.length >= 4 && hasLayout('section-opener')) {
       opener = 'section-opener';
     }
+    const dates = formatDateRange(section[0].takenAt, section.at(-1)!.takenAt);
     return {
       photos: section,
       all,
       title: getSectionTitle(section),
-      dates: formatDateRange(section[0].takenAt, section.at(-1)!.takenAt),
+      dates: singleDay ? `${dates} · ${formatTime(section[0].takenAt)}` : dates,
       opener,
     };
   });
@@ -608,38 +1091,46 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   for (const section of sectionPlans) {
     const layout = section.opener === 'map' ? undefined : layouts.find((item) => item.id === section.opener);
-    if (layout && section.photos.length > 1) {
-      section.openerPhoto = pickFor(section.photos, layout);
-      section.photos = section.photos.filter((photo) => photo.id !== section.openerPhoto!.id);
+    const openerPhoto = layout && section.photos.length > 1 ? pickFor(section.photos, layout) : undefined;
+    if (openerPhoto) {
+      section.openerPhoto = openerPhoto;
+      section.photos = section.photos.filter((photo) => photo.id !== openerPhoto.id);
     } else if (section.opener === 'section-opener' || section.opener === 'map-photo') {
       section.opener = includeMaps && section.opener === 'map-photo' ? 'map' : null;
     }
   }
 
-  // page budget: drop the least important photos when the pages would get too dense
+  // page budget: drop the least important photos when the pages would get too dense, keeping the main people
   let content = Math.max(sectionPlans.length, contentPages());
   const totalPhotos = sectionPlans.reduce((sum, section) => sum + section.photos.length, 0);
   const maxPhotos = Math.floor(content * MAX_DENSITY);
   if (totalPhotos > maxPhotos) {
+    const keepPeople = getPersonMinimums(
+      sectionPlans.map((section) => section.photos),
+      mainPersonIds,
+      options.minPerPersonPerSection ?? MAIN_PEOPLE_DEFAULTS.perEvent,
+      options.minPerPersonPerBook ?? MAIN_PEOPLE_DEFAULTS.perBook,
+    );
     const droppable = sectionPlans
-      .flatMap((section) => section.photos.filter((photo) => !photo.hero))
+      .flatMap((section) => section.photos.filter((photo) => !photo.hero && !keepPeople.has(photo.id)))
       .toSorted((a, b) => a.importance - b.importance || byTime(b, a));
     const remaining = new Map(sectionPlans.map((section, i) => [i, section.photos.length]));
     const sectionOf = new Map(sectionPlans.flatMap((section, i) => section.photos.map((photo) => [photo.id, i])));
-    const drop = new Set<string>();
+    const dropped = new Set<string>();
     for (const photo of droppable) {
-      if (totalPhotos - drop.size <= maxPhotos) {
+      if (totalPhotos - dropped.size <= maxPhotos) {
         break;
       }
       const index = sectionOf.get(photo.id)!;
       if (remaining.get(index)! <= 1) {
         continue;
       }
-      drop.add(photo.id);
+      dropped.add(photo.id);
+      drop(photo, 'budget');
       remaining.set(index, remaining.get(index)! - 1);
     }
     for (const section of sectionPlans) {
-      section.photos = section.photos.filter((photo) => !drop.has(photo.id));
+      section.photos = section.photos.filter((photo) => !dropped.has(photo.id));
     }
   }
 
@@ -650,21 +1141,34 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   );
   const allocation = allocatePages(sizes, content);
 
-  const lastLayout = () => pages.at(-1)?.layout;
   const newMap = (extra: Partial<BookMap> = {}): BookMap => ({
     style: mapStyle,
     showRoute: true,
     labels: true,
     ...extra,
   });
+  const context = (): PartitionContext => {
+    let singles = 0;
+    while (singles < pages.length && isSinglePhotoPage(pages.at(-1 - singles)!.layout)) {
+      singles++;
+    }
+    const last = pages.at(-1);
+    return {
+      previous: last?.layout,
+      previousPhotos: last ? (pagePhotos.get(last) ?? []) : [],
+      singles,
+      pageNumber: pages.length + 1,
+    };
+  };
+  const openerCaption = (value: string) => (captions === 'none' ? {} : { caption: value });
 
   if (overview) {
-    const located = kept.filter((photo) => photo.located).map((photo) => photo.id);
+    const located = kept.flatMap((unit) => membersOf(unit)).filter((photo) => photo.located);
     pages.push({
       layout: 'map',
       slots: [],
-      caption: formatDateRange(kept[0].takenAt, kept.at(-1)!.takenAt),
-      map: newMap({ assetIds: located }),
+      ...openerCaption(formatDateRange(photos[0].takenAt, photos.at(-1)!.takenAt)),
+      map: newMap({ assetIds: located.map((photo) => photo.id) }),
     });
   }
 
@@ -679,7 +1183,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
           layout: 'map',
           slots: [],
           sectionTitle: section.title,
-          caption: section.dates,
+          ...openerCaption(section.dates),
           map: newMap({ title: section.title }),
           section: index,
         });
@@ -688,14 +1192,16 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       case 'map-photo':
       case 'section-opener': {
         const layout = layouts.find((item) => item.id === section.opener)!;
-        pages.push({
+        const page: AutoLayoutPage = {
           layout: layout.id,
           slots: [place(section.openerPhoto!, layout)],
           sectionTitle: section.title,
-          ...(section.title !== section.dates && { caption: section.dates }),
+          ...(section.title !== section.dates && openerCaption(section.dates)),
           ...(section.opener === 'map-photo' && { map: newMap() }),
           section: index,
-        });
+        };
+        pages.push(page);
+        pagePhotos.set(page, [section.openerPhoto!]);
         break;
       }
       case null: {
@@ -707,22 +1213,39 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       continue;
     }
 
-    const count = clamp(allocation[index], Math.ceil(section.photos.length / 6), section.photos.length);
-    const previous = lastLayout();
-    const planned =
-      planner.partition(section.photos, count, true, previous) ??
-      planner.partition(section.photos, count, false, previous) ??
-      planner.partition(section.photos, Math.ceil(section.photos.length / 6), false, previous) ??
-      [];
-    for (const choice of planned) {
-      pages.push({
+    const fewest = getMinimumPages(section.photos);
+    const count = clamp(allocation[index], fewest, section.photos.length);
+    const ctx = context();
+    let planned = planner.partition(section.photos, count, true, ctx);
+    // looser: crops may lose more, runs of singles and artwork back to back are only penalized, then fewer pages
+    for (let pageCount = count; !planned && pageCount >= fewest; pageCount--) {
+      planned = planner.partition(section.photos, pageCount, false, ctx);
+    }
+    let previousCaption: string | undefined;
+    for (const choice of planned ?? []) {
+      const page: AutoLayoutPage = {
         layout: choice.layout.id,
         slots: choice.order.map((photo, i) => {
           used.add(photo.id);
           return { assetId: photo.id, crop: choice.crops[i] };
         }),
         section: index,
+      };
+      const caption = getFactualCaption(choice.order, captions, {
+        sectionTitle: section.title,
+        previous: previousCaption,
       });
+      if (caption) {
+        page.caption = caption;
+        previousCaption = caption;
+      }
+      pages.push(page);
+      pagePhotos.set(page, choice.order);
+    }
+    for (const photo of section.photos.flatMap((unit) => membersOf(unit))) {
+      if (!used.has(photo.id)) {
+        drop(photo, 'resolution');
+      }
     }
   }
 
@@ -735,6 +1258,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     });
   }
 
+  const droppedIds = photos.filter((photo) => !used.has(photo.id)).map((photo) => photo.id);
+  const names = new Map<string, string>();
+  for (const person of photos.flatMap((photo) => photo.people ?? [])) {
+    if (person.name) {
+      names.set(person.id, person.name);
+    }
+  }
+  const has = (photo: AutoLayoutPhoto, personId: string) => photo.people?.some(({ id }) => id === personId) ?? false;
+
   return {
     pages,
     sections: sectionPlans.map((section) => ({
@@ -744,6 +1276,13 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       located: section.all.some((photo) => photo.located),
     })),
     usedIds: photos.filter((photo) => used.has(photo.id)).map((photo) => photo.id),
-    droppedIds: photos.filter((photo) => !used.has(photo.id)).map((photo) => photo.id),
+    droppedIds,
+    dropReasons: Object.fromEntries(droppedIds.map((id) => [id, dropReasons.get(id) ?? 'budget'])),
+    people: mainPersonIds.map((personId) => ({
+      personId,
+      ...(names.has(personId) && { name: names.get(personId) }),
+      photos: photos.filter((photo) => has(photo, personId)).length,
+      placed: photos.filter((photo) => used.has(photo.id) && has(photo, personId)).length,
+    })),
   };
 };

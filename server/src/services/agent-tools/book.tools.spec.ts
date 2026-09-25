@@ -10,7 +10,7 @@ const text = (result: Awaited<ReturnType<AgentTool['handler']>>) =>
   result.content.find((item) => item.type === 'text')?.text ?? '';
 
 const layoutResult = (bookId = newUuid()): BookAutoLayoutResult => {
-  const [a, b, c] = [newUuid(), newUuid(), newUuid()];
+  const [a, b, c, dropped] = [newUuid(), newUuid(), newUuid(), newUuid()];
   const map = { style: 'sketch' as const, showRoute: true, labels: true };
   return {
     book: {
@@ -29,7 +29,9 @@ const layoutResult = (bookId = newUuid()): BookAutoLayoutResult => {
       ],
       sections: [{ title: 'Rome', dates: '1 June 2024', photoIds: [a, b, c], located: true }],
       usedIds: [a, b, c],
-      droppedIds: [newUuid()],
+      droppedIds: [dropped],
+      dropReasons: { [dropped]: 'budget' },
+      people: [],
     },
     photoCount: 4,
     warnings: ['a warning'],
