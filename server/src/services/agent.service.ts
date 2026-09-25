@@ -360,11 +360,11 @@ export class AgentService extends BaseService {
     return this.toolService;
   }
 
-  private getToolNames() {
-    return new Set(
+  private getTools() {
+    return new Map(
       this.getToolService()
         .getTools()
-        .map((tool) => tool.name),
+        .map((tool) => [tool.name, tool]),
     );
   }
 
@@ -744,7 +744,7 @@ export class AgentService extends BaseService {
 
   private async onToolCall(run: RunningAgent, update: AcpToolCallUpdate & { sessionUpdate: string }) {
     let entry = run.toolCalls.get(update.toolCallId);
-    const immichTool = getImmichToolName(update, this.getToolNames());
+    const immichTool = getImmichToolName(update, new Set(this.getTools().keys()));
 
     if (!entry && immichTool) {
       // the MCP request can arrive before the agent reports the tool call
@@ -773,7 +773,7 @@ export class AgentService extends BaseService {
         toolCallId: update.toolCallId,
         ...((immichTool || !entry) && { toolName: immichTool ?? getAgentToolName(update) }),
         ...(immichTool
-          ? { title: this.getToolService().getTool(immichTool)?.title ?? immichTool }
+          ? { title: this.getTools().get(immichTool)?.title ?? immichTool }
           : update.title && !entry?.fromMcp
             ? { title: update.title }
             : {}),
@@ -819,7 +819,7 @@ export class AgentService extends BaseService {
   private onPermissionRequest(run: RunningAgent, request: AcpPermissionRequest): Promise<AcpPermissionResponse> {
     const { toolCall, options } = request;
     const known = run.toolCalls.get(toolCall.toolCallId);
-    const isImmich = !!getImmichToolName(toolCall, this.getToolNames()) || !!known?.immich;
+    const isImmich = !!getImmichToolName(toolCall, new Set(this.getTools().keys())) || !!known?.immich;
 
     const select = (kinds: string[]): AcpPermissionResponse => {
       const option = kinds.map((kind) => options.find((option) => option.kind === kind)).find(Boolean);
