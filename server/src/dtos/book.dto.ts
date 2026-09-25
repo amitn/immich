@@ -68,6 +68,56 @@ export const resolveBookStyle = (style?: Partial<BookStyle> | null): Required<Bo
   ...Object.fromEntries(Object.entries(style ?? {}).filter(([, value]) => value !== undefined && value !== null)),
 });
 
+export const bookStylePresetIds = ['classic', 'soft', 'bold'] as const;
+
+export type BookStylePreset = (typeof bookStylePresetIds)[number];
+
+export const BookStylePresetSchema = z
+  .enum(bookStylePresetIds)
+  .describe(
+    'Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, ' +
+      'serif) or bold (small margins, tight gutters, sans-serif; suits full-bleed photos). The style options ' +
+      'override its values',
+  )
+  .meta({ id: 'BookStylePreset' });
+
+export const bookStylePresets: Record<
+  BookStylePreset,
+  { name: string; description: string; style: Required<BookStyle> }
+> = {
+  classic: {
+    name: 'Classic',
+    description: 'White pages, 12 mm margins and a serif font',
+    style: { ...defaultBookStyle },
+  },
+  soft: {
+    name: 'Soft',
+    description: 'Warm cream pages, muted brown text, generous 18 mm margins and a serif font',
+    style: {
+      marginMm: 18,
+      gutterMm: 5,
+      background: '#f6f1e7',
+      textColor: '#5b4636',
+      fontFamily: 'serif',
+      titleSizePt: 28,
+      captionSizePt: 10,
+    },
+  },
+  bold: {
+    name: 'Bold',
+    description: 'Small 6 mm margins, tight 2.5 mm gutters and a sans-serif font; made for full-bleed photos',
+    style: {
+      marginMm: 6,
+      gutterMm: 2.5,
+      background: '#ffffff',
+      textColor: '#111111',
+      fontFamily: 'sans-serif',
+      titleSizePt: 32,
+      captionSizePt: 9,
+    },
+  },
+};
+
 export const BookStyleUpdateSchema = BookStyleSchema.partial()
   .describe('Style changes; omitted properties keep their current value')
   .meta({ id: 'BookStyleUpdate' });
@@ -113,6 +163,7 @@ const BookCreateSchema = z
     albumId: z.uuidv4().nullable().optional().describe('Album the book is made from'),
     pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters (default 210)'),
     pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters (default 210)'),
+    stylePreset: BookStylePresetSchema.optional(),
     style: BookStyleUpdateSchema.optional(),
   })
   .meta({ id: 'BookCreateDto' });
@@ -125,6 +176,9 @@ const BookUpdateSchema = z
     coverAssetId: z.uuidv4().nullable().optional().describe('Asset shown on the cover when its slot is empty'),
     pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters'),
     pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters'),
+    stylePreset: BookStylePresetSchema.optional().describe(
+      'Replace the style with a preset (see GET /books/style-presets); style overrides its values',
+    ),
     style: BookStyleUpdateSchema.optional(),
   })
   .meta({ id: 'BookUpdateDto' });
@@ -199,6 +253,7 @@ const BookFromAlbumSchema = z
     subtitle: optionalText(200).describe('Book subtitle'),
     pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters (default 210)'),
     pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters (default 210)'),
+    stylePreset: BookStylePresetSchema.optional(),
     style: BookStyleUpdateSchema.optional(),
     targetPageCount,
     includeMaps,
@@ -331,6 +386,92 @@ const BookDetailResponseSchema = BookResponseSchema.extend({
   pages: z.array(BookPageResponseSchema).describe('Pages in book order'),
 }).meta({ id: 'BookDetailResponseDto' });
 
+const BookAutoLayoutResponseSchema = BookDetailResponseSchema.extend({
+  warnings: z
+    .array(z.string())
+    .describe('Problems met while laying out the book, e.g. a map style that is not available'),
+}).meta({ id: 'BookAutoLayoutResponseDto' });
+
+export const bookReviewSeverities = ['high', 'medium', 'low'] as const;
+
+export const bookReviewIssueTypes = [
+  'duplicate-stack',
+  'low-dpi',
+  'empty-slot',
+  'too-much-artwork',
+  'artwork-back-to-back',
+  'singles-in-a-row',
+  'similar-neighbours',
+  'map-style-fallback',
+  'person-underrepresented',
+  'too-many-pairs',
+  'repeated-layout',
+  'missing-captions',
+] as const;
+
+const BookReviewIssueSchema = z
+  .object({
+    severity: z.enum(bookReviewSeverities).describe('How much the issue hurts the book'),
+    type: z.enum(bookReviewIssueTypes).describe('Kind of issue'),
+    message: z.string().describe('What is wrong and how to fix it'),
+    pages: z.array(z.int().min(1)).describe('One-based page numbers'),
+    slot: z.int().min(1).optional().describe('One-based slot number'),
+    assetIds: z.array(z.uuidv4()).optional().describe('Photos involved, or photos to use instead'),
+    dpi: z.int().optional().describe('Print resolution of the placement'),
+  })
+  .meta({ id: 'BookReviewIssueDto' });
+
+const BookReviewSuggestionSchema = z
+  .object({
+    assetId: z.uuidv4().describe('Photo ID'),
+    score: z.number().describe('Quality score, 0..1').meta({ format: 'double' }),
+    people: z.array(z.string()).optional().describe('Named people in the photo'),
+    city: z.string().optional().describe('Place of the photo'),
+  })
+  .meta({ id: 'BookReviewSuggestionDto' });
+
+const BookReviewPlacementSchema = z
+  .object({
+    assetId: z.uuidv4().describe('Photo ID'),
+    score: z.number().describe('Quality score, 0..1').meta({ format: 'double' }),
+    page: z.int().min(1).describe('One-based page number'),
+    slot: z.int().min(1).describe('One-based slot number'),
+  })
+  .meta({ id: 'BookReviewPlacementDto' });
+
+const BookReviewResponseSchema = z
+  .object({
+    pageCount: z.int().min(0).describe('Number of pages'),
+    counts: z
+      .object({ high: z.int().min(0), medium: z.int().min(0), low: z.int().min(0) })
+      .describe('Number of issues per severity'),
+    issues: z.array(BookReviewIssueSchema).describe('Issues, most severe first'),
+    unusedPhotos: z
+      .array(BookReviewSuggestionSchema)
+      .describe('The best photos of the album that are not in the book, photos of the main people first'),
+    weakestPlaced: z.array(BookReviewPlacementSchema).describe('The lowest scoring photos in the book'),
+    people: z
+      .array(
+        z.object({
+          personId: z.uuidv4().describe('Person ID'),
+          name: z.string().optional().describe('Person name'),
+          photos: z.int().min(0).describe('Photos of the person in the album'),
+          placed: z.int().min(0).describe('Photos of the person in the book'),
+        }),
+      )
+      .describe('The people who appear most often in the album'),
+  })
+  .meta({ id: 'BookReviewResponseDto' });
+
+const BookStylePresetResponseSchema = z
+  .object({
+    id: BookStylePresetSchema,
+    name: z.string().describe('Preset name'),
+    description: z.string().describe('Preset description'),
+    style: BookStyleSchema,
+  })
+  .meta({ id: 'BookStylePresetResponseDto' });
+
 const LayoutRectSchema = z
   .object({
     x: z.number().describe('Left edge, as a fraction of the layout area').meta({ format: 'double' }),
@@ -376,6 +517,9 @@ export class BookSlotResponseDto extends createZodDto(BookSlotResponseSchema) {}
 export class BookPageResponseDto extends createZodDto(BookPageResponseSchema) {}
 export class BookResponseDto extends createZodDto(BookResponseSchema) {}
 export class BookDetailResponseDto extends createZodDto(BookDetailResponseSchema) {}
+export class BookAutoLayoutResponseDto extends createZodDto(BookAutoLayoutResponseSchema) {}
+export class BookStylePresetResponseDto extends createZodDto(BookStylePresetResponseSchema) {}
+export class BookReviewResponseDto extends createZodDto(BookReviewResponseSchema) {}
 export class BookLayoutResponseDto extends createZodDto(BookLayoutResponseSchema) {}
 
 type BookRow = Selectable<BookTable> & { pageCount: number; firstPageId: string | null };
@@ -451,4 +595,10 @@ export const mapBookLayout = (layout: BookLayout): BookLayoutResponseDto => ({
   ...(layout.map && {
     mapArea: { x: layout.map.x, y: layout.map.y, width: layout.map.width, height: layout.map.height },
   }),
+});
+
+export const mapBookStylePreset = (id: BookStylePreset): BookStylePresetResponseDto => ({
+  id,
+  ...bookStylePresets[id],
+  style: { ...bookStylePresets[id].style },
 });

@@ -266,19 +266,19 @@ describe('parsePolygon', () => {
 });
 
 describe('resolveMapStyle', () => {
-  it('should resolve auto to the default style and fall back to sketch without a key', () => {
-    expect(resolveMapStyle('auto', { defaultStyle: 'toner', stadiaApiKey: 'key' })).toEqual({
-      style: 'toner',
-      fallback: false,
+  it('should resolve auto to the default style, or to sketch without a key', () => {
+    expect(resolveMapStyle('auto', { defaultStyle: 'toner', stadiaApiKey: 'key' })).toEqual({ style: 'toner' });
+    expect(resolveMapStyle(undefined, { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({ style: 'sketch' });
+    expect(resolveMapStyle('sketch', { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({ style: 'sketch' });
+  });
+
+  it('should keep a style asked for without a key and warn that it is drawn as a sketch', () => {
+    expect(resolveMapStyle('watercolor', { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({
+      style: 'watercolor',
+      warning:
+        'Watercolor maps need a Stadia Maps API key (Administration → Settings → Photo books); using the offline sketch style',
     });
-    expect(resolveMapStyle(undefined, { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({
-      style: 'sketch',
-      fallback: true,
-    });
-    expect(resolveMapStyle('sketch', { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({
-      style: 'sketch',
-      fallback: false,
-    });
+    expect(resolveMapStyle('terrain', { defaultStyle: 'sketch', stadiaApiKey: 'key' })).toEqual({ style: 'terrain' });
   });
 });
 

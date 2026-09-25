@@ -111,6 +111,29 @@ describe(MediaRepository.name, () => {
     });
   });
 
+  describe('upscaleImage', () => {
+    it('should enlarge artwork in its own format and keep its colours', async () => {
+      const artwork = await solid(1024, 683, { r: 200, g: 120, b: 60 })
+        .composite([{ input: await noise(200, 200).png().toBuffer(), left: 400, top: 240 }])
+        .png()
+        .toBuffer();
+
+      const png = await sut.upscaleImage(artwork, { width: 2400, height: 1601 }, '.png');
+      expect(await sharp(png).metadata()).toMatchObject({ format: 'png', width: 2400, height: 1601 });
+      expectColor(await pixelAt(png, 100, 100), [200, 120, 60], 4);
+
+      const jpeg = await sut.upscaleImage(artwork, { width: 2400, height: 1601 }, 'jpg');
+      expect(await sharp(jpeg).metadata()).toMatchObject({ format: 'jpeg', width: 2400, height: 1601 });
+
+      const webp = await sut.upscaleImage(
+        await sharp(artwork).webp().toBuffer(),
+        { width: 3000, height: 2001 },
+        'webp',
+      );
+      expect(await sharp(webp).metadata()).toMatchObject({ format: 'webp', width: 3000, height: 2001 });
+    });
+  });
+
   describe('analyzeImage', () => {
     it('should measure a flat grey image', async () => {
       const image = await solid(800, 600, { r: 128, g: 128, b: 128 }).png().toBuffer();

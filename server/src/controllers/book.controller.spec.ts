@@ -139,6 +139,51 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('GET /books/style-presets', () => {
+    it('should list the presets', async () => {
+      service.getStylePresets.mockReturnValue([]);
+      const { status } = await request(ctx.getHttpServer()).get('/books/style-presets');
+      expect(status).toBe(200);
+      expect(service.getStylePresets).toHaveBeenCalled();
+      expect(service.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('style presets', () => {
+    it('should accept a preset when creating a book', async () => {
+      await request(ctx.getHttpServer()).post('/books').send({ title: 'Ride', stylePreset: 'soft' });
+      expect(service.create).toHaveBeenCalledWith(undefined, { title: 'Ride', stylePreset: 'soft' });
+    });
+
+    it('should reject unknown presets', async () => {
+      const { status } = await request(ctx.getHttpServer()).post('/books').send({ title: 'Ride', stylePreset: 'loud' });
+      expect(status).toBe(400);
+    });
+
+    it('should accept the layout options when creating a book from an album', async () => {
+      const albumId = factory.uuid();
+      const dto = { albumId, stylePreset: 'bold', captions: 'place-time', maxArtworkShare: 0.25 };
+      const { status } = await request(ctx.getHttpServer()).post('/books/from-album').send(dto);
+      expect(status).toBe(201);
+      expect(service.createFromAlbum).toHaveBeenCalledWith(undefined, dto);
+    });
+  });
+
+  describe('GET /books/:id/review', () => {
+    it('should review the book', async () => {
+      const id = factory.uuid();
+      service.getReview.mockResolvedValue({} as never);
+      const { status } = await request(ctx.getHttpServer()).get(`/books/${id}/review`);
+      expect(status).toBe(200);
+      expect(service.getReview).toHaveBeenCalledWith(undefined, id);
+    });
+
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/books/123/review');
+      expect(status).toBe(400);
+    });
+  });
+
   describe('GET /books/:id', () => {
     it('should require a valid id', async () => {
       const { status, body } = await request(ctx.getHttpServer()).get('/books/123');

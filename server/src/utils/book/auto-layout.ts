@@ -207,7 +207,9 @@ export const getPhotoKind = (asset: {
 };
 
 /** 0 for different photos, 1 for near-duplicates, by the CLIP distance; photos of one stack are not compared */
-export const getPhotoSimilarity = (a: AutoLayoutPhoto, b: AutoLayoutPhoto) => {
+type SimilarityPhoto = Pick<AutoLayoutPhoto, 'id' | 'embedding' | 'stackId'>;
+
+export const getPhotoSimilarity = (a: SimilarityPhoto, b: SimilarityPhoto) => {
   if (!a.embedding || !b.embedding || a.id === b.id || (a.stackId && a.stackId === b.stackId)) {
     return 0;
   }
@@ -1218,8 +1220,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     const ctx = context();
     let planned = planner.partition(section.photos, count, true, ctx);
     // looser: crops may lose more, runs of singles and artwork back to back are only penalized, then fewer pages
-    for (let pageCount = count; !planned && pageCount >= fewest; pageCount--) {
-      planned = planner.partition(section.photos, pageCount, false, ctx);
+    const counts = new Set([count, count - 1, count - 2, fewest].filter((pageCount) => pageCount >= fewest));
+    for (const pageCount of counts) {
+      planned ??= planner.partition(section.photos, pageCount, false, ctx);
     }
     let previousCaption: string | undefined;
     for (const choice of planned ?? []) {

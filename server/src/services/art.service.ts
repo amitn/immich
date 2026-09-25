@@ -166,10 +166,22 @@ export class ArtService extends BaseService {
         throw new Error('The art agent produced an invalid image');
       }
 
+      // generated images are often too small to fill a printed page; painterly styles take upscaling well
+      let output = image;
+      let upscaled = '';
+      const size = getArtUpscaleSize(width, height);
+      if (size) {
+        output = { ...image, buffer: await this.mediaRepository.upscaleImage(image.buffer, size, image.extension) };
+        upscaled = `, upscaled from ${width}×${height} to ${size.width}×${size.height}`;
+        this.logger.log(
+          `Art job ${job.id}: upscaled the artwork from ${width}×${height} to ${size.width}×${size.height}`,
+        );
+      }
+
       const style = job.style ? getArtStyle(job.style) : undefined;
       const derivedAssetService = BaseService.create(DerivedAssetService, this);
-      const { id } = await derivedAssetService.createDerivedAsset(auth, job.sourceAssetId, image, {
-        description: `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}`,
+      const { id } = await derivedAssetService.createDerivedAsset(auth, job.sourceAssetId, output, {
+        description: `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}${upscaled}`,
         suffix: style?.id ?? 'art',
         tags: [getArtworkTag(style?.name)],
       });
@@ -220,6 +232,21 @@ export class ArtService extends BaseService {
 }
 
 const isUnfinished = (status: ArtJobStatus) => status === ArtJobStatus.Pending || status === ArtJobStatus.Running;
+
+/** artwork with a shorter long edge is upscaled, to fill a 20 cm page at 300 dpi or a larger one at 150 dpi */
+export const ART_MIN_LONG_EDGE = 2400;
+export const ART_MAX_LONG_EDGE = 3000;
+
+/** the size artwork is upscaled to: twice its size, but at least 2400 and at most 3000 px on the long edge */
+export const getArtUpscaleSize = (width: number, height: number) => {
+  const longEdge = Math.max(width, height);
+  if (!width || !height || longEdge >= ART_MIN_LONG_EDGE) {
+    return;
+  }
+  const target = Math.max(ART_MIN_LONG_EDGE, Math.min(ART_MAX_LONG_EDGE, 2 * longEdge));
+  const scale = target / longEdge;
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+};
 
 export const getArtInstructions = (artDirection: string, source: { width: number; height: number }) =>
   [

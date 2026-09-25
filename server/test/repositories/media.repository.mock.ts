@@ -32,5 +32,6 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     resizeToJpeg: vitest.fn(),
     createContactSheet: vitest.fn(),
     analyzeImage: vitest.fn(),
+    upscaleImage: vitest.fn(),
   };
 };

@@ -1,13 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
 import type { AcpAgent, AcpClientHandlers, AcpPermissionRequest } from 'src/repositories/acp.repository.js';
 import { ArtJobStatus, AssetType } from 'src/enum.js';
-import { ArtService, decideArtPermission, getArtInstructions, getGeneratedImage } from 'src/services/art.service.js';
+import {
+  ArtService,
+  decideArtPermission,
+  getArtInstructions,
+  getArtUpscaleSize,
+  getGeneratedImage,
+} from 'src/services/art.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { factory } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const PNG = Buffer.from('fake png');
+const UPSCALED = Buffer.from('upscaled png');
 
 const newJob = (overrides: Record<string, unknown> = {}) => ({
   id: factory.uuid(),
@@ -187,6 +194,7 @@ describe(ArtService.name, () => {
       mocks.storage.createFile.mockResolvedValue();
       mocks.storage.readdir.mockResolvedValue([]);
       mocks.media.getImageMetadata.mockResolvedValue({ width: 1440, height: 1080, isTransparent: false });
+      mocks.media.upscaleImage.mockResolvedValue(UPSCALED);
     });
 
     it('should save the image returned over ACP as a derived asset', async () => {
@@ -202,11 +210,15 @@ describe(ArtService.name, () => {
         expect.objectContaining({ type: 'text', text: expect.stringContaining('1440×1080') }),
         { type: 'image', data: Buffer.from('jpeg').toString('base64'), mimeType: 'image/jpeg' },
       ]);
+      expect(mocks.media.upscaleImage).toHaveBeenCalledWith(PNG, { width: 2880, height: 2160 }, '.png');
       expect(derive).toHaveBeenCalledWith(
         auth,
         job.sourceAssetId,
-        { buffer: PNG, extension: '.png' },
-        expect.objectContaining({ suffix: 'watercolor', description: expect.stringContaining('Watercolor artwork') }),
+        { buffer: UPSCALED, extension: '.png' },
+        expect.objectContaining({
+          suffix: 'watercolor',
+          description: expect.stringMatching(/^Watercolor artwork.*, upscaled from 1440×1080 to 2880×2160$/),
+        }),
       );
       expect(mocks.websocket.clientSend).toHaveBeenCalledWith(
         'on_art_job_update',
@@ -215,6 +227,24 @@ describe(ArtService.name, () => {
       );
       expect(agent.kill).toHaveBeenCalled();
       expect(mocks.acp.removeWorkdir).toHaveBeenCalledWith('/tmp/immich-agent/art');
+    });
+
+    it('should keep artwork that is large enough for print', async () => {
+      const derive = vi
+        .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
+        .mockResolvedValue({ id: 'new-asset', duplicate: false });
+      mocks.media.getImageMetadata.mockResolvedValue({ width: 3072, height: 2048, isTransparent: false });
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+
+      await start();
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+      expect(mocks.media.upscaleImage).not.toHaveBeenCalled();
+      expect(derive).toHaveBeenCalledWith(
+        auth,
+        expect.any(String),
+        { buffer: PNG, extension: '.png' },
+        expect.objectContaining({ description: expect.not.stringContaining('upscaled') }),
+      );
     });
 
     it('should fall back to an output file in the workdir', async () => {
@@ -231,7 +261,7 @@ describe(ArtService.name, () => {
       expect(derive).toHaveBeenCalledWith(
         auth,
         expect.any(String),
-        { buffer: Buffer.from('webp'), extension: '.webp' },
+        { buffer: UPSCALED, extension: '.webp' },
         expect.anything(),
       );
     });
@@ -256,6 +286,20 @@ describe(ArtService.name, () => {
       await start();
       await finalUpdate();
       expect(agent.prompt).toHaveBeenCalledWith('acp-session', [expect.objectContaining({ type: 'text' })]);
+    });
+  });
+
+  describe('getArtUpscaleSize', () => {
+    it('should upscale small artwork to a 2400 to 3000 px long edge', () => {
+      expect(getArtUpscaleSize(1024, 1024)).toEqual({ width: 2400, height: 2400 });
+      expect(getArtUpscaleSize(1536, 1024)).toEqual({ width: 3000, height: 2000 });
+      expect(getArtUpscaleSize(1024, 1536)).toEqual({ width: 2000, height: 3000 });
+      expect(getArtUpscaleSize(1200, 900)).toEqual({ width: 2400, height: 1800 });
+    });
+
+    it('should keep large or unknown sizes', () => {
+      expect(getArtUpscaleSize(2400, 1600)).toBeUndefined();
+      expect(getArtUpscaleSize(0, 0)).toBeUndefined();
     });
   });
 

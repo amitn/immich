@@ -21,6 +21,7 @@ import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
   BookAutoLayoutDto,
+  BookAutoLayoutResponseDto,
   BookCreateDto,
   BookDetailResponseDto,
   BookExportDto,
@@ -33,9 +34,11 @@ import {
   BookPageUpdateDto,
   BookRenderQueryDto,
   BookResponseDto,
+  BookReviewResponseDto,
   BookSlotParamDto,
   BookSlotPatchDto,
   BookSlotUpdateDto,
+  BookStylePresetResponseDto,
   BookUpdateDto,
 } from 'src/dtos/book.dto.js';
 import { ApiTag, Permission } from 'src/enum.js';
@@ -75,10 +78,11 @@ export class BookController {
     summary: 'Create a book from an album',
     description:
       'Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event ' +
-      'opened by a map or a section title, and pages whose photo sizes follow the importance of the photos.',
+      'opened by a map or a section title, and pages whose photo sizes follow the importance of the photos. ' +
+      'The warnings report e.g. a map style that is not available.',
     history: history(),
   })
-  createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookDetailResponseDto> {
+  createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookAutoLayoutResponseDto> {
     return this.service.createFromAlbum(auth, dto);
   }
 
@@ -93,6 +97,17 @@ export class BookController {
     return this.service.getLayouts();
   }
 
+  @Get('style-presets')
+  @Authenticated({ permission: Permission.BookRead })
+  @Endpoint({
+    summary: 'List book style presets',
+    description: 'Retrieve the style presets (background, text color, margins, gutters, font) for photo books.',
+    history: history(),
+  })
+  getBookStylePresets(): BookStylePresetResponseDto[] {
+    return this.service.getStylePresets();
+  }
+
   @Get(':id')
   @Authenticated({ permission: Permission.BookRead })
   @Endpoint({
@@ -102,6 +117,21 @@ export class BookController {
   })
   getBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookDetailResponseDto> {
     return this.service.get(auth, id);
+  }
+
+  @Get(':id/review')
+  @Authenticated({ permission: Permission.BookRead })
+  @Endpoint({
+    summary: 'Review a book',
+    description:
+      'A checklist of what to improve in a photo book, most severe first: photo stacks shown twice, low print ' +
+      'resolution, empty slots, too much or back-to-back artwork, long runs of single photos, similar photos on ' +
+      'neighbouring pages, maps drawn as sketches, main people with few photos, repeated layouts and pages without ' +
+      'captions; with the best photos of the album that are not in the book.',
+    history: history(),
+  })
+  getBookReview(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookReviewResponseDto> {
+    return this.service.getReview(auth, id);
   }
 
   @Patch(':id')
@@ -144,7 +174,7 @@ export class BookController {
     @Auth() auth: AuthDto,
     @Param() { id }: UUIDParamDto,
     @Body() dto: BookAutoLayoutDto,
-  ): Promise<BookDetailResponseDto> {
+  ): Promise<BookAutoLayoutResponseDto> {
     return this.service.autoLayout(auth, id, dto);
   }
 
