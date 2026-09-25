@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
+  import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
   import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
+  import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
@@ -33,16 +35,20 @@
     type AgentUpdateDto,
     type BookDetailResponseDto,
     type BookPageResponseDto,
+    type BookResponseDto,
   } from '@immich/sdk';
   import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
+    mdiArrowLeft,
     mdiAutoFix,
     mdiBookOpenVariantOutline,
+    mdiBookshelf,
     mdiChevronLeft,
     mdiChevronRight,
     mdiCreationOutline,
     mdiDownload,
     mdiExportVariant,
+    mdiEyeOutline,
     mdiFileOutline,
     mdiFilePdfBox,
     mdiLanguageHtml5,
@@ -63,6 +69,8 @@
 
   const POLL_INTERVAL = 3000;
 
+  // a working copy: refreshed after edits and exports, and replaced by showBook when switching books
+  // svelte-ignore state_referenced_locally
   let book = $state<BookDetailResponseDto>(data.book);
   let mode = $state<BookViewMode>('single');
   let viewIndex = $state(0);
@@ -78,6 +86,16 @@
   const isExporting = $derived(isBookExporting(book));
   const activeExports = $derived(
     BOOK_EXPORT_FORMATS.filter((format) => isExportActive(getBookExportStatus(book, format))),
+  );
+  // the open book is the freshest copy, e.g. after the assistant renamed it
+  const books = $derived(
+    data.books
+      .map((other) =>
+        other.id === book.id
+          ? { ...other, title: book.title, pageCount: pages.length, updatedAt: book.updatedAt }
+          : other,
+      )
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
   );
   const hasPrevious = $derived(viewIndex > 0);
   const hasNext = $derived(viewIndex < views.length - 1);
@@ -261,6 +279,32 @@
     toastManager.success($t('book_relayout_done'));
   };
 
+  const handlePreview = () => modalManager.show(BookPreviewModal, { book: { ...book, pageCount: pages.length } });
+
+  const handleSwitchBook = (other: BookResponseDto) => {
+    if (other.id !== book.id) {
+      void goto(Route.viewBook(other));
+    }
+  };
+
+  /** SvelteKit keeps this page when switching to another book, so start over with the new one */
+  const showBook = (next: BookDetailResponseDto) => {
+    stopPolling();
+    book = next;
+    viewIndex = 0;
+    loaded.clear();
+    strip?.scrollTo({ left: 0 });
+    if (isBookExporting(next)) {
+      startPolling();
+    }
+  };
+
+  afterNavigate(() => {
+    if (data.book.id !== book.id) {
+      showBook(data.book);
+    }
+  });
+
   const handleEditWithAssistant = () =>
     openAssistant({ prompt: $t('book_edit_prompt', { values: { title: book.title, id: book.id } }) });
 
@@ -315,8 +359,48 @@
 />
 
 <UserPageLayout title={book.title} description={book.subtitle ?? undefined}>
+  {#snippet leading()}
+    <IconButton
+      href={Route.books()}
+      variant="ghost"
+      size="small"
+      color="secondary"
+      shape="round"
+      icon={mdiArrowLeft}
+      directional
+      aria-label={$t('book_back_to_list')}
+      title={$t('book_back_to_list')}
+    />
+  {/snippet}
+
   {#snippet buttons()}
     <div class="flex items-center gap-1">
+      {#if books.length > 1}
+        <ButtonContextMenu
+          icon={mdiBookshelf}
+          title={$t('book_switch')}
+          color="secondary"
+          size="small"
+          align="top-right"
+          hideContent
+        >
+          {#each books as other (other.id)}
+            <BookMenuOption book={other} current={other.id === book.id} onClick={handleSwitchBook} />
+          {/each}
+        </ButtonContextMenu>
+      {/if}
+      <Button
+        variant="ghost"
+        size="small"
+        color="secondary"
+        leadingIcon={mdiEyeOutline}
+        disabled={pages.length === 0}
+        title={pages.length === 0 ? $t('book_no_pages') : undefined}
+        onclick={handlePreview}
+      >
+        <span class="hidden sm:inline">{$t('preview')}</span>
+        <span class="sr-only sm:hidden">{$t('preview')}</span>
+      </Button>
       <Button
         variant="ghost"
         size="small"

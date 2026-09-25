@@ -1,5 +1,5 @@
 import { AssetTypeEnum, BookExportFormat } from '@immich/sdk';
-import { getAssetUrl, getBookExportUrl, getBookPageRenderUrl, semverToName } from '$lib/utils';
+import { getAssetUrl, getBookExportUrl, getBookPageRenderUrl, getBookPreviewUrl, semverToName } from '$lib/utils';
 import { assetFactory } from '@test-data/factories/asset-factory';
 import { sharedLinkFactory } from '@test-data/factories/shared-link-factory';
 
@@ -174,6 +174,13 @@ describe('utils', () => {
       );
       expect(getBookPageRenderUrl({ id: 'book-1', pageId: 'page-1', size: 300, cacheKey: 'v2' })).toBe(
         '/api/books/book-1/pages/page-1/render?size=300&c=v2',
+      );
+    });
+
+    it('should point to the preview', () => {
+      expect(getBookPreviewUrl({ id: 'book-1' })).toBe('/api/books/book-1/preview');
+      expect(getBookPreviewUrl({ id: 'book-1', cacheKey: '2026-09-25T10:00:00.000Z' })).toBe(
+        '/api/books/book-1/preview?v=2026-09-25T10%3A00%3A00.000Z',
       );
     });
   });
