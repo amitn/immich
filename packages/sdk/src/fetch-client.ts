@@ -1978,8 +1978,12 @@ export type BookFromAlbumDto = {
     /** Album whose photos are laid out */
     albumId: string;
     captions?: BookCaptionMode;
+    /** Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true) */
+    considerImprovements?: boolean;
     /** Also redraw every map as an illustration with the art agent (default false) */
     illustratedMaps?: boolean;
+    /** Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false) */
+    improvePhotos?: boolean;
     /** Open the sections that have GPS locations with a map page (default true) */
     includeMaps?: boolean;
     mapStyle?: BookMapStyleOption;
@@ -2111,10 +2115,14 @@ export type BookAutoLayoutDto = {
     /** Photos to lay out (default: the photos of the book's album) */
     assetIds?: string[];
     captions?: BookCaptionMode;
+    /** Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true) */
+    considerImprovements?: boolean;
     /** Photos that get a page of their own */
     heroAssetIds?: string[];
     /** Also redraw every map as an illustration with the art agent (default false) */
     illustratedMaps?: boolean;
+    /** Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false) */
+    improvePhotos?: boolean;
     /** Open the sections that have GPS locations with a map page (default true) */
     includeMaps?: boolean;
     /** Append the new pages to the existing ones instead of replacing them (default false) */
@@ -9542,7 +9550,8 @@ export enum Type {
     PersonUnderrepresented = "person-underrepresented",
     TooManyPairs = "too-many-pairs",
     RepeatedLayout = "repeated-layout",
-    MissingCaptions = "missing-captions"
+    MissingCaptions = "missing-captions",
+    CouldLookBetter = "could-look-better"
 }
 export enum SourceType {
     MachineLearning = "machine-learning",

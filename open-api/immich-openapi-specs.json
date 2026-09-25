@@ -24193,6 +24193,10 @@
           "captions": {
             "$ref": "#/components/schemas/BookCaptionMode"
           },
+          "considerImprovements": {
+            "description": "Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true)",
+            "type": "boolean"
+          },
           "heroAssetIds": {
             "description": "Photos that get a page of their own",
             "items": {
@@ -24205,6 +24209,10 @@
           },
           "illustratedMaps": {
             "description": "Also redraw every map as an illustration with the art agent (default false)",
+            "type": "boolean"
+          },
+          "improvePhotos": {
+            "description": "Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false)",
             "type": "boolean"
           },
           "includeMaps": {
@@ -24648,8 +24656,16 @@
           "captions": {
             "$ref": "#/components/schemas/BookCaptionMode"
           },
+          "considerImprovements": {
+            "description": "Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true)",
+            "type": "boolean"
+          },
           "illustratedMaps": {
             "description": "Also redraw every map as an illustration with the art agent (default false)",
+            "type": "boolean"
+          },
+          "improvePhotos": {
+            "description": "Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false)",
             "type": "boolean"
           },
           "includeMaps": {
@@ -25277,7 +25293,8 @@
               "person-underrepresented",
               "too-many-pairs",
               "repeated-layout",
-              "missing-captions"
+              "missing-captions",
+              "could-look-better"
             ],
             "type": "string"
           }

@@ -33,9 +33,6 @@
     onClose: () => void;
   };
 
-  // TODO: drop once the SDK is regenerated with `improvePhotos`
-  type BookFromAlbumRequest = BookFromAlbumDto & { improvePhotos?: boolean };
-
   const { album, onClose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
@@ -61,7 +58,7 @@
   const onSubmit = async () => {
     const { widthMm, heightMm } = getBookPageSizePreset(pageSize);
 
-    const bookFromAlbumDto: BookFromAlbumRequest = {
+    const bookFromAlbumDto: BookFromAlbumDto = {
       albumId: album.id,
       title: title.trim() || album.albumName,
       subtitle: subtitle.trim() || undefined,
