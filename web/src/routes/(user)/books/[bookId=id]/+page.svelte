@@ -8,14 +8,17 @@
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
+  import { locale } from '$lib/stores/preferences.store';
   import { websocketEvents } from '$lib/stores/websocket';
   import { getBookExportUrl, getBookPageRenderUrl } from '$lib/utils';
   import { firstPageForView, toViews, viewIndexForPage, type BookViewMode } from '$lib/utils/book';
   import {
     BOOK_EXPORT_FORMATS,
+    getBookExportedAt,
     getBookExportStatus,
     getBookFileName,
     isBookExporting,
+    isBookExportOutdated,
     isExportActive,
     isMapPage,
   } from '$lib/utils/book-export';
@@ -46,6 +49,7 @@
     mdiMapOutline,
     mdiTrashCanOutline,
   } from '@mdi/js';
+  import { DateTime } from 'luxon';
   import { onDestroy, onMount, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import { SvelteSet } from 'svelte/reactivity';
@@ -222,6 +226,23 @@
     }
   };
 
+  /** e.g. "Exported 5 minutes ago", or "Outdated · exported …" when the book changed since */
+  const exportedLabel = (format: BookExportFormat) => {
+    const exportedAt = getBookExportedAt(book, format);
+    const time = exportedAt ? DateTime.fromISO(exportedAt).toRelative({ locale: $locale }) : null;
+    if (isBookExportOutdated(book, format)) {
+      return time ? $t('book_export_outdated_at', { values: { time } }) : $t('book_export_outdated');
+    }
+    return time ? $t('book_exported_at', { values: { time } }) : $t('book_export_status_completed');
+  };
+
+  const exportActionSubtitle = (format: BookExportFormat, status: BookExportStatus | null) => {
+    if (status !== BookExportStatus.Completed) {
+      return exportStatusLabel(status);
+    }
+    return isBookExportOutdated(book, format) ? $t('book_export_outdated_hint') : undefined;
+  };
+
   const exportActionLabel = (format: BookExportFormat, status: BookExportStatus | null) => {
     if (status === BookExportStatus.Completed) {
       return format === BookExportFormat.Pdf ? $t('book_export_again') : $t('book_export_html_again');
@@ -338,14 +359,14 @@
               <MenuOption
                 icon={mdiDownload}
                 text={format === BookExportFormat.Pdf ? $t('book_download_pdf') : $t('book_download_html')}
-                subtitle={exportStatusLabel(status)}
+                subtitle={exportedLabel(format)}
                 onClick={() => handleDownload(format)}
               />
             {/if}
             <MenuOption
               icon={format === BookExportFormat.Pdf ? mdiFilePdfBox : mdiLanguageHtml5}
               text={exportActionLabel(format, status)}
-              subtitle={status === BookExportStatus.Completed ? undefined : exportStatusLabel(status)}
+              subtitle={exportActionSubtitle(format, status)}
               onClick={() => handleExport(format)}
             />
           {/each}

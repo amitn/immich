@@ -4,6 +4,7 @@ import {
   BOOK_MIN_PAGES,
   BOOK_PAGE_SIZE_PRESETS,
   findBookPageSizePreset,
+  getBookExportedAt,
   getBookExportStatus,
   getBookFileName,
   getBookPageSizePreset,
@@ -11,6 +12,7 @@ import {
   getCompletedExports,
   getDefaultBookPageCount,
   isBookExporting,
+  isBookExportOutdated,
   isExportActive,
   isMapPage,
   isTileMapStyle,
@@ -156,6 +158,22 @@ describe('export status', () => {
     expect(getCombinedExportStatus(book(Completed, Completed), [Pdf, Html])).toBe(Completed);
     expect(getCombinedExportStatus(book(Completed, null), [Pdf, Html])).toBeNull();
     expect(getCombinedExportStatus(book(Completed, null), [Pdf])).toBe(Completed);
+  });
+
+  it('should read when each format was exported', () => {
+    const exported = { exportedAt: '2026-01-01T10:00:00.000Z', htmlExportedAt: null };
+    expect(getBookExportedAt(exported, Pdf)).toBe('2026-01-01T10:00:00.000Z');
+    expect(getBookExportedAt(exported, Html)).toBeNull();
+  });
+
+  it('should only report completed exports as outdated', () => {
+    const stale = { exportStale: true, htmlExportStale: false };
+    expect(isBookExportOutdated({ ...book(Completed, Completed), ...stale }, Pdf)).toBe(true);
+    expect(isBookExportOutdated({ ...book(Completed, Completed), ...stale }, Html)).toBe(false);
+    expect(isBookExportOutdated({ ...book(Running, null), ...stale }, Pdf)).toBe(false);
+    expect(isBookExportOutdated({ ...book(Completed, null), exportStale: false, htmlExportStale: true }, Html)).toBe(
+      false,
+    );
   });
 
   it('should list the completed exports', () => {

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Route } from '$lib/route';
   import { getAssetMediaUrl, getBookPageRenderUrl } from '$lib/utils';
-  import { getCompletedExports, isBookExporting } from '$lib/utils/book-export';
+  import { getCompletedExports, isBookExporting, isBookExportOutdated } from '$lib/utils/book-export';
   import { AssetMediaSize, BookExportFormat, type BookResponseDto } from '@immich/sdk';
   import { Badge, Icon } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline } from '@mdi/js';
@@ -54,15 +54,24 @@
     {#if book.subtitle}
       <p class="truncate text-sm text-gray-600 dark:text-gray-400">{book.subtitle}</p>
     {/if}
-    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
       <span>{$t('book_page_count', { values: { count: book.pageCount } })}</span>
       {#each completedExports as format (format)}
-        <span title={format === BookExportFormat.Pdf ? $t('book_pdf_ready') : $t('book_html_ready')}>
-          <Badge size="tiny" color="success" shape="round">
-            {format === BookExportFormat.Pdf ? $t('book_format_pdf') : $t('book_format_html_short')}
-            <span class="sr-only">{$t('book_export_status_completed')}</span>
-          </Badge>
-        </span>
+        {@const label = format === BookExportFormat.Pdf ? $t('book_format_pdf') : $t('book_format_html_short')}
+        {#if isBookExportOutdated(book, format)}
+          <span title={$t('book_export_outdated_hint')}>
+            <Badge size="tiny" color="secondary" shape="round">
+              {$t('book_format_outdated', { values: { format: label } })}
+            </Badge>
+          </span>
+        {:else}
+          <span title={format === BookExportFormat.Pdf ? $t('book_pdf_ready') : $t('book_html_ready')}>
+            <Badge size="tiny" color="success" shape="round">
+              {label}
+              <span class="sr-only">{$t('book_export_status_completed')}</span>
+            </Badge>
+          </span>
+        {/if}
       {/each}
       {#if isBookExporting(book)}
         <Badge size="tiny" color="info" shape="round">{$t('book_exporting_short')}</Badge>

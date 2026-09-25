@@ -145,6 +145,20 @@ export const getCombinedExportStatus = (
   return statuses.every((status) => status === BookExportStatus.Completed) ? BookExportStatus.Completed : null;
 };
 
+/** When the last export of the format completed */
+export const getBookExportedAt = (
+  book: Pick<BookResponseDto, 'exportedAt' | 'htmlExportedAt'>,
+  format: BookExportFormat,
+) => (format === BookExportFormat.Html ? book.htmlExportedAt : book.exportedAt) ?? null;
+
+/** A completed export that was made before the book last changed */
+export const isBookExportOutdated = (
+  book: BookExportFields & Pick<BookResponseDto, 'exportStale' | 'htmlExportStale'>,
+  format: BookExportFormat,
+) =>
+  getBookExportStatus(book, format) === BookExportStatus.Completed &&
+  (format === BookExportFormat.Html ? book.htmlExportStale : book.exportStale);
+
 /** The formats whose export has completed, in a stable order */
 export const getCompletedExports = (book: BookExportFields): BookExportFormat[] =>
   BOOK_EXPORT_FORMATS.filter((format) => getBookExportStatus(book, format) === BookExportStatus.Completed);
