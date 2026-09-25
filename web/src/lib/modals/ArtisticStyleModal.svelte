@@ -1,12 +1,19 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { Route } from '$lib/route';
-  import { createArtJob, getArtJob, getArtStyles } from '$lib/services/art-api';
   import { websocketEvents } from '$lib/stores/websocket';
-  import type { ArtJobResponseDto, ArtStyleDto } from '$lib/types/assistant';
   import { getAssetMediaUrl } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
-  import { AssetMediaSize, type AssetResponseDto } from '@immich/sdk';
+  import {
+    ArtJobStatus,
+    AssetMediaSize,
+    createArtJob,
+    getArtJob,
+    getArtStyles,
+    type ArtJobResponseDto,
+    type ArtStyleDto,
+    type AssetResponseDto,
+  } from '@immich/sdk';
   import {
     Alert,
     Button,
@@ -55,10 +62,10 @@
     if (!job) {
       return 'select';
     }
-    if (job.status === 'completed' && job.resultAssetId) {
+    if (job.status === ArtJobStatus.Completed && job.resultAssetId) {
       return 'done';
     }
-    if (job.status === 'failed' || job.status === 'completed') {
+    if (job.status === ArtJobStatus.Failed || job.status === ArtJobStatus.Completed) {
       return 'failed';
     }
     return 'running';
@@ -74,7 +81,7 @@
 
   const setJob = (next: ArtJobResponseDto) => {
     job = next;
-    if (next.status === 'completed' || next.status === 'failed') {
+    if (next.status === ArtJobStatus.Completed || next.status === ArtJobStatus.Failed) {
       stopTimers();
     }
   };
@@ -237,7 +244,7 @@
         <LoadingSpinner size="giant" />
         <div class="flex flex-col gap-1">
           <p class="font-medium">
-            {job?.status === 'pending' ? $t('art_status_pending') : $t('art_status_running')}
+            {job?.status === ArtJobStatus.Pending ? $t('art_status_pending') : $t('art_status_running')}
           </p>
           <p class="text-sm text-gray-600 tabular-nums dark:text-gray-400">
             {$t('art_elapsed', { values: { time: formatElapsed(elapsed) } })}
