@@ -1,4 +1,5 @@
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
+import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { AgentTool, AgentToolContext } from 'src/utils/agent/tools.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
@@ -7,6 +8,33 @@ import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const text = (result: Awaited<ReturnType<AgentTool['handler']>>) =>
   result.content.find((item) => item.type === 'text')?.text ?? '';
+
+const layoutResult = (bookId = newUuid()): BookAutoLayoutResult => {
+  const [a, b, c] = [newUuid(), newUuid(), newUuid()];
+  const map = { style: 'sketch' as const, showRoute: true, labels: true };
+  return {
+    book: {
+      ...BookFactory.create({ id: bookId, title: 'Italy' }),
+      style: { ...BookFactory.create().style } as never,
+      pages: [],
+    } as never,
+    plan: {
+      pages: [
+        { layout: 'cover', slots: [{ assetId: a, crop: { x: 0, y: 0, width: 1, height: 1 } }] },
+        { layout: 'map', slots: [], sectionTitle: 'Rome', map },
+        {
+          layout: 'two-vertical',
+          slots: [b, c].map((assetId) => ({ assetId, crop: { x: 0, y: 0, width: 1, height: 1 } })),
+        },
+      ],
+      sections: [{ title: 'Rome', dates: '1 June 2024', photoIds: [a, b, c], located: true }],
+      usedIds: [a, b, c],
+      droppedIds: [newUuid()],
+    },
+    photoCount: 4,
+    warnings: ['a warning'],
+  };
+};
 
 describe(BookAgentTools.name, () => {
   let sut: BookAgentTools;
@@ -63,6 +91,10 @@ describe(BookAgentTools.name, () => {
         'render_page',
         'render_book',
         'export_pdf',
+        'auto_layout_book',
+        'add_map_page',
+        'set_page_map',
+        'illustrate_map',
       ]),
     );
   });
@@ -73,7 +105,7 @@ describe(BookAgentTools.name, () => {
       .filter((tool) => tool.mutating)
       .map((tool) => tool.name)
       .toArray();
-    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_pdf']);
+    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_pdf', 'illustrate_map']);
   });
 
   describe('list_layouts', () => {
@@ -265,6 +297,172 @@ describe(BookAgentTools.name, () => {
       const result = JSON.parse(text(await call('export_pdf', { bookId: book.id })));
 
       expect(result).toEqual({ queued: true, exportStatus: 'pending', downloadPath: `/api/books/${book.id}/pdf` });
+    });
+  });
+
+  describe('auto_layout_book', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should need either an album or a book', async () => {
+      const result = await call('auto_layout_book', {});
+      expect(result.isError).toBe(true);
+      expect(text(result)).toMatch(/albumId.*bookId/);
+    });
+
+    it('should create a book from an album and allow editing it', async () => {
+      const albumId = newUuid();
+      const result = layoutResult();
+      const createFromAlbum = vi.spyOn(BookService.prototype, 'createFromAlbumWithPlan').mockResolvedValue(result);
+
+      const summary = JSON.parse(
+        text(await call('auto_layout_book', { albumId, targetPageCount: 20, mapStyle: 'toner', heroAssetIds: [] })),
+      );
+
+      expect(createFromAlbum).toHaveBeenCalledWith(
+        authStub.admin,
+        expect.objectContaining({ albumId, targetPageCount: 20, mapStyle: 'toner' }),
+      );
+      expect(summary).toEqual(
+        expect.objectContaining({
+          bookId: result.book.id,
+          photos: { considered: 4, placed: 3, leftOut: 1 },
+          sections: [{ title: 'Rome', dates: '1 June 2024', photos: 3 }],
+          pages: ['1: cover, 1 photo', '2: map, "Rome", sketch map', '3: two-vertical, 2 photos'],
+          warnings: ['a warning'],
+        }),
+      );
+
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([result.book.id]));
+      mocks.book.get.mockResolvedValue(BookFactory.create({ id: result.book.id }));
+      mocks.book.addPage.mockResolvedValue(BookPageFactory.create({ bookId: result.book.id }));
+      const added = await call('add_page', { bookId: result.book.id, layout: 'single' });
+      expect(added.isError).toBeUndefined();
+    });
+
+    it('should not lay out books that were not created in the session', async () => {
+      const { book } = setupBook();
+      const autoLayout = vi.spyOn(BookService.prototype, 'autoLayoutWithPlan');
+
+      const result = await call('auto_layout_book', { bookId: book.id });
+      expect(result.isError).toBe(true);
+      expect(autoLayout).not.toHaveBeenCalled();
+    });
+
+    it('should lay out a book again with heroes', async () => {
+      const { book } = await createBook();
+      const hero = newUuid();
+      const autoLayout = vi.spyOn(BookService.prototype, 'autoLayoutWithPlan').mockResolvedValue(layoutResult(book.id));
+
+      const result = await call('auto_layout_book', { bookId: book.id, heroAssetIds: [hero], keepExisting: true });
+
+      expect(result.isError).toBeUndefined();
+      expect(autoLayout).toHaveBeenCalledWith(authStub.admin, book.id, { heroAssetIds: [hero], keepExisting: true });
+    });
+  });
+
+  describe('maps', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should add a map page with the default style', async () => {
+      const { book } = await createBook();
+      mocks.book.addPage.mockImplementation((bookId, values) =>
+        Promise.resolve(BookPageFactory.create({ bookId, position: 2, layout: values.layout, map: values.map })),
+      );
+
+      const result = JSON.parse(text(await call('add_map_page', { bookId: book.id, position: 2, title: 'Rome' })));
+
+      expect(mocks.book.addPage).toHaveBeenCalledWith(
+        book.id,
+        expect.objectContaining({
+          layout: 'map',
+          map: { style: 'watercolor', title: 'Rome', showRoute: true, labels: true },
+        }),
+        1,
+      );
+      expect(result).toEqual(
+        expect.objectContaining({ page: 3, layout: 'map', map: { style: 'watercolor', title: 'Rome' } }),
+      );
+    });
+
+    it('should add a map with a photo', async () => {
+      const { book } = await createBook();
+      const photo = newUuid();
+      const page = BookPageFactory.create({ bookId: book.id, layout: 'map-photo', position: 2 });
+      mocks.book.addPage.mockResolvedValue(page);
+      mocks.book.getPage.mockResolvedValue(page);
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([photo]));
+      mocks.book.getAssetsForRender.mockResolvedValue([{ id: photo, isEdited: false, width: 0, height: 0 } as never]);
+      mocks.book.getFaces.mockResolvedValue([]);
+
+      await call('add_map_page', { bookId: book.id, photoAssetId: photo, style: 'sketch', showRoute: false });
+
+      expect(mocks.book.addPage).toHaveBeenCalledWith(
+        book.id,
+        expect.objectContaining({ layout: 'map-photo', map: { style: 'sketch', showRoute: false, labels: true } }),
+        undefined,
+      );
+      expect(mocks.book.upsertSlot).toHaveBeenCalledWith(book.id, expect.objectContaining({ slot: 0, assetId: photo }));
+    });
+
+    it('should switch a page without a map area to the map layout', async () => {
+      const { book, pages } = await createBook();
+      mocks.book.updatePage.mockResolvedValue(pages[0]);
+
+      await call('set_page_map', { bookId: book.id, page: 1, style: 'terrain' });
+
+      expect(mocks.book.updatePage).toHaveBeenCalledWith(
+        book.id,
+        pages[0].id,
+        expect.objectContaining({ layout: 'map', map: { style: 'terrain', showRoute: true, labels: true } }),
+        0,
+      );
+    });
+
+    it('should keep the current map options', async () => {
+      const { book, pages } = await createBook();
+      pages[1].layout = 'map';
+      pages[1].map = { style: 'toner', title: 'Old', showRoute: false, labels: true, artJobId: newUuid() };
+      mocks.book.updatePage.mockResolvedValue(pages[1]);
+
+      await call('set_page_map', { bookId: book.id, page: 2, title: 'New' });
+
+      expect(mocks.book.updatePage).toHaveBeenCalledWith(
+        book.id,
+        pages[1].id,
+        expect.objectContaining({ map: { style: 'toner', title: 'New', showRoute: false, labels: true } }),
+        undefined,
+      );
+    });
+
+    it('should remove a map', async () => {
+      const { book, pages } = await createBook();
+      mocks.book.updatePage.mockResolvedValue(pages[0]);
+
+      await call('set_page_map', { bookId: book.id, page: 1, remove: true });
+      expect(mocks.book.updatePage).toHaveBeenCalledWith(
+        book.id,
+        pages[0].id,
+        expect.objectContaining({ map: null }),
+        undefined,
+      );
+    });
+
+    it('should start an illustration', async () => {
+      const { book, pages } = await createBook();
+      const illustrate = vi.spyOn(BookService.prototype, 'illustratePageMap').mockResolvedValue({
+        ...pages[0],
+        slots: [],
+        map: { style: 'sketch', showRoute: true, labels: true, artJobId: newUuid() },
+      } as never);
+
+      const result = JSON.parse(text(await call('illustrate_map', { bookId: book.id, page: 1 })));
+
+      expect(illustrate).toHaveBeenCalledWith(authStub.admin, book.id, pages[0].id);
+      expect(result.map).toEqual({ style: 'sketch', illustrated: 'started' });
     });
   });
 });
