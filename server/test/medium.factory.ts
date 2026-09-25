@@ -22,13 +22,16 @@ import {
 } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
@@ -467,6 +470,9 @@ export class ExifTestContext extends MediumTestContext<typeof MetadataService> {
 const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely<DB>): InstanceType<T> => {
   switch (key) {
     case AccessRepository:
+    case AgentRepository:
+    case ArtJobRepository:
+    case BookRepository:
     case AlbumRepository:
     case AlbumUserRepository:
     case ActivityRepository:

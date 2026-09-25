@@ -7,15 +7,19 @@ import { StorageCore } from 'src/cores/storage.core.js';
 import { UserAdmin } from 'src/database.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
@@ -69,6 +73,10 @@ export const BASE_SERVICE_DEPENDENCIES = [
   LoggingRepository,
   AccessRepository,
   ActivityRepository,
+  AgentRepository,
+  AcpRepository,
+  ArtJobRepository,
+  BookRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,
@@ -131,6 +139,10 @@ export class BaseService {
     protected logger: LoggingRepository,
     protected accessRepository: AccessRepository,
     protected activityRepository: ActivityRepository,
+    protected agentRepository: AgentRepository,
+    protected acpRepository: AcpRepository,
+    protected artJobRepository: ArtJobRepository,
+    protected bookRepository: BookRepository,
     protected albumRepository: AlbumRepository,
     protected albumUserRepository: AlbumUserRepository,
     protected apiKeyRepository: ApiKeyRepository,
@@ -202,6 +214,10 @@ export class BaseService {
       LoggingRepository.create(),
       ctx.accessRepository,
       ctx.activityRepository,
+      ctx.agentRepository,
+      ctx.acpRepository,
+      ctx.artJobRepository,
+      ctx.bookRepository,
       ctx.albumRepository,
       ctx.albumUserRepository,
       ctx.apiKeyRepository,
