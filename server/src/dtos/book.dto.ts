@@ -9,10 +9,10 @@ import { isoDatetimeToDate } from 'src/validation.js';
 
 export const NormalizedRectSchema = z
   .object({
-    x: z.number().min(0).max(1).describe('Left edge, as a fraction of the image width'),
-    y: z.number().min(0).max(1).describe('Top edge, as a fraction of the image height'),
-    width: z.number().gt(0).max(1).describe('Width, as a fraction of the image width'),
-    height: z.number().gt(0).max(1).describe('Height, as a fraction of the image height'),
+    x: z.number().min(0).max(1).describe('Left edge, as a fraction of the image width').meta({ format: 'double' }),
+    y: z.number().min(0).max(1).describe('Top edge, as a fraction of the image height').meta({ format: 'double' }),
+    width: z.number().gt(0).max(1).describe('Width, as a fraction of the image width').meta({ format: 'double' }),
+    height: z.number().gt(0).max(1).describe('Height, as a fraction of the image height').meta({ format: 'double' }),
   })
   .refine((rect) => rect.x + rect.width <= 1.0001 && rect.y + rect.height <= 1.0001, {
     error: 'Rectangle must be inside the image',
@@ -33,13 +33,19 @@ const fontFamily = z
 
 export const BookStyleSchema = z
   .object({
-    marginMm: z.number().min(0).max(50).describe('Outer page margin in millimeters'),
-    gutterMm: z.number().min(0).max(30).describe('Space between photos in millimeters'),
+    marginMm: z.number().min(0).max(50).describe('Outer page margin in millimeters').meta({ format: 'double' }),
+    gutterMm: z.number().min(0).max(30).describe('Space between photos in millimeters').meta({ format: 'double' }),
     background: cssColor.describe('Page background color (hex)'),
     textColor: cssColor.describe('Caption and title color (hex)'),
     fontFamily: fontFamily.describe('Font family used for captions and titles'),
-    titleSizePt: z.number().min(6).max(144).optional().describe('Title font size in points'),
-    captionSizePt: z.number().min(4).max(72).optional().describe('Caption font size in points'),
+    titleSizePt: z.number().min(6).max(144).optional().describe('Title font size in points').meta({ format: 'double' }),
+    captionSizePt: z
+      .number()
+      .min(4)
+      .max(72)
+      .optional()
+      .describe('Caption font size in points')
+      .meta({ format: 'double' }),
   })
   .describe('Visual style of a book')
   .meta({ id: 'BookStyle' });
@@ -159,7 +165,7 @@ const BookRenderQuerySchema = z
 const BookSlotResponseSchema = z
   .object({
     slot: z.int().min(0).describe('Zero-based slot index'),
-    aspectRatio: z.number().describe('Width / height of the slot on the page'),
+    aspectRatio: z.number().describe('Width / height of the slot on the page').meta({ format: 'double' }),
     assetId: z.uuidv4().nullable().describe('Placed asset, null when the slot is empty'),
     crop: NormalizedRectSchema.nullable().describe('Crop of the placed asset'),
     caption: z.string().nullable().describe('Photo caption'),
@@ -204,10 +210,10 @@ const BookDetailResponseSchema = BookResponseSchema.extend({
 
 const LayoutRectSchema = z
   .object({
-    x: z.number().describe('Left edge, as a fraction of the layout area'),
-    y: z.number().describe('Top edge, as a fraction of the layout area'),
-    width: z.number().describe('Width, as a fraction of the layout area'),
-    height: z.number().describe('Height, as a fraction of the layout area'),
+    x: z.number().describe('Left edge, as a fraction of the layout area').meta({ format: 'double' }),
+    y: z.number().describe('Top edge, as a fraction of the layout area').meta({ format: 'double' }),
+    width: z.number().describe('Width, as a fraction of the layout area').meta({ format: 'double' }),
+    height: z.number().describe('Height, as a fraction of the layout area').meta({ format: 'double' }),
   })
   .meta({ id: 'BookLayoutRect' });
 
