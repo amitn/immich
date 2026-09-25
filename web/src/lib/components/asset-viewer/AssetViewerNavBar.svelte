@@ -161,6 +161,7 @@
         <ActionMenuItem action={Actions.SetProfilePicture} />
         <ActionMenuItem action={AssistantActions.AskAssistant} />
         <ActionMenuItem action={AssistantActions.ArtisticStyle} />
+        <ActionMenuItem action={AssistantActions.AutoEnhance} />
 
         {#if isOwner && !isLocked}
           <ArchiveAction {asset} {onAction} {preAction} />

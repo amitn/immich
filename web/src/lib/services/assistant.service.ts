@@ -1,12 +1,13 @@
 import { AssetTypeEnum, AssetVisibility, type AssetResponseDto } from '@immich/sdk';
 import { modalManager, type ActionItem } from '@immich/ui';
-import { mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
+import { mdiAutoFix, mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
+import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
 import { Route } from '$lib/route';
 
 /** Above this many assets the ids are handed over in memory instead of in the URL */
@@ -84,5 +85,13 @@ export const getAssistantAssetActions = ($t: MessageFormatter, asset: AssetRespo
     onAction: () => modalManager.show(ArtisticStyleModal, { asset }),
   };
 
-  return { AskAssistant, ArtisticStyle };
+  // local image processing, so it does not depend on the assistant being configured
+  const AutoEnhance: ActionItem = {
+    title: $t('auto_enhance'),
+    icon: mdiAutoFix,
+    $if: () => isOwner && isUsable && asset.type === AssetTypeEnum.Image,
+    onAction: () => modalManager.show(AutoEnhanceModal, { asset }),
+  };
+
+  return { AskAssistant, ArtisticStyle, AutoEnhance };
 };
