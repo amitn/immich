@@ -32,6 +32,7 @@ import {
   VideoContainer,
   VideoContainerSchema,
 } from 'src/enum.js';
+import { bookMapStyles } from 'src/utils/book/map-styles.js';
 
 const { Admin, User, Public } = ConfigVisibility;
 
@@ -193,6 +194,21 @@ const AdminConfigSchemaWithVisibility = z
           .meta({ id: 'AdminConfigDatabaseBackupDto' }),
       })
       .meta({ id: 'AdminConfigBackupsDto' }),
+    books: z
+      .object({
+        maps: z
+          .object({
+            stadiaApiKey: z
+              .string()
+              .describe(
+                'Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only)',
+              ),
+            defaultStyle: z.enum(bookMapStyles).describe('Map style used when a book asks for the automatic style'),
+          })
+          .meta({ id: 'AdminConfigBookMapsDto' }),
+      })
+      .describe('Photo book config')
+      .meta({ id: 'AdminConfigBooksDto' }),
     ffmpeg: AdminConfigFFmpegSchema,
     integrityChecks: z
       .object({
@@ -601,6 +617,12 @@ export const defaults = Object.freeze<SystemConfig>({
       enabled: true,
       cronExpression: CronExpression.EVERY_DAY_AT_2AM,
       keepLastAmount: 14,
+    },
+  },
+  books: {
+    maps: {
+      stadiaApiKey: '',
+      defaultStyle: 'watercolor',
     },
   },
   ffmpeg: {

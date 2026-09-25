@@ -8,6 +8,7 @@ import {
   BookCreateDto,
   BookDetailResponseDto,
   BookLayoutResponseDto,
+  BookMap,
   BookPageCreateDto,
   BookPageMoveDto,
   BookPageResponseDto,
@@ -205,6 +206,7 @@ export class BookService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     this.requireLayout(dto.layout);
+    await this.requireMapAccess(auth, dto.map);
 
     const page = await this.bookRepository.addPage(
       id,
@@ -213,6 +215,7 @@ export class BookService extends BaseService {
         sectionTitle: dto.sectionTitle ?? null,
         caption: dto.caption ?? null,
         background: dto.background ?? null,
+        map: dto.map ?? null,
       },
       dto.position,
     );
@@ -224,6 +227,7 @@ export class BookService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const current = await findOrFail(() => this.bookRepository.getPage(id, pageId), 'Page');
+    await this.requireMapAccess(auth, dto.map);
 
     let slotCount: number | undefined;
     if (dto.layout !== undefined && dto.layout !== current.layout) {
@@ -240,6 +244,7 @@ export class BookService extends BaseService {
             sectionTitle: dto.sectionTitle,
             caption: dto.caption,
             background: dto.background,
+            map: dto.map,
           },
           slotCount,
         ),
@@ -530,6 +535,20 @@ export class BookService extends BaseService {
   private async getPageResponse(book: Book, pageId: string) {
     const page = await findOrFail(() => this.bookRepository.getPage(book.id, pageId), 'Page');
     return mapBookPage(page, book);
+  }
+
+  private async requireMapAccess(auth: AuthDto, map: BookMap | null | undefined) {
+    if (!map) {
+      return;
+    }
+
+    const assetIds = [...(map.assetIds ?? []), ...(map.illustratedAssetId ? [map.illustratedAssetId] : [])];
+    if (assetIds.length > 0) {
+      await this.requireAccess({ auth, permission: Permission.AssetRead, ids: assetIds });
+    }
+    if (map.artJobId) {
+      await this.requireAccess({ auth, permission: Permission.ArtJobRead, ids: [map.artJobId] });
+    }
   }
 
   private mergeStyle(current: BookStyle | undefined, update: BookStyleUpdate | undefined): BookStyle {

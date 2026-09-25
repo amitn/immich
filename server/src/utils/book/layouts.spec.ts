@@ -36,6 +36,8 @@ describe('book layouts', () => {
         'six-grid',
         'section-opener',
         'text',
+        'map',
+        'map-photo',
       ]),
     );
   });
@@ -45,7 +47,7 @@ describe('book layouts', () => {
   });
 
   describe.each(bookLayouts.map((layout) => [layout.id, layout] as const))('%s', (_, layout) => {
-    const areas = [...layout.slots, ...layout.text];
+    const areas = [...layout.slots, ...layout.text, ...(layout.map ? [layout.map] : [])];
 
     it('should keep every slot and text area inside the page', () => {
       for (const area of areas) {

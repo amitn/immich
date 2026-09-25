@@ -19,6 +19,8 @@ export type BookLayout = {
   /** orientation of the photos that fit the (first) slot best on a square page */
   orientation: LayoutOrientation;
   fullBleed?: boolean;
+  /** area of the page map, normalized like the slots */
+  map?: LayoutRect;
 };
 
 export type PageSize = { pageWidthMm: number; pageHeightMm: number };
@@ -162,6 +164,31 @@ export const bookLayouts: readonly BookLayout[] = [
     orientation: 'landscape',
   },
   {
+    id: 'map',
+    name: 'Map',
+    description:
+      'A full-page map of the places of the section that follows it (or of chosen photos), with the route and an ' +
+      'optional title. Opens a chapter of a trip.',
+    slots: [],
+    text: [],
+    orientation: 'any',
+    map: { x: 0, y: 0, width: 1, height: 1 },
+  },
+  {
+    id: 'map-photo',
+    name: 'Map + photo',
+    description:
+      'A map on the top two thirds of the page, with one landscape photo (slot 1), the section title and the ' +
+      'caption below it. Opens a chapter of a trip.',
+    slots: [{ x: 0, y: 0.66, width: 0.5, height: 0.34 }],
+    text: [
+      { kind: 'sectionTitle', x: 0.53, y: 0.68, width: 0.47, height: 0.14, align: 'left' },
+      { kind: 'caption', x: 0.53, y: 0.82, width: 0.47, height: 0.16, align: 'left' },
+    ],
+    orientation: 'landscape',
+    map: { x: 0, y: 0, width: 1, height: 0.66 },
+  },
+  {
     id: 'text',
     name: 'Text',
     description: 'A text-only page: an optional section title and the page caption (e.g. an introduction or a story).',
@@ -221,6 +248,12 @@ export const getTextRectsMm = (layout: BookLayout, size: PageSize, style: BookSt
   const box = getLayoutBox(layout, size, style);
   return layout.text.map((area) => ({ ...area, ...placeRect(area, box, style.gutterMm) }));
 };
+
+/** The map area in millimeters, with margins and gutters applied */
+export const getMapRectMm = (layout: BookLayout, size: PageSize, style: BookStyle): LayoutRect | null =>
+  layout.map ? placeRect(layout.map, getLayoutBox(layout, size, style), style.gutterMm) : null;
+
+export const isMapLayout = (id: string) => !!getLayout(id)?.map;
 
 /** width / height of every slot of the layout on a page of the given size and style */
 export const getSlotAspectRatios = (layout: BookLayout, size: PageSize, style: BookStyle): number[] =>
