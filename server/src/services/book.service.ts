@@ -1352,7 +1352,7 @@ export class BookService extends BaseService {
     const requested = placedIds.intersection(wanted);
     const allowed =
       requested.size > 0
-        ? await this.checkAccess({ auth, permission: Permission.AssetRead, ids: requested })
+        ? requested.intersection(await this.checkAccess({ auth, permission: Permission.AssetRead, ids: requested }))
         : new Set<string>();
 
     const estimates: LayoutEstimates = new Map();

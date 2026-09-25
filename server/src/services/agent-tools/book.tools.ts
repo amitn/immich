@@ -193,7 +193,8 @@ const summarizeLayout = ({ book, plan, photoCount, warnings, improvements, impro
     ...(improved.length > 0 && { improved }),
     next:
       (improvements.length > 0
-        ? `${improvements.length} placed photos would look better straightened or auto-enhanced: call ` +
+        ? `${improvements.length} placed photo${improvements.length === 1 ? '' : 's'} would look better ` +
+          'straightened or auto-enhanced: call ' +
           'apply_improvements with this bookId to create improved copies (the user approves) and place them. '
         : '') +
       'Call review_book and fix what it reports, then render_book to look at the spreads and render_page on weak ' +

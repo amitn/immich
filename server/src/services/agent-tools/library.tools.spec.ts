@@ -1,6 +1,7 @@
 import { AssetOrder, AssetType, AssetVisibility } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
+import { ImproveService, ImproveSource } from 'src/services/improve.service.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
@@ -589,6 +590,31 @@ describe(LibraryAgentTools.name, () => {
       expect(mocks.media.analyzeImage).toHaveBeenCalledTimes(2);
     });
 
+    it('should score what the photos can become when asked', async () => {
+      const dark = agentAsset({ checksum: Buffer.from('dark-score') });
+      allowAssets(dark.id);
+      mocks.assetJob.getForAgent.mockResolvedValue([dark]);
+      mocks.media.analyzeImage.mockResolvedValue({ ...analysis, meanLuma: 0.2 });
+      const estimateMany = vi
+        .spyOn(ImproveService.prototype, 'estimateMany')
+        .mockResolvedValue([{ now: 0.7, potential: 0.85, gain: 0.15, recipe: { enhance: { strength: 'normal' } } }]);
+
+      const plain = json(await call('score_photo', { ids: [dark.id] }));
+      expect(plain.items[0].potential).toBeUndefined();
+      expect(estimateMany).not.toHaveBeenCalled();
+
+      const result = json(
+        await call('score_photo', { ids: [dark.id], considerImprovements: true, aspectRatio: '1:1' }),
+      );
+      expect(estimateMany).toHaveBeenCalledWith([expect.objectContaining({ id: dark.id })], { aspectRatio: '1:1' });
+      expect(result.items[0]).toMatchObject({
+        now: 0.7,
+        potential: 0.85,
+        recipe: { enhance: { strength: 'normal' }, gain: 0.15 },
+      });
+      vi.restoreAllMocks();
+    });
+
     it('should survive unreadable previews', async () => {
       const asset = agentAsset({ checksum: Buffer.from('unreadable') });
       allowAssets(asset.id);
@@ -611,6 +637,7 @@ describe(LibraryAgentTools.name, () => {
 
   describe('select_best', () => {
     let assets: AgentAsset[];
+    let estimateMany: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
       const base = Date.UTC(2024, 5, 1, 10);
@@ -639,6 +666,56 @@ describe(LibraryAgentTools.name, () => {
         })),
       );
       mocks.media.analyzeImage.mockResolvedValue(analysis);
+      estimateMany = vi
+        .spyOn(ImproveService.prototype, 'estimateMany')
+        .mockImplementation((sources: ImproveSource[]) => Promise.resolve(sources.map(() => null)));
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should pick on what the photos can become and return their recipes', async () => {
+      const [clean, dark, other] = [0, 1, 2].map((day) => {
+        const time = new Date(Date.UTC(2024, 5, 1 + day * 3, 10));
+        return agentAsset({ localDateTime: time, fileCreatedAt: time, checksum: Buffer.from(`potential-${day}`) });
+      });
+      allowAssets(clean.id, dark.id, other.id);
+      mocks.assetJob.getForAgent.mockResolvedValue([clean, dark, other]);
+      mocks.search.getEmbeddings.mockResolvedValue([]);
+      mocks.media.analyzeImage
+        .mockResolvedValueOnce(analysis)
+        .mockResolvedValueOnce({ ...analysis, meanLuma: 0.18, contrast: 0.08, saturation: 0.15 })
+        .mockResolvedValueOnce({ ...analysis, laplacianVariance: 10 });
+      const recipe = { rotate: 1.5, enhance: { strength: 'normal' as const } };
+      estimateMany.mockImplementation((sources: ImproveSource[]) =>
+        Promise.resolve(
+          sources.map((source) =>
+            source.id === dark.id
+              ? { now: 0.6, potential: 0.95, gain: 0.35, recipe }
+              : { now: 0.9, potential: 0.9, gain: 0, recipe: {} },
+          ),
+        ),
+      );
+      const ids = [clean.id, dark.id, other.id];
+
+      const result = json(await call('select_best', { ids, count: 1 }));
+
+      expect(estimateMany).toHaveBeenCalledWith(expect.any(Array), { aspectRatio: undefined });
+      expect(estimateMany.mock.calls[0][0]).toHaveLength(3);
+      expect(result.ids).toEqual([dark.id]);
+      expect(result).toMatchObject({
+        simulated: 3,
+        rescued: 1,
+        improvements: [{ id: dark.id, ...recipe, gain: 0.35 }],
+        next: expect.stringContaining('improve_photos'),
+      });
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+
+      const plain = json(await call('select_best', { ids, count: 1, considerImprovements: false }));
+      expect(plain.ids).toEqual([clean.id]);
+      expect(plain.improvements).toBeUndefined();
+      expect(estimateMany).toHaveBeenCalledTimes(1);
     });
 
     it('should select diverse photos with constraints', async () => {

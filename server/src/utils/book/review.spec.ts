@@ -226,6 +226,26 @@ describe('reviewBook', () => {
     ]);
   });
 
+  it('should report placed photos that an improved copy would clearly help', () => {
+    const [a, b, c, d] = [
+      photo({ gain: 0.05 }),
+      photo({ gain: 0.01 }),
+      photo({ gain: 0.2, kind: 'improved' }),
+      photo(),
+    ];
+    const result = review([page('two-vertical', [a, b]), page('two-horizontal', [c, d])], [a, b, c, d]);
+    expect(result.issues.filter((issue) => issue.type === 'could-look-better')).toEqual([
+      expect.objectContaining({ severity: 'low', pages: [1], assetIds: [a.id] }),
+    ]);
+    expect(result.issues.find((issue) => issue.type === 'could-look-better')!.message).toMatch(/apply_improvements/);
+
+    const strong = photo({ gain: 0.1 });
+    const medium = review([page('single', [strong])], [strong]);
+    expect(medium.issues).toContainEqual(
+      expect.objectContaining({ severity: 'medium', type: 'could-look-better', assetIds: [strong.id] }),
+    );
+  });
+
   it('should order the issues by severity', () => {
     const small = photo({ width: 800, height: 800 });
     const photos = [small, photo(), photo()];

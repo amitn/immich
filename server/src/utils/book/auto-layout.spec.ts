@@ -403,6 +403,20 @@ describe('planAutoLayout stacks and artwork', () => {
     expect(placed).not.toContain(original.id);
   });
 
+  it('should prefer an improved copy unless it scores clearly worse than its original', () => {
+    const photos = event(12, start);
+    const original = photo({ takenAt: start + 30 * 60_000, stackId: 'a', score: 0.6 });
+    const improved = photo({ takenAt: start + 30 * 60_000, stackId: 'a', kind: 'improved', score: 0.59 });
+    const placed = placedIds(plan([...photos, original, improved], { includeMaps: false }));
+    expect(placed).toContain(improved.id);
+    expect(placed).not.toContain(original.id);
+
+    const worse = { ...improved, score: 0.5 };
+    const again = placedIds(plan([...photos, original, worse], { includeMaps: false }));
+    expect(again).toContain(original.id);
+    expect(again).not.toContain(worse.id);
+  });
+
   it('should show an artwork next to its original as an intentional pair, a few times per book', () => {
     const photos = event(30, start, (i) => ({ score: 0.4 + (i % 5) / 20 }));
     const stacks = [0, 1, 2, 3].map((i) => {
@@ -691,6 +705,7 @@ describe('getPhotoKind', () => {
     expect(getPhotoKind({ stackId: null, isArtwork: true })).toBe('artwork');
     expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_1-crop.jpg' })).toBe('crop');
     expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_1-enhanced.JPG' })).toBe('enhanced');
+    expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_1-improved.jpg' })).toBe('improved');
     expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_2.jpg' })).toBe('copy');
   });
 });
