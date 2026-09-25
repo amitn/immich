@@ -65,6 +65,21 @@ from
 where
   "person"."thumbnailPath" in $1
 
+-- IntegrityRepository.getBookExportPathsByPaths
+select
+  "book"."exportPath" as "path"
+from
+  "book"
+where
+  "book"."exportPath" in $1
+union
+select
+  "book"."htmlExportPath" as "path"
+from
+  "book"
+where
+  "book"."htmlExportPath" in $2
+
 -- IntegrityRepository.getTrackedPaths
 select
   "asset"."originalPath" as "path"
@@ -86,6 +101,20 @@ from
   "person"
 where
   "person"."thumbnailPath" in $3
+union
+select
+  "book"."exportPath" as "path"
+from
+  "book"
+where
+  "book"."exportPath" in $4
+union
+select
+  "book"."htmlExportPath" as "path"
+from
+  "book"
+where
+  "book"."htmlExportPath" in $5
 
 -- IntegrityRepository.getAssetCount
 select

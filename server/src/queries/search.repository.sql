@@ -210,6 +210,15 @@ from
 where
   "assetId" = $1
 
+-- SearchRepository.getEmbeddings
+select
+  "assetId",
+  "embedding"
+from
+  "smart_search"
+where
+  "assetId" = any ($1::uuid[])
+
 -- SearchRepository.searchFaces
 begin
 set

@@ -36,6 +36,15 @@ where
   and "user"."id" = $3
   and "album"."deletedAt" is null
 
+-- AccessRepository.agentSession.checkOwnerAccess
+select
+  "agent_session"."id"
+from
+  "agent_session"
+where
+  "agent_session"."id" in ($1)
+  and "agent_session"."userId" = $2
+
 -- AccessRepository.album.checkOwnerAccess
 select
   "album"."id"
@@ -70,6 +79,15 @@ from
 where
   "shared_link"."id" = $1
   and "shared_link"."albumId" in ($2)
+
+-- AccessRepository.artJob.checkOwnerAccess
+select
+  "art_job"."id"
+from
+  "art_job"
+where
+  "art_job"."id" in ($1)
+  and "art_job"."userId" = $2
 
 -- AccessRepository.asset.checkAlbumAccess
 with
@@ -168,6 +186,15 @@ from
 where
   "session"."userId" = $1
   and "session"."id" in ($2)
+
+-- AccessRepository.book.checkOwnerAccess
+select
+  "book"."id"
+from
+  "book"
+where
+  "book"."id" in ($1)
+  and "book"."ownerId" = $2
 
 -- AccessRepository.duplicate.checkOwnerAccess
 select
