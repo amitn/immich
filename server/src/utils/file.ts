@@ -29,6 +29,8 @@ export class ImmichFileResponse {
   public readonly contentType!: string;
   public readonly cacheControl!: CacheControl;
   public readonly fileName?: string;
+  /** `attachment` makes browsers download the file instead of showing it */
+  public readonly disposition?: 'inline' | 'attachment';
 
   constructor(response: ImmichFileResponse) {
     Object.assign(this, response);
@@ -66,7 +68,15 @@ export const sendFile = async (
     }
 
     res.header('Content-Type', file.contentType);
-    if (file.fileName) {
+    if (file.fileName && file.disposition === 'attachment') {
+      const ascii = file.fileName.replaceAll(/[^\u{20}-\u{7E}]|["\\]/gu, '_');
+      res.header(
+        'Content-Disposition',
+        ascii === file.fileName
+          ? `attachment; filename="${ascii}"`
+          : `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(file.fileName)}`,
+      );
+    } else if (file.fileName) {
       res.header('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`);
     }
 

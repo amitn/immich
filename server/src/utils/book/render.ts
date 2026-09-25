@@ -100,6 +100,8 @@ export type PagePlan = {
   layout: BookLayout;
   unknownLayout: boolean;
   slots: PagePlanSlot[];
+  /** titles and captions, in pixels; drawn into `spec.overlay` */
+  text: PageTextBlock[];
   spec: BookPageComposeSpec;
 };
 
@@ -185,7 +187,7 @@ export const escapeXml = (value: string) =>
     .replaceAll("'", '&apos;');
 
 const CHAR_WIDTH = 0.52;
-const LINE_HEIGHT = 1.25;
+export const LINE_HEIGHT = 1.25;
 
 /** Greedy word wrap based on an average character width */
 export const wrapText = (text: string, maxWidthPx: number, fontPx: number): string[] => {
@@ -244,7 +246,10 @@ export const fitText = (text: string, box: { width: number; height: number }, fo
   return { lines: kept, fontPx: size };
 };
 
-type TextBlock = {
+export type PageTextKind = LayoutTextArea['kind'] | 'slotCaption';
+
+export type PageTextBlock = {
+  kind: PageTextKind;
   rect: PxRect;
   text: string;
   fontPx: number;
@@ -257,7 +262,7 @@ type TextBlock = {
   valign?: 'middle' | 'bottom';
 };
 
-const renderTextBlock = (block: TextBlock, fontFamily: string) => {
+const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
   const padding = block.band ? block.fontPx * 0.5 : 0;
   const inner = {
     width: Math.max(1, block.rect.width - 2 * padding),
@@ -307,7 +312,7 @@ const renderPlaceholder = (rect: PxRect, label: string, fontFamily: string) => {
   const stroke = Math.max(1, Math.round(fontPx / 10));
   return (
     `<rect x="${rect.left}" y="${rect.top}" width="${rect.width}" height="${rect.height}" fill="#e9e9e9" stroke="#a0a0a0" stroke-width="${stroke}" stroke-dasharray="${stroke * 6},${stroke * 4}"/>` +
-    renderTextBlock({ rect, text: label, fontPx, align: 'center', color: '#707070' }, fontFamily)
+    renderTextBlock({ kind: 'caption', rect, text: label, fontPx, align: 'center', color: '#707070' }, fontFamily)
   );
 };
 
@@ -348,7 +353,7 @@ export const planPage = (
 
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
-  const blocks: TextBlock[] = [];
+  const blocks: PageTextBlock[] = [];
   let hasCaptionArea = false;
 
   for (const area of getTextRectsMm(layout, size, style)) {
@@ -356,18 +361,18 @@ export const planPage = (
     const base = { rect, align: area.align, color: style.textColor };
     switch (area.kind) {
       case 'title': {
-        blocks.push({ ...base, text: book.title, fontPx: titlePx, bold: true });
+        blocks.push({ ...base, kind: area.kind, text: book.title, fontPx: titlePx, bold: true });
         break;
       }
       case 'subtitle': {
         if (book.subtitle) {
-          blocks.push({ ...base, text: book.subtitle, fontPx: titlePx * 0.55, italic: true });
+          blocks.push({ ...base, kind: area.kind, text: book.subtitle, fontPx: titlePx * 0.55, italic: true });
         }
         break;
       }
       case 'sectionTitle': {
         if (page.sectionTitle) {
-          blocks.push({ ...base, text: page.sectionTitle, fontPx: titlePx * 0.9, bold: true });
+          blocks.push({ ...base, kind: area.kind, text: page.sectionTitle, fontPx: titlePx * 0.9, bold: true });
         }
         break;
       }
@@ -375,7 +380,12 @@ export const planPage = (
         hasCaptionArea = true;
         if (page.caption) {
           // text-only pages read like a story, so the caption is a little larger there
-          blocks.push({ ...base, text: page.caption, fontPx: layout.slots.length === 0 ? captionPx * 1.3 : captionPx });
+          blocks.push({
+            ...base,
+            kind: area.kind,
+            text: page.caption,
+            fontPx: layout.slots.length === 0 ? captionPx * 1.3 : captionPx,
+          });
         }
         break;
       }
@@ -388,6 +398,7 @@ export const planPage = (
     blocks.push(
       !layout.fullBleed && marginPx >= captionPx * 1.6
         ? {
+            kind: 'caption',
             rect: {
               left: box.left,
               top: box.top + box.height,
@@ -400,6 +411,7 @@ export const planPage = (
             color: style.textColor,
           }
         : {
+            kind: 'caption',
             rect: { ...box, top: box.top + box.height * 0.7, height: box.height * 0.3 },
             text: page.caption,
             fontPx: captionPx,
@@ -414,6 +426,7 @@ export const planPage = (
   for (const slot of slots) {
     if (slot.caption && slot.source) {
       blocks.push({
+        kind: 'slotCaption',
         rect: { ...slot.rect, top: slot.rect.top + slot.rect.height * 0.6, height: slot.rect.height * 0.4 },
         text: slot.caption,
         fontPx: captionPx * 0.9,
@@ -435,7 +448,8 @@ export const planPage = (
       }
     }
   }
-  parts.push(...blocks.filter((block) => block.text.trim()).map((block) => renderTextBlock(block, style.fontFamily)));
+  const text = blocks.filter((block) => block.text.trim());
+  parts.push(...text.map((block) => renderTextBlock(block, style.fontFamily)));
 
   const overlay =
     parts.length > 0
@@ -448,6 +462,7 @@ export const planPage = (
     layout,
     unknownLayout: !knownLayout,
     slots,
+    text,
     spec: {
       width,
       height,
@@ -575,6 +590,7 @@ export const planContactSheet = (
     parts.push(
       renderTextBlock(
         {
+          kind: 'caption',
           rect: { left, top: top + thumb.height, width: thumb.width, height: labelHeight },
           text: String(page.number),
           fontPx: labelHeight * 0.75,

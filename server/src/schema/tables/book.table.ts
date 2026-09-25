@@ -51,6 +51,12 @@ export class BookTable {
   @Column({ nullable: true })
   exportPath!: string | null;
 
+  @Column({ nullable: true })
+  htmlExportStatus!: BookExportStatus | null;
+
+  @Column({ nullable: true })
+  htmlExportPath!: string | null;
+
   @CreateDateColumn()
   createdAt!: Generated<Timestamp>;
 

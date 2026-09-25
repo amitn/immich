@@ -7,7 +7,7 @@ import {
   NormalizedRectSchema,
   defaultBookStyle,
 } from 'src/dtos/book.dto.js';
-import { Permission } from 'src/enum.js';
+import { BookExportFormat, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
 import {
@@ -50,7 +50,7 @@ const WORKFLOW =
   'Workflow: plan the sections (story, chapters, ~3–6 photos per spread) → create_book → add_page for each page ' +
   '(use assetIds to fill the slots in one call) → place_photo/set_caption to refine → render_page to review your ' +
   'own work visually → fix problems (crops cutting faces, empty slots, low-dpi warnings, repetitive layouts) → ' +
-  'render_book for an overview of the spreads → export_pdf.';
+  'render_book for an overview of the spreads → export_pdf (print) and/or export_html (a single-file web book).';
 
 const bookId = z.uuidv4().describe('Book ID');
 const pageRef = z
@@ -91,6 +91,7 @@ const summarizeBook = (book: BookDetailResponseDto) => ({
   pageSize: `${book.pageWidthMm}×${book.pageHeightMm}mm`,
   style: book.style,
   exportStatus: book.exportStatus,
+  htmlExportStatus: book.htmlExportStatus,
   pageCount: book.pages.length,
   pages: book.pages.map((page) => summarizePage(page)),
 });
@@ -160,6 +161,7 @@ export class BookAgentTools extends BaseService {
                 title: book.title,
                 pageCount: book.pageCount,
                 exportStatus: book.exportStatus,
+                htmlExportStatus: book.htmlExportStatus,
                 updatedAt: book.updatedAt,
               })),
             );
@@ -198,7 +200,7 @@ export class BookAgentTools extends BaseService {
         title: 'Get a photo book',
         description:
           'Get a compact summary of a book: pages (1-based numbers), layouts, and for every slot the aspect ' +
-          'ratio, the placed assetId (null when empty), crop and caption. Also shows exportStatus.',
+          'ratio, the placed assetId (null when empty), crop and caption. Also shows exportStatus (PDF) and htmlExportStatus.',
         input: z.object({ bookId }),
         mutating: false,
         handler: (ctx, input) =>
@@ -472,6 +474,26 @@ export class BookAgentTools extends BaseService {
               queued: true,
               exportStatus: book.exportStatus,
               downloadPath: `/api/books/${book.id}/pdf`,
+            });
+          }),
+      }),
+
+      defineTool({
+        name: 'export_html',
+        title: 'Export the book as a web page',
+        description:
+          'Queue the export of a single self-contained HTML file (every photo embedded, no internet needed) that ' +
+          'can be opened offline or emailed, with a two-page book view and a scroll view. It runs in the ' +
+          'background; poll get_book until htmlExportStatus is "completed" (or "failed").',
+        input: z.object({ bookId }),
+        mutating: true,
+        handler: (ctx, input) =>
+          this.run(async () => {
+            const book = await this.books.export(ctx.auth, input.bookId, { format: BookExportFormat.Html });
+            return toolJson({
+              queued: true,
+              htmlExportStatus: book.htmlExportStatus,
+              downloadPath: `/api/books/${book.id}/html`,
             });
           }),
       }),

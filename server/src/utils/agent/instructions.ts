@@ -15,7 +15,7 @@ Typical workflows:
 - Select: cluster_similar groups bursts and near-duplicates, score_photo rates sharpness, exposure and faces, and select_best picks a diverse set within constraints (count, max per cluster, required people, max per event).
 - Create the result with create_album (or add_to_album / remove_from_album).
 - Crop: suggest_crop proposes a face-aware crop for an aspect ratio and shows a preview; crop_photo creates a cropped copy (the original is never changed).
-- Photo books: list_layouts, create_book, then add_page / set_page_layout / place_photo / set_caption / set_book_style. Call render_page after building pages and review the image yourself: fix empty slots, awkward crops and repeated photos before telling the user it is done. export_pdf creates the printable PDF.
+- Photo books: list_layouts, create_book, then add_page / set_page_layout / place_photo / set_caption / set_book_style. Call render_page after building pages and review the image yourself: fix empty slots, awkward crops and repeated photos before telling the user it is done. export_pdf creates the printable PDF; export_html creates a single-file web book that can be shared or emailed.
 - For large requests, work in steps and tell the user what you're doing; ask a short clarifying question only when the request is ambiguous.`;
 
 export type RecapMessage = { role: 'user' | 'agent'; text: string };

@@ -1,6 +1,11 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import request from 'supertest';
 import { BookController } from 'src/controllers/book.controller.js';
+import { CacheControl } from 'src/enum.js';
 import { BookService } from 'src/services/book.service.js';
+import { ImmichFileResponse } from 'src/utils/file.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
@@ -131,7 +136,61 @@ describe(BookController.name, () => {
       const id = factory.uuid();
       const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/export`);
       expect(status).toBe(204);
-      expect(service.export).toHaveBeenCalledWith(undefined, id);
+      expect(service.export).toHaveBeenCalledWith(undefined, id, { format: 'pdf' });
+    });
+
+    it('should accept an html format', async () => {
+      const id = factory.uuid();
+      const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/export`).send({ format: 'html' });
+      expect(status).toBe(204);
+      expect(service.export).toHaveBeenCalledWith(undefined, id, { format: 'html' });
+    });
+
+    it('should reject unknown formats', async () => {
+      const { status, body } = await request(ctx.getHttpServer())
+        .post(`/books/${factory.uuid()}/export`)
+        .send({ format: 'docx' });
+      expect(status).toBe(400);
+      expect(body).toEqual(errorDto.validationError([{ path: ['format'], message: expect.any(String) }]));
+      expect(service.export).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('GET /books/:id/html', () => {
+    let folder: string;
+
+    beforeAll(async () => {
+      folder = await mkdtemp(join(tmpdir(), 'immich-book-html-'));
+      return () => rm(folder, { recursive: true, force: true });
+    });
+
+    it('should download the file as an attachment', async () => {
+      const id = factory.uuid();
+      const path = join(folder, `${id}.html`);
+      await writeFile(path, '<!doctype html><title>Book</title>');
+      service.downloadHtml.mockResolvedValue(
+        new ImmichFileResponse({
+          path,
+          contentType: 'text/html',
+          cacheControl: CacheControl.PrivateWithoutCache,
+          fileName: 'summer-in-rome.html',
+          disposition: 'attachment',
+        }),
+      );
+
+      const { status, headers, text } = await request(ctx.getHttpServer()).get(`/books/${id}/html`);
+
+      expect(status).toBe(200);
+      expect(service.downloadHtml).toHaveBeenCalledWith(undefined, id);
+      expect(headers['content-type']).toMatch(/^text\/html/);
+      expect(headers['content-disposition']).toBe('attachment; filename="summer-in-rome.html"');
+      expect(headers['content-security-policy']).toContain('sandbox');
+      expect(text).toBe('<!doctype html><title>Book</title>');
+    });
+
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/books/123/html');
+      expect(status).toBe(400);
     });
   });
 });

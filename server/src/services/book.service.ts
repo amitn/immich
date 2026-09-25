@@ -7,6 +7,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import {
   BookCreateDto,
   BookDetailResponseDto,
+  BookExportDto,
   BookLayoutResponseDto,
   BookPageCreateDto,
   BookPageMoveDto,
@@ -30,6 +31,7 @@ import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
   AssetFileType,
   AssetType,
+  BookExportFormat,
   BookExportStatus,
   CacheControl,
   JobName,
@@ -43,6 +45,18 @@ import {
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { getDimensions } from 'src/utils/asset.util.js';
+import {
+  HTML_JPEG_QUALITY,
+  HTML_LARGE_FILE_BYTES,
+  HTML_MAX_IMAGE_PX,
+  HtmlImage,
+  ImageSize,
+  buildBookHtml,
+  getHtmlFileName,
+  getRegionSize,
+  isImagePageLayout,
+  planHtmlImages,
+} from 'src/utils/book/html.js';
 import { PageSize, bookLayouts, getLayout, getSlotAspectRatios, validatePageStyle } from 'src/utils/book/layouts.js';
 import { createBookPdf } from 'src/utils/book/pdf.js';
 import {
@@ -59,6 +73,7 @@ import {
   planContactSheet,
   planPage,
 } from 'src/utils/book/render.js';
+import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
@@ -73,6 +88,9 @@ const DEFAULT_PAGE_SIZE_MM = 210;
 
 export const getBookPdfPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.pdf`);
+
+export const getBookHtmlPath = (book: { id: string; ownerId: string }) =>
+  join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.html`);
 
 const getAssetDimensions = (asset: RenderAsset) =>
   asset.width && asset.height
@@ -197,7 +215,13 @@ export class BookService extends BaseService {
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     await this.bookRepository.delete(id);
 
-    const files = [...new Set([getBookPdfPath(book), book.exportPath].filter((path): path is string => !!path))];
+    const files = [
+      ...new Set(
+        [getBookPdfPath(book), book.exportPath, getBookHtmlPath(book), book.htmlExportPath].filter(
+          (path): path is string => !!path,
+        ),
+      ),
+    ];
     await this.jobRepository.queue({ name: JobName.FileDelete, data: { files } });
   }
 
@@ -372,11 +396,20 @@ export class BookService extends BaseService {
     return { data, warnings, pages: numbers };
   }
 
-  async export(auth: AuthDto, id: string): Promise<BookResponseDto> {
+  async export(auth: AuthDto, id: string, dto: Partial<BookExportDto> = {}): Promise<BookResponseDto> {
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     if (book.pageCount === 0) {
       throw new BadRequestException('The book has no pages');
+    }
+
+    if (dto.format === BookExportFormat.Html) {
+      if (book.htmlExportStatus !== BookExportStatus.Pending) {
+        await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Pending);
+        await this.jobRepository.queue({ name: JobName.BookExportHtml, data: { id } });
+      }
+
+      return mapBook({ ...book, htmlExportStatus: BookExportStatus.Pending });
     }
 
     if (book.exportStatus !== BookExportStatus.Pending) {
@@ -402,6 +435,22 @@ export class BookService extends BaseService {
     });
   }
 
+  async downloadHtml(auth: AuthDto, id: string): Promise<ImmichFileResponse> {
+    await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    if (!book.htmlExportPath) {
+      throw new BadRequestException('The book has not been exported as HTML yet');
+    }
+
+    return new ImmichFileResponse({
+      path: book.htmlExportPath,
+      contentType: 'text/html',
+      cacheControl: CacheControl.PrivateWithoutCache,
+      fileName: getHtmlFileName(book.title),
+      disposition: 'attachment',
+    });
+  }
+
   @OnJob({ name: JobName.BookExport, queue: QueueName.BackgroundTask })
   async handleBookExport({ id }: JobOf<JobName.BookExport>): Promise<JobStatus> {
     const book = await this.bookRepository.get(id);
@@ -412,22 +461,7 @@ export class BookService extends BaseService {
     await this.bookRepository.setExportStatus(id, BookExportStatus.Running);
 
     try {
-      const owner = await this.userRepository.get(book.ownerId, {});
-      if (!owner) {
-        throw new Error('Book owner not found');
-      }
-
-      const auth: AuthDto = {
-        user: {
-          id: owner.id,
-          isAdmin: owner.isAdmin,
-          name: owner.name,
-          email: owner.email,
-          quotaUsageInBytes: owner.quotaUsageInBytes,
-          quotaSizeInBytes: owner.quotaSizeInBytes,
-        },
-      };
-
+      const auth = await this.getOwnerAuth(book);
       const pages = await this.bookRepository.getPages(id);
       if (pages.length === 0) {
         throw new Error('The book has no pages');
@@ -472,6 +506,161 @@ export class BookService extends BaseService {
       });
       return JobStatus.Failed;
     }
+  }
+
+  @OnJob({ name: JobName.BookExportHtml, queue: QueueName.BackgroundTask })
+  async handleBookExportHtml({ id }: JobOf<JobName.BookExportHtml>): Promise<JobStatus> {
+    const book = await this.bookRepository.get(id);
+    if (!book) {
+      return JobStatus.Skipped;
+    }
+
+    await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Running);
+
+    try {
+      const auth = await this.getOwnerAuth(book);
+      const pages = await this.bookRepository.getPages(id);
+      if (pages.length === 0) {
+        throw new Error('The book has no pages');
+      }
+
+      const { html, imageCount } = await this.createBookHtml(auth, book, pages);
+      const data = Buffer.from(html);
+
+      const path = getBookHtmlPath(book);
+      this.storageCore.ensureFolders(path);
+      await this.storageRepository.createOrOverwriteFile(`${path}.tmp`, data);
+      await this.storageRepository.rename(`${path}.tmp`, path);
+      await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Completed, path);
+
+      const size = asHumanReadable(data.length);
+      const large = data.length > HTML_LARGE_FILE_BYTES;
+      const message = `Exported book ${id} as HTML (${pages.length} pages, ${imageCount} photos, ${size})`;
+      if (large) {
+        this.logger.warn(`${message}; the file may be too large to email`);
+      } else {
+        this.logger.log(message);
+      }
+
+      await this.notifyOwner(book, {
+        level: large ? NotificationLevel.Warning : NotificationLevel.Success,
+        title: 'Web photo book ready',
+        description: large
+          ? `The HTML version of "${book.title}" is ready to download, but at ${size} it may be too large to email`
+          : `The HTML version of "${book.title}" is ready to download (${size})`,
+      });
+
+      return JobStatus.Success;
+    } catch (error: any) {
+      this.logger.error(`Unable to export book ${id} as HTML: ${error?.message ?? error}`, error?.stack);
+      await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Failed);
+      await this.notifyOwner(book, {
+        level: NotificationLevel.Error,
+        title: 'Photo book export failed',
+        description: `The HTML version of "${book.title}" could not be created`,
+      });
+      return JobStatus.Failed;
+    }
+  }
+
+  /** Embeds every placed photo once, sized for screens, and renders map pages as whole-page images */
+  private async createBookHtml(auth: AuthDto, book: Book, pages: BookPage[]) {
+    const assetIds = new Set<string>();
+    for (const page of pages) {
+      if (isImagePageLayout(page.layout)) {
+        continue;
+      }
+      for (const asset of page.assets) {
+        assetIds.add(asset.assetId);
+      }
+      if (page.layout === 'cover' && book.coverAssetId) {
+        assetIds.add(book.coverAssetId);
+      }
+    }
+
+    const allowed =
+      assetIds.size > 0
+        ? await this.checkAccess({ auth, permission: Permission.AssetRead, ids: assetIds })
+        : new Set<string>();
+    const assets = await this.bookRepository.getAssetsForRender([...allowed]);
+    const { image } = await this.getConfig({ withCache: true });
+
+    const sources = new Map<
+      string,
+      { asset: RenderAsset; preview?: RenderSource['input']; full?: RenderSource['input']; size: ImageSize }
+    >();
+    for (const asset of assets) {
+      const preview = getRenderInput(asset, 'review')?.input;
+      const print = getRenderInput(asset, 'print');
+      const full = print && !print.fallback ? print.input : undefined;
+      const input = preview ?? full;
+      if (!input) {
+        continue;
+      }
+
+      let size: ImageSize = getAssetDimensions(asset);
+      if (!size.width || !size.height) {
+        size = await this.mediaRepository.getImageMetadata(input).catch(() => ({ width: 0, height: 0 }));
+      }
+      if (size.width && size.height) {
+        sources.set(asset.id, { asset, preview, full, size });
+      }
+    }
+
+    const sizes = new Map([...sources].map(([id, source]) => [id, source.size]));
+    const images = new Map<string, HtmlImage>();
+    for (const [assetId, request] of planHtmlImages(book, pages, sizes)) {
+      const source = sources.get(assetId)!;
+      // previews are enough unless a photo is shown larger than its preview
+      const previewScale = Math.min(1, image.preview.size / Math.max(source.size.width, source.size.height));
+      const useFull = !source.preview || (!!source.full && request.scale > previewScale * 1.1);
+      const input = (useFull ? source.full : source.preview)!;
+      const scale = useFull ? request.scale : Math.min(request.scale, previewScale);
+
+      const { width, height } = getRegionSize(request.region, source.size, scale);
+      const result = await this.mediaRepository.composeBookPage({
+        width,
+        height,
+        background: '#ffffff',
+        quality: HTML_JPEG_QUALITY,
+        overlay: null,
+        slots: [{ left: 0, top: 0, width, height, input, crop: request.region }],
+      });
+      const [slot] = result.slots;
+      if (slot && 'error' in slot) {
+        this.logger.warn(`Book ${book.id}: photo ${assetId} could not be embedded (${slot.error})`);
+        continue;
+      }
+
+      images.set(assetId, {
+        data: result.data,
+        region: request.region,
+        ...source.size,
+        alt: source.asset.originalFileName,
+      });
+    }
+
+    const pageImages = new Map<number, Buffer>();
+    for (const [index, page] of pages.entries()) {
+      if (!isImagePageLayout(page.layout)) {
+        continue;
+      }
+      const { data } = await this.renderBookPage(auth, book, page, index + 1, {
+        mode: 'review',
+        dpi: getDpiForLongEdge(book, HTML_MAX_IMAGE_PX),
+      });
+      pageImages.set(index, data);
+    }
+
+    const times = sources
+      .values()
+      .map(({ asset }) => (asset.localDateTime ? new Date(asset.localDateTime).getTime() : NaN))
+      .filter((time) => Number.isFinite(time))
+      .toArray();
+    const dateRange =
+      times.length > 0 ? { start: new Date(Math.min(...times)), end: new Date(Math.max(...times)) } : null;
+
+    return { html: buildBookHtml(book, pages, { images, pageImages, dateRange }), imageCount: images.size };
   }
 
   /** Renders one page; `number` is the one-based page number used in warnings */
@@ -565,6 +754,24 @@ export class BookService extends BaseService {
       );
     }
     return aspectRatios[slot];
+  }
+
+  private async getOwnerAuth(book: Book): Promise<AuthDto> {
+    const owner = await this.userRepository.get(book.ownerId, {});
+    if (!owner) {
+      throw new Error('Book owner not found');
+    }
+
+    return {
+      user: {
+        id: owner.id,
+        isAdmin: owner.isAdmin,
+        name: owner.name,
+        email: owner.email,
+        quotaUsageInBytes: owner.quotaUsageInBytes,
+        quotaSizeInBytes: owner.quotaSizeInBytes,
+      },
+    };
   }
 
   private async notifyOwner(

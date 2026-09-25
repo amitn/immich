@@ -415,6 +415,7 @@ export type JobItem =
 
   // Books
   | { name: JobName.BookExport; data: IEntityJob }
+  | { name: JobName.BookExportHtml; data: IEntityJob }
 
   // Tags
   | { name: JobName.TagCleanup; data?: IBaseJob }
