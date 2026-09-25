@@ -1043,6 +1043,69 @@ describe(BookService.name, () => {
     });
   });
 
+  describe('getReview', () => {
+    it('should require access to the book', async () => {
+      await expect(sut.getReview(auth, newUuid())).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('should check the pages and suggest unused photos of the album', async () => {
+      const rows = trip();
+      rows[2] = { ...rows[2], width: 1000, height: 700 };
+      const { book } = setupAlbum(rows);
+      allowBook(book.id);
+      const placed = [rows[0], rows[1], rows[2], rows[3], rows[4]];
+      allowAssets(...placed.map(({ id }) => id));
+      const pages = [
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 0,
+          layout: 'cover',
+          assets: [BookPageFactory.placement({ assetId: rows[0].id })],
+        }),
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 1,
+          layout: 'single',
+          assets: [BookPageFactory.placement({ assetId: rows[1].id })],
+        }),
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 2,
+          layout: 'full-bleed',
+          assets: [BookPageFactory.placement({ assetId: rows[2].id })],
+        }),
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 3,
+          layout: 'two-vertical',
+          assets: [
+            BookPageFactory.placement({ assetId: rows[3].id }),
+            BookPageFactory.placement({ slot: 1, assetId: rows[4].id }),
+          ],
+        }),
+      ];
+      mocks.book.getPages.mockResolvedValue(pages);
+      mocks.book.getStackInfo.mockResolvedValue([
+        { id: rows[1].id, stackId: 'stack', isPrimary: true, isArtwork: false, originalFileName: 'IMG_1.jpg' },
+        { id: rows[4].id, stackId: 'stack', isPrimary: false, isArtwork: false, originalFileName: 'IMG_1-crop.jpg' },
+      ]);
+
+      const review = await sut.getReview(auth, book.id);
+
+      expect(mocks.assetJob.getForAgent).toHaveBeenCalledWith(
+        expect.arrayContaining(rows.map(({ id }) => id)),
+        auth.user.id,
+      );
+      expect(review.issues.filter((issue) => issue.severity === 'high')).toEqual([
+        expect.objectContaining({ type: 'duplicate-stack', pages: [2, 4] }),
+        expect.objectContaining({ type: 'low-dpi', pages: [3], slot: 1, assetIds: [rows[2].id] }),
+      ]);
+      const suggested = review.unusedPhotos.map(({ assetId }) => assetId);
+      expect(suggested.length).toBeGreaterThan(0);
+      expect(suggested.some((id) => placed.some((photo) => photo.id === id))).toBe(false);
+    });
+  });
+
   describe('auto layout', () => {
     afterEach(() => {
       vi.restoreAllMocks();

@@ -169,6 +169,21 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('GET /books/:id/review', () => {
+    it('should review the book', async () => {
+      const id = factory.uuid();
+      service.getReview.mockResolvedValue({} as never);
+      const { status } = await request(ctx.getHttpServer()).get(`/books/${id}/review`);
+      expect(status).toBe(200);
+      expect(service.getReview).toHaveBeenCalledWith(undefined, id);
+    });
+
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/books/123/review');
+      expect(status).toBe(400);
+    });
+  });
+
   describe('GET /books/:id', () => {
     it('should require a valid id', async () => {
       const { status, body } = await request(ctx.getHttpServer()).get('/books/123');

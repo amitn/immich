@@ -207,7 +207,9 @@ export const getPhotoKind = (asset: {
 };
 
 /** 0 for different photos, 1 for near-duplicates, by the CLIP distance; photos of one stack are not compared */
-export const getPhotoSimilarity = (a: AutoLayoutPhoto, b: AutoLayoutPhoto) => {
+type SimilarityPhoto = Pick<AutoLayoutPhoto, 'id' | 'embedding' | 'stackId'>;
+
+export const getPhotoSimilarity = (a: SimilarityPhoto, b: SimilarityPhoto) => {
   if (!a.embedding || !b.embedding || a.id === b.id || (a.stackId && a.stackId === b.stackId)) {
     return 0;
   }

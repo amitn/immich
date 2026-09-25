@@ -732,12 +732,41 @@ export class BookAgentTools extends BaseService {
       }),
 
       defineTool({
+        name: 'review_book',
+        title: 'Review a photo book',
+        description:
+          'A checklist of what to fix in a book, most severe first (high, medium, low): the same photo stack on ' +
+          'more than one page (a photo and its crop, artwork or enhanced copy; an artwork next to its original on ' +
+          'one page is a fine pair), placements that print below 150 dpi (page and slot), empty slots, too much ' +
+          'artwork or artwork on consecutive pages, more than two single-photo pages in a row, similar photos on ' +
+          'neighbouring pages, maps drawn as sketches for lack of a Stadia Maps key, main people with few photos, ' +
+          'repeated layouts and pages without captions. Also lists unusedPhotos (the best album photos that are ' +
+          'not in the book, the main people first) and weakestPlaced (the lowest scoring photos in the book, to ' +
+          'compare and swap with place_photo). Read-only.',
+        input: z.object({ bookId }),
+        mutating: false,
+        handler: (ctx, input) =>
+          this.run(async () => {
+            const review = await this.books.getReview(ctx.auth, input.bookId);
+            return toolJson({
+              pageCount: review.pageCount,
+              counts: review.counts,
+              issues: review.issues,
+              ...(review.unusedPhotos.length > 0 && { unusedPhotos: review.unusedPhotos }),
+              ...(review.weakestPlaced.length > 0 && { weakestPlaced: review.weakestPlaced }),
+              ...(review.people.length > 0 && { mainPeople: review.people }),
+            });
+          }),
+      }),
+
+      defineTool({
         name: 'render_book',
         title: 'Render the book overview',
         description:
           'Render small thumbnails of all pages (or pages fromPage..toPage) as two-page spreads with page ' +
           'numbers, like the printed book will open (page 1 alone on the right). Use it to judge pacing and ' +
-          'variety; use render_page for details. For long books render ranges of ~16 pages.',
+          'variety; use render_page for details. For long books render ranges of ~16 pages. Call review_book for ' +
+          'a checklist of what to fix.',
         input: z.object({
           bookId,
           fromPage: z.int().min(1).optional(),

@@ -94,6 +94,7 @@ describe(BookAgentTools.name, () => {
         'update_book',
         'render_page',
         'render_book',
+        'review_book',
         'export_pdf',
         'export_html',
         'auto_layout_book',
@@ -537,6 +538,42 @@ describe(BookAgentTools.name, () => {
 
       expect(illustrate.mock.calls.map((args) => args[2])).toEqual([mapPages[0].id, mapPages[1].id]);
       expect(result.started).toEqual([3, 4]);
+    });
+  });
+
+  describe('review_book', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should return the checklist without empty lists', async () => {
+      const { book } = setupBook();
+      const issue = {
+        severity: 'high' as const,
+        type: 'low-dpi' as const,
+        message: 'm',
+        pages: [2],
+        slot: 1,
+        dpi: 120,
+      };
+      const getReview = vi.spyOn(BookService.prototype, 'getReview').mockResolvedValue({
+        pageCount: 2,
+        counts: { high: 1, medium: 0, low: 0 },
+        issues: [issue],
+        unusedPhotos: [{ assetId: newUuid(), score: 0.9 }],
+        weakestPlaced: [],
+        people: [],
+      });
+
+      const result = JSON.parse(text(await call('review_book', { bookId: book.id })));
+
+      expect(getReview).toHaveBeenCalledWith(authStub.admin, book.id);
+      expect(result).toEqual({
+        pageCount: 2,
+        counts: { high: 1, medium: 0, low: 0 },
+        issues: [issue],
+        unusedPhotos: [{ assetId: expect.any(String), score: 0.9 }],
+      });
     });
   });
 

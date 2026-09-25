@@ -392,6 +392,77 @@ const BookAutoLayoutResponseSchema = BookDetailResponseSchema.extend({
     .describe('Problems met while laying out the book, e.g. a map style that is not available'),
 }).meta({ id: 'BookAutoLayoutResponseDto' });
 
+export const bookReviewSeverities = ['high', 'medium', 'low'] as const;
+
+export const bookReviewIssueTypes = [
+  'duplicate-stack',
+  'low-dpi',
+  'empty-slot',
+  'too-much-artwork',
+  'artwork-back-to-back',
+  'singles-in-a-row',
+  'similar-neighbours',
+  'map-style-fallback',
+  'person-underrepresented',
+  'too-many-pairs',
+  'repeated-layout',
+  'missing-captions',
+] as const;
+
+const BookReviewIssueSchema = z
+  .object({
+    severity: z.enum(bookReviewSeverities).describe('How much the issue hurts the book'),
+    type: z.enum(bookReviewIssueTypes).describe('Kind of issue'),
+    message: z.string().describe('What is wrong and how to fix it'),
+    pages: z.array(z.int().min(1)).describe('One-based page numbers'),
+    slot: z.int().min(1).optional().describe('One-based slot number'),
+    assetIds: z.array(z.uuidv4()).optional().describe('Photos involved, or photos to use instead'),
+    dpi: z.int().optional().describe('Print resolution of the placement'),
+  })
+  .meta({ id: 'BookReviewIssueDto' });
+
+const BookReviewSuggestionSchema = z
+  .object({
+    assetId: z.uuidv4().describe('Photo ID'),
+    score: z.number().describe('Quality score, 0..1').meta({ format: 'double' }),
+    people: z.array(z.string()).optional().describe('Named people in the photo'),
+    city: z.string().optional().describe('Place of the photo'),
+  })
+  .meta({ id: 'BookReviewSuggestionDto' });
+
+const BookReviewPlacementSchema = z
+  .object({
+    assetId: z.uuidv4().describe('Photo ID'),
+    score: z.number().describe('Quality score, 0..1').meta({ format: 'double' }),
+    page: z.int().min(1).describe('One-based page number'),
+    slot: z.int().min(1).describe('One-based slot number'),
+  })
+  .meta({ id: 'BookReviewPlacementDto' });
+
+const BookReviewResponseSchema = z
+  .object({
+    pageCount: z.int().min(0).describe('Number of pages'),
+    counts: z
+      .object({ high: z.int().min(0), medium: z.int().min(0), low: z.int().min(0) })
+      .describe('Number of issues per severity'),
+    issues: z.array(BookReviewIssueSchema).describe('Issues, most severe first'),
+    unusedPhotos: z
+      .array(BookReviewSuggestionSchema)
+      .describe('The best photos of the album that are not in the book, photos of the main people first'),
+    weakestPlaced: z.array(BookReviewPlacementSchema).describe('The lowest scoring photos in the book'),
+    people: z
+      .array(
+        z.object({
+          personId: z.uuidv4().describe('Person ID'),
+          name: z.string().optional().describe('Person name'),
+          photos: z.int().min(0).describe('Photos of the person in the album'),
+          placed: z.int().min(0).describe('Photos of the person in the book'),
+        }),
+      )
+      .describe('The people who appear most often in the album'),
+  })
+  .meta({ id: 'BookReviewResponseDto' });
+
 const BookStylePresetResponseSchema = z
   .object({
     id: BookStylePresetSchema,
@@ -448,6 +519,7 @@ export class BookResponseDto extends createZodDto(BookResponseSchema) {}
 export class BookDetailResponseDto extends createZodDto(BookDetailResponseSchema) {}
 export class BookAutoLayoutResponseDto extends createZodDto(BookAutoLayoutResponseSchema) {}
 export class BookStylePresetResponseDto extends createZodDto(BookStylePresetResponseSchema) {}
+export class BookReviewResponseDto extends createZodDto(BookReviewResponseSchema) {}
 export class BookLayoutResponseDto extends createZodDto(BookLayoutResponseSchema) {}
 
 type BookRow = Selectable<BookTable> & { pageCount: number; firstPageId: string | null };

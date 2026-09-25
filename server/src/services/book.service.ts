@@ -19,6 +19,7 @@ import {
   BookPageUpdateDto,
   BookRenderQueryDto,
   BookResponseDto,
+  BookReviewResponseDto,
   BookSlotPatchDto,
   BookSlotUpdateDto,
   BookStyle,
@@ -121,6 +122,7 @@ import {
   planContactSheet,
   planPage,
 } from 'src/utils/book/render.js';
+import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
@@ -394,6 +396,40 @@ export class BookService extends BaseService {
     }
 
     return this.layOut(auth, id, { ...dto, assetIds });
+  }
+
+  /** A checklist of what to fix in a book (see `reviewBook`), with the best photos of its album that are not in it */
+  async getReview(auth: AuthDto, id: string): Promise<BookReviewResponseDto> {
+    await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    const pages = await this.bookRepository.getPages(id);
+
+    const placedIds = new Set(pages.flatMap((page) => page.assets.map(({ assetId }) => assetId)));
+    if (book.coverAssetId) {
+      placedIds.add(book.coverAssetId);
+    }
+    const placed =
+      placedIds.size > 0
+        ? await this.checkAccess({ auth, permission: Permission.AssetRead, ids: placedIds })
+        : new Set<string>();
+
+    let albumIds: string[] = [];
+    if (book.albumId) {
+      const albums = await this.checkAccess({ auth, permission: Permission.AlbumRead, ids: new Set([book.albumId]) });
+      albumIds = albums.has(book.albumId) ? await this.getAlbumAssetIds(auth, book.albumId) : [];
+    }
+
+    const photos = await this.getLayoutPhotos(auth, [...placed, ...albumIds], placed, []);
+    const { books } = await this.getConfig({ withCache: true });
+    return reviewBook({
+      size: book,
+      style: resolveBookStyle(book.style),
+      pages,
+      photos,
+      candidateIds: albumIds,
+      coverAssetId: book.coverAssetId,
+      stadiaApiKey: books.maps.stadiaApiKey,
+    });
   }
 
   async update(auth: AuthDto, id: string, dto: BookUpdateDto): Promise<BookDetailResponseDto> {

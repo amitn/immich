@@ -34,6 +34,7 @@ import {
   BookPageUpdateDto,
   BookRenderQueryDto,
   BookResponseDto,
+  BookReviewResponseDto,
   BookSlotParamDto,
   BookSlotPatchDto,
   BookSlotUpdateDto,
@@ -116,6 +117,21 @@ export class BookController {
   })
   getBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookDetailResponseDto> {
     return this.service.get(auth, id);
+  }
+
+  @Get(':id/review')
+  @Authenticated({ permission: Permission.BookRead })
+  @Endpoint({
+    summary: 'Review a book',
+    description:
+      'A checklist of what to improve in a photo book, most severe first: photo stacks shown twice, low print ' +
+      'resolution, empty slots, too much or back-to-back artwork, long runs of single photos, similar photos on ' +
+      'neighbouring pages, maps drawn as sketches, main people with few photos, repeated layouts and pages without ' +
+      'captions; with the best photos of the album that are not in the book.',
+    history: history(),
+  })
+  getBookReview(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookReviewResponseDto> {
+    return this.service.getReview(auth, id);
   }
 
   @Patch(':id')
