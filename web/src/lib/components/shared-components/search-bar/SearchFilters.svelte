@@ -67,6 +67,8 @@
   let people = $state<PersonResponseDto[]>();
   let tagsPromise = $state<Promise<TagResponseDto[]>>();
   let tags = $state<TagResponseDto[]>();
+  /** show the tag filter when the user has tags (e.g. from the assistant), even without the tags feature enabled */
+  let hasTags = $state(false);
 
   let typeTitle = $derived(getSearchTypeTitle(searchManager.filter.queryType));
   let peopleTitle = $state<string>();
@@ -87,7 +89,7 @@
   let tagsTitle = $state<string>();
   let mediaTitle = $derived(getSearchMediaTitle(searchManager.filter.mediaType));
 
-  let filters = [
+  let filters = $derived([
     {
       name: 'type',
       icon: mdiMagnify,
@@ -112,7 +114,7 @@
       title: $t('places'),
       activeTitle: () => placesTitle,
     },
-    ...(authManager.authenticated && authManager.preferences.tags.enabled
+    ...(authManager.authenticated && (authManager.preferences.tags.enabled || hasTags)
       ? [
           {
             name: 'tags',
@@ -128,7 +130,7 @@
       title: $t('media'),
       activeTitle: () => mediaTitle,
     },
-  ];
+  ]);
 
   const advancedFiltersSet = $derived(
     searchManager.filter.display.isArchive ||
@@ -148,9 +150,12 @@
       void peoplePromise.then((res) => (people = res));
     }
 
-    if (searchManager.filter.tagIds?.size && !tagsPromise) {
+    if ((searchManager.filter.tagIds?.size || !authManager.preferences.tags.enabled) && !tagsPromise) {
       tagsPromise = getAllTags();
-      void tagsPromise.then((res) => (tags = res));
+      void tagsPromise.then((res) => {
+        tags = res;
+        hasTags = res.length > 0;
+      });
     }
   });
 

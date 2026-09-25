@@ -7,10 +7,10 @@
   import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
   import { Route } from '$lib/route';
   import { getAssetMediaUrl, getPeopleThumbnailUrl, memoryLaneTitle } from '$lib/utils';
-  import { getAssetInfo, AssetMediaSize, type SearchExploreResponseDto } from '@immich/sdk';
+  import { AssetMediaSize, AssetOrder, getAssetInfo, searchAssets, type SearchExploreResponseDto } from '@immich/sdk';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { Icon, ImageCarousel } from '@immich/ui';
-  import { mdiHeart } from '@mdi/js';
+  import { mdiHeart, mdiTagOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
@@ -22,6 +22,34 @@
   }
 
   let { data }: Props = $props();
+
+  const tags = $derived([...data.tags].sort((a, b) => a.value.localeCompare(b.value)));
+  /** the newest photo of each tag, as its cover; '' while loading or for empty tags */
+  let tagCovers = $state<Record<string, string>>({});
+  // not reactive on purpose: it only prevents loading a cover twice
+  const requestedCovers: Record<string, boolean> = {};
+
+  const loadTagCover = async (tagId: string) => {
+    try {
+      const { assets } = await searchAssets({
+        metadataSearchDto: { tagIds: [tagId], size: 1, order: AssetOrder.Desc },
+      });
+      tagCovers[tagId] = assets.items[0]?.id ?? '';
+    } catch {
+      tagCovers[tagId] = '';
+    }
+  };
+
+  $effect(() => {
+    for (const tag of tags.slice(0, 24)) {
+      if (requestedCovers[tag.id]) {
+        continue;
+      }
+
+      requestedCovers[tag.id] = true;
+      void loadTagCover(tag.id);
+    }
+  });
 
   const getFieldItems = (items: SearchExploreResponseDto[], field: string) => {
     const targetField = items.find((item) => item.fieldName === field);
@@ -125,6 +153,49 @@
                 class="absolute bottom-2 w-full px-1 text-center text-sm font-medium text-ellipsis text-white capitalize backdrop-blur-[1px] hover:cursor-pointer"
               >
                 {item.value}
+              </span>
+            </a>
+          {/each}
+        {/snippet}
+      </SingleGridRow>
+    </div>
+  {/if}
+
+  {#if tags.length > 0}
+    <div class="mt-2 mb-6">
+      <div class="flex justify-between">
+        <p class="mb-4 font-medium dark:text-immich-dark-fg">{$t('tags')}</p>
+        <a
+          href={Route.tags()}
+          class="pe-4 text-sm font-medium hover:text-immich-primary dark:text-immich-dark-fg dark:hover:text-immich-dark-primary"
+          draggable="false">{$t('view_all')}</a
+        >
+      </div>
+      <SingleGridRow class="grid grid-flow-col grid-auto-fill-28 gap-x-4 md:grid-auto-fill-36">
+        {#snippet children({ itemCount })}
+          {#each tags.slice(0, itemCount) as tag (tag.id)}
+            {@const parts = tag.value.split('/')}
+            <a class="relative" href={Route.search({ tagIds: [tag.id] })} draggable="false" title={tag.value}>
+              <div
+                class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-200 brightness-75 filter dark:bg-gray-700"
+              >
+                {#if tagCovers[tag.id]}
+                  <img
+                    src={getAssetMediaUrl({ id: tagCovers[tag.id], size: AssetMediaSize.Thumbnail })}
+                    alt={tag.value}
+                    class="aspect-square w-full object-cover"
+                  />
+                {:else}
+                  <Icon icon={mdiTagOutline} size="36" class="text-white" aria-hidden />
+                {/if}
+              </div>
+              <span
+                class="absolute bottom-2 w-full px-1 text-center text-sm font-medium text-ellipsis text-white backdrop-blur-[1px] hover:cursor-pointer"
+              >
+                {#if parts.length > 1}
+                  <span class="block text-xs opacity-80">{parts.slice(0, -1).join(' / ')}</span>
+                {/if}
+                {parts.at(-1)}
               </span>
             </a>
           {/each}
