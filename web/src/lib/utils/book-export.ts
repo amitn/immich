@@ -1,12 +1,12 @@
-import type { Translations } from 'svelte-i18n';
-import type {
+import {
   BookExportFormat,
   BookExportStatus,
   BookMapStyle,
   BookMapStyleOption,
-  BookPageDto,
-  BookResponseDto,
-} from '$lib/types/assistant';
+  type BookPageResponseDto,
+  type BookResponseDto,
+} from '@immich/sdk';
+import type { Translations } from 'svelte-i18n';
 
 // ---------------------------------------------------------------------------------------------
 // Page sizes
@@ -74,37 +74,54 @@ export const normalizeBookPageCount = (value: number | null | undefined) => {
 // Maps
 // ---------------------------------------------------------------------------------------------
 
-export const BOOK_MAP_STYLES: BookMapStyle[] = ['sketch', 'watercolor', 'toner', 'terrain'];
-export const BOOK_MAP_STYLE_OPTIONS: BookMapStyleOption[] = ['auto', ...BOOK_MAP_STYLES];
+export const BOOK_MAP_STYLE_OPTIONS: BookMapStyleOption[] = [
+  BookMapStyleOption.Auto,
+  BookMapStyleOption.Sketch,
+  BookMapStyleOption.Watercolor,
+  BookMapStyleOption.Toner,
+  BookMapStyleOption.Terrain,
+];
 export const BOOK_MAP_LAYOUTS = ['map', 'map-photo'];
 
-/** Tile styles are rendered from Stadia Maps and need an API key in the admin settings */
-export const isTileMapStyle = (style: BookMapStyleOption) => style !== 'auto' && style !== 'sketch';
+const MAP_STYLE_OPTIONS: Record<BookMapStyle, BookMapStyleOption> = {
+  [BookMapStyle.Sketch]: BookMapStyleOption.Sketch,
+  [BookMapStyle.Watercolor]: BookMapStyleOption.Watercolor,
+  [BookMapStyle.Toner]: BookMapStyleOption.Toner,
+  [BookMapStyle.Terrain]: BookMapStyleOption.Terrain,
+};
 
-export const isMapPage = (page: Pick<BookPageDto, 'layout'> & { map?: BookPageDto['map'] }) =>
+/** The option that keeps the style of an existing map, `auto` without one */
+export const toBookMapStyleOption = (style: BookMapStyle | undefined) =>
+  style ? MAP_STYLE_OPTIONS[style] : BookMapStyleOption.Auto;
+
+/** Tile styles are rendered from Stadia Maps and need an API key in the admin settings */
+export const isTileMapStyle = (style: BookMapStyleOption) =>
+  style !== BookMapStyleOption.Auto && style !== BookMapStyleOption.Sketch;
+
+export const isMapPage = (page: Pick<BookPageResponseDto, 'layout'> & { map?: BookPageResponseDto['map'] }) =>
   !!page.map || BOOK_MAP_LAYOUTS.includes(page.layout);
 
 // ---------------------------------------------------------------------------------------------
 // Export status
 // ---------------------------------------------------------------------------------------------
 
+export const BOOK_EXPORT_FORMATS: BookExportFormat[] = [BookExportFormat.Pdf, BookExportFormat.Html];
+
 export type BookExportChoice = BookExportFormat | 'both';
 
 export const toExportFormats = (choice: BookExportChoice): BookExportFormat[] =>
-  choice === 'both' ? ['pdf', 'html'] : [choice];
+  choice === 'both' ? [...BOOK_EXPORT_FORMATS] : [choice];
 
-type BookExportFields = Pick<BookResponseDto, 'exportStatus'> & {
-  htmlExportStatus?: BookResponseDto['htmlExportStatus'];
-};
+type BookExportFields = Pick<BookResponseDto, 'exportStatus' | 'htmlExportStatus'>;
 
-/** `exportStatus` is the PDF status; servers without HTML export omit `htmlExportStatus` */
+/** `exportStatus` is the PDF status */
 export const getBookExportStatus = (book: BookExportFields, format: BookExportFormat): BookExportStatus | null =>
-  (format === 'html' ? book.htmlExportStatus : book.exportStatus) ?? null;
+  (format === BookExportFormat.Html ? book.htmlExportStatus : book.exportStatus) ?? null;
 
 export const isExportActive = (status: BookExportStatus | null | undefined) =>
-  status === 'pending' || status === 'running';
+  status === BookExportStatus.Pending || status === BookExportStatus.Running;
 
-export const isBookExporting = (book: BookExportFields, formats: BookExportFormat[] = ['pdf', 'html']) =>
+export const isBookExporting = (book: BookExportFields, formats: BookExportFormat[] = BOOK_EXPORT_FORMATS) =>
   formats.some((format) => isExportActive(getBookExportStatus(book, format)));
 
 /** Combined status of several exports: active while any runs, then failed if any failed */
@@ -116,21 +133,21 @@ export const getCombinedExportStatus = (
   if (statuses.every((status) => status === null)) {
     return null;
   }
-  if (statuses.includes('running')) {
-    return 'running';
+  if (statuses.includes(BookExportStatus.Running)) {
+    return BookExportStatus.Running;
   }
-  if (statuses.includes('pending')) {
-    return 'pending';
+  if (statuses.includes(BookExportStatus.Pending)) {
+    return BookExportStatus.Pending;
   }
-  if (statuses.includes('failed')) {
-    return 'failed';
+  if (statuses.includes(BookExportStatus.Failed)) {
+    return BookExportStatus.Failed;
   }
-  return statuses.every((status) => status === 'completed') ? 'completed' : null;
+  return statuses.every((status) => status === BookExportStatus.Completed) ? BookExportStatus.Completed : null;
 };
 
 /** The formats whose export has completed, in a stable order */
 export const getCompletedExports = (book: BookExportFields): BookExportFormat[] =>
-  (['pdf', 'html'] as const).filter((format) => getBookExportStatus(book, format) === 'completed');
+  BOOK_EXPORT_FORMATS.filter((format) => getBookExportStatus(book, format) === BookExportStatus.Completed);
 
 export const getBookFileName = ({ title }: { title: string }, format: BookExportFormat) => {
   const name =

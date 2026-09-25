@@ -1,7 +1,7 @@
 <script lang="ts">
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
-  import type { BookMapStyleOption } from '$lib/types/assistant';
   import { BOOK_MAP_STYLE_OPTIONS, isTileMapStyle } from '$lib/utils/book-export';
+  import { BookMapStyleOption } from '@immich/sdk';
   import { Field, Select, Switch } from '@immich/ui';
   import { t } from 'svelte-i18n';
 
@@ -22,17 +22,17 @@
   const canIllustrate = $derived(featureFlagsManager.value.artisticStyles);
 
   const labels: Record<BookMapStyleOption, string> = $derived({
-    auto: $t('book_map_style_auto'),
-    sketch: $t('book_map_style_sketch'),
-    watercolor: $t('book_map_style_watercolor'),
-    toner: $t('book_map_style_toner'),
-    terrain: $t('book_map_style_terrain'),
+    [BookMapStyleOption.Auto]: $t('book_map_style_auto'),
+    [BookMapStyleOption.Sketch]: $t('book_map_style_sketch'),
+    [BookMapStyleOption.Watercolor]: $t('book_map_style_watercolor'),
+    [BookMapStyleOption.Toner]: $t('book_map_style_toner'),
+    [BookMapStyleOption.Terrain]: $t('book_map_style_terrain'),
   });
 
   const options = $derived(BOOK_MAP_STYLE_OPTIONS.map((value) => ({ value, label: labels[value] })));
 
   const styleDescription = $derived.by(() => {
-    if (mapStyle === 'auto') {
+    if (mapStyle === BookMapStyleOption.Auto) {
       return $t('book_map_style_auto_description');
     }
     if (isTileMapStyle(mapStyle)) {

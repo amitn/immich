@@ -1,7 +1,6 @@
+import { getBook, isHttpError } from '@immich/sdk';
 import { redirect } from '@sveltejs/kit';
 import { Route } from '$lib/route';
-import { ApiAdapterError } from '$lib/services/api-adapter';
-import { getBook } from '$lib/services/book-api';
 import { authenticate } from '$lib/utils/auth';
 import { getFormatter } from '$lib/utils/i18n';
 import type { PageLoad } from './$types';
@@ -14,8 +13,7 @@ export const load = (async ({ url, params }) => {
   try {
     book = await getBook({ id: params.bookId });
   } catch (error) {
-    // TODO: use isHttpError from @immich/sdk once the book endpoints are in the SDK
-    if (error instanceof ApiAdapterError && (error.status === 400 || error.status === 404)) {
+    if (isHttpError(error) && (error.status === 400 || error.status === 404)) {
       redirect(307, Route.books());
     }
     throw error;

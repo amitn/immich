@@ -1,6 +1,5 @@
+import { getBooks, type BookResponseDto } from '@immich/sdk';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
-import { getBooks } from '$lib/services/book-api';
-import type { BookResponseDto } from '$lib/types/assistant';
 import { authenticate } from '$lib/utils/auth';
 import { getFormatter } from '$lib/utils/i18n';
 import type { PageLoad } from './$types';

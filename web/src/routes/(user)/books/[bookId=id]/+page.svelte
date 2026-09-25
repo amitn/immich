@@ -4,14 +4,15 @@
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
+  import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
-  import { deleteBook, exportBook, getBook, getBookExportUrl, getBookPageRenderUrl } from '$lib/services/book-api';
   import { websocketEvents } from '$lib/stores/websocket';
-  import type { BookDetailResponseDto, BookExportFormat, BookExportStatus, BookPageDto } from '$lib/types/assistant';
+  import { getBookExportUrl, getBookPageRenderUrl } from '$lib/utils';
   import { firstPageForView, toViews, viewIndexForPage, type BookViewMode } from '$lib/utils/book';
   import {
+    BOOK_EXPORT_FORMATS,
     getBookExportStatus,
     getBookFileName,
     isBookExporting,
@@ -19,7 +20,17 @@
     isMapPage,
   } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
-  import type { AgentUpdateDto } from '@immich/sdk';
+  import {
+    AgentMessageKind,
+    BookExportFormat,
+    BookExportStatus,
+    deleteBook,
+    exportBook,
+    getBook,
+    type AgentUpdateDto,
+    type BookDetailResponseDto,
+    type BookPageResponseDto,
+  } from '@immich/sdk';
   import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
     mdiAutoFix,
@@ -47,7 +58,6 @@
   const { data }: Props = $props();
 
   const POLL_INTERVAL = 3000;
-  const EXPORT_FORMATS: BookExportFormat[] = ['pdf', 'html'];
 
   let book = $state<BookDetailResponseDto>(data.book);
   let mode = $state<BookViewMode>('single');
@@ -62,18 +72,20 @@
   const current = $derived(views[Math.min(viewIndex, views.length - 1)] ?? []);
   const ratio = $derived(book.pageWidthMm > 0 && book.pageHeightMm > 0 ? book.pageWidthMm / book.pageHeightMm : 1);
   const isExporting = $derived(isBookExporting(book));
-  const activeExports = $derived(EXPORT_FORMATS.filter((format) => isExportActive(getBookExportStatus(book, format))));
+  const activeExports = $derived(
+    BOOK_EXPORT_FORMATS.filter((format) => isExportActive(getBookExportStatus(book, format))),
+  );
   const hasPrevious = $derived(viewIndex > 0);
   const hasNext = $derived(viewIndex < views.length - 1);
 
-  const pageNumber = (page: BookPageDto) => pages.indexOf(page) + 1;
+  const pageNumber = (page: BookPageResponseDto) => pages.indexOf(page) + 1;
 
-  const pageImageLabel = (page: BookPageDto) =>
+  const pageImageLabel = (page: BookPageResponseDto) =>
     isMapPage(page)
       ? $t('book_map_page_image', { values: { page: pageNumber(page) } })
       : $t('book_page_image', { values: { page: pageNumber(page) } });
 
-  const renderUrl = (page: BookPageDto, size: number) =>
+  const renderUrl = (page: BookPageResponseDto, size: number) =>
     getBookPageRenderUrl({ id: book.id, pageId: page.id, size, cacheKey: book.updatedAt });
 
   const pageLabel = $derived.by(() => {
@@ -125,22 +137,26 @@
     }
   };
 
-  const formatLabel = (format: BookExportFormat) => (format === 'pdf' ? $t('book_format_pdf') : $t('book_format_html'));
+  const formatLabel = (format: BookExportFormat) =>
+    format === BookExportFormat.Pdf ? $t('book_format_pdf') : $t('book_format_html');
 
   const pollExport = async () => {
-    const previous = { pdf: getBookExportStatus(book, 'pdf'), html: getBookExportStatus(book, 'html') };
+    const previous = {
+      [BookExportFormat.Pdf]: getBookExportStatus(book, BookExportFormat.Pdf),
+      [BookExportFormat.Html]: getBookExportStatus(book, BookExportFormat.Html),
+    };
     const updated = await refresh();
     if (!updated) {
       return;
     }
-    for (const format of EXPORT_FORMATS) {
+    for (const format of BOOK_EXPORT_FORMATS) {
       const status = getBookExportStatus(updated, format);
       if (!isExportActive(previous[format]) || isExportActive(status)) {
         continue;
       }
-      if (status === 'completed') {
-        toastManager.success(format === 'pdf' ? $t('book_pdf_ready') : $t('book_html_ready'));
-      } else if (status === 'failed') {
+      if (status === BookExportStatus.Completed) {
+        toastManager.success(format === BookExportFormat.Pdf ? $t('book_pdf_ready') : $t('book_html_ready'));
+      } else if (status === BookExportStatus.Failed) {
         toastManager.danger($t('errors.unable_to_export_book_format', { values: { format: formatLabel(format) } }));
       }
     }
@@ -161,12 +177,14 @@
     startingExport = format;
     try {
       await exportBook({ id: book.id, bookExportDto: { format } });
-      if (format === 'html') {
-        book.htmlExportStatus = 'pending';
+      if (format === BookExportFormat.Html) {
+        book.htmlExportStatus = BookExportStatus.Pending;
       } else {
-        book.exportStatus = 'pending';
+        book.exportStatus = BookExportStatus.Pending;
       }
-      toastManager.primary(format === 'pdf' ? $t('book_export_started') : $t('book_export_html_started'));
+      toastManager.primary(
+        format === BookExportFormat.Pdf ? $t('book_export_started') : $t('book_export_html_started'),
+      );
       startPolling();
     } catch (error) {
       handleError(error, $t('errors.unable_to_export_book'));
@@ -186,16 +204,16 @@
 
   const exportStatusLabel = (status: BookExportStatus | null) => {
     switch (status) {
-      case 'pending': {
+      case BookExportStatus.Pending: {
         return $t('book_export_status_pending');
       }
-      case 'running': {
+      case BookExportStatus.Running: {
         return $t('book_export_status_running');
       }
-      case 'completed': {
+      case BookExportStatus.Completed: {
         return $t('book_export_status_completed');
       }
-      case 'failed': {
+      case BookExportStatus.Failed: {
         return $t('book_export_status_failed');
       }
       default: {
@@ -205,10 +223,10 @@
   };
 
   const exportActionLabel = (format: BookExportFormat, status: BookExportStatus | null) => {
-    if (status === 'completed') {
-      return format === 'pdf' ? $t('book_export_again') : $t('book_export_html_again');
+    if (status === BookExportStatus.Completed) {
+      return format === BookExportFormat.Pdf ? $t('book_export_again') : $t('book_export_html_again');
     }
-    return format === 'pdf' ? $t('book_export_pdf') : $t('book_export_html');
+    return format === BookExportFormat.Pdf ? $t('book_export_pdf') : $t('book_export_html');
   };
 
   const handleRelayout = async () => {
@@ -248,8 +266,8 @@
   const onAgentUpdate = ({ message }: AgentUpdateDto) => {
     // re-render when the assistant finishes changing this book
     if (
-      message?.kind === 'tool_call' &&
-      message.content.status === 'completed' &&
+      message?.kind === AgentMessageKind.ToolCall &&
+      message.content.status === AgentToolCallStatus.Completed &&
       message.content.bookIds?.includes(book.id)
     ) {
       void refresh();
@@ -298,7 +316,7 @@
           <span class="hidden md:inline">
             {#if activeExports.length > 1}
               {$t('book_exporting_all')}
-            {:else if (activeExports[0] ?? startingExport) === 'html'}
+            {:else if (activeExports[0] ?? startingExport) === BookExportFormat.Html}
               {$t('book_exporting_html')}
             {:else}
               {$t('book_exporting')}
@@ -314,20 +332,20 @@
           size="small"
           align="top-right"
         >
-          {#each EXPORT_FORMATS as format (format)}
+          {#each BOOK_EXPORT_FORMATS as format (format)}
             {@const status = getBookExportStatus(book, format)}
-            {#if status === 'completed'}
+            {#if status === BookExportStatus.Completed}
               <MenuOption
                 icon={mdiDownload}
-                text={format === 'pdf' ? $t('book_download_pdf') : $t('book_download_html')}
+                text={format === BookExportFormat.Pdf ? $t('book_download_pdf') : $t('book_download_html')}
                 subtitle={exportStatusLabel(status)}
                 onClick={() => handleDownload(format)}
               />
             {/if}
             <MenuOption
-              icon={format === 'pdf' ? mdiFilePdfBox : mdiLanguageHtml5}
+              icon={format === BookExportFormat.Pdf ? mdiFilePdfBox : mdiLanguageHtml5}
               text={exportActionLabel(format, status)}
-              subtitle={status === 'completed' ? undefined : exportStatusLabel(status)}
+              subtitle={status === BookExportStatus.Completed ? undefined : exportStatusLabel(status)}
               onClick={() => handleExport(format)}
             />
           {/each}

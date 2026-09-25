@@ -1,9 +1,14 @@
 <script lang="ts">
   import BookMapOptions from '$lib/components/books/BookMapOptions.svelte';
-  import { autoLayoutBook } from '$lib/services/book-api';
-  import type { BookDetailResponseDto, BookMapStyleOption } from '$lib/types/assistant';
-  import { BOOK_MAX_PAGES, getDefaultBookPageCount, isMapPage, normalizeBookPageCount } from '$lib/utils/book-export';
+  import {
+    BOOK_MAX_PAGES,
+    getDefaultBookPageCount,
+    isMapPage,
+    normalizeBookPageCount,
+    toBookMapStyleOption,
+  } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
+  import { autoLayoutBook, type BookDetailResponseDto } from '@immich/sdk';
   import { Alert, Field, FormModal, NumberInput } from '@immich/ui';
   import { mdiAlertOutline, mdiAutoFix } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -16,14 +21,16 @@
   const { book, onClose }: Props = $props();
 
   const mapPages = $derived(book.pages.filter((page) => isMapPage(page)));
-  const photoCount = $derived(new Set(book.pages.flatMap((page) => page.slots.map(({ assetId }) => assetId))).size);
+  const photoCount = $derived(
+    new Set(book.pages.flatMap((page) => page.slots.flatMap(({ assetId }) => (assetId ? [assetId] : [])))).size,
+  );
   const suggestedPageCount = $derived(book.pages.length || getDefaultBookPageCount(photoCount));
 
   let targetPageCount = $state<number>();
   // svelte-ignore state_referenced_locally
   let includeMaps = $state(book.pages.length === 0 || book.pages.some((page) => isMapPage(page)));
   // svelte-ignore state_referenced_locally
-  let mapStyle = $state<BookMapStyleOption>(book.pages.find((page) => page.map)?.map?.style ?? 'auto');
+  let mapStyle = $state(toBookMapStyleOption(book.pages.find((page) => page.map)?.map?.style));
   // svelte-ignore state_referenced_locally
   let illustratedMaps = $state(book.pages.some((page) => page.map?.illustratedAssetId || page.map?.artJobId));
 
