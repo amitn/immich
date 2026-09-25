@@ -8,7 +8,7 @@ import {
   Timestamp,
   UpdateDateColumn,
 } from '@immich/sql-tools';
-import { UpdatedAtTrigger } from 'src/decorators.js';
+import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { AgentSessionStatus } from 'src/enum.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
 
@@ -38,4 +38,7 @@ export class AgentSessionTable {
 
   @UpdateDateColumn()
   updatedAt!: Generated<Timestamp>;
+
+  @UpdateIdColumn()
+  updateId!: Generated<string>;
 }
