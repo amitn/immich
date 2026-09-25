@@ -407,7 +407,12 @@
       </aside>
 
       <section class="relative flex min-w-0 flex-1 flex-col" aria-label={$t('assistant_conversation')}>
-        <div bind:this={scroller} onscroll={onScroll} class="min-h-0 flex-1 immich-scrollbar overflow-y-auto">
+        <!-- relative: keeps absolutely positioned children (e.g. sr-only labels) inside this scroller, so they can't make the page scroll -->
+        <div
+          bind:this={scroller}
+          onscroll={onScroll}
+          class="relative min-h-0 flex-1 immich-scrollbar overflow-y-auto overscroll-contain"
+        >
           <div
             class="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6"
             role="log"
