@@ -881,6 +881,7 @@ export enum JobName {
   AuditTableCleanup = 'AuditTableCleanup',
 
   BookExport = 'BookExport',
+  BookExportHtml = 'BookExportHtml',
 
   DatabaseBackup = 'DatabaseBackup',
 
@@ -1367,5 +1368,15 @@ export enum BookExportStatus {
 
 export const BookExportStatusSchema = z
   .enum(BookExportStatus)
-  .describe('Book PDF export status')
+  .describe('Book export status')
   .meta({ id: 'BookExportStatus' });
+
+export enum BookExportFormat {
+  Pdf = 'pdf',
+  Html = 'html',
+}
+
+export const BookExportFormatSchema = z
+  .enum(BookExportFormat)
+  .describe('Book export format: a print-ready PDF or a single self-contained HTML file')
+  .meta({ id: 'BookExportFormat' });

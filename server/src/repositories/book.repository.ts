@@ -87,6 +87,19 @@ export class BookRepository {
       .execute();
   }
 
+  @GenerateSql({ params: [DummyValue.UUID, BookExportStatus.Running] })
+  async setHtmlExportStatus(
+    id: string,
+    htmlExportStatus: BookExportStatus | null,
+    htmlExportPath?: string | null,
+  ): Promise<void> {
+    await this.db
+      .updateTable('book')
+      .set({ htmlExportStatus, ...(htmlExportPath !== undefined && { htmlExportPath }) })
+      .where('book.id', '=', id)
+      .execute();
+  }
+
   private selectPages(db: Kysely<DB> | Transaction<DB> = this.db) {
     return db
       .selectFrom('book_page')
@@ -318,6 +331,7 @@ export class BookRepository {
         'asset.originalPath',
         'asset.originalFileName',
         'asset.isEdited',
+        'asset.localDateTime',
         'asset.width',
         'asset.height',
         'asset_exif.exifImageWidth',

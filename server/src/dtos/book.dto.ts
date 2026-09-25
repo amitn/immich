@@ -3,7 +3,7 @@ import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import type { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import type { BookTable } from 'src/schema/tables/book.table.js';
-import { BookExportStatusSchema } from 'src/enum.js';
+import { BookExportFormat, BookExportFormatSchema, BookExportStatusSchema } from 'src/enum.js';
 import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
 import { isoDatetimeToDate } from 'src/validation.js';
 
@@ -162,6 +162,12 @@ const BookRenderQuerySchema = z
   })
   .meta({ id: 'BookRenderQueryDto' });
 
+const BookExportSchema = z
+  .object({
+    format: BookExportFormatSchema.optional().default(BookExportFormat.Pdf).describe('Export format (default pdf)'),
+  })
+  .meta({ id: 'BookExportDto' });
+
 const BookSlotResponseSchema = z
   .object({
     slot: z.int().min(0).describe('Zero-based slot index'),
@@ -196,7 +202,8 @@ const BookResponseSchema = z
     pageWidthMm: z.int().describe('Page width in millimeters'),
     pageHeightMm: z.int().describe('Page height in millimeters'),
     style: BookStyleSchema,
-    exportStatus: BookExportStatusSchema.nullable(),
+    exportStatus: BookExportStatusSchema.nullable().describe('Status of the PDF export'),
+    htmlExportStatus: BookExportStatusSchema.nullable().describe('Status of the single-file HTML export'),
     pageCount: z.int().min(0).describe('Number of pages'),
     firstPageId: z.uuidv4().nullable().describe('ID of the first page, e.g. to show the cover'),
     createdAt: isoDatetimeToDate.describe('Creation date'),
@@ -245,6 +252,7 @@ export class BookPageParamDto extends createZodDto(BookPageParamSchema) {}
 export class BookSlotPatchDto extends createZodDto(BookSlotPatchSchema) {}
 export class BookSlotParamDto extends createZodDto(BookSlotParamSchema) {}
 export class BookRenderQueryDto extends createZodDto(BookRenderQuerySchema) {}
+export class BookExportDto extends createZodDto(BookExportSchema) {}
 export class BookSlotResponseDto extends createZodDto(BookSlotResponseSchema) {}
 export class BookPageResponseDto extends createZodDto(BookPageResponseSchema) {}
 export class BookResponseDto extends createZodDto(BookResponseSchema) {}
@@ -268,6 +276,7 @@ export const mapBook = (book: BookRow): BookResponseDto => ({
   pageHeightMm: book.pageHeightMm,
   style: resolveBookStyle(book.style),
   exportStatus: book.exportStatus,
+  htmlExportStatus: book.htmlExportStatus,
   pageCount: book.pageCount,
   firstPageId: book.firstPageId,
   createdAt: book.createdAt,

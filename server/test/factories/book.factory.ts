@@ -22,6 +22,8 @@ export const BookFactory = {
       style: { ...defaultBookStyle },
       exportStatus: null,
       exportPath: null,
+      htmlExportStatus: null,
+      htmlExportPath: null,
       pageCount: 0,
       firstPageId: null,
       createdAt: newDate(),
