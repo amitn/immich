@@ -922,6 +922,10 @@ describe(BookService.name, () => {
   });
 
   describe('auto layout', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     describe('createFromAlbum', () => {
       it('should require access to the album', async () => {
         await expect(sut.createFromAlbum(auth, { albumId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);

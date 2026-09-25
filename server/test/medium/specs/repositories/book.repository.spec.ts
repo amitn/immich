@@ -5,7 +5,9 @@ import { BookRepository } from 'src/repositories/book.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { BaseService } from 'src/services/base.service.js';
+import { parsePolygon } from 'src/utils/book/map.js';
 import { newMediumService } from 'test/medium.factory.js';
+import { newUuid } from 'test/small.factory.js';
 import { getKyselyDB } from 'test/utils.js';
 
 let defaultDatabase: Kysely<DB>;
@@ -228,5 +230,102 @@ describe(BookRepository.name, () => {
 
     await expect(sut.get(book.id)).resolves.toBeUndefined();
     await expect(ctx.database.selectFrom('book_page').where('bookId', '=', book.id).execute()).resolves.toEqual([]);
+  });
+
+  it('should replace the pages and their photos in one transaction', async () => {
+    const { ctx, sut, user, book } = await newBook();
+    const { asset: first } = await ctx.newAsset({ ownerId: user.id });
+    const { asset: second } = await ctx.newAsset({ ownerId: user.id });
+    await addPages(sut, book.id, 3);
+    const crop = { x: 0.1, y: 0, width: 0.8, height: 1 };
+    const map = { style: 'watercolor' as const, showRoute: true, labels: true, title: 'Rome', assetIds: [second.id] };
+
+    await sut.replacePages(book.id, [
+      { layout: 'cover', assets: [{ slot: 0, assetId: first.id, crop, caption: null }] },
+      { layout: 'map', sectionTitle: 'Rome', caption: '1 June 2024', map, assets: [] },
+      { layout: 'map-photo', map: { style: 'sketch', showRoute: false, labels: true }, assets: [] },
+      { layout: 'two-vertical', assets: [{ slot: 1, assetId: second.id, crop: null, caption: 'Hi' }] },
+    ]);
+
+    const pages = await sut.getPages(book.id);
+    expect(pages.map(({ position, layout }) => ({ position, layout }))).toEqual([
+      { position: 0, layout: 'cover' },
+      { position: 1, layout: 'map' },
+      { position: 2, layout: 'map-photo' },
+      { position: 3, layout: 'two-vertical' },
+    ]);
+    expect(pages[0].assets).toEqual([{ slot: 0, assetId: first.id, crop, caption: null }]);
+    expect(pages[1]).toEqual(
+      expect.objectContaining({ sectionTitle: 'Rome', caption: '1 June 2024', map, assets: [] }),
+    );
+    expect(pages[3].assets).toEqual([{ slot: 1, assetId: second.id, crop: null, caption: 'Hi' }]);
+    expect(pages[0].map).toBeNull();
+  });
+
+  it('should append pages with keepExisting', async () => {
+    const { sut, book } = await newBook();
+    await addPages(sut, book.id, 2);
+
+    await sut.replacePages(book.id, [{ layout: 'text', caption: 'new', assets: [] }], { keepExisting: true });
+
+    await expect(getOrder(sut, book.id)).resolves.toEqual([
+      { caption: 'page 0', position: 0 },
+      { caption: 'page 1', position: 1 },
+      { caption: 'new', position: 2 },
+    ]);
+  });
+
+  it('should not change anything when a page cannot be saved', async () => {
+    const { sut, book } = await newBook();
+    await addPages(sut, book.id, 2);
+
+    await expect(
+      sut.replacePages(book.id, [{ layout: 'single', assets: [{ slot: 0, assetId: newUuid(), crop: null }] }]),
+    ).rejects.toThrow();
+    await expect(getOrder(sut, book.id)).resolves.toEqual([
+      { caption: 'page 0', position: 0 },
+      { caption: 'page 1', position: 1 },
+    ]);
+  });
+
+  it('should load the GPS locations of assets in time order', async () => {
+    const { ctx, sut, user } = await newBook();
+    const { asset: later } = await ctx.newAsset({ ownerId: user.id, localDateTime: new Date('2024-06-02T10:00:00Z') });
+    const { asset: earlier } = await ctx.newAsset({
+      ownerId: user.id,
+      localDateTime: new Date('2024-06-01T10:00:00Z'),
+    });
+    const { asset: unlocated } = await ctx.newAsset({ ownerId: user.id });
+    await ctx.newExif({ assetId: later.id, latitude: 43.77, longitude: 11.25, city: 'Florence' });
+    await ctx.newExif({ assetId: earlier.id, latitude: 41.9, longitude: 12.5, city: 'Rome' });
+    await ctx.newExif({ assetId: unlocated.id, city: 'Nowhere' });
+
+    const locations = await sut.getAssetLocations([later.id, earlier.id, unlocated.id]);
+    expect(locations.map(({ id, city, latitude }) => ({ id, city, latitude }))).toEqual([
+      { id: earlier.id, city: 'Rome', latitude: 41.9 },
+      { id: later.id, city: 'Florence', latitude: 43.77 },
+    ]);
+  });
+
+  it('should find the countries that overlap a box', async () => {
+    const { ctx, sut } = await newBook();
+    await ctx.database
+      .insertInto('naturalearth_countries')
+      .values([
+        { admin: 'Squareland', admin_a3: 'SQL', type: 'Country', coordinates: '((0,0),(10,0),(10,10),(0,10))' },
+        { admin: 'Farland', admin_a3: 'FAR', type: 'Country', coordinates: '((100,50),(110,50),(110,60),(100,60))' },
+      ])
+      .execute();
+
+    const outlines = await sut.getCountryOutlines({ west: 5, south: 5, east: 20, north: 20 });
+    expect(outlines.map(({ admin }) => admin)).toContain('Squareland');
+    expect(outlines.map(({ admin }) => admin)).not.toContain('Farland');
+    const square = outlines.find(({ admin }) => admin === 'Squareland')!;
+    expect(parsePolygon(square.coordinates)).toEqual([
+      [0, 0],
+      [10, 0],
+      [10, 10],
+      [0, 10],
+    ]);
   });
 });
