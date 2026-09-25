@@ -3,6 +3,7 @@
   import { getBook, getBookPageRenderUrl } from '$lib/services/book-api';
   import type { BookResponseDto } from '$lib/types/assistant';
   import { getAssetMediaUrl } from '$lib/utils';
+  import { getCompletedExports, isBookExporting } from '$lib/utils/book-export';
   import { AssetMediaSize } from '@immich/sdk';
   import { Badge, Icon } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline } from '@mdi/js';
@@ -19,6 +20,7 @@
   let coverFailed = $state(false);
 
   const pages = $derived(book.pages ?? loadedPages);
+  const completedExports = $derived(getCompletedExports(book));
   const firstPageId = $derived(pages?.[0]?.id);
   const ratio = $derived(book.pageWidthMm > 0 && book.pageHeightMm > 0 ? book.pageWidthMm / book.pageHeightMm : 1);
 
@@ -72,10 +74,16 @@
       {#if pages}
         <span>{$t('book_page_count', { values: { count: pages.length } })}</span>
       {/if}
-      {#if book.exportStatus === 'completed'}
-        <Badge size="tiny" color="success" shape="round">{$t('book_pdf_ready')}</Badge>
-      {:else if book.exportStatus === 'pending' || book.exportStatus === 'running'}
-        <Badge size="tiny" color="info" shape="round">{$t('book_exporting')}</Badge>
+      {#each completedExports as format (format)}
+        <span title={format === 'pdf' ? $t('book_pdf_ready') : $t('book_html_ready')}>
+          <Badge size="tiny" color="success" shape="round">
+            {format === 'pdf' ? $t('book_format_pdf') : $t('book_format_html_short')}
+            <span class="sr-only">{$t('book_export_status_completed')}</span>
+          </Badge>
+        </span>
+      {/each}
+      {#if isBookExporting(book)}
+        <Badge size="tiny" color="info" shape="round">{$t('book_exporting_short')}</Badge>
       {/if}
     </div>
   </div>

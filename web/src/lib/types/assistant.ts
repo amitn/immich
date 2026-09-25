@@ -112,6 +112,14 @@ export type AgentUpdateDto = {
 
 export type BookExportStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export type BookExportFormat = 'pdf' | 'html';
+
+/** Styles of the artistic map pages; `sketch` is drawn offline, the others use Stadia Maps tiles */
+export type BookMapStyle = 'sketch' | 'watercolor' | 'toner' | 'terrain';
+
+/** `auto` lets the server pick: the admin default, or `sketch` without a Stadia Maps key */
+export type BookMapStyleOption = 'auto' | BookMapStyle;
+
 export type NormalizedRect = {
   x: number;
   y: number;
@@ -134,13 +142,29 @@ export type BookPageSlotDto = {
   caption?: string | null;
 };
 
+export type BookMapDto = {
+  style: BookMapStyle;
+  title?: string;
+  /** the photos whose locations are drawn; all photos of the book if omitted */
+  assetIds?: string[];
+  showRoute: boolean;
+  labels: boolean;
+  /** set while or after the map is illustrated by the art agent */
+  artJobId?: string;
+  illustratedAssetId?: string;
+};
+
+/** BookPageResponseDto on the server */
 export type BookPageDto = {
   id: string;
   position: number;
+  /** e.g. `full`, `grid-4`, `map`, `map-photo` */
   layout: string;
   sectionTitle: string | null;
   caption: string | null;
   slots: BookPageSlotDto[];
+  /** set on map pages (layouts `map` and `map-photo`) */
+  map: BookMapDto | null;
 };
 
 export type BookResponseDto = {
@@ -152,7 +176,10 @@ export type BookResponseDto = {
   pageWidthMm: number;
   pageHeightMm: number;
   style: BookStyle;
+  /** status of the PDF export */
   exportStatus: BookExportStatus | null;
+  /** status of the single-file HTML export */
+  htmlExportStatus: BookExportStatus | null;
   /** may be omitted by the list endpoint */
   pages?: BookPageDto[];
   createdAt: string;
@@ -173,6 +200,45 @@ export type BookCreateDto = {
 };
 
 export type BookUpdateDto = Partial<BookCreateDto>;
+
+/** Creates a book from an album and lays it out automatically */
+export type BookFromAlbumDto = {
+  albumId: string;
+  title?: string;
+  subtitle?: string;
+  pageWidthMm?: number;
+  pageHeightMm?: number;
+  style?: Partial<BookStyle>;
+  targetPageCount?: number;
+  /** default true */
+  includeMaps?: boolean;
+  mapStyle?: BookMapStyleOption;
+  /** illustrate the map pages with the art agent; default false */
+  illustratedMaps?: boolean;
+};
+
+export type BookAutoLayoutDto = {
+  assetIds?: string[];
+  targetPageCount?: number;
+  includeMaps?: boolean;
+  mapStyle?: BookMapStyleOption;
+  illustratedMaps?: boolean;
+  heroAssetIds?: string[];
+  keepExisting?: boolean;
+};
+
+export type BookExportDto = {
+  /** default pdf */
+  format?: BookExportFormat;
+};
+
+/** `books` section of the system config; not in the SDK's SystemConfigDto yet */
+export type SystemConfigBooksDto = {
+  maps: {
+    stadiaApiKey: string;
+    defaultStyle: BookMapStyle;
+  };
+};
 
 // ---------------------------------------------------------------------------------------------
 // Artistic styles (/api/art/...)

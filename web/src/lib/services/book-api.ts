@@ -3,7 +3,16 @@
 // Adapter for the /api/books endpoints. The server side is still being written; all book types
 // live in $lib/types/assistant so they can be adjusted in one place.
 import { adapterRequest, adapterUrl } from '$lib/services/api-adapter';
-import type { BookCreateDto, BookDetailResponseDto, BookResponseDto, BookUpdateDto } from '$lib/types/assistant';
+import type {
+  BookAutoLayoutDto,
+  BookCreateDto,
+  BookDetailResponseDto,
+  BookExportDto,
+  BookExportFormat,
+  BookFromAlbumDto,
+  BookResponseDto,
+  BookUpdateDto,
+} from '$lib/types/assistant';
 
 export const createBook = ({ bookCreateDto }: { bookCreateDto: BookCreateDto }) =>
   adapterRequest<BookResponseDto>('/books', { method: 'POST', body: bookCreateDto });
@@ -17,8 +26,20 @@ export const updateBook = ({ id, bookUpdateDto }: { id: string; bookUpdateDto: B
 
 export const deleteBook = ({ id }: { id: string }) => adapterRequest(`/books/${id}`, { method: 'DELETE' });
 
-/** Queues the PDF export; poll getBook until exportStatus is completed */
-export const exportBook = ({ id }: { id: string }) => adapterRequest(`/books/${id}/export`, { method: 'POST' });
+/** Creates a book from an album and lays it out automatically */
+export const createBookFromAlbum = ({ bookFromAlbumDto }: { bookFromAlbumDto: BookFromAlbumDto }) =>
+  adapterRequest<BookDetailResponseDto>('/books/from-album', { method: 'POST', body: bookFromAlbumDto });
+
+/** Replaces the pages with an automatic layout (unless `keepExisting` is set) */
+export const autoLayoutBook = ({ id, bookAutoLayoutDto }: { id: string; bookAutoLayoutDto: BookAutoLayoutDto }) =>
+  adapterRequest<BookDetailResponseDto>(`/books/${id}/auto-layout`, { method: 'POST', body: bookAutoLayoutDto });
+
+/**
+ * Queues an export (PDF when no format is given); poll getBook until `exportStatus` (PDF) or
+ * `htmlExportStatus` (HTML) is completed
+ */
+export const exportBook = ({ id, bookExportDto }: { id: string; bookExportDto?: BookExportDto }) =>
+  adapterRequest(`/books/${id}/export`, { method: 'POST', body: bookExportDto });
 
 // URL helpers (these stay even after the SDK swap, like getAssetMediaUrl)
 
@@ -36,3 +57,9 @@ export const getBookPageRenderUrl = ({
 }) => adapterUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
 
 export const getBookPdfUrl = ({ id }: { id: string }) => adapterUrl(`/books/${id}/pdf`);
+
+/** The single-file HTML export */
+export const getBookHtmlUrl = ({ id }: { id: string }) => adapterUrl(`/books/${id}/html`);
+
+export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
+  format === 'html' ? getBookHtmlUrl({ id }) : getBookPdfUrl({ id });
