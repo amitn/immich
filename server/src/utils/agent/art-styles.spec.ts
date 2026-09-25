@@ -19,7 +19,7 @@ describe('art styles', () => {
   });
 
   it('should fall back to a default caption', () => {
-    expect(buildArtPrompt({ style: getArtStyle('vintage-postcard') })).toContain('"summer days"');
+    expect(buildArtPrompt({ style: getArtStyle('vintage-lithograph') })).toContain('"summer days"');
   });
 
   it('should prefer a custom prompt', () => {
