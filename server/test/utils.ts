@@ -331,7 +331,7 @@ export const getMocks = () => {
     crypto: newCryptoRepositoryMock(),
     activity: automock(ActivityRepository),
     agent: automock(AgentRepository),
-    acp: automock(AcpRepository),
+    acp: automock(AcpRepository, { args: [loggerMock] }),
     artJob: automock(ArtJobRepository),
     book: automock(BookRepository),
     album: automock(AlbumRepository, { strict: false }),
