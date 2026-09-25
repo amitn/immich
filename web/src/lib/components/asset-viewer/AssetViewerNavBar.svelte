@@ -14,6 +14,7 @@
   import { getAlbumAssetActions } from '$lib/services/album.service';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetActions } from '$lib/services/asset.service';
+  import { getAssistantAssetActions } from '$lib/services/assistant.service';
   import { getPersonAssetActions } from '$lib/services/person.service';
   import { getStackActions } from '$lib/services/stack.service';
   import { getSharedLink, withoutIcons } from '$lib/utils';
@@ -79,6 +80,7 @@
 
   const Actions = $derived(getAssetActions($t, { ...asset, stackPrimaryAssetId: stack?.primaryAssetId }, album));
   const StackActions = $derived(getStackActions($t, stack, asset));
+  const AssistantActions = $derived(getAssistantAssetActions($t, asset));
   const sharedLink = getSharedLink();
 </script>
 
@@ -157,6 +159,7 @@
         {/if}
 
         <ActionMenuItem action={Actions.SetProfilePicture} />
+        <ActionMenuItem action={AssistantActions.AskAssistant} />
 
         {#if isOwner && !isLocked}
           <ArchiveAction {asset} {onAction} {preAction} />
