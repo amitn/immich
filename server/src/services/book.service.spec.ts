@@ -102,6 +102,8 @@ const trip = () => [
   ),
 ];
 
+const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
+
 describe(BookService.name, () => {
   let sut: BookService;
   let mocks: ServiceMocks;
@@ -702,8 +704,6 @@ describe(BookService.name, () => {
   });
 
   describe('previewHtml', () => {
-    const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
-
     it('should require access to the book', async () => {
       await expect(sut.previewHtml(auth, newUuid())).rejects.toBeInstanceOf(BadRequestException);
       expect(mocks.book.getPages).not.toHaveBeenCalled();
