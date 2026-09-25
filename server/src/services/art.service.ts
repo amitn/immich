@@ -10,7 +10,16 @@ import type {
 import { OnEvent } from 'src/decorators.js';
 import { ArtJobCreateDto, ArtJobResponseDto, ArtStyleDto, mapArtJob, mapArtStyle } from 'src/dtos/art.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { ArtJobStatus, AssetFileType, AssetType, ImmichWorker, Permission } from 'src/enum.js';
+import { mapNotification } from 'src/dtos/notification.dto.js';
+import {
+  ArtJobStatus,
+  AssetFileType,
+  AssetType,
+  ImmichWorker,
+  NotificationLevel,
+  NotificationType,
+  Permission,
+} from 'src/enum.js';
 import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.service.js';
@@ -187,10 +196,20 @@ export class ArtService extends BaseService {
       });
 
       await this.updateJob(job.id, { status: ArtJobStatus.Completed, resultAssetId: id });
+      await this.notifyOwner(job, id, {
+        level: NotificationLevel.Success,
+        title: 'Artwork ready',
+        description: getArtworkName(job),
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Art job ${job.id} failed: ${message}`);
       await this.updateJob(job.id, { status: ArtJobStatus.Failed, error: message }).catch(() => {});
+      await this.notifyOwner(job, null, {
+        level: NotificationLevel.Error,
+        title: 'Artwork failed',
+        description: `${getArtworkName(job)}: ${message}`,
+      });
     } finally {
       clearTimeout(timer);
       await agent?.kill().catch(() => {});
@@ -204,6 +223,25 @@ export class ArtService extends BaseService {
     const job = await this.artJobRepository.update(id, update);
     this.websocketRepository.clientSend('on_art_job_update', job.userId, mapArtJob(job));
     return job;
+  }
+
+  /** shows in the notification panel, also when the art dialog was closed */
+  private async notifyOwner(
+    job: Selectable<ArtJobTable>,
+    assetId: string | null,
+    notification: { level: NotificationLevel; title: string; description: string },
+  ): Promise<void> {
+    try {
+      const item = await this.notificationRepository.create({
+        userId: job.userId,
+        type: NotificationType.Custom,
+        ...notification,
+        data: JSON.stringify({ artJobId: job.id, assetId: assetId ?? undefined, sourceAssetId: job.sourceAssetId }),
+      });
+      this.websocketRepository.clientSend('on_notification', job.userId, mapNotification(item));
+    } catch (error: any) {
+      this.logger.warn(`Unable to notify the owner of art job ${job.id}: ${error?.message ?? error}`);
+    }
   }
 
   /** the preview is large enough as a reference and is always a web-friendly JPEG */
@@ -230,6 +268,11 @@ export class ArtService extends BaseService {
     return { buffer: await this.storageRepository.readFile(join(workdir, output)), extension: extname(output) };
   }
 }
+
+const getArtworkName = ({ style, caption }: Pick<Selectable<ArtJobTable>, 'style' | 'caption'>) => {
+  const name = (style && getArtStyle(style)?.name) || 'Custom style';
+  return caption ? `${name} “${caption}”` : name;
+};
 
 const isUnfinished = (status: ArtJobStatus) => status === ArtJobStatus.Pending || status === ArtJobStatus.Running;
 

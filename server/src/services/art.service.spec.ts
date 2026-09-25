@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { AcpAgent, AcpClientHandlers, AcpPermissionRequest } from 'src/repositories/acp.repository.js';
-import { ArtJobStatus, AssetType } from 'src/enum.js';
+import { ArtJobStatus, AssetType, NotificationLevel, NotificationType } from 'src/enum.js';
 import {
   ArtService,
   decideArtPermission,
@@ -60,6 +60,12 @@ describe(ArtService.name, () => {
       ),
     );
     return mocks.artJob.update.mock.calls.at(-1)![1];
+  };
+
+  const notification = async () => {
+    await vi.waitFor(() => expect(mocks.notification.create).toHaveBeenCalled());
+    const item = mocks.notification.create.mock.calls[0][0];
+    return { ...item, data: JSON.parse(item.data as string) };
   };
 
   beforeEach(() => {
@@ -195,6 +201,59 @@ describe(ArtService.name, () => {
       mocks.storage.readdir.mockResolvedValue([]);
       mocks.media.getImageMetadata.mockResolvedValue({ width: 1440, height: 1080, isTransparent: false });
       mocks.media.upscaleImage.mockResolvedValue(UPSCALED);
+      mocks.notification.create.mockImplementation((item) => Promise.resolve({ id: factory.uuid(), ...item } as never));
+    });
+
+    it('should notify the owner when the artwork is ready', async () => {
+      vi.spyOn(DerivedAssetService.prototype, 'createDerivedAsset').mockResolvedValue({
+        id: 'new-asset',
+        duplicate: false,
+      });
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+
+      const job = await start(newJob({ caption: 'summer days' }));
+      await expect(notification()).resolves.toEqual({
+        userId: job.userId,
+        type: NotificationType.Custom,
+        level: NotificationLevel.Success,
+        title: 'Artwork ready',
+        description: 'Watercolor “summer days”',
+        data: { artJobId: job.id, assetId: 'new-asset', sourceAssetId: job.sourceAssetId },
+      });
+      await vi.waitFor(() =>
+        expect(mocks.websocket.clientSend).toHaveBeenCalledWith(
+          'on_notification',
+          job.userId,
+          expect.objectContaining({ title: 'Artwork ready' }),
+        ),
+      );
+    });
+
+    it('should notify the owner when the job failed', async () => {
+      const job = await start(newJob({ style: null }));
+      await expect(notification()).resolves.toEqual(
+        expect.objectContaining({
+          userId: job.userId,
+          level: NotificationLevel.Error,
+          title: 'Artwork failed',
+          description: expect.stringMatching(/^Custom style: .*did not produce an image/),
+          data: { artJobId: job.id, sourceAssetId: job.sourceAssetId },
+        }),
+      );
+    });
+
+    it('should finish the job when the notification cannot be created', async () => {
+      vi.spyOn(DerivedAssetService.prototype, 'createDerivedAsset').mockResolvedValue({ id: 'x', duplicate: false });
+      mocks.notification.create.mockRejectedValue(new Error('db down'));
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+
+      await start();
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+      await vi.waitFor(() => expect(agent.kill).toHaveBeenCalled());
+      expect(mocks.artJob.update).not.toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ status: ArtJobStatus.Failed }),
+      );
     });
 
     it('should save the image returned over ACP as a derived asset', async () => {
