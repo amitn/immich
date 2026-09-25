@@ -17986,12 +17986,20 @@
       "description": "An asset file is a file associated with an asset, including edited versions, thumbnails, etc."
     },
     {
+      "name": "Assistant",
+      "description": "The assistant is an AI agent, connected over the Agent Client Protocol (ACP), that can search, select, crop and organize assets on behalf of a user."
+    },
+    {
       "name": "Authentication",
       "description": "Endpoints related to user authentication, including OAuth."
     },
     {
       "name": "Authentication (admin)",
       "description": "Administrative endpoints related to authentication."
+    },
+    {
+      "name": "Books",
+      "description": "A book is a paginated photo book layout built from assets, which can be rendered and exported as a PDF."
     },
     {
       "name": "Cluster groups",
@@ -18272,6 +18280,122 @@
         ],
         "type": "object"
       },
+      "AdminConfigAgentDto": {
+        "description": "AI assistant (Agent Client Protocol) config",
+        "properties": {
+          "artProfile": {
+            "description": "Profile used for artistic transforms (empty to disable)",
+            "type": "string"
+          },
+          "autoApproveWrites": {
+            "description": "Allow the agent to modify the library without asking for approval",
+            "type": "boolean"
+          },
+          "chatProfile": {
+            "description": "Profile used for assistant chat sessions",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "Enabled",
+            "type": "boolean"
+          },
+          "idleTimeoutMinutes": {
+            "description": "Stop an idle agent process after this many minutes",
+            "maximum": 1440,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxConcurrentSessions": {
+            "description": "Maximum number of running agent processes",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "mcpUrl": {
+            "description": "URL the agent uses to reach the Immich MCP endpoint (empty for http://127.0.0.1:<port>/api/agent/mcp)",
+            "type": "string"
+          },
+          "profiles": {
+            "description": "Available agent profiles",
+            "items": {
+              "$ref": "#/components/schemas/AdminConfigAgentProfileDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "artProfile",
+          "autoApproveWrites",
+          "chatProfile",
+          "enabled",
+          "idleTimeoutMinutes",
+          "maxConcurrentSessions",
+          "mcpUrl",
+          "profiles"
+        ],
+        "type": "object"
+      },
+      "AdminConfigAgentEnvDto": {
+        "properties": {
+          "name": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "type": "object"
+      },
+      "AdminConfigAgentProfileDto": {
+        "description": "An ACP agent that can be started by the assistant",
+        "properties": {
+          "args": {
+            "description": "Command line arguments",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "command": {
+            "description": "Executable that speaks the Agent Client Protocol over stdio",
+            "minLength": 1,
+            "type": "string"
+          },
+          "env": {
+            "description": "Environment variables passed to the agent process",
+            "items": {
+              "$ref": "#/components/schemas/AdminConfigAgentEnvDto"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Unique profile name",
+            "pattern": "^[a-z0-9_-]+$",
+            "type": "string"
+          },
+          "passEnv": {
+            "description": "Names of server environment variables forwarded to the agent process (e.g. API keys)",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "args",
+          "command",
+          "env",
+          "name",
+          "passEnv"
+        ],
+        "type": "object"
+      },
       "AdminConfigBackupsDto": {
         "properties": {
           "database": {
@@ -18327,6 +18451,9 @@
       "AdminConfigDto": {
         "description": "Configuration properties that are visible to the admin",
         "properties": {
+          "agent": {
+            "$ref": "#/components/schemas/AdminConfigAgentDto"
+          },
           "backup": {
             "$ref": "#/components/schemas/AdminConfigBackupsDto"
           },
@@ -18395,6 +18522,7 @@
           }
         },
         "required": [
+          "agent",
           "backup",
           "ffmpeg",
           "image",
@@ -24804,6 +24932,12 @@
           "activity.update",
           "activity.delete",
           "activity.statistics",
+          "agentSession.create",
+          "agentSession.read",
+          "agentSession.update",
+          "agentSession.delete",
+          "artJob.create",
+          "artJob.read",
           "apiKey.create",
           "apiKey.read",
           "apiKey.update",
@@ -24844,6 +24978,11 @@
           "backup.download",
           "backup.upload",
           "backup.delete",
+          "book.create",
+          "book.read",
+          "book.update",
+          "book.delete",
+          "book.download",
           "clusterGroup.read",
           "clusterGroup.leave",
           "clusterGroupRequest.create",
@@ -27259,6 +27398,14 @@
       },
       "ServerFeaturesDto": {
         "properties": {
+          "artisticStyles": {
+            "description": "Whether AI artistic style transforms are enabled",
+            "type": "boolean"
+          },
+          "assistant": {
+            "description": "Whether the AI assistant is enabled",
+            "type": "boolean"
+          },
           "configFile": {
             "description": "Whether config file is available",
             "type": "boolean"
@@ -27325,6 +27472,8 @@
           }
         },
         "required": [
+          "artisticStyles",
+          "assistant",
           "configFile",
           "duplicateDetection",
           "email",

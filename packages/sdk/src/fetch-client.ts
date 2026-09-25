@@ -54,6 +54,40 @@ export type ActivityStatisticsResponseDto = {
     /** Number of likes */
     likes: number;
 };
+export type AdminConfigAgentEnvDto = {
+    name: string;
+    value: string;
+};
+export type AdminConfigAgentProfileDto = {
+    /** Command line arguments */
+    args: string[];
+    /** Executable that speaks the Agent Client Protocol over stdio */
+    command: string;
+    /** Environment variables passed to the agent process */
+    env: AdminConfigAgentEnvDto[];
+    /** Unique profile name */
+    name: string;
+    /** Names of server environment variables forwarded to the agent process (e.g. API keys) */
+    passEnv: string[];
+};
+export type AdminConfigAgentDto = {
+    /** Profile used for artistic transforms (empty to disable) */
+    artProfile: string;
+    /** Allow the agent to modify the library without asking for approval */
+    autoApproveWrites: boolean;
+    /** Profile used for assistant chat sessions */
+    chatProfile: string;
+    /** Enabled */
+    enabled: boolean;
+    /** Stop an idle agent process after this many minutes */
+    idleTimeoutMinutes: number;
+    /** Maximum number of running agent processes */
+    maxConcurrentSessions: number;
+    /** URL the agent uses to reach the Immich MCP endpoint (empty for http://127.0.0.1:<port>/api/agent/mcp) */
+    mcpUrl: string;
+    /** Available agent profiles */
+    profiles: AdminConfigAgentProfileDto[];
+};
 export type AdminConfigDatabaseBackupDto = {
     /** Cron expression */
     cronExpression: string;
@@ -407,6 +441,7 @@ export type AdminConfigUserDto = {
     deleteDelay: number;
 };
 export type AdminConfigDto = {
+    agent: AdminConfigAgentDto;
     backup: AdminConfigBackupsDto;
     ffmpeg: AdminConfigFFmpegDto;
     image: AdminConfigImageDto;
@@ -2733,6 +2768,10 @@ export type ServerConfigDto = {
     userDeleteDelay: number;
 };
 export type ServerFeaturesDto = {
+    /** Whether AI artistic style transforms are enabled */
+    artisticStyles: boolean;
+    /** Whether the AI assistant is enabled */
+    assistant: boolean;
     /** Whether config file is available */
     configFile: boolean;
     /** Whether duplicate detection is enabled */
@@ -7957,6 +7996,12 @@ export enum Permission {
     ActivityUpdate = "activity.update",
     ActivityDelete = "activity.delete",
     ActivityStatistics = "activity.statistics",
+    AgentSessionCreate = "agentSession.create",
+    AgentSessionRead = "agentSession.read",
+    AgentSessionUpdate = "agentSession.update",
+    AgentSessionDelete = "agentSession.delete",
+    ArtJobCreate = "artJob.create",
+    ArtJobRead = "artJob.read",
     ApiKeyCreate = "apiKey.create",
     ApiKeyRead = "apiKey.read",
     ApiKeyUpdate = "apiKey.update",
@@ -7997,6 +8042,11 @@ export enum Permission {
     BackupDownload = "backup.download",
     BackupUpload = "backup.upload",
     BackupDelete = "backup.delete",
+    BookCreate = "book.create",
+    BookRead = "book.read",
+    BookUpdate = "book.update",
+    BookDelete = "book.delete",
+    BookDownload = "book.download",
     ClusterGroupRead = "clusterGroup.read",
     ClusterGroupLeave = "clusterGroup.leave",
     ClusterGroupRequestCreate = "clusterGroupRequest.create",
