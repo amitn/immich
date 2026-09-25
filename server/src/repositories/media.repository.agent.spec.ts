@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { aestheticScore } from 'src/utils/agent/scoring.js';
 import { automock } from 'test/utils.js';
 
 const solid = (width: number, height: number, background: { r: number; g: number; b: number }) =>
@@ -128,6 +129,43 @@ describe(MediaRepository.name, () => {
 
       const white = await sut.analyzeImage(await solid(100, 100, { r: 255, g: 255, b: 255 }).png().toBuffer());
       expect(white).toMatchObject({ meanLuma: 1, shadowClip: 0, highlightClip: 1 });
+    });
+
+    it('should measure colourfulness, contrast and saturation', async () => {
+      const quadrant = (background: { r: number; g: number; b: number }) =>
+        solid(200, 150, background).png().toBuffer();
+      const colourful = await solid(400, 300, { r: 0, g: 0, b: 0 })
+        .composite([
+          { input: await quadrant({ r: 230, g: 30, b: 30 }), left: 0, top: 0 },
+          { input: await quadrant({ r: 30, g: 200, b: 40 }), left: 200, top: 0 },
+          { input: await quadrant({ r: 30, g: 60, b: 220 }), left: 0, top: 150 },
+          { input: await quadrant({ r: 240, g: 210, b: 20 }), left: 200, top: 150 },
+        ])
+        .png()
+        .toBuffer();
+      const grey = await solid(400, 300, { r: 120, g: 120, b: 120 }).png().toBuffer();
+
+      const vivid = await sut.analyzeImage(colourful);
+      const dull = await sut.analyzeImage(grey);
+      expect(vivid.colorfulness).toBeGreaterThan(80);
+      expect(dull.colorfulness).toBeCloseTo(0);
+      expect(vivid.saturation).toBeGreaterThan(0.7);
+      expect(dull.saturation).toBeCloseTo(0);
+      expect(vivid.contrast).toBeGreaterThan(0.1);
+      expect(dull.contrast).toBeCloseTo(0);
+      expect(dull).toMatchObject({ focusX: 0.5, focusY: 0.5 });
+      expect(aestheticScore(vivid)).toBeGreaterThan(aestheticScore(dull) + 0.4);
+    });
+
+    it('should find where the detail is', async () => {
+      const detail = await noise(120, 120).png().toBuffer();
+      const image = await solid(600, 400, { r: 90, g: 120, b: 90 })
+        .composite([{ input: detail, left: 140, top: 80 }])
+        .png()
+        .toBuffer();
+      const result = await sut.analyzeImage(image);
+      expect(result.focusX).toBeCloseTo(200 / 600, 1);
+      expect(result.focusY).toBeCloseTo(140 / 400, 1);
     });
 
     it('should rank a sharp image above a blurred one', async () => {

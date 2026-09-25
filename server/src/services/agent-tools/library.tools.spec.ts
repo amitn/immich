@@ -71,7 +71,19 @@ const eventRow = (iso: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
-const analysis = { width: 512, height: 384, laplacianVariance: 1500, meanLuma: 0.5, shadowClip: 0, highlightClip: 0 };
+const analysis = {
+  width: 512,
+  height: 384,
+  laplacianVariance: 1500,
+  meanLuma: 0.5,
+  shadowClip: 0,
+  highlightClip: 0,
+  colorfulness: 70,
+  contrast: 0.25,
+  saturation: 0.4,
+  focusX: 1 / 3,
+  focusY: 1 / 3,
+};
 
 const json = (result: AgentToolResult) => {
   const text = result.content.find((content) => content.type === 'text');
@@ -500,7 +512,7 @@ describe(LibraryAgentTools.name, () => {
       allowAssets(good.id, blurry.id, noPreview.id);
       mocks.assetJob.getForAgent.mockResolvedValue([blurry, good, noPreview]);
       mocks.media.analyzeImage
-        .mockResolvedValueOnce({ ...analysis, laplacianVariance: 5 })
+        .mockResolvedValueOnce({ ...analysis, laplacianVariance: 5, colorfulness: 5, contrast: 0.05 })
         .mockResolvedValueOnce(analysis);
 
       const ids = [blurry.id, good.id, noPreview.id];
@@ -512,6 +524,7 @@ describe(LibraryAgentTools.name, () => {
         overall: 1,
         sharp: 1,
         expo: 1,
+        look: 1,
         faces: 1,
         face: 0.16,
         people: ['Ann'],
@@ -616,6 +629,33 @@ describe(LibraryAgentTools.name, () => {
       expect(result.ids).not.toContain(assets[3].id);
       expect(result.unmet).toEqual([`minPerPerson ${bob}: 0/1 (0 candidates)`]);
       expect(result.missing).toBeUndefined();
+    });
+
+    it('should spread the main people over the events', async () => {
+      const days = [0, 1, 2].flatMap((day) =>
+        [0, 1, 2, 3].map((hour) => {
+          const time = new Date(Date.UTC(2024, 5, 1 + day, 9 + hour));
+          return agentAsset({
+            localDateTime: time,
+            fileCreatedAt: time,
+            isFavorite: hour > 0,
+            faces: hour === 0 ? [face(ann, 'Ann')] : [],
+          });
+        }),
+      );
+      allowAssets(...days.map(({ id }) => id));
+      mocks.assetJob.getForAgent.mockResolvedValue(days);
+      mocks.search.getEmbeddings.mockResolvedValue([]);
+      const withAnn = (ids: string[]) => ids.filter((id) => days.find((asset) => asset.id === id)!.faces.length > 0);
+      const input = { ids: days.map(({ id }) => id), count: 6, useImageScores: false };
+
+      const spread = json(await call('select_best', input));
+      expect(withAnn(spread.ids)).toHaveLength(3);
+      expect(spread.mainPeople).toEqual([{ id: ann, name: 'Ann', n: 3 }]);
+      expect(spread.unmet).toBeUndefined();
+
+      const plain = json(await call('select_best', { ...input, spreadMainPeople: false }));
+      expect(withAnn(plain.ids)).toHaveLength(0);
     });
 
     it('should deny inaccessible photos', async () => {

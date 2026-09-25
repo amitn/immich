@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SelectionCandidate, selectBest } from 'src/utils/agent/selection.js';
+import { SelectionCandidate, getMainPeople, getMainPersonMinimum, selectBest } from 'src/utils/agent/selection.js';
 
 const HOUR = 3600 * 1000;
 
@@ -277,5 +277,57 @@ describe('selectBest', () => {
     expect(result.ids).toHaveLength(300);
     expect(Math.max(...Object.values(result.perEvent))).toBeLessThanOrEqual(20);
     expect(Math.min(...Object.values(result.perEvent))).toBeGreaterThanOrEqual(5);
+  });
+
+  describe('people per event', () => {
+    // three events of five photos; Ann is in the weakest photo of each event, Bob only in the first event
+    const candidates = [0, 1, 2].flatMap((event) =>
+      [0, 1, 2, 3, 4].map((i) =>
+        candidate(`p${event * 10 + i}`, i === 0 ? 0.1 : 0.9 - i / 100, {
+          event,
+          personIds: [...(i === 0 ? ['ann'] : []), ...(event === 0 && i === 1 ? ['bob'] : [])],
+        }),
+      ),
+    );
+
+    it('should pick every required person in each event they appear in', () => {
+      const result = selectBest(candidates, {
+        count: 6,
+        requirePersonIds: ['ann', 'bob'],
+        minPerPerson: 1,
+        minPerPersonPerEvent: 1,
+      });
+      expect(result.ids).toEqual(expect.arrayContaining(['p0', 'p10', 'p20', 'p1']));
+      expect(result.perPerson).toEqual({ ann: 3, bob: 1 });
+      expect(result.unmet).toEqual([]);
+    });
+
+    it('should report events that ran out of budget', () => {
+      const result = selectBest(candidates, { count: 1, requirePersonIds: ['ann'], minPerPersonPerEvent: 1 });
+      expect(result.ids).toHaveLength(1);
+      expect(result.unmet).toEqual(['minPerPersonPerEvent ann event 1: 0/1', 'minPerPersonPerEvent ann event 2: 0/1']);
+    });
+  });
+});
+
+describe('getMainPeople', () => {
+  it('should find the people who appear most often', () => {
+    const photos = [
+      ...Array.from({ length: 6 }, () => ({ personIds: ['ann'] })),
+      ...Array.from({ length: 4 }, () => ({ personIds: ['bob', 'ann'] })),
+      ...Array.from({ length: 2 }, () => ({ personIds: ['stranger'] })),
+      ...Array.from({ length: 8 }, () => ({})),
+    ];
+    expect(getMainPeople(photos)).toEqual(['ann', 'bob']);
+    expect(getMainPeople(photos, { maxPeople: 1 })).toEqual(['ann']);
+    expect(getMainPeople(photos, { minShare: 0.3 })).toEqual(['ann']);
+    expect(getMainPeople([])).toEqual([]);
+  });
+
+  it('should keep the per-book minimum within half the budget', () => {
+    expect(getMainPersonMinimum(40, 2)).toBe(4);
+    expect(getMainPersonMinimum(6, 2)).toBe(1);
+    expect(getMainPersonMinimum(10, 1)).toBe(4);
+    expect(getMainPersonMinimum(10, 0)).toBe(0);
   });
 });

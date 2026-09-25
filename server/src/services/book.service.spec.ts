@@ -1051,6 +1051,11 @@ describe(BookService.name, () => {
           meanLuma: 0.5,
           shadowClip: 0,
           highlightClip: 0,
+          colorfulness: 40,
+          contrast: 0.2,
+          saturation: 0.3,
+          focusX: 0.4,
+          focusY: 0.4,
         });
 
         await sut.createFromAlbum(auth, { albumId });

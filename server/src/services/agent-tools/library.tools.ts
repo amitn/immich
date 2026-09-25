@@ -16,13 +16,20 @@ import {
 import {
   DEFAULT_EVENT_OPTIONS,
   EventSplitOptions,
+  getAdaptiveEventOptions,
   groupEventsByDay,
   splitEvents,
   summarizeEvent,
   toLocalIso,
 } from 'src/utils/agent/events.js';
 import { PhotoScore, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
-import { SelectionCandidate, selectBest } from 'src/utils/agent/selection.js';
+import {
+  MAIN_PEOPLE_DEFAULTS,
+  SelectionCandidate,
+  getMainPeople,
+  getMainPersonMinimum,
+  selectBest,
+} from 'src/utils/agent/selection.js';
 import {
   AgentTool,
   AgentToolContext,
@@ -239,10 +246,11 @@ export class LibraryAgentTools extends BaseService {
         name: 'score_photo',
         title: 'Score photos',
         description:
-          `Technical and people scores (0..1) for up to ${LIMITS.score} photos, best first: sharp (Laplacian ` +
-          'variance), expo (mid-tone mean, few clipped pixels), faces (count), face (largest face share of the frame), ' +
-          'people (names), overall = 0.55 sharp + 0.35 expo + 0.1 face score, +0.1 for favorites, ±0.03 per rating ' +
-          'star around 3. Heuristics only: judge expressions yourself with view_photos.',
+          `Technical, aesthetic and people scores (0..1) for up to ${LIMITS.score} photos, best first: sharp ` +
+          '(Laplacian variance), expo (mid-tone mean, few clipped pixels), look (colourfulness, contrast, vividness ' +
+          'and whether the detail sits on a rule-of-thirds point), faces (count), face (largest face share of the ' +
+          'frame), people (names), overall = 0.4 sharp + 0.25 expo + 0.25 look + 0.1 face score, +0.1 for ' +
+          'favorites, ±0.03 per rating star around 3. Heuristics only: judge expressions yourself with view_photos.',
         input: z.object({ ids: ids(LIMITS.score) }),
         mutating: false,
         handler: handle((ctx, input) => this.scorePhotos(ctx.auth, input.ids)),
@@ -255,15 +263,27 @@ export class LibraryAgentTools extends BaseService {
           'score_photo overall score, cluster_similar clusters and find_events events (computed over the given ids) ' +
           'with a diversity penalty for similar or near-in-time photos. Precedence: mustIncludeIds, then the caps ' +
           'maxPerCluster (default 2) and maxPerEvent, then minPerPerson for requirePersonIds (default 1) and ' +
-          'minPerEvent, then the best remaining photos. Returns {ids, perPerson, perEvent, events, clusters, unmet}; ' +
-          'unmet lists constraints that could not be satisfied. Scoring uncached photos can take a while; ' +
-          'set useImageScores=false for a quick selection based on metadata only.',
+          'minPerPersonPerEvent and minPerEvent, then the best remaining photos. Without requirePersonIds, the ' +
+          'main people (the named or unnamed people who appear most often) are spread over the selection: a few ' +
+          'photos each, and one in every event they appear in (spreadMainPeople=false turns this off). Returns ' +
+          '{ids, perPerson, mainPeople, perEvent, events, clusters, unmet}; unmet lists constraints that could not ' +
+          'be satisfied. Scoring uncached photos can take a while; set useImageScores=false for a quick selection ' +
+          'based on metadata only.',
         input: z.object({
           ids: ids(LIMITS.select),
           count: z.int().min(1).max(LIMITS.select),
           maxPerCluster: z.int().min(1).optional(),
           requirePersonIds: z.array(uuid).max(20).optional(),
           minPerPerson: z.int().min(0).optional(),
+          minPerPersonPerEvent: z
+            .int()
+            .min(0)
+            .optional()
+            .describe('Photos of every required person in each event they appear in'),
+          spreadMainPeople: z
+            .boolean()
+            .optional()
+            .describe('Spread the main people over the selection when requirePersonIds is not given, default true'),
           maxPerEvent: z.int().min(1).optional(),
           minPerEvent: z.int().min(0).optional(),
           preferPeople: z.boolean().optional().describe('Favour photos with people'),
@@ -271,7 +291,12 @@ export class LibraryAgentTools extends BaseService {
           excludeIds: z.array(uuid).optional(),
           mustIncludeIds: z.array(uuid).optional(),
           diversity: z.number().min(0).max(1).optional().describe('Similarity penalty weight, default 0.3'),
-          gapHours: z.number().min(0.1).max(72).optional().describe('Event gap, default 3'),
+          gapHours: z
+            .number()
+            .min(0.1)
+            .max(72)
+            .optional()
+            .describe('Event gap, default 3 (for a single day: scaled to the gaps between the photos)'),
           distanceKm: z.number().min(0.1).max(10_000).optional().describe('Event location jump, default 30'),
           eventsByDay: z.boolean().optional().describe('Use calendar days as events'),
           useImageScores: z.boolean().optional().describe('Default true'),
@@ -522,6 +547,7 @@ export class LibraryAgentTools extends BaseService {
           overall: score.overall,
           sharp: score.sharpness,
           expo: score.exposure,
+          look: score.aesthetic,
           faces: score.faces,
           ...(score.faces > 0 && { face: score.faceArea }),
           ...(people.length > 0 && { people }),
@@ -541,6 +567,8 @@ export class LibraryAgentTools extends BaseService {
       maxPerCluster?: number;
       requirePersonIds?: string[];
       minPerPerson?: number;
+      minPerPersonPerEvent?: number;
+      spreadMainPeople?: boolean;
       maxPerEvent?: number;
       minPerEvent?: number;
       preferPeople?: boolean;
@@ -569,14 +597,19 @@ export class LibraryAgentTools extends BaseService {
     ]);
     const clusterIndex = toClusterIndex(clusters.filter(({ ids }) => ids.length > 1));
 
+    const points = rows.map((row) => ({
+      id: row.id,
+      time: row.localDateTime.getTime(),
+      latitude: row.latitude,
+      longitude: row.longitude,
+    }));
+    // a single day is split by its own gaps and distances unless they are given
+    const adaptive = input.gapHours === undefined && input.distanceKm === undefined && !input.eventsByDay;
     const events = splitEvents(
-      rows.map((row) => ({
-        id: row.id,
-        time: row.localDateTime.getTime(),
-        latitude: row.latitude,
-        longitude: row.longitude,
-      })),
-      this.getEventOptions({ gapHours: input.gapHours, distanceKm: input.distanceKm, byDay: input.eventsByDay }),
+      points,
+      adaptive
+        ? getAdaptiveEventOptions(points)
+        : this.getEventOptions({ gapHours: input.gapHours, distanceKm: input.distanceKm, byDay: input.eventsByDay }),
     );
     const eventIndex = new Map(events.flatMap((event, index) => event.map(({ id }) => [id, index] as const)));
 
@@ -589,11 +622,19 @@ export class LibraryAgentTools extends BaseService {
       personIds: personIdsOf(row),
     }));
 
+    // the main people get a few photos each, and one in every event they appear in while the budget allows it
+    const explicit = !!input.requirePersonIds?.length;
+    const mainPeople = explicit || input.spreadMainPeople === false ? [] : getMainPeople(candidates);
+    const spread = mainPeople.length > 0;
+    const perEventDefault =
+      spread && input.count >= 2 * events.length * mainPeople.length ? MAIN_PEOPLE_DEFAULTS.perEvent : 0;
+
     const result = selectBest(candidates, {
       count: input.count,
       maxPerCluster: input.maxPerCluster,
-      requirePersonIds: input.requirePersonIds,
-      minPerPerson: input.minPerPerson,
+      requirePersonIds: explicit ? input.requirePersonIds : mainPeople,
+      minPerPerson: input.minPerPerson ?? (spread ? getMainPersonMinimum(input.count, mainPeople.length) : undefined),
+      minPerPersonPerEvent: input.minPerPersonPerEvent ?? (spread ? perEventDefault : undefined),
       maxPerEvent: input.maxPerEvent,
       minPerEvent: input.minPerEvent,
       preferPeople: input.preferPeople,
@@ -620,7 +661,7 @@ export class LibraryAgentTools extends BaseService {
           ids: result.ids,
           count: result.ids.length,
           ...(Object.keys(result.perPerson).length > 0 && {
-            perPerson: Object.entries(result.perPerson).map(([id, n]) => ({
+            [spread ? 'mainPeople' : 'perPerson']: Object.entries(result.perPerson).map(([id, n]) => ({
               id,
               ...(names.has(id) && { name: names.get(id) }),
               n,
