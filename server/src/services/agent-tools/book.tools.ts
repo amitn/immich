@@ -55,12 +55,18 @@ const isEditable = (ctx: AgentToolContext, bookId: string) => editableBooks.get(
 class ToolInputError extends Error {}
 
 const WORKFLOW =
-  'Workflow: start with auto_layout_book (from an album, or a book plus assetIds): it makes the cover, one section ' +
-  'per event opened by a map (with GPS) or a section title, and sizes the photos by importance while fitting their ' +
-  'orientation → render_book to look at all spreads → render_page on the weak ones → fix what is weak (a dull or ' +
-  'repeated photo: place_photo; a bad crop: place_photo with a crop; a crowded page: set_page_layout; titles and ' +
-  'captions: set_caption; maps: set_page_map/add_map_page/illustrate_map) → render again → export_pdf (print) and/or export_html (a single-file web book). To build a ' +
-  'book by hand instead: create_book → add_page for each page (assetIds fill the slots in one call).';
+  'Workflow: start with auto_layout_book (from an album, or a book plus assetIds): it makes the cover, one chapter ' +
+  'per event or stop opened by a map (with GPS) or a section title, and sizes the photos by importance while fitting ' +
+  'their orientation and print resolution → review_book, and fix what it reports → compare its unusedPhotos with ' +
+  'the placed photos (view_photos) and swap in better ones with place_photo, keeping the main people in every ' +
+  'chapter → check that no photo appears again as its artwork, crop or enhanced copy (only as a pair on one page) → ' +
+  'render_book to look at all spreads → render_page on the weak ones → fix what is weak (a dull or repeated photo: ' +
+  'place_photo; a bad crop: place_photo with a crop; a crowded page: set_page_layout; maps: ' +
+  'set_page_map/add_map_page/illustrate_map) → set_caption with short captions from facts and what is visible on ' +
+  'the rendered page (place, time, people, what they do; never invented light, mood or weather) → suggest a style ' +
+  'preset (classic, soft, bold; set_book_style) → render again → export_pdf (print) and/or export_html (a ' +
+  'single-file web book). To build a book by hand instead: create_book → add_page for each page (assetIds fill the ' +
+  'slots in one call).';
 
 const mapStyle = BookMapStyleOptionSchema.describe(
   'Map style: sketch (offline, hand-drawn look), watercolor, toner or terrain (Stadia Maps tiles; without an API ' +
