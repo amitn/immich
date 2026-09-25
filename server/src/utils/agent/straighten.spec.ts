@@ -2,9 +2,9 @@ import {
   boxToStraightened,
   estimateTilt,
   getRotatedCanvasSize,
+  getStraightenScale,
   getStraightenedFrame,
   getStraightenedSize,
-  getStraightenScale,
   toCanvasRect,
   toStraightened,
 } from 'src/utils/agent/straighten.js';

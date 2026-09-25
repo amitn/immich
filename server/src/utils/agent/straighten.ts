@@ -112,6 +112,16 @@ export type TiltEstimate = {
  * Estimates how much a photo is tilted from its near-horizontal and near-vertical edges (horizons, buildings, poles,
  * door frames): a histogram of edge directions within ±12° of level or plumb, weighted by edge strength.
  */
+const getBest = (scores: { angle: number; score: number }[]) => {
+  let best = scores[0];
+  for (const entry of scores) {
+    if (entry.score > best.score) {
+      best = entry;
+    }
+  }
+  return best;
+};
+
 type EdgePoint = { dx: number; dy: number; weight: number; level: boolean };
 
 /** how tightly the edge points line up into rows (level edges) and columns (plumb edges) after rotating by `angle` */
@@ -200,9 +210,9 @@ export const estimateTilt = ({
   };
 
   const coarse = scan(-MAX_DETECTED_TILT, MAX_DETECTED_TILT, 0.25);
-  const bestCoarse = coarse.reduce((best, entry) => (entry.score > best.score ? entry : best));
+  const bestCoarse = getBest(coarse);
   const fine = scan(bestCoarse.angle - 0.3, bestCoarse.angle + 0.3, 0.02);
-  const best = fine.reduce((best, entry) => (entry.score > best.score ? entry : best));
+  const best = getBest(fine);
 
   // how far the winning angle stands out from a typical one
   const typical = coarse.map(({ score }) => score).sort((a, b) => a - b)[Math.floor(coarse.length / 2)];
