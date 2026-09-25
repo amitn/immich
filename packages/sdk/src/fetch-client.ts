@@ -1570,6 +1570,102 @@ export type AssetEditsCreateDto = {
     /** List of edit actions to apply (crop, rotate, or mirror) */
     edits: AssetEditActionItemDto[];
 };
+export type EnhanceDto = {
+    /** Only consider these corrections */
+    only?: EnhanceCorrectionType[];
+    /** How strongly to correct the photo (default normal) */
+    strength?: EnhanceStrength;
+};
+export type EnhanceResponseDto = {
+    /** Human-readable list of the corrections */
+    adjustments: string[];
+    /** An identical enhanced copy already existed and was returned instead */
+    duplicate: boolean;
+    /** ID of the enhanced copy */
+    id: string;
+    /** ID of the original */
+    sourceId: string;
+};
+export type EnhancePreviewDto = {
+    /** Only consider these corrections */
+    only?: EnhanceCorrectionType[];
+    /** How strongly to correct the photo (default normal) */
+    strength?: EnhanceStrength;
+};
+export type EnhanceCorrectionDto = {
+    /** How strong the correction is, 0-1 */
+    amount: number;
+    /** What the correction does */
+    description: string;
+    /** Why it is applied */
+    reason: string;
+    "type": EnhanceCorrectionType;
+};
+export type EnhancePlanDto = {
+    /** Noise reduction */
+    denoise?: {
+        /** Median filter size */
+        size: number;
+    };
+    /** Gamma correction */
+    exposure?: {
+        /** Gamma: above 1 brightens the midtones, below 1 darkens them */
+        gamma: number;
+    };
+    /** Stretch of the tonal range */
+    levels?: {
+        /** Input value (0-255) that becomes black */
+        black: number;
+        /** Input value (0-255) that becomes white */
+        white: number;
+    };
+    /** Contrast-limited adaptive histogram equalization (CLAHE) of the brightness */
+    localContrast?: {
+        /** Blend with the original, 0-1 */
+        amount: number;
+        /** Contrast limit */
+        clipLimit: number;
+        /** Number of tiles along each side */
+        grid: number;
+    };
+    /** Saturation boost */
+    saturation?: {
+        /** Saturation multiplier */
+        factor: number;
+    };
+    /** Unsharp mask */
+    sharpen?: {
+        /** Sharpening of flat areas */
+        m1: number;
+        /** Sharpening of edges */
+        m2: number;
+        /** Radius of the unsharp mask */
+        sigma: number;
+    };
+    /** Per-channel multipliers */
+    whiteBalance?: {
+        /** Blue multiplier */
+        b: number;
+        /** Green multiplier */
+        g: number;
+        /** Red multiplier */
+        r: number;
+    };
+};
+export type EnhanceAnalysisResponseDto = {
+    /** Human-readable list of the corrections */
+    adjustments: string[];
+    /** Asset ID */
+    assetId: string;
+    /** The corrections, in the order they are applied */
+    corrections: EnhanceCorrectionDto[];
+    /** Whether the photo would change noticeably */
+    needed: boolean;
+    /** Corrections that were considered and skipped, and why */
+    notes: string[];
+    plan: EnhancePlanDto;
+    strength: EnhanceStrength;
+};
 export type AssetMetadataResponseDto = {
     /** Metadata key */
     key: string;
@@ -1880,11 +1976,16 @@ export type BookDetailResponseDto = {
 export type BookFromAlbumDto = {
     /** Album whose photos are laid out */
     albumId: string;
+    captions?: BookCaptionMode;
     /** Also redraw every map as an illustration with the art agent (default false) */
     illustratedMaps?: boolean;
     /** Open the sections that have GPS locations with a map page (default true) */
     includeMaps?: boolean;
     mapStyle?: BookMapStyleOption;
+    /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
+    maxArtworkShare?: number;
+    /** Artworks shown next to their original on the same page (default 2) */
+    maxStackPairs?: number;
     /** Page height in millimeters (default 210) */
     pageHeightMm?: number;
     /** Page width in millimeters (default 210) */
@@ -1954,6 +2055,7 @@ export type BookUpdateDto = {
 export type BookAutoLayoutDto = {
     /** Photos to lay out (default: the photos of the book's album) */
     assetIds?: string[];
+    captions?: BookCaptionMode;
     /** Photos that get a page of their own */
     heroAssetIds?: string[];
     /** Also redraw every map as an illustration with the art agent (default false) */
@@ -1963,6 +2065,10 @@ export type BookAutoLayoutDto = {
     /** Append the new pages to the existing ones instead of replacing them (default false) */
     keepExisting?: boolean;
     mapStyle?: BookMapStyleOption;
+    /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
+    maxArtworkShare?: number;
+    /** Artworks shown next to their original on the same page (default 2) */
+    maxStackPairs?: number;
     /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
     targetPageCount?: number;
 };
@@ -5491,6 +5597,54 @@ export function editAsset({ id, assetEditsCreateDto }: {
         method: "PUT",
         body: assetEditsCreateDto
     })));
+}
+/**
+ * Auto-enhance a photo
+ */
+export function enhanceAsset({ id, enhanceDto }: {
+    id: string;
+    enhanceDto: EnhanceDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: EnhanceResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/enhance`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: enhanceDto
+    })));
+}
+/**
+ * Analyze a photo for auto-enhance
+ */
+export function analyzeEnhancement({ id, enhancePreviewDto }: {
+    id: string;
+    enhancePreviewDto: EnhancePreviewDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: EnhanceAnalysisResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/enhance/preview`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: enhancePreviewDto
+    })));
+}
+/**
+ * Render an auto-enhance preview
+ */
+export function renderEnhancePreview({ id, strength }: {
+    id: string;
+    strength?: EnhanceStrength;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/assets/${encodeURIComponent(id)}/enhance/preview.jpg${QS.query(QS.explode({
+        strength
+    }))}`, {
+        ...opts
+    }));
 }
 /**
  * Get asset metadata
@@ -9164,6 +9318,20 @@ export enum MirrorAxis {
     Horizontal = "horizontal",
     Vertical = "vertical"
 }
+export enum EnhanceCorrectionType {
+    Denoise = "denoise",
+    WhiteBalance = "whiteBalance",
+    Levels = "levels",
+    Exposure = "exposure",
+    LocalContrast = "localContrast",
+    Saturation = "saturation",
+    Sharpen = "sharpen"
+}
+export enum EnhanceStrength {
+    Subtle = "subtle",
+    Normal = "normal",
+    Strong = "strong"
+}
 export enum AssetMediaSize {
     Original = "original",
     Fullsize = "fullsize",
@@ -9181,6 +9349,12 @@ export enum BookMapStyle {
     Watercolor = "watercolor",
     Toner = "toner",
     Terrain = "terrain"
+}
+export enum BookCaptionMode {
+    None = "none",
+    Place = "place",
+    PlaceTime = "place-time",
+    People = "people"
 }
 export enum BookMapStyleOption {
     Auto = "auto",

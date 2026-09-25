@@ -5218,6 +5218,207 @@
         "x-immich-state": "Beta"
       }
     },
+    "/assets/{id}/enhance": {
+      "post": {
+        "description": "Create an automatically enhanced copy of a photo with local image processing (no AI). The original is never changed: the copy is a new asset stacked with it, and the original stays the primary asset of the stack.",
+        "operationId": "enhanceAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnhanceDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnhanceResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Auto-enhance a photo",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/assets/{id}/enhance/preview": {
+      "post": {
+        "description": "Decide which automatic corrections (levels, white balance, exposure, local contrast, saturation, sharpening, noise reduction) a photo needs, without changing anything. Uses local image processing only, no AI.",
+        "operationId": "analyzeEnhancement",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnhancePreviewDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnhanceAnalysisResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Analyze a photo for auto-enhance",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/assets/{id}/enhance/preview.jpg": {
+      "get": {
+        "description": "Render the preview of a photo before and after auto-enhance, side by side, as a JPEG image.",
+        "operationId": "renderEnhancePreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "strength",
+            "required": false,
+            "in": "query",
+            "description": "How strongly to correct the photo (default normal)",
+            "schema": {
+              "$ref": "#/components/schemas/EnhanceStrength"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Render an auto-enhance preview",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/assets/{id}/metadata": {
       "get": {
         "description": "Retrieve all metadata key-value pairs associated with the specified asset.",
@@ -23883,6 +24084,9 @@
             "minItems": 1,
             "type": "array"
           },
+          "captions": {
+            "$ref": "#/components/schemas/BookCaptionMode"
+          },
           "heroAssetIds": {
             "description": "Photos that get a page of their own",
             "items": {
@@ -23908,6 +24112,19 @@
           "mapStyle": {
             "$ref": "#/components/schemas/BookMapStyleOption"
           },
+          "maxArtworkShare": {
+            "description": "Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxStackPairs": {
+            "description": "Artworks shown next to their original on the same page (default 2)",
+            "maximum": 20,
+            "minimum": 0,
+            "type": "integer"
+          },
           "targetPageCount": {
             "description": "Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages)",
             "maximum": 200,
@@ -23916,6 +24133,16 @@
           }
         },
         "type": "object"
+      },
+      "BookCaptionMode": {
+        "description": "Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time) or people (place and the names of the people); default place",
+        "enum": [
+          "none",
+          "place",
+          "place-time",
+          "people"
+        ],
+        "type": "string"
       },
       "BookCreateDto": {
         "properties": {
@@ -24148,6 +24375,9 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
           },
+          "captions": {
+            "$ref": "#/components/schemas/BookCaptionMode"
+          },
           "illustratedMaps": {
             "description": "Also redraw every map as an illustration with the art agent (default false)",
             "type": "boolean"
@@ -24158,6 +24388,19 @@
           },
           "mapStyle": {
             "$ref": "#/components/schemas/BookMapStyleOption"
+          },
+          "maxArtworkShare": {
+            "description": "Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxStackPairs": {
+            "description": "Artworks shown next to their original on the same page (default 2)",
+            "maximum": 20,
+            "minimum": 0,
+            "type": "integer"
           },
           "pageHeightMm": {
             "description": "Page height in millimeters (default 210)",
@@ -25762,6 +26005,322 @@
           }
         },
         "type": "object"
+      },
+      "EnhanceAnalysisResponseDto": {
+        "properties": {
+          "adjustments": {
+            "description": "Human-readable list of the corrections",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "corrections": {
+            "description": "The corrections, in the order they are applied",
+            "items": {
+              "$ref": "#/components/schemas/EnhanceCorrectionDto"
+            },
+            "type": "array"
+          },
+          "needed": {
+            "description": "Whether the photo would change noticeably",
+            "type": "boolean"
+          },
+          "notes": {
+            "description": "Corrections that were considered and skipped, and why",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/EnhancePlanDto"
+          },
+          "strength": {
+            "$ref": "#/components/schemas/EnhanceStrength"
+          }
+        },
+        "required": [
+          "adjustments",
+          "assetId",
+          "corrections",
+          "needed",
+          "notes",
+          "plan",
+          "strength"
+        ],
+        "type": "object"
+      },
+      "EnhanceCorrectionDto": {
+        "properties": {
+          "amount": {
+            "description": "How strong the correction is, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "description": {
+            "description": "What the correction does",
+            "type": "string"
+          },
+          "reason": {
+            "description": "Why it is applied",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EnhanceCorrectionType"
+          }
+        },
+        "required": [
+          "amount",
+          "description",
+          "reason",
+          "type"
+        ],
+        "type": "object"
+      },
+      "EnhanceCorrectionType": {
+        "description": "Kind of correction",
+        "enum": [
+          "denoise",
+          "whiteBalance",
+          "levels",
+          "exposure",
+          "localContrast",
+          "saturation",
+          "sharpen"
+        ],
+        "type": "string"
+      },
+      "EnhanceDto": {
+        "properties": {
+          "only": {
+            "description": "Only consider these corrections",
+            "items": {
+              "$ref": "#/components/schemas/EnhanceCorrectionType"
+            },
+            "maxItems": 7,
+            "type": "array"
+          },
+          "strength": {
+            "$ref": "#/components/schemas/EnhanceStrength",
+            "description": "How strongly to correct the photo (default normal)"
+          }
+        },
+        "type": "object"
+      },
+      "EnhancePlanDto": {
+        "description": "Parameters of the corrections",
+        "properties": {
+          "denoise": {
+            "description": "Noise reduction",
+            "properties": {
+              "size": {
+                "description": "Median filter size",
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "size"
+            ],
+            "type": "object"
+          },
+          "exposure": {
+            "description": "Gamma correction",
+            "properties": {
+              "gamma": {
+                "description": "Gamma: above 1 brightens the midtones, below 1 darkens them",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "gamma"
+            ],
+            "type": "object"
+          },
+          "levels": {
+            "description": "Stretch of the tonal range",
+            "properties": {
+              "black": {
+                "description": "Input value (0-255) that becomes black",
+                "format": "double",
+                "type": "number"
+              },
+              "white": {
+                "description": "Input value (0-255) that becomes white",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "black",
+              "white"
+            ],
+            "type": "object"
+          },
+          "localContrast": {
+            "description": "Contrast-limited adaptive histogram equalization (CLAHE) of the brightness",
+            "properties": {
+              "amount": {
+                "description": "Blend with the original, 0-1",
+                "format": "double",
+                "type": "number"
+              },
+              "clipLimit": {
+                "description": "Contrast limit",
+                "format": "double",
+                "type": "number"
+              },
+              "grid": {
+                "description": "Number of tiles along each side",
+                "maximum": 9007199254740991,
+                "minimum": -9007199254740991,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "grid",
+              "clipLimit",
+              "amount"
+            ],
+            "type": "object"
+          },
+          "saturation": {
+            "description": "Saturation boost",
+            "properties": {
+              "factor": {
+                "description": "Saturation multiplier",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "factor"
+            ],
+            "type": "object"
+          },
+          "sharpen": {
+            "description": "Unsharp mask",
+            "properties": {
+              "m1": {
+                "description": "Sharpening of flat areas",
+                "format": "double",
+                "type": "number"
+              },
+              "m2": {
+                "description": "Sharpening of edges",
+                "format": "double",
+                "type": "number"
+              },
+              "sigma": {
+                "description": "Radius of the unsharp mask",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "sigma",
+              "m1",
+              "m2"
+            ],
+            "type": "object"
+          },
+          "whiteBalance": {
+            "description": "Per-channel multipliers",
+            "properties": {
+              "b": {
+                "description": "Blue multiplier",
+                "format": "double",
+                "type": "number"
+              },
+              "g": {
+                "description": "Green multiplier",
+                "format": "double",
+                "type": "number"
+              },
+              "r": {
+                "description": "Red multiplier",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "r",
+              "g",
+              "b"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "EnhancePreviewDto": {
+        "properties": {
+          "only": {
+            "description": "Only consider these corrections",
+            "items": {
+              "$ref": "#/components/schemas/EnhanceCorrectionType"
+            },
+            "maxItems": 7,
+            "type": "array"
+          },
+          "strength": {
+            "$ref": "#/components/schemas/EnhanceStrength",
+            "description": "How strongly to correct the photo (default normal)"
+          }
+        },
+        "type": "object"
+      },
+      "EnhanceResponseDto": {
+        "properties": {
+          "adjustments": {
+            "description": "Human-readable list of the corrections",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "duplicate": {
+            "description": "An identical enhanced copy already existed and was returned instead",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "ID of the enhanced copy",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "sourceId": {
+            "description": "ID of the original",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adjustments",
+          "duplicate",
+          "id",
+          "sourceId"
+        ],
+        "type": "object"
+      },
+      "EnhanceStrength": {
+        "description": "How strongly to correct the photo",
+        "enum": [
+          "subtle",
+          "normal",
+          "strong"
+        ],
+        "type": "string"
       },
       "EnumFilterAssetType": {
         "properties": {
