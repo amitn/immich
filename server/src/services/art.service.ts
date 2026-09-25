@@ -111,12 +111,14 @@ export class ArtService extends BaseService {
   }
 
   private async runJob(auth: AuthDto, job: Selectable<ArtJobTable>) {
-    const workdir = await this.acpRepository.createWorkdir(`art-${job.id}`);
+    let workdir: string | undefined;
     let agent: Awaited<ReturnType<typeof this.acpRepository.start>> | undefined;
     let timer: NodeJS.Timeout | undefined;
 
     try {
       await this.updateJob(job.id, { status: ArtJobStatus.Running });
+      workdir = await this.acpRepository.createWorkdir(`art-${job.id}`);
+      const cwd = workdir;
 
       const { agent: config } = await this.getConfig({ withCache: true });
       const profile = getAgentProfile(config, job.profile);
@@ -124,21 +126,21 @@ export class ArtService extends BaseService {
         throw new Error(`The art profile "${job.profile}" does not exist anymore`);
       }
 
-      const source = await this.writeSource(job.sourceAssetId, workdir);
+      const source = await this.writeSource(job.sourceAssetId, cwd);
       let generated: GeneratedImage | undefined;
 
       agent = await this.acpRepository.start({
         profile,
-        cwd: workdir,
+        cwd,
         handlers: {
           onUpdate: (notification) => {
             generated = getGeneratedImage(notification) ?? generated;
           },
-          onPermission: (request) => Promise.resolve(decideArtPermission(workdir, request)),
+          onPermission: (request) => Promise.resolve(decideArtPermission(cwd, request)),
         },
       });
 
-      const { sessionId } = await agent.newSession({ cwd: workdir, mcpServers: [] });
+      const { sessionId } = await agent.newSession({ cwd, mcpServers: [] });
       const supportsImages = !!agent.initialize.agentCapabilities?.promptCapabilities?.image;
       const prompt: AcpContentBlock[] = [{ type: 'text', text: getArtInstructions(job.prompt, source) }];
       if (supportsImages) {
@@ -154,7 +156,7 @@ export class ArtService extends BaseService {
       });
       await Promise.race([agent.prompt(sessionId, prompt), timeout]);
 
-      const image = generated ?? (await this.readOutputFile(workdir));
+      const image = generated ?? (await this.readOutputFile(cwd));
       if (!image) {
         throw new Error('The art agent did not produce an image. Is image generation available for this agent?');
       }
@@ -179,7 +181,9 @@ export class ArtService extends BaseService {
     } finally {
       clearTimeout(timer);
       await agent?.kill().catch(() => {});
-      await this.acpRepository.removeWorkdir(workdir).catch(() => {});
+      if (workdir) {
+        await this.acpRepository.removeWorkdir(workdir).catch(() => {});
+      }
     }
   }
 
