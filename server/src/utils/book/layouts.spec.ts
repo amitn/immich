@@ -1,11 +1,11 @@
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import {
+  LayoutRect,
   bookLayouts,
   getLayout,
   getSlotAspectRatios,
   getSlotRectsMm,
   getTextRectsMm,
-  LayoutRect,
   toPxRect,
   validatePageStyle,
 } from 'src/utils/book/layouts.js';
