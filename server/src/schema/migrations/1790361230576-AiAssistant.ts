@@ -10,6 +10,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   "status" character varying NOT NULL DEFAULT 'idle',
   "createdAt" timestamp with time zone NOT NULL DEFAULT now(),
   "updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+  "updateId" uuid NOT NULL DEFAULT immich_uuid_v7(),
   CONSTRAINT "agent_session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "agent_session_pkey" PRIMARY KEY ("id")
 );`.execute(db);
@@ -29,9 +30,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   CONSTRAINT "agent_message_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "agent_session" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "agent_message_pkey" PRIMARY KEY ("id")
 );`.execute(db);
-  await sql`CREATE INDEX "agent_message_sessionId_createdAt_idx" ON "agent_message" ("sessionId", "createdAt");`.execute(
-    db,
-  );
+  await sql`CREATE INDEX "agent_message_sessionId_createdAt_idx" ON "agent_message" ("sessionId", "createdAt");`.execute(db);
   await sql`CREATE INDEX "agent_message_sessionId_idx" ON "agent_message" ("sessionId");`.execute(db);
   await sql`CREATE TABLE "art_job" (
   "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -46,6 +45,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   "error" text,
   "createdAt" timestamp with time zone NOT NULL DEFAULT now(),
   "updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+  "updateId" uuid NOT NULL DEFAULT immich_uuid_v7(),
   CONSTRAINT "art_job_userId_fkey" FOREIGN KEY ("userId") REFERENCES "user" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "art_job_sourceAssetId_fkey" FOREIGN KEY ("sourceAssetId") REFERENCES "asset" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "art_job_resultAssetId_fkey" FOREIGN KEY ("resultAssetId") REFERENCES "asset" ("id") ON UPDATE CASCADE ON DELETE SET NULL,
@@ -72,6 +72,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   "exportPath" character varying,
   "createdAt" timestamp with time zone NOT NULL DEFAULT now(),
   "updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+  "updateId" uuid NOT NULL DEFAULT immich_uuid_v7(),
   CONSTRAINT "book_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "user" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "book_albumId_fkey" FOREIGN KEY ("albumId") REFERENCES "album" ("id") ON UPDATE CASCADE ON DELETE SET NULL,
   CONSTRAINT "book_coverAssetId_fkey" FOREIGN KEY ("coverAssetId") REFERENCES "asset" ("id") ON UPDATE CASCADE ON DELETE SET NULL,
@@ -94,6 +95,7 @@ export async function up(db: Kysely<any>): Promise<void> {
   "background" character varying,
   "createdAt" timestamp with time zone NOT NULL DEFAULT now(),
   "updatedAt" timestamp with time zone NOT NULL DEFAULT now(),
+  "updateId" uuid NOT NULL DEFAULT immich_uuid_v7(),
   CONSTRAINT "book_page_bookId_fkey" FOREIGN KEY ("bookId") REFERENCES "book" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "book_page_pkey" PRIMARY KEY ("id")
 );`.execute(db);
@@ -114,18 +116,10 @@ export async function up(db: Kysely<any>): Promise<void> {
 );`.execute(db);
   await sql`CREATE INDEX "book_page_asset_pageId_idx" ON "book_page_asset" ("pageId");`.execute(db);
   await sql`CREATE INDEX "book_page_asset_assetId_idx" ON "book_page_asset" ("assetId");`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_agent_session_updatedAt', '{"type":"trigger","name":"agent_session_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"agent_session_updatedAt\\"\\n  BEFORE UPDATE ON \\"agent_session\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
-    db,
-  );
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_job_updatedAt', '{"type":"trigger","name":"art_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
-    db,
-  );
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_updatedAt', '{"type":"trigger","name":"book_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_updatedAt\\"\\n  BEFORE UPDATE ON \\"book\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
-    db,
-  );
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_page_updatedAt', '{"type":"trigger","name":"book_page_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_page_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_page\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
-    db,
-  );
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_agent_session_updatedAt', '{"type":"trigger","name":"agent_session_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"agent_session_updatedAt\\"\\n  BEFORE UPDATE ON \\"agent_session\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_job_updatedAt', '{"type":"trigger","name":"art_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_updatedAt', '{"type":"trigger","name":"book_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_updatedAt\\"\\n  BEFORE UPDATE ON \\"book\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_page_updatedAt', '{"type":"trigger","name":"book_page_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_page_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_page\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
 }
 
 export async function down(db: Kysely<any>): Promise<void> {
