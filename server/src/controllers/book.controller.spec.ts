@@ -225,6 +225,28 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('GET /books/:id/preview', () => {
+    it('should serve the book inline in a sandbox', async () => {
+      const id = factory.uuid();
+      service.previewHtml.mockResolvedValue('<!doctype html><title>Book</title>');
+
+      const { status, headers, text } = await request(ctx.getHttpServer()).get(`/books/${id}/preview`);
+
+      expect(status).toBe(200);
+      expect(service.previewHtml).toHaveBeenCalledWith(undefined, id);
+      expect(headers['content-type']).toMatch(/^text\/html/);
+      expect(headers['content-disposition']).toBeUndefined();
+      expect(headers['content-security-policy']).toBe("sandbox allow-scripts; frame-ancestors 'self'");
+      expect(headers['cache-control']).toBe('private, no-store');
+      expect(text).toBe('<!doctype html><title>Book</title>');
+    });
+
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/books/not-a-uuid/preview');
+      expect(status).toBe(400);
+    });
+  });
+
   describe('GET /books/:id/html', () => {
     let folder: string;
 

@@ -60,10 +60,11 @@ import { selectBest } from 'src/utils/agent/selection.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import { AutoLayoutPage, AutoLayoutPhoto, AutoLayoutPlan, planAutoLayout } from 'src/utils/book/auto-layout.js';
 import {
-  HTML_JPEG_QUALITY,
+  HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
-  HTML_MAX_IMAGE_PX,
+  HTML_PREVIEW_QUALITY,
   HtmlImage,
+  HtmlImageQuality,
   ImageSize,
   buildBookHtml,
   getHtmlFileName,
@@ -169,6 +170,10 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 export const getBookPdfPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.pdf`);
+
+/** previews of recently viewed books, keyed by book id and content version */
+const PREVIEW_CACHE_SIZE = 8;
+const previewCache = new Map<string, string>();
 
 export const getBookHtmlPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.html`);
@@ -616,6 +621,31 @@ export class BookService extends BaseService {
     });
   }
 
+  /** The book as the single-file HTML web book, built on demand at screen quality, for previewing in the app */
+  async previewHtml(auth: AuthDto, id: string): Promise<string> {
+    await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    if (book.pageCount === 0) {
+      throw new BadRequestException('The book has no pages');
+    }
+
+    const key = `${book.id}/${book.contentUpdatedAt.toISOString()}`;
+    const cached = previewCache.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    const pages = await this.bookRepository.getPages(id);
+    const { html } = await this.createBookHtml(auth, book, pages, HTML_PREVIEW_QUALITY);
+    for (const cachedKey of previewCache.keys()) {
+      if (cachedKey.startsWith(`${book.id}/`) || previewCache.size >= PREVIEW_CACHE_SIZE) {
+        previewCache.delete(cachedKey);
+      }
+    }
+    previewCache.set(key, html);
+    return html;
+  }
+
   async downloadHtml(auth: AuthDto, id: string): Promise<ImmichFileResponse> {
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
@@ -745,7 +775,12 @@ export class BookService extends BaseService {
   }
 
   /** Embeds every placed photo once, sized for screens, and renders map pages as whole-page images */
-  private async createBookHtml(auth: AuthDto, book: Book, pages: BookPage[]) {
+  private async createBookHtml(
+    auth: AuthDto,
+    book: Book,
+    pages: BookPage[],
+    quality: HtmlImageQuality = HTML_EXPORT_QUALITY,
+  ) {
     const assetIds = new Set<string>();
     for (const page of pages) {
       if (isImagePageLayout(page.layout)) {
@@ -790,11 +825,12 @@ export class BookService extends BaseService {
 
     const sizes = new Map([...sources].map(([id, source]) => [id, source.size]));
     const images = new Map<string, HtmlImage>();
-    for (const [assetId, request] of planHtmlImages(book, pages, sizes)) {
+    for (const [assetId, request] of planHtmlImages(book, pages, sizes, quality)) {
       const source = sources.get(assetId)!;
       // previews are enough unless a photo is shown larger than its preview
       const previewScale = Math.min(1, image.preview.size / Math.max(source.size.width, source.size.height));
-      const useFull = !source.preview || (!!source.full && request.scale > previewScale * 1.1);
+      const useFull =
+        !source.preview || (quality !== HTML_PREVIEW_QUALITY && !!source.full && request.scale > previewScale * 1.1);
       const input = (useFull ? source.full : source.preview)!;
       const scale = useFull ? request.scale : Math.min(request.scale, previewScale);
 
@@ -803,7 +839,7 @@ export class BookService extends BaseService {
         width,
         height,
         background: '#ffffff',
-        quality: HTML_JPEG_QUALITY,
+        quality: quality.jpegQuality,
         overlay: null,
         slots: [{ left: 0, top: 0, width, height, input, crop: request.region }],
       });
@@ -828,7 +864,7 @@ export class BookService extends BaseService {
       }
       const { data } = await this.renderBookPage(auth, book, page, index + 1, {
         mode: 'review',
-        dpi: getDpiForLongEdge(book, HTML_MAX_IMAGE_PX),
+        dpi: getDpiForLongEdge(book, quality.maxImagePx),
       });
       pageImages.set(index, data);
     }

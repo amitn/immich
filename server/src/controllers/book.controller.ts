@@ -280,6 +280,23 @@ export class BookController {
     await sendFile(res, next, () => this.service.downloadPdf(auth, id), this.logger);
   }
 
+  @Get(':id/preview')
+  @Authenticated({ permission: Permission.BookRead })
+  @FileResponse()
+  @Endpoint({
+    summary: 'Preview a book',
+    description:
+      'The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame.',
+    history: history(),
+  })
+  async previewBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto, @Res() res: Response): Promise<void> {
+    const html = await this.service.previewHtml(auth, id);
+    // the page may run its own navigation script, but in an opaque origin without access to the user's session
+    res.header('Content-Security-Policy', "sandbox allow-scripts; frame-ancestors 'self'");
+    res.header('Cache-Control', 'private, no-store');
+    res.type('text/html').send(html);
+  }
+
   @Get(':id/html')
   @Authenticated({ permission: Permission.BookDownload })
   @FileResponse()

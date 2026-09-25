@@ -701,6 +701,42 @@ describe(BookService.name, () => {
     });
   });
 
+  describe('previewHtml', () => {
+    const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
+
+    it('should require access to the book', async () => {
+      await expect(sut.previewHtml(auth, newUuid())).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.book.getPages).not.toHaveBeenCalled();
+    });
+
+    it('should reject books without pages', async () => {
+      const book = BookFactory.create({ pageCount: 0 });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.previewHtml(auth, book.id)).rejects.toThrow('The book has no pages');
+    });
+
+    it('should build the HTML book and reuse it until the content changes', async () => {
+      const book = BookFactory.create({ pageCount: 1, contentUpdatedAt: new Date('2026-01-01T10:00:00Z') });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([textPage(book.id)]);
+      mocks.book.getAssetsForRender.mockResolvedValue([]);
+
+      const html = await sut.previewHtml(auth, book.id);
+      expect(html).toMatch(/^<!doctype html>/i);
+      expect(html).toContain('Hello &lt;world&gt;');
+
+      await expect(sut.previewHtml(auth, book.id)).resolves.toBe(html);
+      expect(mocks.book.getPages).toHaveBeenCalledTimes(1);
+
+      mocks.book.get.mockResolvedValue({ ...book, contentUpdatedAt: new Date('2026-01-01T11:00:00Z') });
+      await sut.previewHtml(auth, book.id);
+      expect(mocks.book.getPages).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('downloadHtml', () => {
     it('should reject books that were not exported as HTML', async () => {
       const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf' });

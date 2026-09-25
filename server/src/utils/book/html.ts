@@ -18,6 +18,14 @@ export const HTML_JPEG_QUALITY = 82;
 /** larger files are still written, but are hard to email */
 export const HTML_LARGE_FILE_BYTES = 60 * 1024 * 1024;
 
+export type HtmlImageQuality = { pixelRatio: number; maxImagePx: number; jpegQuality: number };
+
+/** full quality for the exported file */
+export const HTML_EXPORT_QUALITY: HtmlImageQuality = { pixelRatio: 2, maxImagePx: 2000, jpegQuality: 82 };
+
+/** the in-app preview is built on demand, so it trades sharpness for speed */
+export const HTML_PREVIEW_QUALITY: HtmlImageQuality = { pixelRatio: 1.25, maxImagePx: 1400, jpegQuality: 75 };
+
 export const HTML_CSP =
   "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'";
 
@@ -157,9 +165,10 @@ export const planHtmlImages = (
   book: RenderBookInput,
   pages: RenderPageInput[],
   sizes: Map<string, ImageSize>,
+  { pixelRatio, maxImagePx }: Pick<HtmlImageQuality, 'pixelRatio' | 'maxImagePx'> = HTML_EXPORT_QUALITY,
 ): Map<string, HtmlImageRequest> => {
   const longEdgeMm = Math.max(book.pageWidthMm, book.pageHeightMm);
-  const pxPerMm = (HTML_REFERENCE_PAGE_PX * HTML_PIXEL_RATIO) / longEdgeMm;
+  const pxPerMm = (HTML_REFERENCE_PAGE_PX * pixelRatio) / longEdgeMm;
   const uses = new Map<string, { rects: NormalizedRect[]; scale: number }>();
 
   for (const page of pages) {
@@ -187,7 +196,7 @@ export const planHtmlImages = (
     const image = sizes.get(assetId)!;
     const region = getBoundingRect(use.rects);
     const longEdge = Math.max(region.width * image.width, region.height * image.height);
-    requests.set(assetId, { region, scale: Math.min(use.scale, 1, HTML_MAX_IMAGE_PX / longEdge) });
+    requests.set(assetId, { region, scale: Math.min(use.scale, 1, maxImagePx / longEdge) });
   }
 
   return requests;
