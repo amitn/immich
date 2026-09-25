@@ -59,7 +59,8 @@ const WORKFLOW =
   'per event or stop opened by a map (with GPS) or a section title, and sizes the photos by importance while fitting ' +
   'their orientation and print resolution → review_book, and fix what it reports → compare its unusedPhotos with ' +
   'the placed photos (view_photos) and swap in better ones with place_photo, keeping the main people in every ' +
-  'chapter → check that no photo appears again as its artwork, crop or enhanced copy (only as a pair on one page) → ' +
+  'chapter → apply_improvements for the photos it reports as improvements → check that no photo appears again as ' +
+  'its artwork, crop, enhanced or improved copy (only as a pair on one page) → ' +
   'render_book to look at all spreads → render_page on the weak ones → fix what is weak (a dull or repeated photo: ' +
   'place_photo; a bad crop: place_photo with a crop; a crowded page: set_page_layout; maps: ' +
   'set_page_map/add_map_page/illustrate_map) → set_caption with short captions from facts and what is visible on ' +
@@ -154,7 +155,7 @@ const countReasons = (reasons: Record<string, string>) => {
 };
 
 /** one line per page, e.g. "3: hero-left-two, 3 photos" */
-const summarizeLayout = ({ book, plan, photoCount, warnings }: BookAutoLayoutResult) => {
+const summarizeLayout = ({ book, plan, photoCount, warnings, improvements, improved }: BookAutoLayoutResult) => {
   const offset = Math.max(0, book.pages.length - plan.pages.length);
   return {
     bookId: book.id,
@@ -186,7 +187,16 @@ const summarizeLayout = ({ book, plan, photoCount, warnings }: BookAutoLayoutRes
       return `${offset + index + 1}: ${parts.join(', ')}`;
     }),
     ...(warnings.length > 0 && { warnings }),
+    ...(improvements.length > 0 && {
+      improvements: improvements.map(({ assetId, recipe, gain }) => ({ assetId, recipe, gain })),
+    }),
+    ...(improved.length > 0 && { improved }),
     next:
+      (improvements.length > 0
+        ? `${improvements.length} placed photo${improvements.length === 1 ? '' : 's'} would look better ` +
+          'straightened or auto-enhanced: call ' +
+          'apply_improvements with this bookId to create improved copies (the user approves) and place them. '
+        : '') +
       'Call review_book and fix what it reports, then render_book to look at the spreads and render_page on weak ' +
       'pages; swap in better unused photos, write captions for what is visible, and suggest a style preset.',
   };
@@ -308,7 +318,10 @@ export class BookAgentTools extends BaseService {
           'at 150 dpi, avoids more than two single-photo pages in a row and similar photos on neighbouring pages, ' +
           'splits a single day into chapters (e.g. the stops of a ride), keeps the main people in every section, ' +
           'and drafts factual captions (captions: none, place, place-time or people; never descriptions of the ' +
-          'photos). targetPageCount is approximate: less important photos are left out when there are too many. ' +
+          'photos). It picks photos on what they can become (considerImprovements, default true): straightening ' +
+          'and auto-enhance are simulated on the previews, and it returns improvements [{assetId, recipe, gain}] ' +
+          'for the placed photos they help, without creating anything; then call apply_improvements. ' +
+          'targetPageCount is approximate: less important photos are left out when there are too many. ' +
           'The pages are replaced unless keepExisting (which appends the photos that are not in the book yet). ' +
           'Only when the user asks for illustrated (AI-drawn) maps and an art profile is configured, pass ' +
           'illustratedMaps=true and then call illustrate_map without a page (the user approves it). Returns a page ' +
@@ -346,6 +359,10 @@ export class BookAgentTools extends BaseService {
             .max(20)
             .optional()
             .describe('Artworks shown next to their original on one page, default 2'),
+          considerImprovements: z
+            .boolean()
+            .optional()
+            .describe('Pick photos on the score after straightening and auto-enhance, default true'),
         }),
         mutating: false,
         handler: (
@@ -371,6 +388,8 @@ export class BookAgentTools extends BaseService {
                 captions: options.captions,
                 maxArtworkShare: options.maxArtworkShare,
                 maxStackPairs: options.maxStackPairs,
+                considerImprovements: options.considerImprovements,
+                improvePhotos: false,
               });
               markEditable(ctx, result.book.id);
               return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
@@ -381,7 +400,7 @@ export class BookAgentTools extends BaseService {
             if (title !== undefined || subtitle !== undefined || pageWidthMm || pageHeightMm || stylePreset) {
               await this.books.update(ctx.auth, bookId!, { title, subtitle, pageWidthMm, pageHeightMm, stylePreset });
             }
-            const result = await this.books.autoLayoutWithPlan(ctx.auth, bookId!, options);
+            const result = await this.books.autoLayoutWithPlan(ctx.auth, bookId!, { ...options, improvePhotos: false });
             return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
           });
         },
@@ -738,6 +757,35 @@ export class BookAgentTools extends BaseService {
       }),
 
       defineTool({
+        name: 'apply_improvements',
+        title: 'Improve the photos of a book',
+        description:
+          'Create improved copies (straightened, auto-enhanced; no AI) of the photos in a book that the simulated ' +
+          'fixes measurably help, as reported by auto_layout_book (improvements) or review_book (could-look-better), ' +
+          'and place the copies instead of the originals, with the crops of their slots recomputed. The originals ' +
+          'are never changed: each copy is stacked with its original (one stack, so the book still shows the photo ' +
+          'once). Pass assetIds to improve only some photos. Returns {improved: [{sourceId, id, description, pages}], ' +
+          'skipped}.',
+        input: z.object({
+          bookId,
+          assetIds: z.array(z.uuidv4()).min(1).max(500).optional().describe('Placed photos to improve; default all'),
+        }),
+        mutating: true,
+        handler: (ctx, input) =>
+          this.edit(ctx, input.bookId, async () => {
+            const result = await this.books.applyImprovements(ctx.auth, input.bookId, { assetIds: input.assetIds });
+            return toolJson({
+              improved: result.improved,
+              ...(result.skipped.length > 0 && { skipped: result.skipped }),
+              next:
+                result.improved.length > 0
+                  ? 'Look at the changed pages with render_page (the copies get their previews in a moment).'
+                  : 'Nothing was improved.',
+            });
+          }),
+      }),
+
+      defineTool({
         name: 'review_book',
         title: 'Review a photo book',
         description:
@@ -746,7 +794,8 @@ export class BookAgentTools extends BaseService {
           'one page is a fine pair), placements that print below 150 dpi (page and slot), empty slots, too much ' +
           'artwork or artwork on consecutive pages, more than two single-photo pages in a row, similar photos on ' +
           'neighbouring pages, maps drawn as sketches for lack of a Stadia Maps key, main people with few photos, ' +
-          'repeated layouts and pages without captions. Also lists unusedPhotos (the best album photos that are ' +
+          'repeated layouts, pages without captions and placed photos that straightening or auto-enhance would ' +
+          'clearly help (could-look-better: call apply_improvements). Also lists unusedPhotos (the best album photos that are ' +
           'not in the book, the main people first) and weakestPlaced (the lowest scoring photos in the book, to ' +
           'compare and swap with place_photo). Read-only.',
         input: z.object({ bookId }),

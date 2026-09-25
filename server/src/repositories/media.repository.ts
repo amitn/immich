@@ -205,9 +205,13 @@ export class MediaRepository {
   }
 
   /** A small upright grayscale copy, e.g. to find the tilt of a photo. */
-  async getGrayscale(input: string | Buffer, size = 512): Promise<{ data: Uint8Array; width: number; height: number }> {
-    const { data, info } = await this.encoded(input, 'none')
-      .rotate()
+  async getGrayscale(
+    input: string | Buffer | Bitmap,
+    size = 512,
+  ): Promise<{ data: Uint8Array; width: number; height: number }> {
+    const source =
+      typeof input === 'string' || Buffer.isBuffer(input) ? this.encoded(input, 'none').rotate() : this.raw(input);
+    const { data, info } = await source
       .resize(size, size, { fit: 'inside', withoutEnlargement: true })
       .grayscale()
       .raw()
@@ -229,6 +233,12 @@ export class MediaRepository {
     crop: CropParameters | null,
     { colorspace, quality = 95, size }: { colorspace: string; quality?: number; size?: number },
   ): Promise<{ data: Buffer; width: number; height: number }> {
+    const straightened = await this.straightenBitmap(image, angle, crop, size);
+    return this.encodeJpeg(straightened, { colorspace, quality });
+  }
+
+  /** `straightenImage` without the encoding: the raw pixels, optionally scaled down to fit inside `size` */
+  async straightenBitmap(image: Bitmap, angle: number, crop: CropParameters | null, size?: number): Promise<Bitmap> {
     const rotated = await this.raw(image)
       .rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 1 } })
       .raw()
@@ -250,11 +260,43 @@ export class MediaRepository {
     if (size) {
       pipeline = pipeline.resize(size, size, { fit: 'inside', withoutEnlargement: true });
     }
-    const straightened = await pipeline.raw().toBuffer({ resolveWithObject: true });
-    const { data, info } = await this.tag(
-      { data: straightened.data, info: straightened.info as RawImageInfo },
-      colorspace,
-    )
+    const { data, info } = await pipeline.raw().toBuffer({ resolveWithObject: true });
+    return { data, info: info as RawImageInfo };
+  }
+
+  /** The raw pixels of a crop (in pixels) of a decoded image */
+  async cropBitmap(image: Bitmap, crop: CropParameters): Promise<Bitmap> {
+    const left = Math.min(Math.max(Math.round(crop.x), 0), image.info.width - 1);
+    const top = Math.min(Math.max(Math.round(crop.y), 0), image.info.height - 1);
+    const { data, info } = await this.raw(image)
+      .extract({
+        left,
+        top,
+        width: Math.max(1, Math.min(Math.round(crop.width), image.info.width - left)),
+        height: Math.max(1, Math.min(Math.round(crop.height), image.info.height - top)),
+      })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return { data, info: info as RawImageInfo };
+  }
+
+  /** An 8-bit sRGB copy of an image that fits in `size` x `size`, e.g. to try out corrections on a preview */
+  async getSmallRgb(input: string | Buffer, size = 512): Promise<Bitmap> {
+    const { data, info } = await this.encoded(input, 'none')
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .removeAlpha()
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return { data, info: info as RawImageInfo };
+  }
+
+  /** Encodes a decoded image as JPEG, tagged with its colourspace */
+  async encodeJpeg(
+    image: Bitmap,
+    { colorspace, quality = 95 }: { colorspace: string; quality?: number },
+  ): Promise<{ data: Buffer; width: number; height: number }> {
+    const { data, info } = await this.tag(image, colorspace)
       .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
       .toBuffer({ resolveWithObject: true });
     return { data, width: info.width, height: info.height };
@@ -429,6 +471,15 @@ export class MediaRepository {
       .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
       .toBuffer({ resolveWithObject: true });
     return { data, width: info.width, height: info.height };
+  }
+
+  /** `enhanceImage` without the encoding: the raw 8-bit pixels (three channels) */
+  async enhanceBitmap(image: Bitmap, plan: EnhancePlan): Promise<Bitmap> {
+    const enhanced = await this.applyEnhanceTones(image, plan);
+    const { data, info } = await this.applyEnhanceFinish(this.raw(enhanced), plan)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return { data, info: info as RawImageInfo };
   }
 
   /** The image before and after an auto-enhance plan, side by side in a JPEG at most `width` wide */
@@ -790,8 +841,10 @@ export class MediaRepository {
   }
 
   /** raw sharpness, exposure, colour and composition metrics of the image downscaled to fit in `size` x `size` */
-  async analyzeImage(input: string | Buffer, size = 512): Promise<ImageAnalysis> {
-    const { data: rgb, info: rgbInfo } = await sharp(input, { failOn: 'none' })
+  async analyzeImage(input: string | Buffer | Bitmap, size = 512): Promise<ImageAnalysis> {
+    const source =
+      typeof input === 'string' || Buffer.isBuffer(input) ? sharp(input, { failOn: 'none' }) : this.raw(input);
+    const { data: rgb, info: rgbInfo } = await source
       .resize(size, size, { fit: 'inside', withoutEnlargement: true })
       .removeAlpha()
       .toColourspace('srgb')

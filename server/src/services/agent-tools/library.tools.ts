@@ -4,6 +4,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetOrder, AssetType, AssetVisibility, Permission } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { BaseService } from 'src/services/base.service.js';
+import { ImproveService, toImproveSource } from 'src/services/improve.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import {
@@ -22,10 +23,12 @@ import {
   summarizeEvent,
   toLocalIso,
 } from 'src/utils/agent/events.js';
-import { PhotoScore, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
+import { ImproveEstimate, getPoolScore, getPoolSize, toRecipeResult } from 'src/utils/agent/improve.js';
+import { ImageAnalysis, PhotoScore, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
 import {
   MAIN_PEOPLE_DEFAULTS,
   SelectionCandidate,
+  SelectionConstraints,
   getMainPeople,
   getMainPersonMinimum,
   selectBest,
@@ -56,6 +59,12 @@ const LIMITS = {
 const uuid = z.uuid();
 const ids = (max: number) => z.array(uuid).min(1).max(max);
 const date = z.string().describe('ISO date or date-time, e.g. 2024-06-01 or 2024-06-01T18:00:00');
+const AspectRatioSchema = z
+  .union([z.string(), z.number().positive()])
+  .describe(
+    'Shape the photos will be used in (e.g. "4:3", "1:1" or 1.5): the simulated crop is face-aware at this aspect ' +
+      'ratio; default: only a tightening crop that keeps the shape and at least 85% of the photo',
+  );
 
 const parseDate = (value?: string) => {
   if (value === undefined) {
@@ -125,6 +134,13 @@ const handle =
 /** Search, people, events, metadata, contact sheets and photo selection helpers */
 @Injectable()
 export class LibraryAgentTools extends BaseService {
+  private improveService?: ImproveService;
+
+  private get improve() {
+    this.improveService ??= BaseService.create(ImproveService, this);
+    return this.improveService;
+  }
+
   getTools(): AgentTool[] {
     return [
       defineTool({
@@ -266,10 +282,17 @@ export class LibraryAgentTools extends BaseService {
           '(Laplacian variance), expo (mid-tone mean, few clipped pixels), look (colourfulness, contrast, vividness ' +
           'and whether the detail sits on a rule-of-thirds point), faces (count), face (largest face share of the ' +
           'frame), people (names), overall = 0.4 sharp + 0.25 expo + 0.25 look + 0.1 face score, +0.1 for ' +
-          'favorites, ±0.03 per rating star around 3. Heuristics only: judge expressions yourself with view_photos.',
-        input: z.object({ ids: ids(LIMITS.score) }),
+          'favorites, ±0.03 per rating star around 3. Heuristics only: judge expressions yourself with view_photos. ' +
+          'With considerImprovements, also simulates the fixes the app can make on the preview (straighten a ' +
+          'measured tilt, a tightening or aspectRatio crop, auto-enhance) and returns now, potential (the overall ' +
+          'score after the fixes that help) and the recipe {enhance, rotate, crop, gain}; slower on first use.',
+        input: z.object({
+          ids: ids(LIMITS.score),
+          considerImprovements: z.boolean().optional().describe('Also score what the photos can become, default false'),
+          aspectRatio: AspectRatioSchema.optional(),
+        }),
         mutating: false,
-        handler: handle((ctx, input) => this.scorePhotos(ctx.auth, input.ids)),
+        handler: handle((ctx, input) => this.scorePhotos(ctx.auth, input)),
       }),
       defineTool({
         name: 'select_best',
@@ -284,7 +307,13 @@ export class LibraryAgentTools extends BaseService {
           'photos each, and one in every event they appear in (spreadMainPeople=false turns this off). Returns ' +
           '{ids, perPerson, mainPeople, perEvent, events, clusters, unmet}; unmet lists constraints that could not ' +
           'be satisfied. Scoring uncached photos can take a while; set useImageScores=false for a quick selection ' +
-          'based on metadata only.',
+          'based on metadata only. By default (considerImprovements) it picks on what the photos can become: a ' +
+          'pool of about 2.5 candidates per pick is chosen without penalizing what the app can fix (exposure, ' +
+          'colour cast, low contrast, tilt, loose framing; blur, small faces and clipping still count), the fixes ' +
+          'are simulated on their previews, and the final pick uses the potential score. Nothing is created: it ' +
+          'returns improvements [{id, enhance, rotate, crop, gain}] for the picked photos that a fix measurably ' +
+          'helps, and rescued (photos picked only thanks to their fixes). Then call improve_photos with those ' +
+          'recipes and use the improved copies it returns in albums and books.',
         input: z.object({
           ids: ids(LIMITS.select),
           count: z.int().min(1).max(LIMITS.select),
@@ -316,6 +345,11 @@ export class LibraryAgentTools extends BaseService {
           distanceKm: z.number().min(0.1).max(10_000).optional().describe('Event location jump, default 30'),
           eventsByDay: z.boolean().optional().describe('Use calendar days as events'),
           useImageScores: z.boolean().optional().describe('Default true'),
+          considerImprovements: z
+            .boolean()
+            .optional()
+            .describe('Pick on the score after the fixes the app can make (needs useImageScores), default true'),
+          aspectRatio: AspectRatioSchema.optional(),
         }),
         mutating: false,
         handler: handle((ctx, input) => this.selectBestPhotos(ctx.auth, input)),
@@ -578,14 +612,23 @@ export class LibraryAgentTools extends BaseService {
     );
   }
 
-  private async scorePhotos(auth: AuthDto, assetIds: string[]) {
-    const rows = await this.getAssets(auth, assetIds);
+  private async scorePhotos(
+    auth: AuthDto,
+    input: { ids: string[]; considerImprovements?: boolean; aspectRatio?: number | string },
+  ) {
+    const rows = await this.getAssets(auth, input.ids);
     const scores = await this.getScores(rows, true);
+    const estimates = input.considerImprovements
+      ? await this.improve.estimateMany(
+          rows.map((row) => toImproveSource(row)),
+          { aspectRatio: input.aspectRatio },
+        )
+      : [];
 
     const items = rows
-      .map((row, index) => ({ row, score: scores[index] }))
+      .map((row, index) => ({ row, score: scores[index], estimate: estimates[index] }))
       .toSorted((a, b) => b.score.overall - a.score.overall)
-      .map(({ row, score }) => {
+      .map(({ row, score, estimate }) => {
         const people = namesOf(row);
         return {
           id: row.id,
@@ -598,10 +641,15 @@ export class LibraryAgentTools extends BaseService {
           ...(people.length > 0 && { people }),
           ...(row.isFavorite && { fav: true }),
           ...(!row.previewPath && { noImage: true }),
+          ...(estimate && {
+            now: estimate.now,
+            potential: estimate.potential,
+            ...(estimate.gain > 0 && { recipe: toRecipeResult(estimate) }),
+          }),
         };
       });
 
-    return toolJson(this.withMissing(assetIds, rows, { items }));
+    return toolJson(this.withMissing(input.ids, rows, { items }));
   }
 
   private async selectBestPhotos(
@@ -625,6 +673,8 @@ export class LibraryAgentTools extends BaseService {
       distanceKm?: number;
       eventsByDay?: boolean;
       useImageScores?: boolean;
+      considerImprovements?: boolean;
+      aspectRatio?: number | string;
     },
   ) {
     const candidateIds = unique([...input.ids, ...(input.mustIncludeIds ?? [])]);
@@ -636,10 +686,9 @@ export class LibraryAgentTools extends BaseService {
     const accessible = await this.getAssets(auth, candidateIds);
     const rows = accessible.filter(({ id }) => !excluded.has(id));
 
-    const [{ clusters }, scores] = await Promise.all([
-      this.getClusters(rows, {}),
-      this.getScores(rows, input.useImageScores ?? true),
-    ]);
+    const withImage = input.useImageScores ?? true;
+    const [{ clusters }, analyses] = await Promise.all([this.getClusters(rows, {}), this.getAnalyses(rows, withImage)]);
+    const scores = rows.map((row, index) => this.toScore(row, analyses[index]));
     const clusterIndex = toClusterIndex(clusters.filter(({ ids }) => ids.length > 1));
 
     const points = rows.map((row) => ({
@@ -674,7 +723,7 @@ export class LibraryAgentTools extends BaseService {
     const perEventDefault =
       spread && input.count >= 2 * events.length * mainPeople.length ? MAIN_PEOPLE_DEFAULTS.perEvent : 0;
 
-    const result = selectBest(candidates, {
+    const constraints = {
       count: input.count,
       maxPerCluster: input.maxPerCluster,
       requirePersonIds: explicit ? input.requirePersonIds : mainPeople,
@@ -687,7 +736,22 @@ export class LibraryAgentTools extends BaseService {
       excludeIds: input.excludeIds,
       mustIncludeIds: input.mustIncludeIds,
       diversity: input.diversity,
-    });
+    };
+
+    let result = selectBest(candidates, constraints);
+    let improved: { simulated: number; rescued: number; estimates: Map<string, ImproveEstimate> } | undefined;
+    if (withImage && (input.considerImprovements ?? true)) {
+      const baseline = new Set(result.ids);
+      const { estimates, simulated } = await this.estimatePool(rows, analyses, candidates, constraints, input);
+      result = selectBest(
+        candidates.map((candidate) => ({
+          ...candidate,
+          score: candidate.score + (estimates.get(candidate.id)?.gain ?? 0),
+        })),
+        constraints,
+      );
+      improved = { simulated, rescued: result.ids.filter((id) => !baseline.has(id)).length, estimates };
+    }
 
     const names = new Map<string, string>();
     for (const row of rows) {
@@ -716,10 +780,70 @@ export class LibraryAgentTools extends BaseService {
           events: result.events,
           clusters: result.clusters,
           ...(result.unmet.length > 0 && { unmet: result.unmet }),
+          ...(improved && this.summarizeImprovements(result.ids, improved)),
         },
         excluded,
       ),
     );
+  }
+
+  /**
+   * Stages 1 and 2 of a potential-aware selection: a pool of about `IMPROVE_POOL_FACTOR` photos per pick, chosen with
+   * the same constraints on scores that forgive fixable weaknesses, and the simulated fixes of every photo in it.
+   */
+  private async estimatePool(
+    rows: AgentAsset[],
+    analyses: Array<ImageAnalysis | null>,
+    candidates: SelectionCandidate[],
+    constraints: SelectionConstraints,
+    input: { aspectRatio?: number | string },
+  ) {
+    const sources = rows.map((row) => toImproveSource(row));
+    const poolScores = new Map(
+      sources.map((source, index) => [
+        source.id,
+        getPoolScore(analyses[index], source.faces, { isFavorite: source.isFavorite, rating: source.rating }, source),
+      ]),
+    );
+    const { ids } = selectBest(
+      candidates.map((candidate) => ({ ...candidate, score: poolScores.get(candidate.id) ?? candidate.score })),
+      {
+        ...constraints,
+        count: getPoolSize(constraints.count, candidates.length),
+        maxPerCluster: (constraints.maxPerCluster ?? 2) + 1,
+        chronological: false,
+      },
+    );
+    const pool = new Set(ids);
+    const members = sources.filter((source) => pool.has(source.id));
+    const results = await this.improve.estimateMany(members, { aspectRatio: input.aspectRatio });
+    const estimates = new Map<string, ImproveEstimate>();
+    for (const [index, estimate] of results.entries()) {
+      if (estimate) {
+        estimates.set(members[index].id, estimate);
+      }
+    }
+    return { estimates, simulated: members.length };
+  }
+
+  private summarizeImprovements(
+    ids: string[],
+    { simulated, rescued, estimates }: { simulated: number; rescued: number; estimates: Map<string, ImproveEstimate> },
+  ) {
+    const improvements = ids
+      .map((id) => ({ id, estimate: estimates.get(id) }))
+      .filter(({ estimate }) => estimate && estimate.gain > 0)
+      .map(({ id, estimate }) => ({ id, ...toRecipeResult(estimate!) }));
+    return {
+      simulated,
+      rescued,
+      improvements,
+      ...(improvements.length > 0 && {
+        next:
+          `Call improve_photos with these ${improvements.length} recipes (the user approves once) and use the ` +
+          'improved copies it returns instead of the originals; the other picks need no fixes.',
+      }),
+    };
   }
 
   /** accessible assets in the requested order; throws when any id is not accessible */
@@ -776,14 +900,20 @@ export class LibraryAgentTools extends BaseService {
   }
 
   private async getScores(rows: AgentAsset[], withImage: boolean): Promise<PhotoScore[]> {
-    return mapLimit(rows, 4, async (row) => {
-      const analysis = withImage ? await this.getAnalysis(row) : null;
-      return scorePhoto(
-        analysis,
-        row.faces.map((face) => ({ ...normalizeFaceBox(face), personId: face.personId, name: face.name })),
-        { isFavorite: row.isFavorite, rating: row.rating },
-      );
-    });
+    const analyses = await this.getAnalyses(rows, withImage);
+    return rows.map((row, index) => this.toScore(row, analyses[index]));
+  }
+
+  private getAnalyses(rows: AgentAsset[], withImage: boolean) {
+    return mapLimit(rows, 4, (row) => (withImage ? this.getAnalysis(row) : Promise.resolve(null)));
+  }
+
+  private toScore(row: AgentAsset, analysis: ImageAnalysis | null) {
+    return scorePhoto(
+      analysis,
+      row.faces.map((face) => ({ ...normalizeFaceBox(face), personId: face.personId, name: face.name })),
+      { isFavorite: row.isFavorite, rating: row.rating },
+    );
   }
 
   private async getAnalysis(row: AgentAsset) {

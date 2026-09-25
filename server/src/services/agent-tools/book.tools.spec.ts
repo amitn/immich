@@ -36,6 +36,8 @@ const layoutResult = (bookId = newUuid()): BookAutoLayoutResult => {
     },
     photoCount: 4,
     warnings: ['a warning'],
+    improvements: [],
+    improved: [],
   };
 };
 
@@ -101,6 +103,7 @@ describe(BookAgentTools.name, () => {
         'add_map_page',
         'set_page_map',
         'illustrate_map',
+        'apply_improvements',
       ]),
     );
   });
@@ -111,7 +114,13 @@ describe(BookAgentTools.name, () => {
       .filter((tool) => tool.mutating)
       .map((tool) => tool.name)
       .toArray();
-    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_html', 'export_pdf', 'illustrate_map']);
+    expect(mutating.toSorted()).toEqual([
+      'apply_improvements',
+      'edit_existing_book',
+      'export_html',
+      'export_pdf',
+      'illustrate_map',
+    ]);
   });
 
   describe('list_layouts', () => {
@@ -365,6 +374,24 @@ describe(BookAgentTools.name, () => {
       expect(added.isError).toBeUndefined();
     });
 
+    it('should report improvements without creating any copies', async () => {
+      const albumId = newUuid();
+      const result = layoutResult();
+      const [assetId] = result.plan.usedIds;
+      result.improvements = [{ assetId, recipe: { rotate: 2, enhance: { strength: 'normal' } }, gain: 0.08 }];
+      const createFromAlbum = vi.spyOn(BookService.prototype, 'createFromAlbumWithPlan').mockResolvedValue(result);
+      const applyImprovements = vi.spyOn(BookService.prototype, 'applyImprovements');
+
+      const summary = JSON.parse(text(await call('auto_layout_book', { albumId })));
+
+      expect(tools.get('auto_layout_book')!.mutating).toBe(false);
+      expect(createFromAlbum).toHaveBeenCalledWith(authStub.admin, expect.objectContaining({ improvePhotos: false }));
+      expect(applyImprovements).not.toHaveBeenCalled();
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+      expect(summary.improvements).toEqual(result.improvements);
+      expect(summary.next).toMatch(/^1 placed photo would look better.*apply_improvements/);
+    });
+
     it('should not lay out books that were not created in the session', async () => {
       const { book } = setupBook();
       const autoLayout = vi.spyOn(BookService.prototype, 'autoLayoutWithPlan');
@@ -382,7 +409,48 @@ describe(BookAgentTools.name, () => {
       const result = await call('auto_layout_book', { bookId: book.id, heroAssetIds: [hero], keepExisting: true });
 
       expect(result.isError).toBeUndefined();
-      expect(autoLayout).toHaveBeenCalledWith(authStub.admin, book.id, { heroAssetIds: [hero], keepExisting: true });
+      expect(autoLayout).toHaveBeenCalledWith(authStub.admin, book.id, {
+        heroAssetIds: [hero],
+        keepExisting: true,
+        improvePhotos: false,
+      });
+    });
+  });
+
+  describe('apply_improvements', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should need approval to edit books the agent did not create', async () => {
+      const { book } = setupBook();
+      const apply = vi.spyOn(BookService.prototype, 'applyImprovements');
+
+      const result = await call('apply_improvements', { bookId: book.id });
+
+      expect(result.isError).toBe(true);
+      expect(text(result)).toContain('edit_existing_book');
+      expect(apply).not.toHaveBeenCalled();
+    });
+
+    it('should create the copies and place them', async () => {
+      const { book } = await createBook();
+      const [sourceId, id, other] = [newUuid(), newUuid(), newUuid()];
+      const apply = vi.spyOn(BookService.prototype, 'applyImprovements').mockResolvedValue({
+        improved: [{ sourceId, id, description: 'Improved from IMG_1.jpg: auto-enhanced (levels)', pages: [3] }],
+        skipped: [{ assetId: other, reason: 'no fix helps it measurably' }],
+      });
+
+      const result = JSON.parse(
+        text(await call('apply_improvements', { bookId: book.id, assetIds: [sourceId, other] })),
+      );
+
+      expect(apply).toHaveBeenCalledWith(authStub.admin, book.id, { assetIds: [sourceId, other] });
+      expect(result).toEqual({
+        improved: [expect.objectContaining({ sourceId, id, pages: [3] })],
+        skipped: [{ assetId: other, reason: 'no fix helps it measurably' }],
+        next: expect.stringContaining('render_page'),
+      });
     });
   });
 

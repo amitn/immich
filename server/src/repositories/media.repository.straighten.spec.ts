@@ -49,6 +49,36 @@ describe(`${MediaRepository.name} straightening`, () => {
     }
   });
 
+  it('should return the same pixels without encoding them', async () => {
+    const image = tiltedBand(800, 600, -4);
+    const encoded = await sut.straightenImage(
+      image,
+      4,
+      { x: 10, y: 20, width: 300, height: 200 },
+      {
+        colorspace: Colorspace.Srgb,
+      },
+    );
+    const raw = await sut.straightenBitmap(image, 4, { x: 10, y: 20, width: 300, height: 200 });
+    expect(raw.info).toMatchObject({ width: encoded.width, height: encoded.height, channels: 3 });
+
+    const cropped = await sut.cropBitmap(image, { x: 700, y: 500, width: 300, height: 300 });
+    expect(cropped.info).toMatchObject({ width: 100, height: 100, channels: 3 });
+
+    const jpeg = await sut.encodeJpeg(cropped, { colorspace: Colorspace.Srgb });
+    expect(await sharp(jpeg.data).metadata()).toMatchObject({ width: 100, height: 100, format: 'jpeg' });
+  });
+
+  it('should analyze decoded pixels like an encoded image', async () => {
+    const image = tiltedBand(400, 300, 0);
+    const png = await sharp(image.data, { raw: image.info }).png().toBuffer();
+    const [fromBitmap, fromFile] = await Promise.all([sut.analyzeImage(image), sut.analyzeImage(png)]);
+    expect(fromBitmap.meanLuma).toBeCloseTo(fromFile.meanLuma, 3);
+    expect(fromBitmap.laplacianVariance).toBeCloseTo(fromFile.laplacianVariance, 0);
+    const small = await sut.getSmallRgb(png, 200);
+    expect(small.info).toMatchObject({ width: 200, height: 150, channels: 3 });
+  });
+
   it('should level the band', async () => {
     const image = tiltedBand(800, 600, -4);
     const { data } = await sut.straightenImage(image, 4, null, { colorspace: Colorspace.Srgb });

@@ -10,7 +10,7 @@ import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/ren
  * What an asset is: an original photo, or a copy stacked with it (the original is the primary asset of the stack).
  * Artwork (the result of an art job) is artwork even outside a stack.
  */
-export type AutoLayoutPhotoKind = 'original' | 'artwork' | 'crop' | 'enhanced' | 'copy';
+export type AutoLayoutPhotoKind = 'original' | 'artwork' | 'crop' | 'enhanced' | 'improved' | 'copy';
 
 export type AutoLayoutPerson = { id: string; name?: string | null };
 
@@ -133,6 +133,8 @@ const SIMILAR_SPREAD_PENALTY = 1.5;
 /** a copy (crop, enhanced) replaces the original of its stack only when it scores this much better */
 const CROP_MARGIN = 0.03;
 const COPY_MARGIN = 0.05;
+/** an improved copy replaces its original unless it scores this much worse: its fixes were measured to help */
+const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 const OPENER_LAYOUTS = new Set(['cover', 'section-opener', 'text', 'map', 'map-photo']);
 
@@ -202,6 +204,9 @@ export const getPhotoKind = (asset: {
   const name = (asset.originalFileName ?? '').replace(/\.[^.]*$/, '').toLowerCase();
   if (name.endsWith('-crop')) {
     return 'crop';
+  }
+  if (name.endsWith('-improved')) {
+    return 'improved';
   }
   return name.endsWith('-enhanced') ? 'enhanced' : 'copy';
 };
@@ -401,7 +406,8 @@ const permutations = <T>(items: T[]): T[][] => {
 type SlotShape = { aspect: number; area: number; rectMm: LayoutRect };
 
 /**
- * One photo per stack: the original, unless a copy (crop, enhanced) scores clearly better. Artwork is a separate,
+ * One photo per stack: the original, unless a copy (crop, enhanced) scores clearly better; an improved copy unless it
+ * scores clearly worse. Artwork is a separate,
  * limited resource: the best artworks up to `budget`, shown next to their original as an intentional pair (at most
  * `maxPairs`), or instead of it when they rank higher. Heroes are always kept on their own.
  */
@@ -443,10 +449,14 @@ const resolveStacks = (
 
     const copies = members.filter((photo) => !photo.artwork).toSorted(byImportance);
     const original = copies.find((photo) => (photo.kind ?? 'original') === 'original');
+    const improved = copies.find((photo) => photo.kind === 'improved');
     let chosen = copies[0];
     if (chosen && original && chosen !== original) {
-      const margin = chosen.kind === 'crop' ? CROP_MARGIN : COPY_MARGIN;
+      const margin = chosen.kind === 'crop' ? CROP_MARGIN : chosen.kind === 'improved' ? -IMPROVED_MARGIN : COPY_MARGIN;
       chosen = chosen.importance > original.importance + margin ? chosen : original;
+    }
+    if (chosen === original && improved && improved.importance >= original.importance - IMPROVED_MARGIN) {
+      chosen = improved;
     }
     for (const photo of copies) {
       if (photo !== chosen) {

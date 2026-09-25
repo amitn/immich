@@ -3,6 +3,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetFileType, AssetType } from 'src/enum.js';
 import { EnhanceAgentTools } from 'src/services/agent-tools/enhance.tools.js';
 import { EnhanceService } from 'src/services/enhance.service.js';
+import { ImproveService } from 'src/services/improve.service.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { computeImageStats } from 'src/utils/enhance.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -22,6 +23,9 @@ const errorText = (result: AgentToolResult) => {
   expect(result.isError).toBe(true);
   return (result.content[0] as { text: string }).text;
 };
+
+const agentRow = (id: string) =>
+  ({ id, checksum: Buffer.from(id), previewPath: '/p.jpeg', width: 4000, height: 3000, faces: [] }) as never;
 
 const darkStats = () => {
   const size = 64;
@@ -79,9 +83,10 @@ describe(EnhanceAgentTools.name, () => {
   it('should expose the enhance tools', () => {
     expect(sut.getTools().map(({ name, mutating }) => ({ name, mutating }))).toEqual([
       { name: 'suggest_enhancement', mutating: false },
+      { name: 'improve_photos', mutating: true },
       { name: 'enhance_photo', mutating: true },
     ]);
-    const [suggest, enhance] = sut.getTools();
+    const [suggest, , enhance] = sut.getTools();
     expect(suggest.description).toMatch(/no AI/);
     expect(suggest.description).toMatch(/skip photos that do not need it/);
     expect(enhance.description).toMatch(/no AI/);
@@ -148,6 +153,125 @@ describe(EnhanceAgentTools.name, () => {
       expect(mocks.asset.create).toHaveBeenCalledWith(
         expect.objectContaining({ originalFileName: 'IMG_0001-enhanced.jpg' }),
       );
+    });
+  });
+
+  describe('improve_photos', () => {
+    const recipe = {
+      rotate: 2.4,
+      crop: { x: 0.05, y: 0.05, width: 0.9, height: 0.9 },
+      enhance: { strength: 'normal' },
+    };
+
+    beforeEach(() => {
+      mocks.media.straightenBitmap.mockResolvedValue({
+        data: Buffer.from('straight'),
+        info: { width: 1200, height: 900, channels: 3 },
+      });
+      mocks.media.cropBitmap.mockResolvedValue({
+        data: Buffer.from('cropped'),
+        info: { width: 1200, height: 900, channels: 3 },
+      });
+      mocks.media.encodeJpeg.mockResolvedValue({ data: Buffer.from('encoded'), width: 1200, height: 900 });
+      mocks.media.enhanceImage.mockResolvedValue({ data: Buffer.from('improved'), width: 1200, height: 900 });
+    });
+
+    it('should require owner access', async () => {
+      const text = errorText(await call('improve_photos', { photos: [{ id: newUuid(), ...recipe }] }));
+      expect(text).toContain('Not found or no asset.update access');
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+    });
+
+    it('should need photos', async () => {
+      expect(errorText(await call('improve_photos', {}))).toContain('Pass photos');
+    });
+
+    it('should create one combined copy per photo, stacked with the original', async () => {
+      const asset = setupAsset();
+
+      const result = parse(await call('improve_photos', { photos: [{ id: asset.id, ...recipe, gain: 0.1 }] }));
+
+      expect(result).toEqual({
+        improved: [{ sourceId: asset.id, id: 'new-asset-id', description: expect.stringMatching(/^Improved from/) }],
+        copies: { [asset.id]: 'new-asset-id' },
+      });
+      expect(result.improved[0].description).toMatch(
+        /^Improved from IMG_0001\.jpg: straightened 2\.4°, cropped, auto-enhanced \(/,
+      );
+
+      // decoded once, straightened and cropped in one step, enhanced, and encoded once
+      expect(mocks.media.decodeImage).toHaveBeenCalledTimes(1);
+      expect(mocks.media.straightenBitmap).toHaveBeenCalledTimes(1);
+      const [, angle, crop] = mocks.media.straightenBitmap.mock.calls[0];
+      expect(angle).toBe(2.4);
+      expect(crop).toEqual(expect.objectContaining({ width: expect.any(Number), height: expect.any(Number) }));
+      expect(mocks.media.cropBitmap).not.toHaveBeenCalled();
+      expect(mocks.media.enhanceImage).toHaveBeenCalledTimes(1);
+      expect(mocks.media.straightenImage).not.toHaveBeenCalled();
+      expect(mocks.media.cropImage).not.toHaveBeenCalled();
+
+      expect(mocks.asset.create).toHaveBeenCalledTimes(1);
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ originalFileName: 'IMG_0001-improved.jpg' }),
+      );
+      expect(mocks.metadata.writeTags).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ TagsList: ['Edits/Improved'], Description: result.improved[0].description }),
+      );
+      expect(mocks.stack.create).toHaveBeenCalledWith({ ownerId: asset.ownerId }, [asset.id, 'new-asset-id']);
+    });
+
+    it('should crop without straightening and encode without enhancing', async () => {
+      const asset = setupAsset();
+
+      const result = parse(
+        await call('improve_photos', { photos: [{ id: asset.id, crop: { x: 0, y: 0, width: 0.9, height: 0.9 } }] }),
+      );
+
+      expect(result.improved[0].description).toBe('Improved from IMG_0001.jpg: cropped');
+      expect(mocks.media.cropBitmap).toHaveBeenCalledWith(expect.anything(), { x: 0, y: 0, width: 1296, height: 972 });
+      expect(mocks.media.straightenBitmap).not.toHaveBeenCalled();
+      expect(mocks.media.enhanceImage).not.toHaveBeenCalled();
+      expect(mocks.media.encodeJpeg).toHaveBeenCalledTimes(1);
+    });
+
+    it('should choose the fixes automatically', async () => {
+      const asset = setupAsset();
+      mocks.assetJob.getForAgent.mockResolvedValue([agentRow(asset.id)]);
+      const estimate = vi.spyOn(ImproveService.prototype, 'estimate').mockResolvedValue({
+        now: 0.5,
+        potential: 0.6,
+        gain: 0.1,
+        recipe: { rotate: -1.5 },
+      });
+
+      const result = parse(await call('improve_photos', { ids: [asset.id] }));
+
+      expect(estimate).toHaveBeenCalledTimes(1);
+      expect(result.improved[0].description).toBe('Improved from IMG_0001.jpg: straightened 1.5°');
+      expect(mocks.media.straightenBitmap).toHaveBeenCalledWith(expect.anything(), -1.5, null);
+    });
+
+    it('should skip photos that need nothing and report them', async () => {
+      const asset = setupAsset();
+      vi.spyOn(ImproveService.prototype, 'estimate').mockResolvedValue({
+        now: 0.8,
+        potential: 0.8,
+        gain: 0,
+        recipe: {},
+      });
+      mocks.assetJob.getForAgent.mockResolvedValue([agentRow(asset.id)]);
+
+      const text = errorText(await call('improve_photos', { ids: [asset.id] }));
+
+      expect(text).toContain('does not need to be improved');
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+    });
+
+    it('should refuse videos', async () => {
+      const asset = setupAsset({ type: AssetType.Video });
+      const text = errorText(await call('improve_photos', { photos: [{ id: asset.id, rotate: 2 }] }));
+      expect(text).toContain('Only photos can be improved');
     });
   });
 });

@@ -896,6 +896,8 @@
   "book_illustrate_maps": "Illustrate maps with AI",
   "book_illustrate_maps_description": "The art agent paints over each map page. This adds a few minutes per map.",
   "book_illustrate_maps_unavailable": "Needs artistic styles, which are not enabled on this server.",
+  "book_improve_photos": "Improve photos (enhance, straighten and crop)",
+  "book_improve_photos_description": "Photos that measurably benefit get an improved copy, stacked with the original, which stays unchanged.",
   "book_include_maps": "Include maps",
   "book_include_maps_description": "Adds artistic map pages showing where the photos were taken.",
   "book_layout_map_only": "Map only",

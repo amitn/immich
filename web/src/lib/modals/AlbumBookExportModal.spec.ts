@@ -53,6 +53,7 @@ describe('AlbumBookExportModal component', () => {
         includeMaps: true,
         mapStyle: BookMapStyleOption.Auto,
         illustratedMaps: false,
+        improvePhotos: true,
       },
     });
     expect(sdkMock.exportBook).toHaveBeenCalledWith({ id: book.id, bookExportDto: { format: BookExportFormat.Pdf } });
@@ -72,6 +73,19 @@ describe('AlbumBookExportModal component', () => {
     await waitFor(() => expect(sdkMock.createBookFromAlbum).toHaveBeenCalled());
     expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
       bookFromAlbumDto: expect.objectContaining({ stylePreset: BookStylePreset.Bold }),
+    });
+  });
+
+  it('should not improve the photos when the checkbox is cleared', async () => {
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build({ albumId: album.id }), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'book_improve_photos' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
+      bookFromAlbumDto: expect.objectContaining({ improvePhotos: false }),
     });
   });
 

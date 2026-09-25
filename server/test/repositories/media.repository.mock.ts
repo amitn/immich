@@ -11,12 +11,19 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     composeBookPage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), slots: [] }),
     getEnhanceStats: vitest.fn(),
     enhanceImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
+    enhanceBitmap: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
     renderEnhanceComparison: vitest.fn().mockResolvedValue(Buffer.from('')),
     decodeImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: {} }),
     cropImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
     getAttentionPoint: vitest.fn().mockResolvedValue({ x: 0.5, y: 0.5 }),
     getGrayscale: vitest.fn().mockResolvedValue({ data: new Uint8Array(0), width: 0, height: 0 }),
     straightenImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
+    straightenBitmap: vitest
+      .fn()
+      .mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
+    cropBitmap: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
+    getSmallRgb: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
+    encodeJpeg: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
     extract: vitest.fn().mockResolvedValue(null),
     probe: vitest.fn(),
     probePackets: vitest.fn().mockResolvedValue({

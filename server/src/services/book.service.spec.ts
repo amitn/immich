@@ -18,6 +18,8 @@ import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BookService, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
+import { ImproveEstimate } from 'src/utils/agent/improve.js';
 import { validatePageStyle } from 'src/utils/book/layouts.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
@@ -102,6 +104,27 @@ const trip = () => [
     }),
   ),
 ];
+
+const estimate = (gain: number): ImproveEstimate => ({
+  now: 0.5,
+  potential: 0.5 + gain,
+  gain,
+  recipe: {
+    rotate: 2,
+    crop: { x: 0.05, y: 0.05, width: 0.9, height: 0.9 },
+    enhance: { strength: 'normal' },
+  },
+});
+
+const copyOf = (sourceId: string): ImprovedCopyResult => ({
+  id: newUuid(),
+  sourceId,
+  width: 2900,
+  height: 1930,
+  description: 'Improved from photo.jpg: straightened 2°, auto-enhanced (levels)',
+  applied: { rotate: 2, enhance: ['levels'] },
+  duplicate: false,
+});
 
 const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
 
@@ -1194,6 +1217,7 @@ describe(BookService.name, () => {
       it('should score the photos from their previews and cache the analysis', async () => {
         const rows = trip().map((row) => ({ ...row, previewPath: `/data/thumbs/${row.id}.jpeg` }));
         const { albumId } = setupAlbum(rows);
+        vi.spyOn(ImproveService.prototype, 'estimateMany').mockResolvedValue([]);
         mocks.media.analyzeImage.mockResolvedValue({
           width: 512,
           height: 341,
@@ -1364,6 +1388,186 @@ describe(BookService.name, () => {
             .map((page) => page.map!.artJobId),
         ).toEqual(jobIds);
       });
+    });
+  });
+
+  describe('improvements', () => {
+    const analysis = {
+      width: 512,
+      height: 341,
+      laplacianVariance: 800,
+      meanLuma: 0.5,
+      shadowClip: 0,
+      highlightClip: 0,
+      colorfulness: 40,
+      contrast: 0.2,
+      saturation: 0.3,
+      focusX: 0.4,
+      focusY: 0.4,
+    };
+
+    let rows: AgentAsset[];
+    let estimateMany: ReturnType<typeof vi.spyOn>;
+    let createImprovedCopy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      rows = trip().map((row) => ({
+        ...row,
+        previewPath: `/data/thumbs/${row.id}.jpeg`,
+        checksum: Buffer.from(newUuid()),
+      }));
+      mocks.media.analyzeImage.mockResolvedValue(analysis);
+      estimateMany = vi
+        .spyOn(ImproveService.prototype, 'estimateMany')
+        .mockImplementation((sources: ImproveSource[]) =>
+          Promise.resolve(sources.map((source) => (source.id === rows[3].id ? estimate(0.1) : estimate(0)))),
+        );
+      createImprovedCopy = vi
+        .spyOn(ImproveService.prototype, 'createImprovedCopy')
+        .mockImplementation((_, assetId: string) => Promise.resolve(copyOf(assetId)));
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should report the improvements of the placed photos without creating copies by default', async () => {
+      const { albumId } = setupAlbum(rows);
+
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId });
+
+      expect(estimateMany).toHaveBeenCalledWith(expect.any(Array), { crop: false });
+      expect(createImprovedCopy).not.toHaveBeenCalled();
+      expect(result.improvements).toEqual([
+        { assetId: rows[3].id, recipe: { rotate: 2, enhance: { strength: 'normal' } }, gain: 0.1 },
+      ]);
+      expect(result.improved).toEqual([]);
+    });
+
+    it('should place improved copies when improvePhotos is set', async () => {
+      const { albumId } = setupAlbum(rows);
+
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true });
+
+      expect(createImprovedCopy).toHaveBeenCalledTimes(1);
+      expect(createImprovedCopy).toHaveBeenCalledWith(auth, rows[3].id, {
+        rotate: 2,
+        enhance: { strength: 'normal' },
+      });
+      const copy = result.improved[0];
+      expect(copy).toEqual(expect.objectContaining({ sourceId: rows[3].id, pages: [expect.any(Number)] }));
+      const placed = plannedPages().flatMap((page) => page.assets.map((asset) => asset.assetId));
+      expect(placed).toContain(copy.id);
+      expect(placed).not.toContain(rows[3].id);
+      expect(result.plan.usedIds).toContain(copy.id);
+      expect(result.improvements).toEqual([]);
+    });
+
+    it('should keep the original when the copy fails', async () => {
+      const { albumId } = setupAlbum(rows);
+      createImprovedCopy.mockRejectedValue(new BadRequestException('broken'));
+
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true });
+
+      expect(result.warnings).toEqual([expect.stringContaining('could not be improved (broken)')]);
+      const placed = plannedPages().flatMap((page) => page.assets.map((asset) => asset.assetId));
+      expect(placed).toContain(rows[3].id);
+    });
+
+    it('should not simulate anything when considerImprovements is off', async () => {
+      const { albumId } = setupAlbum(rows);
+
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId, considerImprovements: false });
+
+      expect(estimateMany).not.toHaveBeenCalled();
+      expect(result.improvements).toEqual([]);
+    });
+
+    const setupBook = () => {
+      const { book } = setupAlbum(rows);
+      allowBook(book.id);
+      allowAssets(rows[3].id, rows[4].id);
+      const page = BookPageFactory.create({
+        bookId: book.id,
+        position: 0,
+        layout: 'two-vertical',
+        assets: [
+          BookPageFactory.placement({ slot: 0, assetId: rows[3].id, caption: 'Rome' }),
+          BookPageFactory.placement({ slot: 1, assetId: rows[4].id }),
+        ],
+      });
+      mocks.book.getPages.mockResolvedValue([page]);
+      return { book, page };
+    };
+
+    describe('applyImprovements', () => {
+      it('should require access to the book', async () => {
+        await expect(sut.applyImprovements(auth, newUuid())).rejects.toBeInstanceOf(BadRequestException);
+        expect(createImprovedCopy).not.toHaveBeenCalled();
+      });
+
+      it('should swap the placements to the improved copies', async () => {
+        const { book, page } = setupBook();
+
+        const result = await sut.applyImprovements(auth, book.id);
+
+        expect(createImprovedCopy).toHaveBeenCalledTimes(1);
+        const [copy] = result.improved;
+        expect(copy).toEqual(expect.objectContaining({ sourceId: rows[3].id, pages: [1] }));
+        expect(mocks.book.upsertSlot).toHaveBeenCalledTimes(1);
+        expect(mocks.book.upsertSlot).toHaveBeenCalledWith(book.id, {
+          pageId: page.id,
+          slot: 0,
+          assetId: copy.id,
+          crop: expect.objectContaining({ x: expect.any(Number), width: expect.any(Number) }),
+          caption: 'Rome',
+        });
+        expect(result.skipped).toEqual([{ assetId: rows[4].id, reason: 'no fix helps it measurably' }]);
+      });
+
+      it('should only improve the photos that are in the book', async () => {
+        const { book } = setupBook();
+        const other = newUuid();
+
+        const result = await sut.applyImprovements(auth, book.id, { assetIds: [rows[4].id, other] });
+
+        expect(createImprovedCopy).not.toHaveBeenCalled();
+        expect(mocks.book.upsertSlot).not.toHaveBeenCalled();
+        expect(result.skipped).toEqual([
+          { assetId: rows[4].id, reason: 'no fix helps it measurably' },
+          { assetId: other, reason: 'not in the book' },
+        ]);
+      });
+
+      it('should skip photos the user cannot access', async () => {
+        const { book } = setupBook();
+        allowAssets(rows[4].id);
+
+        const result = await sut.applyImprovements(auth, book.id);
+
+        expect(createImprovedCopy).not.toHaveBeenCalled();
+        expect(result.skipped).toContainEqual({ assetId: rows[3].id, reason: 'no access' });
+      });
+    });
+
+    it('should report placed photos that could look better in the review', async () => {
+      const { book } = setupAlbum(rows);
+      allowBook(book.id);
+      allowAssets(rows[3].id);
+      mocks.book.getPages.mockResolvedValue([
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 0,
+          layout: 'single',
+          assets: [BookPageFactory.placement({ assetId: rows[3].id })],
+        }),
+      ]);
+
+      const review = await sut.getReview(auth, book.id);
+
+      expect(review.issues).toContainEqual(
+        expect.objectContaining({ type: 'could-look-better', severity: 'medium', assetIds: [rows[3].id] }),
+      );
     });
   });
 

@@ -36,7 +36,10 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city'>>;
+  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city'>> & {
+    /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
+    gain?: number;
+  };
 
 export type BookReviewPage = {
   layout: string;
@@ -84,6 +87,11 @@ const MAX_PAIRS = 3;
 /** photos at least this similar (see `getPhotoSimilarity`) on neighbouring pages are reported */
 const SIMILAR_THRESHOLD = 0.5;
 const WEAKEST_LIMIT = 6;
+/** placed photos whose fixes would raise the score this much are reported */
+export const REVIEW_MIN_GAIN = 0.04;
+/** and the item is medium when one gains this much, or when there are this many */
+const REVIEW_STRONG_GAIN = 0.08;
+const REVIEW_MANY_IMPROVABLE = 5;
 
 const formatPages = (pages: number[]) =>
   pages.length === 1 ? `Page ${pages[0]}` : `Pages ${pages.slice(0, -1).join(', ')} and ${pages.at(-1)}`;
@@ -95,7 +103,8 @@ const order = (severity: BookReviewSeverity) => bookReviewSeverities.indexOf(sev
 /**
  * A checklist of what to fix in a book, most severe first: stacks shown twice, low print resolution, empty slots,
  * too much or back-to-back artwork, long runs of single photos, similar photos on neighbouring pages, maps whose
- * style falls back, main people with few photos, repeated layouts and pages without captions; with the best
+ * style falls back, main people with few photos, repeated layouts, pages without captions and photos that an improved
+ * copy would clearly help; with the best
  * unused photos and the weakest placed ones.
  */
 export const reviewBook = (input: BookReviewInput): BookReview => {
@@ -146,7 +155,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       type: 'duplicate-stack',
       message:
         `${formatPages(numbers)} show the same photo` +
-        `${assetIds.size > 1 ? ' or copies of it (a crop, an artwork or an enhanced copy)' : ''}; keep one, or put ` +
+        `${assetIds.size > 1 ? ' or copies of it (a crop, an artwork, an enhanced or improved copy)' : ''}; keep one, or put ` +
         'an artwork next to its original on one page',
       pages: numbers,
       assetIds: [...assetIds],
@@ -410,6 +419,35 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
         `${formatPages(uncaptioned)} have no caption; after looking at them, add short factual captions ` +
         '(place, time, people, what is visible)',
       pages: uncaptioned,
+    });
+  }
+
+  // placed photos that an improved copy would clearly help
+  const improvable = new Map<string, { gain: number; pages: Set<number> }>();
+  for (const [index, assets] of placements.entries()) {
+    for (const asset of assets) {
+      const photo = photos.get(asset.assetId);
+      if (!photo || photo.kind === 'artwork' || photo.kind === 'improved' || (photo.gain ?? 0) < REVIEW_MIN_GAIN) {
+        continue;
+      }
+      const entry = improvable.get(photo.id) ?? { gain: photo.gain!, pages: new Set<number>() };
+      entry.pages.add(index + 1);
+      improvable.set(photo.id, entry);
+    }
+  }
+  if (improvable.size > 0) {
+    const entries = [...improvable].toSorted(([, a], [, b]) => b.gain - a.gain);
+    const strong = entries[0][1].gain >= REVIEW_STRONG_GAIN || entries.length >= REVIEW_MANY_IMPROVABLE;
+    const pageNumbers = [...new Set(entries.flatMap(([, entry]) => [...entry.pages]))].toSorted((a, b) => a - b);
+    add({
+      severity: strong ? 'medium' : 'low',
+      type: 'could-look-better',
+      message:
+        `${entries.length} placed photo${entries.length === 1 ? '' : 's'} could look better (straightened or ` +
+        `auto-enhanced, up to +${round(entries[0][1].gain)} in score); call apply_improvements to place improved ` +
+        'copies, stacked with the originals',
+      pages: pageNumbers,
+      assetIds: entries.map(([id]) => id),
     });
   }
 
