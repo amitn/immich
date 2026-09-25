@@ -103,7 +103,13 @@
         {$t('book_reset_crop')}
       </Button>
       {#if targets.length > 0}
-        <ButtonContextMenu icon={mdiSwapHorizontal} title={$t('book_move_photo_to')} size="small" align="top-left">
+        <ButtonContextMenu
+          icon={mdiSwapHorizontal}
+          title={$t('book_move_photo_to')}
+          size="small"
+          align="top-left"
+          hideContent
+        >
           {#each targets as target (`${target.ref.pageId}:${target.ref.slot}`)}
             <MenuOption text={target.label} onClick={() => editor.swap(slotRef, target.ref)} />
           {/each}

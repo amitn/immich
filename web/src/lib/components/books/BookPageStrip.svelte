@@ -175,6 +175,7 @@
               size="tiny"
               align="top-right"
               buttonClass="bg-white/90 dark:bg-gray-900/90 shadow-sm"
+              hideContent
             >
               {#if index > 0}
                 <MenuOption
