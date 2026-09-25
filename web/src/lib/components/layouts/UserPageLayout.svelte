@@ -20,6 +20,8 @@
     use?: ActionArray;
     actions?: Array<HeaderButtonActionItem | MenuItemType>;
     sidebar?: Snippet;
+    /** Rendered before the title, e.g. a back button */
+    leading?: Snippet;
     buttons?: Snippet;
     children?: Snippet;
   }
@@ -32,6 +34,7 @@
     use = [],
     actions = [],
     sidebar,
+    leading,
     buttons,
     children,
   }: Props = $props();
@@ -72,6 +75,7 @@
     {#if title || buttons}
       <div class="absolute flex h-16 w-full place-items-center justify-between border-b p-2 text-dark">
         <div class="flex items-center gap-2">
+          {@render leading?.()}
           {#if title}
             <div class="pe-8 outline-none" tabindex="-1" id={headerId}>{title}</div>
           {/if}
