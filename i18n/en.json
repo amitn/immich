@@ -964,6 +964,7 @@
   "book_review_fix_prompt_no_location": "In photo book \"{title}\" (id {id}), fix: {message} Then run review_book again.",
   "book_review_go_to_photo": "Go to page {page}, photo {slot}",
   "book_review_issue_artwork_back_to_back": "Artwork on neighbouring pages",
+  "book_review_issue_could_look_better": "Could look better after enhancing",
   "book_review_issue_duplicate_stack": "Same photo more than once",
   "book_review_issue_empty_slot": "Empty photo slot",
   "book_review_issue_low_dpi": "Low print resolution",

@@ -31,6 +31,7 @@ export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type, Translations> = {
   [Type.TooManyPairs]: 'book_review_issue_too_many_pairs',
   [Type.RepeatedLayout]: 'book_review_issue_repeated_layout',
   [Type.MissingCaptions]: 'book_review_issue_missing_captions',
+  [Type.CouldLookBetter]: 'book_review_issue_could_look_better',
 };
 
 /** At most this many issues are listed in the prompt that fixes them all */
