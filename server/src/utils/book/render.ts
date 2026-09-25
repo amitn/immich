@@ -374,7 +374,8 @@ export const planPage = (
       case 'caption': {
         hasCaptionArea = true;
         if (page.caption) {
-          blocks.push({ ...base, text: page.caption, fontPx: captionPx });
+          // text-only pages read like a story, so the caption is a little larger there
+          blocks.push({ ...base, text: page.caption, fontPx: layout.slots.length === 0 ? captionPx * 1.3 : captionPx });
         }
         break;
       }
