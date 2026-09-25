@@ -98,6 +98,11 @@ describe(`${ImproveService.name} simulation`, () => {
     expect(estimate!.potential).toBeGreaterThan(estimate!.now);
   });
 
+  it('should not straighten large tilts, which are mostly perspective', async () => {
+    const estimate = await sut.estimate(await source('steep', tiltedLines(720, 540, -6)));
+    expect(estimate!.recipe.rotate).toBeUndefined();
+  });
+
   it('should leave a sharp, well exposed photo alone', async () => {
     const estimate = await sut.estimate(await source('good', tiles(720, 540)));
 

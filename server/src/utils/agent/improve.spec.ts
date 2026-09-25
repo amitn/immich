@@ -11,6 +11,7 @@ import {
   getRecipeKey,
   hasPrintResolution,
   isEmptyRecipe,
+  keepsFacesStraightened,
   mapFaces,
   toEstimate,
 } from 'src/utils/agent/improve.js';
@@ -189,6 +190,13 @@ describe('mapFaces', () => {
     const [face] = mapFaces([{ x1: 0.45, y1: 0.45, x2: 0.55, y2: 0.55 }], { rotate: 3 }, size);
     expect((face.x1 + face.x2) / 2).toBeCloseTo(0.5, 2);
     expect(face.x2 - face.x1).toBeGreaterThan(0.1);
+  });
+});
+
+describe('keepsFacesStraightened', () => {
+  it('should refuse a straightening that clips a face at the edge', () => {
+    expect(keepsFacesStraightened([{ x1: 0.4, y1: 0.3, x2: 0.5, y2: 0.45 }], 3, size)).toBe(true);
+    expect(keepsFacesStraightened([{ x1: 0, y1: 0.3, x2: 0.08, y2: 0.45 }], 3, size)).toBe(false);
   });
 });
 

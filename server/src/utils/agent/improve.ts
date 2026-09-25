@@ -45,6 +45,8 @@ export const IMPROVE_MIN_GAIN = 0.02;
 /** candidates simulated per pick in stage 2 */
 export const IMPROVE_POOL_FACTOR = 2.5;
 export const IMPROVE_MAX_POOL = 300;
+/** larger measured tilts are mostly perspective lines (a table, a shop front), so they are not fixed automatically */
+export const IMPROVE_MAX_ROTATE = 4;
 /** a crop without a target aspect keeps the original shape and at least this share of the area */
 export const TIGHTEN_MIN_KEEP = 0.85;
 const TIGHTEN_KEEPS = [TIGHTEN_MIN_KEEP, 0.92] as const;
@@ -208,6 +210,16 @@ export const hasPrintResolution = (crop: CropRect, size: Size, printMm?: Size, k
 };
 
 const faceHeight = (face: ScoreFace) => face.y2 - face.y1;
+
+/** whether straightening keeps every face whole: none is lost or ends up at the edge of the straightened photo */
+export const keepsFacesStraightened = (faces: ScoreFace[], rotate: number, size: Size) => {
+  const mapped = mapFaces(faces, { rotate }, size);
+  const edge = 0.002;
+  return (
+    mapped.length === faces.length &&
+    mapped.every((face) => face.x1 > edge && face.y1 > edge && face.x2 < 1 - edge && face.y2 < 1 - edge)
+  );
+};
 
 /** whether a crop keeps every main face whole with headroom, and cuts no other face */
 const keepsFaces = (rect: CropRect, faces: ScoreFace[]) => {

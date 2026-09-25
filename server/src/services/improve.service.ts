@@ -8,6 +8,7 @@ import { Bitmap } from 'src/types.js';
 import { analysisCache, getAnalysisKey, getSimulatedAnalysisKey, tiltCache } from 'src/utils/agent/analysis-cache.js';
 import { CropRect } from 'src/utils/agent/crop.js';
 import {
+  IMPROVE_MAX_ROTATE,
   IMPROVE_STEP_MARGIN,
   ImproveEstimate,
   ImproveRecipe,
@@ -22,6 +23,7 @@ import {
   getRecipeKey,
   hasPrintResolution,
   isEmptyRecipe,
+  keepsFacesStraightened,
   mapFaces,
   toEstimate,
 } from 'src/utils/agent/improve.js';
@@ -185,7 +187,11 @@ export class ImproveService extends BaseService {
       let faces = source.faces;
 
       const tilt = await this.getTilt(asset, () => this.render(bitmaps, previewPath, {}, size));
-      if (tilt?.recommended) {
+      if (
+        tilt?.recommended &&
+        Math.abs(tilt.angle) <= IMPROVE_MAX_ROTATE &&
+        keepsFacesStraightened(source.faces, tilt.angle, size)
+      ) {
         const candidate = { rotate: tilt.angle };
         const rotatedFaces = mapFaces(source.faces, candidate, size);
         const analysis = await analyze(candidate);
