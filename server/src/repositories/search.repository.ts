@@ -340,6 +340,19 @@ export class SearchRepository {
     return this.db.selectFrom('smart_search').selectAll().where('assetId', '=', assetId).executeTakeFirst();
   }
 
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getEmbeddings(assetIds: string[]) {
+    if (assetIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('smart_search')
+      .select(['assetId', 'embedding'])
+      .where('assetId', '=', anyUuid(assetIds))
+      .execute();
+  }
+
   @GenerateSql({
     params: [
       {

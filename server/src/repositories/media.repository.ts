@@ -19,6 +19,7 @@ import type {
   VideoInfo,
   VideoPacketInfo,
 } from 'src/types.js';
+import type { ImageAnalysis } from 'src/utils/agent/scoring.js';
 import { ORIENTATION_TO_SHARP_ROTATION } from 'src/constants.js';
 import { Exif } from 'src/database.js';
 import { AssetEditActionItem } from 'src/dtos/editing.dto.js';
@@ -435,6 +436,117 @@ export class MediaRepository {
   async getImageMetadata(input: string | Buffer): Promise<ImageDimensions & { isTransparent: boolean }> {
     const { width = 0, height = 0, hasAlpha = false } = await sharp(input, { unlimited: true }).metadata();
     return { width, height, isTransparent: hasAlpha };
+  }
+
+  /** a JPEG that fits in `maxSize` x `maxSize`, never enlarged */
+  resizeToJpeg(input: string | Buffer, maxSize: number, quality = 85): Promise<Buffer> {
+    return sharp(input, { failOn: 'none' })
+      .resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality })
+      .toBuffer();
+  }
+
+  /** a grid of letterboxed tiles, each labelled in its top-left corner; unreadable inputs become blank tiles */
+  async createContactSheet(
+    tiles: Array<{ input: string | Buffer | null; label: string }>,
+    options: { tileSize?: number; columns?: number; gap?: number; background?: string; quality?: number } = {},
+  ): Promise<Buffer> {
+    const { tileSize = 256, gap = 4, background = '#1c1c1c', quality = 80 } = options;
+    const columns = Math.max(1, Math.min(tiles.length, options.columns ?? Math.ceil(Math.sqrt(tiles.length))));
+    const rows = Math.max(1, Math.ceil(tiles.length / columns));
+    const fontSize = Math.max(12, Math.round(tileSize * 0.09));
+
+    const composites = await Promise.all(
+      tiles.map(async ({ input, label }, i) => {
+        const left = gap + (i % columns) * (tileSize + gap);
+        const top = gap + Math.floor(i / columns) * (tileSize + gap);
+
+        let tile: Buffer | undefined;
+        if (input) {
+          try {
+            tile = await sharp(input, { failOn: 'none' })
+              .resize(tileSize, tileSize, { fit: 'contain', background })
+              .flatten({ background })
+              .png({ compressionLevel: 0 })
+              .toBuffer();
+          } catch (error) {
+            this.logger.warn(`Unable to read contact sheet tile ${label}: ${error}`);
+          }
+        }
+        tile ??= await sharp({
+          create: { width: tileSize, height: tileSize, channels: 3, background: '#3a3a3a' },
+        })
+          .png()
+          .toBuffer();
+
+        const text = label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const labelWidth = Math.round(fontSize * (0.65 * label.length + 0.9));
+        const labelHeight = Math.round(fontSize * 1.45);
+        const svg =
+          `<svg xmlns="http://www.w3.org/2000/svg" width="${labelWidth}" height="${labelHeight}">` +
+          `<rect width="100%" height="100%" rx="${Math.round(fontSize * 0.3)}" fill="#000" fill-opacity="0.72"/>` +
+          `<text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" ` +
+          `font-weight="bold" font-size="${fontSize}" fill="#fff">${text}</text></svg>`;
+
+        return [
+          { input: tile, left, top },
+          { input: Buffer.from(svg), left: left + 2, top: top + 2 },
+        ];
+      }),
+    );
+
+    return sharp({
+      create: {
+        width: columns * tileSize + (columns + 1) * gap,
+        height: rows * tileSize + (rows + 1) * gap,
+        channels: 3,
+        background,
+      },
+    })
+      .composite(composites.flat())
+      .jpeg({ quality })
+      .toBuffer();
+  }
+
+  /** raw sharpness and exposure metrics of the image downscaled to fit in `size` x `size` */
+  async analyzeImage(input: string | Buffer, size = 512): Promise<ImageAnalysis> {
+    const { data, info } = await sharp(input, { failOn: 'none' })
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .removeAlpha()
+      .greyscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const raw = { width: info.width, height: info.height, channels: info.channels };
+
+    // signed Laplacian response centered on 128
+    const laplacian = await sharp(data, { raw })
+      .convolve({ width: 3, height: 3, kernel: [0, 1, 0, 1, -4, 1, 0, 1, 0], offset: 128 })
+      .raw()
+      .toBuffer();
+    const { channels } = await sharp(laplacian, { raw }).stats();
+
+    let sum = 0;
+    let shadows = 0;
+    let highlights = 0;
+    const pixels = info.width * info.height;
+    for (let i = 0; i < data.length; i += info.channels) {
+      const value = data[i];
+      sum += value;
+      if (value <= 5) {
+        shadows++;
+      } else if (value >= 250) {
+        highlights++;
+      }
+    }
+
+    return {
+      width: info.width,
+      height: info.height,
+      laplacianVariance: channels[0].stdev ** 2,
+      meanLuma: sum / pixels / 255,
+      shadowClip: shadows / pixels,
+      highlightClip: highlights / pixels,
+    };
   }
 
   private configureFfmpegCall(input: string, output: string | Writable, options: TranscodeCommand) {
