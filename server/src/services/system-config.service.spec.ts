@@ -32,8 +32,14 @@ const updatedConfig = Object.freeze<SystemConfig>({
   agent: {
     enabled: false,
     profiles: [
-      { name: 'claude', command: 'claude-agent-acp', args: [], env: [], passEnv: ['ANTHROPIC_API_KEY'] },
-      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY'] },
+      {
+        name: 'claude',
+        command: 'claude-agent-acp',
+        args: [],
+        env: [],
+        passEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_EXECUTABLE'],
+      },
+      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY', 'CODEX_PATH'] },
     ],
     chatProfile: 'claude',
     artProfile: '',
