@@ -1,6 +1,7 @@
 import {
   AssetMediaSize,
   AssetTypeEnum,
+  BookExportFormat,
   MemoryType,
   finishOAuth,
   getAssetOriginalPath,
@@ -250,6 +251,22 @@ export const getAssetHlsUrl = (id: string) => {
 export const getAssetHlsSessionUrl = (id: string, sessionId: string) => {
   return createUrl(`/assets/${id}/video/stream/${sessionId}`, authManager.params);
 };
+
+/** JPEG rendering of a book page; `cacheKey` only busts the browser cache */
+export const getBookPageRenderUrl = ({
+  id,
+  pageId,
+  size = 1200,
+  cacheKey,
+}: {
+  id: string;
+  pageId: string;
+  size?: number;
+  cacheKey?: string;
+}) => createUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
+
+export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
+  createUrl(format === BookExportFormat.Html ? `/books/${id}/html` : `/books/${id}/pdf`);
 
 export const getProfileImageUrl = (user: UserResponseDto) =>
   createUrl(getUserProfileImagePath(user.id), { updatedAt: user.profileChangedAt });

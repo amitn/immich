@@ -1,10 +1,27 @@
-import type {
-  AgentMessageDto,
-  AgentPermissionStatus,
-  AgentSessionDetailResponseDto,
+import {
+  AgentMessageKind,
+  AgentMessageRole,
   AgentSessionStatus,
-  AgentUpdateDto,
-} from '$lib/types/assistant';
+  type AgentMessageDto,
+  type AgentSessionDetailResponseDto,
+  type AgentUpdateDto,
+} from '@immich/sdk';
+
+/** `content.status` of tool call messages (a plain string in the API) */
+export enum AgentToolCallStatus {
+  Pending = 'pending',
+  InProgress = 'in_progress',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+/** `content.status` of permission messages (a plain string in the API) */
+export enum AgentPermissionStatus {
+  Pending = 'pending',
+  Approved = 'approved',
+  Denied = 'denied',
+  Expired = 'expired',
+}
 
 export type ChatMessage = AgentMessageDto & {
   /** optimistic user message that the server has not confirmed yet */
@@ -21,7 +38,7 @@ const sameAssets = (a: string[] | undefined, b: string[] | undefined) => {
   return left.length === right.length && left.every((id, i) => id === right[i]);
 };
 
-const isFinalStatus = (status: AgentPermissionStatus | undefined) => !!status && status !== 'pending';
+const isFinalStatus = (status: string | undefined) => !!status && status !== AgentPermissionStatus.Pending;
 
 /**
  * Keyed list of the messages of one assistant chat session.
@@ -33,7 +50,7 @@ const isFinalStatus = (status: AgentPermissionStatus | undefined) => !!status &&
  */
 export class AgentConversation {
   sessionId = $state<string | undefined>();
-  status = $state<AgentSessionStatus>('idle');
+  status = $state<AgentSessionStatus>(AgentSessionStatus.Idle);
   #messages = $state.raw<ChatMessage[]>([]);
   #localId = 0;
 
@@ -42,7 +59,7 @@ export class AgentConversation {
   }
 
   get isRunning() {
-    return this.status === 'running';
+    return this.status === AgentSessionStatus.Running;
   }
 
   get isEmpty() {
@@ -52,7 +69,7 @@ export class AgentConversation {
   /** Start an empty conversation (optionally for a freshly created session) */
   reset(sessionId?: string) {
     this.sessionId = sessionId;
-    this.status = 'idle';
+    this.status = AgentSessionStatus.Idle;
     this.#messages = [];
   }
 
@@ -78,8 +95,8 @@ export class AgentConversation {
       {
         id,
         sessionId: this.sessionId ?? '',
-        role: 'user',
-        kind: 'text',
+        role: AgentMessageRole.User,
+        kind: AgentMessageKind.Text,
         content: { text, assetIds: assetIds?.length ? assetIds : undefined },
         createdAt: nowIso(),
         pending: true,
@@ -118,7 +135,7 @@ export class AgentConversation {
       return;
     }
 
-    if (message.role === 'user' && message.kind === 'text') {
+    if (message.role === AgentMessageRole.User && message.kind === AgentMessageKind.Text) {
       const optimisticIndex = messages.findIndex(
         (candidate) =>
           candidate.pending &&
@@ -140,9 +157,9 @@ export class AgentConversation {
   }
 
   /** Show a permission as answered until the server confirms it */
-  setPermissionStatus(requestId: string, status: AgentPermissionStatus) {
+  setPermissionStatus(requestId: string, status: string) {
     this.#messages = this.#messages.map((message) =>
-      message.kind === 'permission' && message.content.requestId === requestId
+      message.kind === AgentMessageKind.Permission && message.content.requestId === requestId
         ? { ...message, content: { ...message.content, status } }
         : message,
     );
@@ -151,15 +168,15 @@ export class AgentConversation {
   /** Permission requests that are still waiting for an answer */
   get pendingPermissions() {
     return this.#messages.filter(
-      (message) => message.kind === 'permission' && !isFinalStatus(message.content.status as AgentPermissionStatus),
+      (message) => message.kind === AgentMessageKind.Permission && !isFinalStatus(message.content.status),
     );
   }
 
   #pushOptimistic(message: ChatMessage) {
     const confirmed = this.#messages.some(
       (candidate) =>
-        candidate.role === 'user' &&
-        candidate.kind === 'text' &&
+        candidate.role === AgentMessageRole.User &&
+        candidate.kind === AgentMessageKind.Text &&
         !candidate.pending &&
         (candidate.content.text ?? '').trim() === (message.content.text ?? '').trim() &&
         Date.parse(candidate.createdAt) >= Date.parse(message.createdAt) - 60_000,

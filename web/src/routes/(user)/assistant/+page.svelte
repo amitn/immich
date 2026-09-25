@@ -6,27 +6,26 @@
   import AssistantSessionList from '$lib/components/assistant/AssistantSessionList.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
-  import { AgentConversation, type ChatMessage } from '$lib/managers/agent-conversation.svelte';
+  import { AgentConversation, AgentPermissionStatus, type ChatMessage } from '$lib/managers/agent-conversation.svelte';
   import { Route } from '$lib/route';
+  import { takePendingAssistantAssets } from '$lib/services/assistant.service';
+  import { websocketEvents } from '$lib/stores/websocket';
+  import { handleError } from '$lib/utils/handle-error';
   import {
+    AgentMessageRole,
+    AgentSessionStatus,
     cancelAgentSession,
     createAgentSession,
     deleteAgentSession,
     getAgentSession,
     getAgentSessions,
+    promptAgentSession,
     respondToAgentPermission,
-    sendAgentPrompt,
     updateAgentSession,
-  } from '$lib/services/assistant-api';
-  import { takePendingAssistantAssets } from '$lib/services/assistant.service';
-  import { websocketEvents } from '$lib/stores/websocket';
-  import type {
-    AgentPermissionResponseDto,
-    AgentPermissionStatus,
-    AgentSessionResponseDto,
-    AgentUpdateDto,
-  } from '$lib/types/assistant';
-  import { handleError } from '$lib/utils/handle-error';
+    type AgentPermissionResponseDto,
+    type AgentSessionResponseDto,
+    type AgentUpdateDto,
+  } from '@immich/sdk';
   import { Alert, Button, IconButton, LoadingSpinner, modalManager, Switch, toastManager } from '@immich/ui';
   import { mdiArrowDown, mdiForumOutline, mdiPlus } from '@mdi/js';
   import { onMount, tick } from 'svelte';
@@ -60,7 +59,7 @@
 
   const sortedSessions = $derived([...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
   const lastMessage = $derived(conversation.messages.at(-1));
-  const showWorking = $derived(conversation.isRunning && (!lastMessage || lastMessage.role === 'user'));
+  const showWorking = $derived(conversation.isRunning && (!lastMessage || lastMessage.role === AgentMessageRole.User));
 
   const syncUrl = (sessionId?: string) => {
     try {
@@ -197,16 +196,16 @@
     const localId = conversation.addOptimistic(text, assetIds);
     draft = '';
     contextAssetIds = [];
-    conversation.status = 'running';
+    conversation.status = AgentSessionStatus.Running;
 
     try {
-      await sendAgentPrompt({
+      await promptAgentSession({
         id: sessionId,
         agentPromptDto: { text, assetIds: assetIds.length > 0 ? assetIds : undefined },
       });
     } catch (error) {
       conversation.removeOptimistic(localId);
-      conversation.status = 'idle';
+      conversation.status = AgentSessionStatus.Idle;
       draft = text;
       contextAssetIds = assetIds;
       handleError(error, $t('errors.unable_to_send_assistant_message'));
@@ -236,8 +235,11 @@
       return;
     }
 
-    const previous = (message.content.status ?? 'pending') as AgentPermissionStatus;
-    conversation.setPermissionStatus(requestId, approved ? 'approved' : 'denied');
+    const previous = message.content.status ?? AgentPermissionStatus.Pending;
+    conversation.setPermissionStatus(
+      requestId,
+      approved ? AgentPermissionStatus.Approved : AgentPermissionStatus.Denied,
+    );
     if (optionId === 'allow_always' && activeSession) {
       upsertSession({ ...activeSession, autoApprove: true });
     }
@@ -304,7 +306,7 @@
       void refreshSessions();
     } else {
       const session = sessions[index];
-      const wasRunning = session.status === 'running';
+      const wasRunning = session.status === AgentSessionStatus.Running;
       sessions[index] = {
         ...session,
         status: update.status,
@@ -313,7 +315,7 @@
             ? update.message.createdAt
             : session.updatedAt,
       };
-      if (wasRunning && update.status !== 'running') {
+      if (wasRunning && update.status !== AgentSessionStatus.Running) {
         // pick up server-side changes such as a generated title
         void refreshSessions();
       }

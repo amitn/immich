@@ -1,10 +1,10 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { Route } from '$lib/route';
-  import { exportBook, getBook, getBookExportUrl } from '$lib/services/book-api';
-  import type { BookDetailResponseDto, BookExportFormat, BookExportStatus } from '$lib/types/assistant';
+  import { getBookExportUrl } from '$lib/utils';
   import { getBookExportStatus, getBookFileName, isBookExporting, isExportActive } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
+  import { BookExportFormat, BookExportStatus, exportBook, getBook, type BookDetailResponseDto } from '@immich/sdk';
   import { Button, HStack, Icon, LoadingSpinner, Modal, ModalBody, ModalFooter, Text } from '@immich/ui';
   import {
     mdiAlertCircleOutline,
@@ -38,22 +38,22 @@
   const isExporting = $derived(isBookExporting(book, formats));
 
   const formatLabels: Record<BookExportFormat, string> = $derived({
-    pdf: $t('book_format_pdf'),
-    html: $t('book_format_html'),
+    [BookExportFormat.Pdf]: $t('book_format_pdf'),
+    [BookExportFormat.Html]: $t('book_format_html'),
   });
 
   const statusLabel = (status: BookExportStatus | null) => {
     switch (status) {
-      case 'pending': {
+      case BookExportStatus.Pending: {
         return $t('book_export_status_pending');
       }
-      case 'running': {
+      case BookExportStatus.Running: {
         return $t('book_export_status_running');
       }
-      case 'completed': {
+      case BookExportStatus.Completed: {
         return $t('book_export_status_completed');
       }
-      case 'failed': {
+      case BookExportStatus.Failed: {
         return $t('book_export_status_failed');
       }
       default: {
@@ -89,10 +89,10 @@
     starting = format;
     try {
       await exportBook({ id: book.id, bookExportDto: { format } });
-      if (format === 'html') {
-        book.htmlExportStatus = 'pending';
+      if (format === BookExportFormat.Html) {
+        book.htmlExportStatus = BookExportStatus.Pending;
       } else {
-        book.exportStatus = 'pending';
+        book.exportStatus = BookExportStatus.Pending;
       }
       startPolling();
     } catch (error) {
@@ -131,7 +131,7 @@
             aria-busy={isExportActive(status)}
           >
             <Icon
-              icon={format === 'pdf' ? mdiFilePdfBox : mdiLanguageHtml5}
+              icon={format === BookExportFormat.Pdf ? mdiFilePdfBox : mdiLanguageHtml5}
               size="28"
               class="shrink-0 text-primary"
               aria-hidden
@@ -139,14 +139,14 @@
             <div class="flex min-w-0 flex-1 flex-col">
               <span class="text-sm font-medium">{formatLabels[format]}</span>
               <span
-                class="flex items-center gap-1 text-xs {status === 'failed'
+                class="flex items-center gap-1 text-xs {status === BookExportStatus.Failed
                   ? 'text-red-600 dark:text-red-400'
                   : 'text-gray-600 dark:text-gray-400'}"
                 role="status"
               >
-                {#if status === 'completed'}
+                {#if status === BookExportStatus.Completed}
                   <Icon icon={mdiCheckCircle} size="14" class="text-green-600 dark:text-green-400" aria-hidden />
-                {:else if status === 'failed'}
+                {:else if status === BookExportStatus.Failed}
                   <Icon icon={mdiAlertCircleOutline} size="14" aria-hidden />
                 {/if}
                 {statusLabel(status)}
@@ -154,7 +154,7 @@
             </div>
             {#if isExportActive(status)}
               <LoadingSpinner size="small" />
-            {:else if status === 'completed'}
+            {:else if status === BookExportStatus.Completed}
               <Button
                 href={getBookExportUrl({ id: book.id, format })}
                 download={getBookFileName(book, format)}
@@ -162,7 +162,7 @@
                 shape="round"
                 leadingIcon={mdiDownload}
               >
-                {format === 'pdf' ? $t('book_download_pdf') : $t('book_download_html')}
+                {format === BookExportFormat.Pdf ? $t('book_download_pdf') : $t('book_download_html')}
               </Button>
             {:else}
               <Button

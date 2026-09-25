@@ -1,13 +1,10 @@
 <script lang="ts">
   import { Route } from '$lib/route';
-  import { getBook, getBookPageRenderUrl } from '$lib/services/book-api';
-  import type { BookResponseDto } from '$lib/types/assistant';
-  import { getAssetMediaUrl } from '$lib/utils';
-  import { getCompletedExports, isBookExporting } from '$lib/utils/book-export';
-  import { AssetMediaSize } from '@immich/sdk';
+  import { getAssetMediaUrl, getBookPageRenderUrl } from '$lib/utils';
+  import { getCompletedExports, isBookExporting, isBookExportOutdated } from '$lib/utils/book-export';
+  import { AssetMediaSize, BookExportFormat, type BookResponseDto } from '@immich/sdk';
   import { Badge, Icon } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline } from '@mdi/js';
-  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -16,31 +13,18 @@
 
   const { book }: Props = $props();
 
-  let loadedPages = $state<{ id: string }[]>();
   let coverFailed = $state(false);
 
-  const pages = $derived(book.pages ?? loadedPages);
   const completedExports = $derived(getCompletedExports(book));
-  const firstPageId = $derived(pages?.[0]?.id);
   const ratio = $derived(book.pageWidthMm > 0 && book.pageHeightMm > 0 ? book.pageWidthMm / book.pageHeightMm : 1);
 
   const coverUrl = $derived.by(() => {
-    if (firstPageId && !coverFailed) {
-      return getBookPageRenderUrl({ id: book.id, pageId: firstPageId, size: 600, cacheKey: book.updatedAt });
+    if (book.firstPageId && !coverFailed) {
+      return getBookPageRenderUrl({ id: book.id, pageId: book.firstPageId, size: 600, cacheKey: book.updatedAt });
     }
     if (book.coverAssetId) {
       return getAssetMediaUrl({ id: book.coverAssetId, size: AssetMediaSize.Thumbnail });
     }
-  });
-
-  onMount(() => {
-    if (book.pages) {
-      return;
-    }
-    // the list endpoint may not include pages; fetch them for the cover render
-    getBook({ id: book.id })
-      .then((detail) => (loadedPages = detail.pages))
-      .catch(() => (loadedPages = []));
   });
 </script>
 
@@ -70,17 +54,24 @@
     {#if book.subtitle}
       <p class="truncate text-sm text-gray-600 dark:text-gray-400">{book.subtitle}</p>
     {/if}
-    <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-      {#if pages}
-        <span>{$t('book_page_count', { values: { count: pages.length } })}</span>
-      {/if}
+    <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+      <span>{$t('book_page_count', { values: { count: book.pageCount } })}</span>
       {#each completedExports as format (format)}
-        <span title={format === 'pdf' ? $t('book_pdf_ready') : $t('book_html_ready')}>
-          <Badge size="tiny" color="success" shape="round">
-            {format === 'pdf' ? $t('book_format_pdf') : $t('book_format_html_short')}
-            <span class="sr-only">{$t('book_export_status_completed')}</span>
-          </Badge>
-        </span>
+        {@const label = format === BookExportFormat.Pdf ? $t('book_format_pdf') : $t('book_format_html_short')}
+        {#if isBookExportOutdated(book, format)}
+          <span title={$t('book_export_outdated_hint')}>
+            <Badge size="tiny" color="secondary" shape="round">
+              {$t('book_format_outdated', { values: { format: label } })}
+            </Badge>
+          </span>
+        {:else}
+          <span title={format === BookExportFormat.Pdf ? $t('book_pdf_ready') : $t('book_html_ready')}>
+            <Badge size="tiny" color="success" shape="round">
+              {label}
+              <span class="sr-only">{$t('book_export_status_completed')}</span>
+            </Badge>
+          </span>
+        {/if}
       {/each}
       {#if isBookExporting(book)}
         <Badge size="tiny" color="info" shape="round">{$t('book_exporting_short')}</Badge>

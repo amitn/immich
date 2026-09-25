@@ -1,12 +1,13 @@
 <script lang="ts">
   import AssistantAssetStrip from '$lib/components/assistant/AssistantAssetStrip.svelte';
   import AssistantLinks from '$lib/components/assistant/AssistantLinks.svelte';
-  import type {
-    AgentMessageContentDto,
-    AgentPermissionOptionDto,
-    AgentPermissionResponseDto,
-    AgentPermissionStatus,
-  } from '$lib/types/assistant';
+  import { AgentPermissionStatus } from '$lib/managers/agent-conversation.svelte';
+  import {
+    Kind as AgentPermissionOptionKind,
+    type AgentMessageContentDto,
+    type AgentPermissionOptionDto,
+    type AgentPermissionResponseDto,
+  } from '@immich/sdk';
   import { Badge, Button, Icon, type Color } from '@immich/ui';
   import { mdiCancel, mdiCheck, mdiClockAlertOutline, mdiShieldAlertOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -21,14 +22,15 @@
 
   let busy = $state(false);
 
-  const status = $derived((content.status ?? 'pending') as AgentPermissionStatus);
+  const status = $derived(content.status ?? AgentPermissionStatus.Pending);
   const toolName = $derived(content.toolName?.replace(/^mcp__immich__/, ''));
   const title = $derived(content.title || toolName);
 
-  const isAllow = (option: AgentPermissionOptionDto) => option.kind.startsWith('allow');
+  const isAllow = ({ kind }: AgentPermissionOptionDto) =>
+    kind === AgentPermissionOptionKind.AllowOnce || kind === AgentPermissionOptionKind.AllowAlways;
 
   const optionColor = (option: AgentPermissionOptionDto): Color => {
-    if (option.kind === 'allow_once') {
+    if (option.kind === AgentPermissionOptionKind.AllowOnce) {
       return 'primary';
     }
     return isAllow(option) ? 'secondary' : 'danger';
@@ -46,19 +48,16 @@
     }
   };
 
-  const resolved = $derived(
-    (
-      {
-        approved: { color: 'success', icon: mdiCheck, label: $t('assistant_permission_approved') },
-        denied: { color: 'danger', icon: mdiCancel, label: $t('assistant_permission_denied') },
-        expired: { color: 'secondary', icon: mdiClockAlertOutline, label: $t('expired') },
-      } as Record<string, { color: Color; icon: string; label: string }>
-    )[status],
-  );
+  const resolvedStatuses: Record<string, { color: Color; icon: string; label: string } | undefined> = $derived({
+    [AgentPermissionStatus.Approved]: { color: 'success', icon: mdiCheck, label: $t('assistant_permission_approved') },
+    [AgentPermissionStatus.Denied]: { color: 'danger', icon: mdiCancel, label: $t('assistant_permission_denied') },
+    [AgentPermissionStatus.Expired]: { color: 'secondary', icon: mdiClockAlertOutline, label: $t('expired') },
+  });
+  const resolved = $derived(resolvedStatuses[status]);
 </script>
 
 <div
-  class="flex flex-col gap-3 rounded-xl border-2 px-4 py-3 text-sm {status === 'pending'
+  class="flex flex-col gap-3 rounded-xl border-2 px-4 py-3 text-sm {status === AgentPermissionStatus.Pending
     ? 'border-warning/60 bg-warning/5'
     : 'border-gray-200 dark:border-gray-700'}"
   role="group"
@@ -82,7 +81,7 @@
 
   <AssistantLinks albumIds={content.albumIds} bookIds={content.bookIds} />
 
-  {#if status === 'pending'}
+  {#if status === AgentPermissionStatus.Pending}
     <div class="flex flex-wrap gap-2">
       {#if content.options?.length}
         {#each content.options as option (option.optionId)}
@@ -90,7 +89,7 @@
             size="small"
             shape="round"
             color={optionColor(option)}
-            variant={option.kind === 'allow_once' ? 'filled' : 'outline'}
+            variant={option.kind === AgentPermissionOptionKind.AllowOnce ? 'filled' : 'outline'}
             disabled={disabled || busy}
             onclick={() => respond({ optionId: option.optionId, approved: isAllow(option) })}
           >

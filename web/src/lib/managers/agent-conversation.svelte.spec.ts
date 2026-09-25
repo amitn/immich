@@ -1,20 +1,29 @@
-import { AgentConversation } from '$lib/managers/agent-conversation.svelte';
-import type { AgentMessageDto, AgentSessionDetailResponseDto } from '$lib/types/assistant';
+import {
+  AgentMessageKind,
+  AgentMessageRole,
+  AgentSessionStatus,
+  type AgentMessageDto,
+  type AgentSessionDetailResponseDto,
+} from '@immich/sdk';
+import { AgentConversation, AgentPermissionStatus, AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
 
 const message = (overrides: Partial<AgentMessageDto> & { id: string }): AgentMessageDto => ({
   sessionId: 'session-1',
-  role: 'agent',
-  kind: 'text',
+  role: AgentMessageRole.Agent,
+  kind: AgentMessageKind.Text,
   content: {},
   createdAt: new Date().toISOString(),
   ...overrides,
 });
 
-const detail = (messages: AgentMessageDto[], overrides?: Partial<AgentSessionDetailResponseDto>) => ({
+const detail = (
+  messages: AgentMessageDto[],
+  overrides?: Partial<AgentSessionDetailResponseDto>,
+): AgentSessionDetailResponseDto => ({
   id: 'session-1',
   title: 'Chat',
   profile: 'claude',
-  status: 'idle' as const,
+  status: AgentSessionStatus.Idle,
   autoApprove: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -38,10 +47,10 @@ describe(AgentConversation.name, () => {
 
   describe('load', () => {
     it('should load the history and status', () => {
-      sut.load(detail([message({ id: 'm1' }), message({ id: 'm2' })], { status: 'running' }));
+      sut.load(detail([message({ id: 'm1' }), message({ id: 'm2' })], { status: AgentSessionStatus.Running }));
 
       expect(sut.messages.map(({ id }) => id)).toEqual(['m1', 'm2']);
-      expect(sut.status).toBe('running');
+      expect(sut.status).toBe(AgentSessionStatus.Running);
       expect(sut.isRunning).toBe(true);
     });
 
@@ -57,7 +66,7 @@ describe(AgentConversation.name, () => {
     it('should drop optimistic messages that the server already has', () => {
       sut.addOptimistic('hello');
 
-      sut.load(detail([message({ id: 'u1', role: 'user', content: { text: 'hello' } })]));
+      sut.load(detail([message({ id: 'u1', role: AgentMessageRole.User, content: { text: 'hello' } })]));
 
       expect(sut.messages.map(({ id }) => id)).toEqual(['u1']);
     });
@@ -74,26 +83,30 @@ describe(AgentConversation.name, () => {
 
   describe('applyUpdate', () => {
     it('should ignore updates for other sessions', () => {
-      const applied = sut.applyUpdate({ sessionId: 'other', status: 'running', message: message({ id: 'm1' }) });
+      const applied = sut.applyUpdate({
+        sessionId: 'other',
+        status: AgentSessionStatus.Running,
+        message: message({ id: 'm1' }),
+      });
 
       expect(applied).toBe(false);
       expect(sut.messages).toEqual([]);
-      expect(sut.status).toBe('idle');
+      expect(sut.status).toBe(AgentSessionStatus.Idle);
     });
 
     it('should ignore updates when no session is selected', () => {
       sut.reset();
-      expect(sut.applyUpdate({ sessionId: 'session-1', status: 'running' })).toBe(false);
+      expect(sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running })).toBe(false);
     });
 
     it('should update the status without a message', () => {
-      expect(sut.applyUpdate({ sessionId: 'session-1', status: 'running' })).toBe(true);
-      expect(sut.status).toBe('running');
+      expect(sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running })).toBe(true);
+      expect(sut.status).toBe(AgentSessionStatus.Running);
     });
 
     it('should append new messages', () => {
-      sut.applyUpdate({ sessionId: 'session-1', status: 'running', message: message({ id: 'm1' }) });
-      sut.applyUpdate({ sessionId: 'session-1', status: 'running', message: message({ id: 'm2' }) });
+      sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running, message: message({ id: 'm1' }) });
+      sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running, message: message({ id: 'm2' }) });
 
       expect(sut.messages.map(({ id }) => id)).toEqual(['m1', 'm2']);
     });
@@ -101,17 +114,21 @@ describe(AgentConversation.name, () => {
     it('should replace a streaming message in place', () => {
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
+        status: AgentSessionStatus.Running,
         message: message({ id: 'm1', content: { text: 'Hel' } }),
       });
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: message({ id: 'm2', kind: 'tool_call', content: { status: 'pending' } }),
+        status: AgentSessionStatus.Running,
+        message: message({
+          id: 'm2',
+          kind: AgentMessageKind.ToolCall,
+          content: { status: AgentToolCallStatus.Pending },
+        }),
       });
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
+        status: AgentSessionStatus.Running,
         message: message({ id: 'm1', content: { text: 'Hello world' } }),
       });
 
@@ -120,22 +137,33 @@ describe(AgentConversation.name, () => {
     });
 
     it('should update tool call status in place', () => {
-      const toolCall = message({ id: 't1', kind: 'tool_call', content: { toolCallId: 'x', status: 'in_progress' } });
-      sut.applyUpdate({ sessionId: 'session-1', status: 'running', message: toolCall });
+      const toolCall = message({
+        id: 't1',
+        kind: AgentMessageKind.ToolCall,
+        content: { toolCallId: 'x', status: AgentToolCallStatus.InProgress },
+      });
+      sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running, message: toolCall });
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'idle',
-        message: { ...toolCall, content: { ...toolCall.content, status: 'completed', assetIds: ['a1'] } },
+        status: AgentSessionStatus.Idle,
+        message: {
+          ...toolCall,
+          content: { ...toolCall.content, status: AgentToolCallStatus.Completed, assetIds: ['a1'] },
+        },
       });
 
       expect(sut.messages).toHaveLength(1);
-      expect(sut.messages[0].content).toEqual({ toolCallId: 'x', status: 'completed', assetIds: ['a1'] });
-      expect(sut.status).toBe('idle');
+      expect(sut.messages[0].content).toEqual({
+        toolCallId: 'x',
+        status: AgentToolCallStatus.Completed,
+        assetIds: ['a1'],
+      });
+      expect(sut.status).toBe(AgentSessionStatus.Idle);
     });
 
     it('should produce a new array on every change', () => {
       const before = sut.messages;
-      sut.applyUpdate({ sessionId: 'session-1', status: 'running', message: message({ id: 'm1' }) });
+      sut.applyUpdate({ sessionId: 'session-1', status: AgentSessionStatus.Running, message: message({ id: 'm1' }) });
       expect(sut.messages).not.toBe(before);
     });
   });
@@ -148,8 +176,8 @@ describe(AgentConversation.name, () => {
       expect(sut.messages).toEqual([
         expect.objectContaining({
           id,
-          role: 'user',
-          kind: 'text',
+          role: AgentMessageRole.User,
+          kind: AgentMessageKind.Text,
           pending: true,
           content: { text: 'hello', assetIds: ['a1'] },
         }),
@@ -173,8 +201,8 @@ describe(AgentConversation.name, () => {
 
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: message({ id: 'u2', role: 'user', content: { text: 'second' } }),
+        status: AgentSessionStatus.Running,
+        message: message({ id: 'u2', role: AgentMessageRole.User, content: { text: 'second' } }),
       });
 
       expect(sut.messages.map(({ id, pending }) => [id, !!pending])).toEqual([
@@ -189,8 +217,8 @@ describe(AgentConversation.name, () => {
 
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: message({ id: 'u1', role: 'user', content: { text: 'same', assetIds: ['a2'] } }),
+        status: AgentSessionStatus.Running,
+        message: message({ id: 'u1', role: AgentMessageRole.User, content: { text: 'same', assetIds: ['a2'] } }),
       });
 
       expect(sut.messages.map(({ id }) => id)).toEqual(['local-1', 'u1']);
@@ -201,8 +229,12 @@ describe(AgentConversation.name, () => {
 
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: message({ id: 'u1', role: 'user', content: { text: 'hello (with 2 photos attached)' } }),
+        status: AgentSessionStatus.Running,
+        message: message({
+          id: 'u1',
+          role: AgentMessageRole.User,
+          content: { text: 'hello (with 2 photos attached)' },
+        }),
       });
 
       expect(sut.messages.map(({ id }) => id)).toEqual(['u1']);
@@ -212,12 +244,12 @@ describe(AgentConversation.name, () => {
       sut.addOptimistic('hello');
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: message({ id: 'u1', role: 'user', content: { text: 'hello' } }),
+        status: AgentSessionStatus.Running,
+        message: message({ id: 'u1', role: AgentMessageRole.User, content: { text: 'hello' } }),
       });
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
+        status: AgentSessionStatus.Running,
         message: message({ id: 'a1', content: { text: 'Hi!' } }),
       });
 
@@ -228,7 +260,7 @@ describe(AgentConversation.name, () => {
       sut.addOptimistic('hello');
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
+        status: AgentSessionStatus.Running,
         message: message({ id: 'a1', content: { text: 'hello' } }),
       });
 
@@ -238,7 +270,11 @@ describe(AgentConversation.name, () => {
 
   describe('permissions', () => {
     const permission = (requestId: string) =>
-      message({ id: `p-${requestId}`, kind: 'permission', content: { requestId, status: 'pending', summary: 'x' } });
+      message({
+        id: `p-${requestId}`,
+        kind: AgentMessageKind.Permission,
+        content: { requestId, status: AgentPermissionStatus.Pending, summary: 'x' },
+      });
 
     it('should list pending permissions', () => {
       sut.load(detail([permission('r1'), permission('r2')]));
@@ -248,24 +284,24 @@ describe(AgentConversation.name, () => {
     it('should set a permission status optimistically', () => {
       sut.load(detail([permission('r1'), permission('r2')]));
 
-      sut.setPermissionStatus('r1', 'approved');
+      sut.setPermissionStatus('r1', AgentPermissionStatus.Approved);
 
-      expect(sut.messages[0].content.status).toBe('approved');
-      expect(sut.messages[1].content.status).toBe('pending');
+      expect(sut.messages[0].content.status).toBe(AgentPermissionStatus.Approved);
+      expect(sut.messages[1].content.status).toBe(AgentPermissionStatus.Pending);
       expect(sut.pendingPermissions.map(({ id }) => id)).toEqual(['p-r2']);
     });
 
     it('should let the server override the optimistic status', () => {
       sut.load(detail([permission('r1')]));
-      sut.setPermissionStatus('r1', 'approved');
+      sut.setPermissionStatus('r1', AgentPermissionStatus.Approved);
 
       sut.applyUpdate({
         sessionId: 'session-1',
-        status: 'running',
-        message: { ...permission('r1'), content: { requestId: 'r1', status: 'expired' } },
+        status: AgentSessionStatus.Running,
+        message: { ...permission('r1'), content: { requestId: 'r1', status: AgentPermissionStatus.Expired } },
       });
 
-      expect(sut.messages[0].content.status).toBe('expired');
+      expect(sut.messages[0].content.status).toBe(AgentPermissionStatus.Expired);
     });
   });
 });

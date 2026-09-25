@@ -1,8 +1,10 @@
+import { BookExportFormat, BookExportStatus, BookMapStyle, BookMapStyleOption } from '@immich/sdk';
 import {
   BOOK_MAX_PAGES,
   BOOK_MIN_PAGES,
   BOOK_PAGE_SIZE_PRESETS,
   findBookPageSizePreset,
+  getBookExportedAt,
   getBookExportStatus,
   getBookFileName,
   getBookPageSizePreset,
@@ -10,10 +12,12 @@ import {
   getCompletedExports,
   getDefaultBookPageCount,
   isBookExporting,
+  isBookExportOutdated,
   isExportActive,
   isMapPage,
   isTileMapStyle,
   normalizeBookPageCount,
+  toBookMapStyleOption,
   toExportFormats,
   type BookPageSizePresetId,
 } from '$lib/utils/book-export';
@@ -88,77 +92,107 @@ describe(normalizeBookPageCount.name, () => {
 
 describe('maps', () => {
   it('should only need a Stadia Maps key for tile styles', () => {
-    expect(isTileMapStyle('auto')).toBe(false);
-    expect(isTileMapStyle('sketch')).toBe(false);
-    expect(isTileMapStyle('watercolor')).toBe(true);
-    expect(isTileMapStyle('toner')).toBe(true);
-    expect(isTileMapStyle('terrain')).toBe(true);
+    expect(isTileMapStyle(BookMapStyleOption.Auto)).toBe(false);
+    expect(isTileMapStyle(BookMapStyleOption.Sketch)).toBe(false);
+    expect(isTileMapStyle(BookMapStyleOption.Watercolor)).toBe(true);
+    expect(isTileMapStyle(BookMapStyleOption.Toner)).toBe(true);
+    expect(isTileMapStyle(BookMapStyleOption.Terrain)).toBe(true);
+  });
+
+  it('should keep the style of an existing map', () => {
+    expect(toBookMapStyleOption(BookMapStyle.Watercolor)).toBe(BookMapStyleOption.Watercolor);
+    expect(toBookMapStyleOption(BookMapStyle.Sketch)).toBe(BookMapStyleOption.Sketch);
+    expect(toBookMapStyleOption(undefined)).toBe(BookMapStyleOption.Auto);
   });
 
   it('should detect map pages', () => {
     expect(isMapPage({ layout: 'map', map: null })).toBe(true);
     expect(isMapPage({ layout: 'map-photo', map: null })).toBe(true);
-    expect(isMapPage({ layout: 'custom', map: { style: 'sketch', showRoute: true, labels: true } })).toBe(true);
+    expect(isMapPage({ layout: 'custom', map: { style: BookMapStyle.Sketch, showRoute: true, labels: true } })).toBe(
+      true,
+    );
     expect(isMapPage({ layout: 'full', map: null })).toBe(false);
     expect(isMapPage({ layout: 'grid-4' })).toBe(false);
   });
 });
 
 describe('export status', () => {
-  const book = (exportStatus: string | null, htmlExportStatus?: string | null) =>
-    ({ exportStatus, htmlExportStatus }) as Parameters<typeof getBookExportStatus>[0];
+  const { Pending, Running, Completed, Failed } = BookExportStatus;
+  const { Pdf, Html } = BookExportFormat;
+  const book = (exportStatus: BookExportStatus | null, htmlExportStatus: BookExportStatus | null = null) => ({
+    exportStatus,
+    htmlExportStatus,
+  });
 
   it('should map the export choice to formats', () => {
-    expect(toExportFormats('pdf')).toEqual(['pdf']);
-    expect(toExportFormats('html')).toEqual(['html']);
-    expect(toExportFormats('both')).toEqual(['pdf', 'html']);
+    expect(toExportFormats(Pdf)).toEqual([Pdf]);
+    expect(toExportFormats(Html)).toEqual([Html]);
+    expect(toExportFormats('both')).toEqual([Pdf, Html]);
   });
 
   it('should read the status of each format', () => {
-    expect(getBookExportStatus(book('completed', 'running'), 'pdf')).toBe('completed');
-    expect(getBookExportStatus(book('completed', 'running'), 'html')).toBe('running');
+    expect(getBookExportStatus(book(Completed, Running), Pdf)).toBe(Completed);
+    expect(getBookExportStatus(book(Completed, Running), Html)).toBe(Running);
   });
 
   it('should treat a missing html status as not exported', () => {
-    expect(getBookExportStatus(book('completed'), 'html')).toBeNull();
+    expect(getBookExportStatus(book(Completed), Html)).toBeNull();
   });
 
   it('should detect active exports', () => {
-    expect(isExportActive('pending')).toBe(true);
-    expect(isExportActive('running')).toBe(true);
-    expect(isExportActive('completed')).toBe(false);
+    expect(isExportActive(Pending)).toBe(true);
+    expect(isExportActive(Running)).toBe(true);
+    expect(isExportActive(Completed)).toBe(false);
     expect(isExportActive(null)).toBe(false);
-    expect(isBookExporting(book('completed', 'pending'))).toBe(true);
-    expect(isBookExporting(book('completed', 'pending'), ['pdf'])).toBe(false);
+    expect(isBookExporting(book(Completed, Pending))).toBe(true);
+    expect(isBookExporting(book(Completed, Pending), [Pdf])).toBe(false);
     expect(isBookExporting(book(null))).toBe(false);
   });
 
   it('should combine statuses', () => {
-    expect(getCombinedExportStatus(book(null, null), ['pdf', 'html'])).toBeNull();
-    expect(getCombinedExportStatus(book('completed', 'pending'), ['pdf', 'html'])).toBe('pending');
-    expect(getCombinedExportStatus(book('pending', 'running'), ['pdf', 'html'])).toBe('running');
-    expect(getCombinedExportStatus(book('failed', 'running'), ['pdf', 'html'])).toBe('running');
-    expect(getCombinedExportStatus(book('failed', 'completed'), ['pdf', 'html'])).toBe('failed');
-    expect(getCombinedExportStatus(book('completed', 'completed'), ['pdf', 'html'])).toBe('completed');
-    expect(getCombinedExportStatus(book('completed', null), ['pdf', 'html'])).toBeNull();
-    expect(getCombinedExportStatus(book('completed', null), ['pdf'])).toBe('completed');
+    expect(getCombinedExportStatus(book(null, null), [Pdf, Html])).toBeNull();
+    expect(getCombinedExportStatus(book(Completed, Pending), [Pdf, Html])).toBe(Pending);
+    expect(getCombinedExportStatus(book(Pending, Running), [Pdf, Html])).toBe(Running);
+    expect(getCombinedExportStatus(book(Failed, Running), [Pdf, Html])).toBe(Running);
+    expect(getCombinedExportStatus(book(Failed, Completed), [Pdf, Html])).toBe(Failed);
+    expect(getCombinedExportStatus(book(Completed, Completed), [Pdf, Html])).toBe(Completed);
+    expect(getCombinedExportStatus(book(Completed, null), [Pdf, Html])).toBeNull();
+    expect(getCombinedExportStatus(book(Completed, null), [Pdf])).toBe(Completed);
+  });
+
+  it('should read when each format was exported', () => {
+    const exported = { exportedAt: '2026-01-01T10:00:00.000Z', htmlExportedAt: null };
+    expect(getBookExportedAt(exported, Pdf)).toBe('2026-01-01T10:00:00.000Z');
+    expect(getBookExportedAt(exported, Html)).toBeNull();
+  });
+
+  it('should only report completed exports as outdated', () => {
+    const stale = { exportStale: true, htmlExportStale: false };
+    expect(isBookExportOutdated({ ...book(Completed, Completed), ...stale }, Pdf)).toBe(true);
+    expect(isBookExportOutdated({ ...book(Completed, Completed), ...stale }, Html)).toBe(false);
+    expect(isBookExportOutdated({ ...book(Running, null), ...stale }, Pdf)).toBe(false);
+    expect(isBookExportOutdated({ ...book(Completed, null), exportStale: false, htmlExportStale: true }, Html)).toBe(
+      false,
+    );
   });
 
   it('should list the completed exports', () => {
-    expect(getCompletedExports(book('completed', 'completed'))).toEqual(['pdf', 'html']);
-    expect(getCompletedExports(book('failed', 'completed'))).toEqual(['html']);
+    expect(getCompletedExports(book(Completed, Completed))).toEqual([Pdf, Html]);
+    expect(getCompletedExports(book(Failed, Completed))).toEqual([Html]);
     expect(getCompletedExports(book(null))).toEqual([]);
   });
 });
 
 describe(getBookFileName.name, () => {
   it('should use the title and extension', () => {
-    expect(getBookFileName({ title: 'Italy 2025' }, 'pdf')).toBe('Italy 2025.pdf');
-    expect(getBookFileName({ title: 'Italy 2025' }, 'html')).toBe('Italy 2025.html');
+    expect(getBookFileName({ title: 'Italy 2025' }, BookExportFormat.Pdf)).toBe('Italy 2025.pdf');
+    expect(getBookFileName({ title: 'Italy 2025' }, BookExportFormat.Html)).toBe('Italy 2025.html');
   });
 
   it('should strip characters that are invalid in file names', () => {
-    expect(getBookFileName({ title: 'Rome / Florence: "best of"?' }, 'pdf')).toBe('Rome Florence best of.pdf');
-    expect(getBookFileName({ title: '  ' }, 'html')).toBe('photo-book.html');
+    expect(getBookFileName({ title: 'Rome / Florence: "best of"?' }, BookExportFormat.Pdf)).toBe(
+      'Rome Florence best of.pdf',
+    );
+    expect(getBookFileName({ title: '  ' }, BookExportFormat.Html)).toBe('photo-book.html');
   });
 });

@@ -1,7 +1,8 @@
 <script lang="ts">
   import AssistantAssetStrip from '$lib/components/assistant/AssistantAssetStrip.svelte';
   import AssistantLinks from '$lib/components/assistant/AssistantLinks.svelte';
-  import type { AgentMessageContentDto, AgentToolCallStatus } from '$lib/types/assistant';
+  import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
+  import type { AgentMessageContentDto } from '@immich/sdk';
   import { Icon, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiCheckCircleOutline, mdiClockOutline, mdiWrenchOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -12,18 +13,17 @@
 
   const { content }: Props = $props();
 
-  const status = $derived((content.status ?? 'pending') as AgentToolCallStatus);
+  const status = $derived(content.status ?? AgentToolCallStatus.Pending);
   const toolName = $derived(content.toolName?.replace(/^mcp__immich__/, ''));
   const title = $derived(content.title || toolName || $t('assistant_tool_call'));
 
-  const statusLabel = $derived(
-    {
-      pending: $t('assistant_tool_status_pending'),
-      in_progress: $t('assistant_tool_status_in_progress'),
-      completed: $t('assistant_tool_status_completed'),
-      failed: $t('assistant_tool_status_failed'),
-    }[status] ?? status,
-  );
+  const statusLabels: Record<string, string> = $derived({
+    [AgentToolCallStatus.Pending]: $t('assistant_tool_status_pending'),
+    [AgentToolCallStatus.InProgress]: $t('assistant_tool_status_in_progress'),
+    [AgentToolCallStatus.Completed]: $t('assistant_tool_status_completed'),
+    [AgentToolCallStatus.Failed]: $t('assistant_tool_status_failed'),
+  });
+  const statusLabel = $derived(statusLabels[status] ?? status);
 
   const input = $derived.by(() => {
     if (content.input === undefined || content.input === null) {
@@ -41,17 +41,17 @@
 </script>
 
 <div
-  class="flex flex-col gap-2 rounded-xl border px-3 py-2 text-sm {status === 'failed'
+  class="flex flex-col gap-2 rounded-xl border px-3 py-2 text-sm {status === AgentToolCallStatus.Failed
     ? 'border-danger/40'
     : 'border-gray-200 dark:border-gray-700'} bg-subtle"
 >
   <div class="flex min-w-0 items-center gap-2">
     <span class="flex size-5 shrink-0 items-center justify-center" title={statusLabel}>
-      {#if status === 'in_progress'}
+      {#if status === AgentToolCallStatus.InProgress}
         <LoadingSpinner size="small" />
-      {:else if status === 'completed'}
+      {:else if status === AgentToolCallStatus.Completed}
         <Icon icon={mdiCheckCircleOutline} size="18" class="text-success" aria-hidden />
-      {:else if status === 'failed'}
+      {:else if status === AgentToolCallStatus.Failed}
         <Icon icon={mdiAlertCircleOutline} size="18" class="text-danger" aria-hidden />
       {:else}
         <Icon icon={mdiClockOutline} size="18" class="text-gray-500 dark:text-gray-400" aria-hidden />

@@ -1,5 +1,5 @@
-import { AssetTypeEnum } from '@immich/sdk';
-import { getAssetUrl, semverToName } from '$lib/utils';
+import { AssetTypeEnum, BookExportFormat } from '@immich/sdk';
+import { getAssetUrl, getBookExportUrl, getBookPageRenderUrl, semverToName } from '$lib/utils';
 import { assetFactory } from '@test-data/factories/asset-factory';
 import { sharedLinkFactory } from '@test-data/factories/shared-link-factory';
 
@@ -161,6 +161,23 @@ describe('utils', () => {
       expect(url).toContain(asset.id);
     });
   });
+
+  describe('book urls', () => {
+    it('should point to the export files', () => {
+      expect(getBookExportUrl({ id: 'book-1', format: BookExportFormat.Pdf })).toBe('/api/books/book-1/pdf');
+      expect(getBookExportUrl({ id: 'book-1', format: BookExportFormat.Html })).toBe('/api/books/book-1/html');
+    });
+
+    it('should render a page at the requested size', () => {
+      expect(getBookPageRenderUrl({ id: 'book-1', pageId: 'page-1' })).toBe(
+        '/api/books/book-1/pages/page-1/render?size=1200',
+      );
+      expect(getBookPageRenderUrl({ id: 'book-1', pageId: 'page-1', size: 300, cacheKey: 'v2' })).toBe(
+        '/api/books/book-1/pages/page-1/render?size=300&c=v2',
+      );
+    });
+  });
+
   describe('semverToName', () => {
     it('should not append release candidate tag if prelease is not set', () => {
       expect(semverToName({ major: 3, minor: 0, patch: 0, prerelease: null })).toEqual('v3.0.0');

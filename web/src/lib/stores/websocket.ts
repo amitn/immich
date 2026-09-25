@@ -1,5 +1,7 @@
 import {
   MaintenanceAction,
+  type AgentUpdateDto,
+  type ArtJobResponseDto,
   type AssetResponseDto,
   type MaintenanceStatusResponseDto,
   type NotificationDto,
@@ -16,8 +18,6 @@ import { eventManager } from '$lib/managers/event-manager.svelte';
 import { Route } from '$lib/route';
 import { maintenanceStore } from '$lib/stores/maintenance.store';
 import { notificationManager } from '$lib/stores/notification-manager.svelte';
-// TODO: import these from @immich/sdk once the open-api spec is regenerated
-import type { AgentUpdateDto, ArtJobResponseDto } from '$lib/types/assistant';
 import { createEventEmitter } from '$lib/utils/eventemitter';
 
 interface AppRestartEvent {

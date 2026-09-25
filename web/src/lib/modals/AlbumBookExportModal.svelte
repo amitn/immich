@@ -1,8 +1,6 @@
 <script lang="ts">
   import BookMapOptions from '$lib/components/books/BookMapOptions.svelte';
   import BookExportProgressModal from '$lib/modals/BookExportProgressModal.svelte';
-  import { createBookFromAlbum, exportBook } from '$lib/services/book-api';
-  import type { BookMapStyleOption } from '$lib/types/assistant';
   import {
     BOOK_MAX_PAGES,
     BOOK_PAGE_SIZE_PRESETS,
@@ -15,7 +13,14 @@
     type BookPageSizePresetId,
   } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
-  import type { AlbumResponseDto } from '@immich/sdk';
+  import {
+    BookExportFormat,
+    BookExportStatus,
+    BookMapStyleOption,
+    createBookFromAlbum,
+    exportBook,
+    type AlbumResponseDto,
+  } from '@immich/sdk';
   import { Field, FormModal, Icon, Input, modalManager, NumberInput, Text } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline, mdiCheckCircle } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -33,15 +38,15 @@
   let pageSize = $state<BookPageSizePresetId>(DEFAULT_BOOK_PAGE_SIZE);
   let targetPageCount = $state<number>();
   let includeMaps = $state(true);
-  let mapStyle = $state<BookMapStyleOption>('auto');
+  let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);
   let illustratedMaps = $state(false);
-  let exportChoice = $state<BookExportChoice>('pdf');
+  let exportChoice = $state<BookExportChoice>(BookExportFormat.Pdf);
 
   const suggestedPageCount = $derived(getDefaultBookPageCount(album.assetCount));
 
   const exportChoices: { value: BookExportChoice; label: string }[] = $derived([
-    { value: 'pdf', label: $t('book_format_pdf') },
-    { value: 'html', label: $t('book_format_html') },
+    { value: BookExportFormat.Pdf, label: $t('book_format_pdf') },
+    { value: BookExportFormat.Html, label: $t('book_format_html') },
     { value: 'both', label: $t('book_format_both') },
   ]);
 
@@ -72,10 +77,10 @@
     for (const format of formats) {
       try {
         await exportBook({ id: book.id, bookExportDto: { format } });
-        if (format === 'html') {
-          book.htmlExportStatus = 'pending';
+        if (format === BookExportFormat.Html) {
+          book.htmlExportStatus = BookExportStatus.Pending;
         } else {
-          book.exportStatus = 'pending';
+          book.exportStatus = BookExportStatus.Pending;
         }
       } catch (error) {
         // the book exists; the export can be retried from the progress dialog

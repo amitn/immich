@@ -1,6 +1,6 @@
 <script lang="ts">
   import { locale } from '$lib/stores/preferences.store';
-  import type { AgentSessionResponseDto } from '$lib/types/assistant';
+  import { AgentSessionStatus, type AgentSessionResponseDto } from '@immich/sdk';
   import { Button, Icon, IconButton, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
   import { DateTime } from 'luxon';
@@ -47,12 +47,12 @@
             <span class="w-full truncate text-sm font-medium">{title}</span>
             <span class="text-xs text-gray-500 dark:text-gray-400">{relative(session.updatedAt)}</span>
           </button>
-          {#if session.status === 'running'}
+          {#if session.status === AgentSessionStatus.Running}
             <span class="shrink-0" title={$t('assistant_status_running')}>
               <LoadingSpinner size="small" />
               <span class="sr-only">{$t('assistant_status_running')}</span>
             </span>
-          {:else if session.status === 'error'}
+          {:else if session.status === AgentSessionStatus.Error}
             <span class="shrink-0" title={$t('assistant_status_error')}>
               <Icon icon={mdiAlertCircleOutline} size="16" class="text-danger" aria-hidden />
               <span class="sr-only">{$t('assistant_status_error')}</span>
