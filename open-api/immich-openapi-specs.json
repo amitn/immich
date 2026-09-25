@@ -7960,6 +7960,64 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/{id}/preview": {
+      "get": {
+        "description": "The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame.",
+        "operationId": "previewBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Preview a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/cluster-groups/requests": {
       "get": {
         "description": "Retrieve the pending requests for the current user to join a cluster group.",

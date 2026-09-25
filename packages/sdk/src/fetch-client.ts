@@ -6120,6 +6120,19 @@ export function downloadBookPdf({ id }: {
     }));
 }
 /**
+ * Preview a book
+ */
+export function previewBook({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/preview`, {
+        ...opts
+    }));
+}
+/**
  * Retrieve cluster group requests
  */
 export function getClusterGroupRequests(opts?: Oazapfts.RequestOpts) {
