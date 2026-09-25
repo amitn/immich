@@ -79,6 +79,7 @@ describe('getImmichToolName', () => {
     [{ title: 'Search', name: 'mcp__immich__search_photos' }, 'search_photos'],
     [{ title: 'Search', _meta: { claudeCode: { toolName: 'mcp__immich__search_photos' } } }, 'search_photos'],
     [{ title: 'immich.search_photos' }, 'search_photos'],
+    [{ title: 'mcp.immich.search_photos' }, 'search_photos'],
     [{ title: 'immich/search_photos' }, 'search_photos'],
     [{ title: 'search_photos', _meta: { claudeCode: { mcpServer: { name: 'immich' } } } }, 'search_photos'],
     [{ title: 'search_photos' }, undefined],

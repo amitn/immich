@@ -499,6 +499,25 @@ describe(AgentService.name, () => {
       expect(mocks.logger.warn).toHaveBeenCalledWith(expect.stringContaining('Rejected tool'));
     });
 
+    it('should allow an Immich tool call that was reported before the permission request (codex-acp)', async () => {
+      // not awaited: the permission request can arrive before the update is processed
+      void handlers!.onUpdate({
+        sessionId: 'acp-session',
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'call-9',
+          title: 'mcp.immich.search_photos',
+          kind: 'execute',
+        },
+      });
+      await expect(
+        handlers!.onPermission(permissionRequest({ toolCallId: 'call-9', kind: 'execute', status: 'pending' })),
+      ).resolves.toEqual({ outcome: { outcome: 'selected', optionId: 'allow' } });
+      await expect(
+        handlers!.onPermission(permissionRequest({ toolCallId: 'call-10', kind: 'execute', status: 'pending' })),
+      ).resolves.toEqual({ outcome: { outcome: 'selected', optionId: 'reject' } });
+    });
+
     it('should cancel when there is no reject option', async () => {
       await expect(
         handlers!.onPermission({

@@ -120,6 +120,8 @@ type RunningAgent = {
   segment?: TextSegment;
   plan?: Message;
   toolCalls: Map<string, ToolCallEntry>;
+  /** ids of tool calls that target Immich tools */
+  immichToolCalls: Set<string>;
 };
 
 type PendingApproval = {
@@ -424,6 +426,7 @@ export class AgentService extends BaseService {
       lastUsed: Date.now(),
       queue: Promise.resolve(),
       toolCalls: new Map(),
+      immichToolCalls: new Set(),
     };
   }
 
@@ -440,9 +443,11 @@ export class AgentService extends BaseService {
       cwd,
       handlers: {
         onUpdate: (notification) => {
-          if (!run.loading) {
-            void this.enqueue(run, () => this.onSessionUpdate(run, notification));
+          if (run.loading) {
+            return;
           }
+          this.trackImmichToolCall(run, notification);
+          void this.enqueue(run, () => this.onSessionUpdate(run, notification));
         },
         onPermission: (request) => this.onPermissionRequest(run, request),
         onExit: (info) => this.onAgentExit(run, info),
@@ -529,6 +534,7 @@ export class AgentService extends BaseService {
     await this.closeSegment(run);
     run.plan = undefined;
     run.toolCalls.clear();
+    run.immichToolCalls.clear();
 
     const reasons: Record<string, string> = {
       max_tokens: 'The assistant reached its output limit.',
@@ -546,6 +552,7 @@ export class AgentService extends BaseService {
     await this.closeSegment(run);
     run.plan = undefined;
     run.toolCalls.clear();
+    run.immichToolCalls.clear();
 
     const text = error instanceof Error ? error.message : String(error);
     await this.addMessage(run, AgentMessageKind.Error, { text: truncateText(text, 1000) });
@@ -816,10 +823,27 @@ export class AgentService extends BaseService {
   }
 
   /** Allows calls to Immich MCP tools and rejects every other tool (shell, files, web...). */
+  /**
+   * Remembers which tool calls target Immich tools as soon as they are reported (before the update is queued),
+   * since some agents (codex-acp) only send the tool call id with the permission request.
+   */
+  private trackImmichToolCall(run: RunningAgent, { update }: AcpSessionNotification) {
+    if (
+      (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') &&
+      getImmichToolName(update, new Set(this.getTools().keys()))
+    ) {
+      run.immichToolCalls.add(update.toolCallId);
+    }
+  }
+
   private onPermissionRequest(run: RunningAgent, request: AcpPermissionRequest): Promise<AcpPermissionResponse> {
-    const { toolCall, options } = request;
-    const known = run.toolCalls.get(toolCall.toolCallId);
-    const isImmich = !!getImmichToolName(toolCall, new Set(this.getTools().keys())) || !!known?.immich;
+    const { toolCall, options, _meta } = request;
+    const rawInput = toolCall.rawInput as { serverName?: unknown } | undefined;
+    const isImmich =
+      !!getImmichToolName(toolCall, new Set(this.getTools().keys())) ||
+      run.immichToolCalls.has(toolCall.toolCallId) ||
+      // codex-acp approval without a matching tool call
+      (!!_meta?.is_mcp_tool_approval && rawInput?.serverName === IMMICH_MCP_SERVER_NAME);
 
     const select = (kinds: string[]): AcpPermissionResponse => {
       const option = kinds.map((kind) => options.find((option) => option.kind === kind)).find(Boolean);

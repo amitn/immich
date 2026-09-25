@@ -172,8 +172,8 @@ const prefix = IMMICH_MCP_SERVER_NAME;
 const MCP_TOOL_PATTERNS = [
   // claude-agent-acp / Claude Code
   new RegExp(`^mcp__${prefix}__([a-z0-9_]+)$`),
-  // other adapters commonly use server.tool, server/tool, server:tool or server__tool
-  new RegExp(`^${prefix}(?:__|[./:])([a-z0-9_]+)$`),
+  // codex-acp titles them mcp.<server>.<tool>; other adapters use server.tool, server/tool, server:tool...
+  new RegExp(`^(?:mcp[./:])?${prefix}(?:__|[./:])([a-z0-9_]+)$`),
 ];
 
 /**
