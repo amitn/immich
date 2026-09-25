@@ -1,7 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
 import { AssetType, AssetVisibility, ChecksumAlgorithm, JobName } from 'src/enum.js';
-import { DerivedAssetService, getDerivedExifTags } from 'src/services/derived-asset.service.js';
+import {
+  DerivedAssetService,
+  getArtworkTag,
+  getBackfillTag,
+  getDerivedExifTags,
+} from 'src/services/derived-asset.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { getForAsset } from 'test/mappers.js';
@@ -109,6 +114,8 @@ describe(DerivedAssetService.name, () => {
         LensModel: 'main camera',
         ImageDescription: 'Cropped from IMG_0001.HEIC',
         Description: 'Cropped from IMG_0001.HEIC',
+        TagsList: ['Edits/Cropped'],
+        HierarchicalSubject: ['Edits|Cropped'],
       });
       expect(mocks.crypto.hashFile).toHaveBeenCalledWith(path);
       expect(mocks.asset.create).toHaveBeenCalledWith({
@@ -214,6 +221,80 @@ describe(DerivedAssetService.name, () => {
 
       expect(mocks.asset.remove).toHaveBeenCalledWith({ id: 'new-asset-id' });
       expect(mocks.job.queue).toHaveBeenCalledWith(expect.objectContaining({ name: JobName.FileDelete }));
+    });
+  });
+
+  describe('tags', () => {
+    it('should write explicit tags into the file', async () => {
+      const { auth, source } = setup();
+      await sut.createDerivedAsset(
+        auth,
+        source.id,
+        { buffer: Buffer.from('art'), extension: 'png' },
+        { suffix: 'watercolor', tags: [getArtworkTag('Watercolor')] },
+      );
+      expect(mocks.metadata.writeTags).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          TagsList: ['AI Artwork/Watercolor'],
+          HierarchicalSubject: ['AI Artwork|Watercolor'],
+        }),
+      );
+    });
+
+    it('should not tag unknown kinds of copies', async () => {
+      const { auth, source } = setup();
+      await sut.createDerivedAsset(auth, source.id, { buffer: Buffer.from('x'), extension: 'jpg' }, { suffix: 'edit' });
+      expect(mocks.metadata.writeTags).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.not.objectContaining({ TagsList: expect.anything() }),
+      );
+    });
+
+    it('should name artwork tags after the style', () => {
+      expect(getArtworkTag('Gouache travel poster')).toBe('AI Artwork/Gouache travel poster');
+      expect(getArtworkTag(null)).toBe('AI Artwork/Custom style');
+      expect(getArtworkTag('Pen/ink')).toBe('AI Artwork/Pen-ink');
+    });
+
+    it.each([
+      [
+        { artJobId: 'job', style: 'watercolor-editorial-split', originalFileName: 'a-watercolor.png' },
+        'AI Artwork/Editorial watercolor split',
+      ],
+      [{ artJobId: 'job', style: null, originalFileName: 'a-art.png' }, 'AI Artwork/Custom style'],
+      [{ artJobId: null, style: null, originalFileName: 'IMG_1-crop.jpg' }, 'Edits/Cropped'],
+      [{ artJobId: null, style: null, originalFileName: 'IMG_1-straight.jpg' }, 'Edits/Straightened'],
+      [{ artJobId: null, style: null, originalFileName: 'IMG_1-map.png' }, 'Photo books/Maps'],
+      [{ artJobId: null, style: null, originalFileName: 'IMG_1.jpg' }, undefined],
+    ])('should pick the backfill tag for %o', (asset, expected) => {
+      expect(getBackfillTag(asset)).toBe(expected);
+    });
+
+    it('should tag earlier copies on startup through the tag service', async () => {
+      const user = AuthFactory.create().user;
+      mocks.artJob.getDerivedAssetsForTagging.mockResolvedValue([
+        {
+          assetId: 'art-1',
+          ownerId: user.id,
+          artJobId: 'job-1',
+          style: 'watercolor',
+          originalFileName: 'a-watercolor.png',
+        },
+        { assetId: 'crop-1', ownerId: user.id, artJobId: null, style: null, originalFileName: 'b-crop.jpg' },
+      ]);
+      mocks.agent.getAuthUser.mockResolvedValue(user as never);
+      mocks.tag.upsertValue.mockImplementation(({ value }) => Promise.resolve({ id: `tag:${value}`, value } as never));
+      mocks.access.tag.checkOwnerAccess.mockImplementation((_, ids) => Promise.resolve(ids));
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) => Promise.resolve(ids));
+      mocks.tag.getAssetIds.mockResolvedValue(new Set());
+      mocks.asset.getForUpdateTags.mockResolvedValue({ tags: [] } as never);
+
+      await sut.onBootstrap();
+
+      expect(mocks.tag.addAssetIds).toHaveBeenCalledWith('tag:AI Artwork/Watercolor', ['art-1']);
+      expect(mocks.tag.addAssetIds).toHaveBeenCalledWith('tag:Edits/Cropped', ['crop-1']);
+      expect(mocks.event.emit).toHaveBeenCalledWith('AssetTag', { assetId: 'art-1', userId: user.id });
     });
   });
 

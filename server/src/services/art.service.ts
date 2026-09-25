@@ -13,7 +13,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { ArtJobStatus, AssetFileType, AssetType, ImmichWorker, Permission } from 'src/enum.js';
 import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
 import { BaseService } from 'src/services/base.service.js';
-import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.service.js';
 import { artStyles, buildArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
 
@@ -171,6 +171,7 @@ export class ArtService extends BaseService {
       const { id } = await derivedAssetService.createDerivedAsset(auth, job.sourceAssetId, image, {
         description: `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}`,
         suffix: style?.id ?? 'art',
+        tags: [getArtworkTag(style?.name)],
       });
 
       await this.updateJob(job.id, { status: ArtJobStatus.Completed, resultAssetId: id });

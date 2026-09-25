@@ -103,6 +103,7 @@ describe(LibraryAgentTools.name, () => {
     const tools = sut.getTools();
     expect(tools.map(({ name }) => name)).toEqual([
       'search_photos',
+      'list_tags',
       'find_people',
       'find_events',
       'get_photo_metadata',
@@ -113,6 +114,57 @@ describe(LibraryAgentTools.name, () => {
     ]);
     expect(tools.every(({ mutating }) => !mutating)).toBe(true);
     expect(tools.every(({ description }) => description.length > 50)).toBe(true);
+  });
+
+  describe('tags', () => {
+    const tags = [
+      { id: 'tag-art', value: 'AI Artwork', color: null, createdAt: new Date(), updatedAt: new Date(), parentId: null },
+      {
+        id: 'tag-wc',
+        value: 'AI Artwork/Watercolor',
+        color: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        parentId: 'tag-art',
+      },
+    ];
+
+    it('should list tags with photo counts', async () => {
+      mocks.tag.getAll.mockResolvedValue(tags as never);
+      mocks.tag.getAssetCounts.mockResolvedValue(
+        new Map([
+          ['tag-art', 3],
+          ['tag-wc', 2],
+        ]),
+      );
+
+      expect(json(await call('list_tags', {}))).toEqual([
+        { tag: 'AI Artwork', n: 3 },
+        { tag: 'AI Artwork/Watercolor', n: 2 },
+      ]);
+    });
+
+    it('should filter by tag names, case-insensitively', async () => {
+      mocks.tag.getAll.mockResolvedValue(tags as never);
+      mocks.search.searchMetadata.mockResolvedValue({ hasNextPage: false, items: [] });
+
+      await call('search_photos', { tags: ['ai artwork'] });
+
+      expect(mocks.search.searchMetadata).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ tagIds: ['tag-art'] }),
+      );
+    });
+
+    it('should list the known tags for an unknown tag', async () => {
+      mocks.tag.getAll.mockResolvedValue(tags as never);
+
+      const result = await call('search_photos', { tags: ['Holiday'] });
+
+      expect(result.isError).toBe(true);
+      expect((result.content[0] as { text: string }).text).toContain('Known tags: AI Artwork, AI Artwork/Watercolor');
+      expect(mocks.search.searchMetadata).not.toHaveBeenCalled();
+    });
   });
 
   describe('search_photos', () => {

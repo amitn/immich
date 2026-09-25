@@ -241,4 +241,26 @@ export class TagRepository {
       .selectAll()
       .executeTakeFirstOrThrow();
   }
+
+  /** photos per tag, counting the photos of child tags too */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  async getAssetCounts(tagIds: string[]): Promise<Map<string, number>> {
+    if (tagIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.db
+      .selectFrom('tag_closure')
+      .innerJoin('tag_asset', 'tag_asset.tagId', 'tag_closure.id_descendant')
+      .innerJoin('asset', 'asset.id', 'tag_asset.assetId')
+      .select((eb) => [
+        'tag_closure.id_ancestor as id',
+        eb.fn.count<number>('tag_asset.assetId').distinct().as('count'),
+      ])
+      .where('tag_closure.id_ancestor', 'in', tagIds)
+      .where('asset.deletedAt', 'is', null)
+      .groupBy('tag_closure.id_ancestor')
+      .execute();
+    return new Map(rows.map(({ id, count }) => [id, Number(count)]));
+  }
 }

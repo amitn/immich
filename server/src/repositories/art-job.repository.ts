@@ -32,6 +32,41 @@ export class ArtJobRepository {
       .executeTakeFirstOrThrow();
   }
 
+  /** artworks, crops, straightened copies and book maps made by the assistant, to tag the ones from before tagging */
+  @GenerateSql()
+  getDerivedAssetsForTagging() {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .leftJoin('art_job', 'art_job.resultAssetId', 'asset.id')
+      .select([
+        'asset.id as assetId',
+        'asset.ownerId',
+        'art_job.id as artJobId',
+        'art_job.style',
+        'asset.originalFileName',
+      ])
+      .where('asset.deletedAt', 'is', null)
+      .where((eb) =>
+        eb.or([
+          eb('art_job.status', '=', ArtJobStatus.Completed),
+          eb.and([
+            eb('asset.originalFileName', 'like', '%-crop.jpg'),
+            eb('asset_exif.description', 'like', 'Cropped from %'),
+          ]),
+          eb.and([
+            eb('asset.originalFileName', 'like', '%-straight.jpg'),
+            eb('asset_exif.description', 'like', 'Straightened (%'),
+          ]),
+          eb.and([
+            eb('asset.originalFileName', 'like', '%-map.png'),
+            eb('asset_exif.description', 'like', 'Map%for the book%'),
+          ]),
+        ]),
+      )
+      .execute();
+  }
+
   /** jobs that were pending or running when the server stopped can't finish anymore */
   @GenerateSql()
   failUnfinished() {

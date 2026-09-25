@@ -145,6 +145,8 @@ describe('cropped copies', () => {
       GPSLatitude: 41.9,
       GPSLongitude: 12.5,
       ImageDescription: 'Cropped from IMG_0001.jpg',
+      TagsList: ['Edits/Cropped'],
+      HierarchicalSubject: ['Edits|Cropped'],
     });
     expect(String(tags.DateTimeOriginal)).toContain('2024-06-01T12:00:00');
 

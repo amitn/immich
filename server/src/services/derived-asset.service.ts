@@ -3,11 +3,23 @@ import { Tags } from 'exiftool-vendored';
 import { DateTime } from 'luxon';
 import { parse } from 'node:path';
 import { StorageCore } from 'src/cores/storage.core.js';
+import { OnEvent } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { AssetType, AssetVisibility, ChecksumAlgorithm, JobName, Permission, StorageFolder } from 'src/enum.js';
+import {
+  AssetType,
+  AssetVisibility,
+  ChecksumAlgorithm,
+  ImmichWorker,
+  JobName,
+  Permission,
+  StorageFolder,
+} from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { TagService } from 'src/services/tag.service.js';
+import { getArtStyle } from 'src/utils/agent/art-styles.js';
 import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
+import { upsertTags } from 'src/utils/tag.js';
 
 export type DerivedAssetFile = ({ path: string } | { buffer: Buffer }) & {
   /** file extension of the new image, e.g. `jpg` or `png` */
@@ -21,6 +33,27 @@ export type DerivedAssetOptions = {
   suffix?: string;
   /** stack the new asset with its source, keeping the source as the primary asset */
   stack?: boolean;
+  /** hierarchical tags (`parent/child`) written into the file, so metadata extraction applies them; defaults by suffix */
+  tags?: string[];
+};
+
+/** Tags that make generated copies easy to find (search filters, the Tags page) */
+export const DERIVED_ASSET_TAGS: Record<string, string[]> = {
+  crop: ['Edits/Cropped'],
+  straight: ['Edits/Straightened'],
+  enhanced: ['Edits/Enhanced'],
+  map: ['Photo books/Maps'],
+};
+
+export const getArtworkTag = (styleName?: string | null) =>
+  `AI Artwork/${(styleName || 'Custom style').replaceAll('/', '-')}`;
+
+export const getBackfillTag = (asset: { artJobId: string | null; style: string | null; originalFileName: string }) => {
+  if (asset.artJobId) {
+    return getArtworkTag(asset.style ? getArtStyle(asset.style)?.name : null);
+  }
+  const suffix = /-(crop|straight|map)\.[a-z]+$/i.exec(asset.originalFileName)?.[1]?.toLowerCase();
+  return suffix ? DERIVED_ASSET_TAGS[suffix]?.[0] : undefined;
 };
 
 export type DerivedAssetResult = {
@@ -57,6 +90,7 @@ export const getDerivedExifTags = (
   exif: SourceExif | null,
   localDateTime: string | Date,
   description?: string,
+  tagList: string[] = [],
 ): Partial<Tags> => {
   const { dateTime, offset } = toExifDate(exif?.dateTimeOriginal ?? null, exif?.timeZone ?? null, localDateTime);
   const tags: Record<string, unknown> = {
@@ -71,6 +105,10 @@ export const getDerivedExifTags = (
     LensModel: exif?.lensModel ?? undefined,
     ImageDescription: description,
     Description: description,
+    ...(tagList.length > 0 && {
+      TagsList: tagList,
+      HierarchicalSubject: tagList.map((tag) => tag.replaceAll('/', '|')),
+    }),
   };
 
   if (exif?.latitude !== null && exif?.latitude !== undefined) {
@@ -89,11 +127,46 @@ export const getDerivedExifTags = (
 /** Creates new assets from server-generated images (crops, stylized copies) that derive from an existing asset. */
 @Injectable()
 export class DerivedAssetService extends BaseService {
+  /** Tags the copies made before they were tagged automatically. Idempotent: tagged assets are skipped. */
+  @OnEvent({ name: 'AppBootstrap', workers: [ImmichWorker.Api] })
+  async onBootstrap() {
+    const assets = await this.artJobRepository.getDerivedAssetsForTagging();
+    const byOwner = new Map<string, Map<string, string[]>>();
+    for (const asset of assets) {
+      const tag = getBackfillTag(asset);
+      if (!tag) {
+        continue;
+      }
+      const tags = byOwner.get(asset.ownerId) ?? new Map<string, string[]>();
+      tags.set(tag, [...(tags.get(tag) ?? []), asset.assetId]);
+      byOwner.set(asset.ownerId, tags);
+    }
+
+    const tagService = BaseService.create(TagService, this);
+    let count = 0;
+    for (const [ownerId, tags] of byOwner) {
+      const user = await this.agentRepository.getAuthUser(ownerId);
+      if (!user) {
+        continue;
+      }
+      const auth: AuthDto = { user };
+      for (const [value, assetIds] of tags) {
+        const [tag] = await upsertTags(this.tagRepository, { userId: ownerId, tags: [value] });
+        const results = await tagService.addAssets(auth, tag.id, { ids: assetIds });
+        count += results.filter(({ success }) => success).length;
+      }
+    }
+
+    if (count > 0) {
+      this.logger.log(`Tagged ${count} assistant-made copies`);
+    }
+  }
+
   async createDerivedAsset(
     auth: AuthDto,
     sourceAssetId: string,
     file: DerivedAssetFile,
-    { description, suffix = 'edit', stack = true }: DerivedAssetOptions = {},
+    { description, suffix = 'edit', stack = true, tags = DERIVED_ASSET_TAGS[suffix] ?? [] }: DerivedAssetOptions = {},
   ): Promise<DerivedAssetResult> {
     // the copy belongs to the owner of the source and is stacked with it
     await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [sourceAssetId] });
@@ -121,7 +194,7 @@ export class DerivedAssetService extends BaseService {
 
       await this.metadataRepository.writeTags(
         path,
-        getDerivedExifTags(source.exifInfo ?? null, source.localDateTime, description),
+        getDerivedExifTags(source.exifInfo ?? null, source.localDateTime, description, tags),
       );
 
       const { size } = await this.storageRepository.stat(path);

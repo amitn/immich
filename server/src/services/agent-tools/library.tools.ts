@@ -144,12 +144,28 @@ export class LibraryAgentTools extends BaseService {
           albumId: uuid.optional(),
           type: z.enum(['image', 'video']).optional(),
           isFavorite: z.boolean().optional(),
+          tags: z
+            .array(z.string())
+            .max(5)
+            .optional()
+            .describe(
+              'Photos with all of these tags, by name (see list_tags); a tag includes its child tags, e.g. "AI Artwork" matches every artwork style',
+            ),
           order: z.enum(['asc', 'desc']).optional().describe('Date order without a query, default asc'),
           limit: z.int().min(1).max(LIMITS.search).optional(),
           page: z.int().min(1).optional(),
         }),
         mutating: false,
         handler: handle((ctx, input) => this.searchPhotos(ctx.auth, input)),
+      }),
+      defineTool({
+        name: 'list_tags',
+        title: 'List tags',
+        description:
+          'List the tags of the library with how many photos each has, e.g. "AI Artwork/Watercolor" for artworks made by the assistant or "Edits/Cropped" for cropped copies. Tags nest with "/"; filter photos with search_photos(tags).',
+        input: z.object({}),
+        mutating: false,
+        handler: handle((ctx) => this.listTags(ctx.auth)),
       }),
       defineTool({
         name: 'find_people',
@@ -282,6 +298,32 @@ export class LibraryAgentTools extends BaseService {
     ];
   }
 
+  private async listTags(auth: AuthDto) {
+    const tags = await this.tagRepository.getAll(auth.user.id);
+    const counts = await this.tagRepository.getAssetCounts(tags.map(({ id }) => id));
+    return toolJson(tags.map(({ value, id }) => ({ tag: value, n: counts.get(id) ?? 0 })));
+  }
+
+  /** tag names (case-insensitive) to ids; unknown names are an error that lists the known tags */
+  private async resolveTags(auth: AuthDto, names: string[]) {
+    const tags = await this.tagRepository.getAll(auth.user.id);
+    const byValue = new Map(tags.map((tag) => [tag.value.toLowerCase(), tag.id]));
+    const ids = names.map((name) =>
+      byValue.get(
+        name
+          .trim()
+          .replaceAll(/^\/+|\/+$/g, '')
+          .toLowerCase(),
+      ),
+    );
+    const missing = names.filter((_, index) => !ids[index]);
+    if (missing.length > 0) {
+      const known = tags.map(({ value }) => value).slice(0, 50);
+      throw new BadRequestException(`Unknown tag ${missing.join(', ')}. Known tags: ${known.join(', ') || 'none'}`);
+    }
+    return ids as string[];
+  }
+
   private async searchPhotos(
     auth: AuthDto,
     input: {
@@ -295,6 +337,7 @@ export class LibraryAgentTools extends BaseService {
       albumId?: string;
       type?: 'image' | 'video';
       isFavorite?: boolean;
+      tags?: string[];
       order?: 'asc' | 'desc';
       limit?: number;
       page?: number;
@@ -302,7 +345,9 @@ export class LibraryAgentTools extends BaseService {
   ) {
     const searchService = BaseService.create(SearchService, this);
     const page = input.page ?? 1;
+    const tagIds = input.tags?.length ? await this.resolveTags(auth, input.tags) : undefined;
     const filters = {
+      tagIds,
       takenAfter: parseDate(input.takenAfter),
       takenBefore: parseDate(input.takenBefore),
       personIds: input.personIds,
