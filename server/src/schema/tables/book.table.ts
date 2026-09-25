@@ -57,6 +57,18 @@ export class BookTable {
   @Column({ nullable: true })
   htmlExportPath!: string | null;
 
+  /** when the PDF export last completed */
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  exportedAt!: Timestamp | null;
+
+  /** when the HTML export last completed */
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  htmlExportedAt!: Timestamp | null;
+
+  /** last change to what the book looks like (pages, slots, style, title); exports older than this are stale */
+  @CreateDateColumn({ default: () => 'now()' })
+  contentUpdatedAt!: Generated<Timestamp>;
+
   @CreateDateColumn()
   createdAt!: Generated<Timestamp>;
 

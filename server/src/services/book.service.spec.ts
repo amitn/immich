@@ -630,13 +630,34 @@ describe(BookService.name, () => {
       expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExport, data: { id: book.id } });
     });
 
-    it('should not queue twice', async () => {
+    it('should queue a pending export again, so a lost job cannot block the book', async () => {
       const book = BookFactory.create({ pageCount: 2, exportStatus: BookExportStatus.Pending });
       allowBook(book.id);
       mocks.book.get.mockResolvedValue(book);
 
       await sut.export(auth, book.id);
-      expect(mocks.job.queue).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExport, data: { id: book.id } });
+    });
+
+    it('should report exports that are older than the last change', async () => {
+      const exportedAt = new Date('2026-01-01T10:00:00Z');
+      const book = BookFactory.create({
+        pageCount: 2,
+        exportStatus: BookExportStatus.Completed,
+        exportedAt,
+        htmlExportStatus: BookExportStatus.Completed,
+        htmlExportedAt: new Date('2026-01-01T12:00:00Z'),
+        contentUpdatedAt: new Date('2026-01-01T11:00:00Z'),
+      });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([]);
+
+      await expect(sut.get(auth, book.id)).resolves.toMatchObject({
+        exportedAt,
+        exportStale: true,
+        htmlExportStale: false,
+      });
     });
 
     it('should reject empty books', async () => {
@@ -663,13 +684,13 @@ describe(BookService.name, () => {
       expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExportHtml, data: { id: book.id } });
     });
 
-    it('should not queue the HTML export twice', async () => {
+    it('should queue a pending HTML export again', async () => {
       const book = BookFactory.create({ pageCount: 2, htmlExportStatus: BookExportStatus.Pending });
       allowBook(book.id);
       mocks.book.get.mockResolvedValue(book);
 
       await sut.export(auth, book.id, { format: BookExportFormat.Html });
-      expect(mocks.job.queue).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExportHtml, data: { id: book.id } });
     });
 
     it('should require download access', async () => {

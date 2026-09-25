@@ -194,6 +194,27 @@ describe(BookRepository.name, () => {
     );
   });
 
+  it('should remember when an export completed and when the content changed afterwards', async () => {
+    const { sut, book } = await newBook();
+    expect(book).toEqual(expect.objectContaining({ exportedAt: null, htmlExportedAt: null }));
+
+    await sut.setExportStatus(book.id, BookExportStatus.Running);
+    await expect(sut.get(book.id)).resolves.toEqual(expect.objectContaining({ exportedAt: null }));
+
+    await sut.setExportStatus(book.id, BookExportStatus.Completed, '/books/book.pdf');
+    const exported = await sut.get(book.id);
+    expect(exported!.exportedAt).toBeInstanceOf(Date);
+    expect(exported!.exportedAt!.getTime()).toBeGreaterThanOrEqual(exported!.contentUpdatedAt.getTime());
+
+    await addPages(sut, book.id, 1);
+    const edited = await sut.get(book.id);
+    expect(edited!.contentUpdatedAt.getTime()).toBeGreaterThan(edited!.exportedAt!.getTime());
+
+    await sut.setHtmlExportStatus(book.id, BookExportStatus.Completed, '/books/book.html');
+    const html = await sut.get(book.id);
+    expect(html!.htmlExportedAt!.getTime()).toBeGreaterThanOrEqual(html!.contentUpdatedAt.getTime());
+  });
+
   it('should load assets and faces for rendering', async () => {
     const { ctx, sut, user } = await newBook();
     const { asset } = await ctx.newAsset({ ownerId: user.id });

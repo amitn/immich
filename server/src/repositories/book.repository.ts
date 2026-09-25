@@ -73,7 +73,11 @@ export class BookRepository {
   async update(id: string, book: Updateable<BookTable>): Promise<void> {
     const values = omitUndefined(book);
     if (Object.keys(values).length > 0) {
-      await this.db.updateTable('book').set(values).where('book.id', '=', id).execute();
+      await this.db
+        .updateTable('book')
+        .set({ ...values, contentUpdatedAt: sql`clock_timestamp()` })
+        .where('book.id', '=', id)
+        .execute();
     }
   }
 
@@ -86,7 +90,11 @@ export class BookRepository {
   async setExportStatus(id: string, exportStatus: BookExportStatus | null, exportPath?: string | null): Promise<void> {
     await this.db
       .updateTable('book')
-      .set({ exportStatus, ...(exportPath !== undefined && { exportPath }) })
+      .set({
+        exportStatus,
+        ...(exportPath !== undefined && { exportPath }),
+        ...(exportStatus === BookExportStatus.Completed && { exportedAt: sql`clock_timestamp()` }),
+      })
       .where('book.id', '=', id)
       .execute();
   }
@@ -99,7 +107,11 @@ export class BookRepository {
   ): Promise<void> {
     await this.db
       .updateTable('book')
-      .set({ htmlExportStatus, ...(htmlExportPath !== undefined && { htmlExportPath }) })
+      .set({
+        htmlExportStatus,
+        ...(htmlExportPath !== undefined && { htmlExportPath }),
+        ...(htmlExportStatus === BookExportStatus.Completed && { htmlExportedAt: sql`clock_timestamp()` }),
+      })
       .where('book.id', '=', id)
       .execute();
   }
@@ -141,7 +153,7 @@ export class BookRepository {
   private async lockBook(trx: Transaction<DB>, bookId: string) {
     await trx
       .updateTable('book')
-      .set({ updatedAt: sql`clock_timestamp()` })
+      .set({ updatedAt: sql`clock_timestamp()`, contentUpdatedAt: sql`clock_timestamp()` })
       .where('book.id', '=', bookId)
       .execute();
   }

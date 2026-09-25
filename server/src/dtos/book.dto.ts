@@ -287,6 +287,10 @@ const BookResponseSchema = z
     style: BookStyleSchema,
     exportStatus: BookExportStatusSchema.nullable().describe('Status of the PDF export'),
     htmlExportStatus: BookExportStatusSchema.nullable().describe('Status of the single-file HTML export'),
+    exportedAt: isoDatetimeToDate.nullable().describe('When the PDF export last completed'),
+    htmlExportedAt: isoDatetimeToDate.nullable().describe('When the HTML export last completed'),
+    exportStale: z.boolean().describe('Whether the book changed after the PDF was exported'),
+    htmlExportStale: z.boolean().describe('Whether the book changed after the HTML file was exported'),
     pageCount: z.int().min(0).describe('Number of pages'),
     firstPageId: z.uuidv4().nullable().describe('ID of the first page, e.g. to show the cover'),
     createdAt: isoDatetimeToDate.describe('Creation date'),
@@ -351,6 +355,8 @@ type BookPageRow = Selectable<BookPageTable> & {
   assets: { slot: number; assetId: string; crop: NormalizedRect | null; caption: string | null }[];
 };
 
+const isStale = (exportedAt: Date | null, contentUpdatedAt: Date) => !!exportedAt && exportedAt < contentUpdatedAt;
+
 export const mapBook = (book: BookRow): BookResponseDto => ({
   id: book.id,
   ownerId: book.ownerId,
@@ -363,6 +369,10 @@ export const mapBook = (book: BookRow): BookResponseDto => ({
   style: resolveBookStyle(book.style),
   exportStatus: book.exportStatus,
   htmlExportStatus: book.htmlExportStatus,
+  exportedAt: book.exportedAt,
+  htmlExportedAt: book.htmlExportedAt,
+  exportStale: isStale(book.exportedAt, book.contentUpdatedAt),
+  htmlExportStale: isStale(book.htmlExportedAt, book.contentUpdatedAt),
   pageCount: book.pageCount,
   firstPageId: book.firstPageId,
   createdAt: book.createdAt,

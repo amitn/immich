@@ -588,19 +588,15 @@ export class BookService extends BaseService {
       throw new BadRequestException('The book has no pages');
     }
 
+    // always queue: the job queue drops duplicates while one is waiting, and a lost job can't block the book
     if (dto.format === BookExportFormat.Html) {
-      if (book.htmlExportStatus !== BookExportStatus.Pending) {
-        await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Pending);
-        await this.jobRepository.queue({ name: JobName.BookExportHtml, data: { id } });
-      }
-
+      await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Pending);
+      await this.jobRepository.queue({ name: JobName.BookExportHtml, data: { id } });
       return mapBook({ ...book, htmlExportStatus: BookExportStatus.Pending });
     }
 
-    if (book.exportStatus !== BookExportStatus.Pending) {
-      await this.bookRepository.setExportStatus(id, BookExportStatus.Pending);
-      await this.jobRepository.queue({ name: JobName.BookExport, data: { id } });
-    }
+    await this.bookRepository.setExportStatus(id, BookExportStatus.Pending);
+    await this.jobRepository.queue({ name: JobName.BookExport, data: { id } });
 
     return mapBook({ ...book, exportStatus: BookExportStatus.Pending });
   }
