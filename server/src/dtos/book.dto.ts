@@ -1,4 +1,11 @@
+import { Selectable } from 'kysely';
+import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
+import type { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import type { BookTable } from 'src/schema/tables/book.table.js';
+import { BookExportStatusSchema } from 'src/enum.js';
+import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
+import { isoDatetimeToDate } from 'src/validation.js';
 
 export const NormalizedRectSchema = z
   .object({
@@ -15,23 +22,287 @@ export const NormalizedRectSchema = z
 
 export type NormalizedRect = z.infer<typeof NormalizedRectSchema>;
 
+const cssColor = z
+  .string()
+  .regex(/^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i, { error: 'Must be a hex color such as #ffffff' });
+
+const fontFamily = z
+  .string()
+  .max(100)
+  .regex(/^[\w\s,'-]+$/, { error: 'Font family contains invalid characters' });
+
 export const BookStyleSchema = z
   .object({
     marginMm: z.number().min(0).max(50).describe('Outer page margin in millimeters'),
     gutterMm: z.number().min(0).max(30).describe('Space between photos in millimeters'),
-    background: z.string().describe('Page background color (CSS color)'),
-    textColor: z.string().describe('Caption and title color (CSS color)'),
-    fontFamily: z.string().describe('Font family used for captions and titles'),
+    background: cssColor.describe('Page background color (hex)'),
+    textColor: cssColor.describe('Caption and title color (hex)'),
+    fontFamily: fontFamily.describe('Font family used for captions and titles'),
+    titleSizePt: z.number().min(6).max(144).optional().describe('Title font size in points'),
+    captionSizePt: z.number().min(4).max(72).optional().describe('Caption font size in points'),
   })
   .describe('Visual style of a book')
   .meta({ id: 'BookStyle' });
 
 export type BookStyle = z.infer<typeof BookStyleSchema>;
 
-export const defaultBookStyle: BookStyle = Object.freeze({
+export const defaultBookStyle: Required<BookStyle> = Object.freeze({
   marginMm: 12,
   gutterMm: 4,
   background: '#ffffff',
   textColor: '#222222',
   fontFamily: 'serif',
+  titleSizePt: 28,
+  captionSizePt: 10,
+});
+
+export const resolveBookStyle = (style?: Partial<BookStyle> | null): Required<BookStyle> => ({
+  ...defaultBookStyle,
+  ...Object.fromEntries(Object.entries(style ?? {}).filter(([, value]) => value !== undefined && value !== null)),
+});
+
+export const BookStyleUpdateSchema = BookStyleSchema.partial()
+  .describe('Style changes; omitted properties keep their current value')
+  .meta({ id: 'BookStyleUpdate' });
+
+export type BookStyleUpdate = z.infer<typeof BookStyleUpdateSchema>;
+
+const pageSizeMm = z.int().min(50).max(600);
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
+
+const BookCreateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).describe('Book title'),
+    subtitle: optionalText(200).describe('Book subtitle'),
+    albumId: z.uuidv4().nullable().optional().describe('Album the book is made from'),
+    pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters (default 210)'),
+    pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters (default 210)'),
+    style: BookStyleUpdateSchema.optional(),
+  })
+  .meta({ id: 'BookCreateDto' });
+
+const BookUpdateSchema = z
+  .object({
+    title: z.string().trim().min(1).max(200).optional().describe('Book title'),
+    subtitle: optionalText(200).describe('Book subtitle'),
+    albumId: z.uuidv4().nullable().optional().describe('Album the book is made from'),
+    coverAssetId: z.uuidv4().nullable().optional().describe('Asset shown on the cover when its slot is empty'),
+    pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters'),
+    pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters'),
+    style: BookStyleUpdateSchema.optional(),
+  })
+  .meta({ id: 'BookUpdateDto' });
+
+const BookPageCreateSchema = z
+  .object({
+    layout: z.string().describe('Layout ID (see GET /books/layouts)'),
+    position: z.int().min(0).optional().describe('Zero-based position to insert the page at; appended when omitted'),
+    sectionTitle: optionalText(200).describe('Section title'),
+    caption: optionalText(2000).describe('Page caption'),
+    background: cssColor.nullable().optional().describe('Page background color, overriding the book style'),
+  })
+  .meta({ id: 'BookPageCreateDto' });
+
+const BookPageUpdateSchema = z
+  .object({
+    layout: z.string().optional().describe('Layout ID; photos in slots the new layout lacks are removed'),
+    sectionTitle: optionalText(200).describe('Section title'),
+    caption: optionalText(2000).describe('Page caption'),
+    background: cssColor.nullable().optional().describe('Page background color, overriding the book style'),
+  })
+  .meta({ id: 'BookPageUpdateDto' });
+
+const BookPageMoveSchema = z
+  .object({
+    position: z.int().min(0).describe('New zero-based position of the page'),
+  })
+  .meta({ id: 'BookPageMoveDto' });
+
+const BookSlotUpdateSchema = z
+  .object({
+    assetId: z.uuidv4().describe('Asset to place in the slot'),
+    crop: NormalizedRectSchema.nullable()
+      .optional()
+      .describe('Crop of the asset; a default crop matching the slot is chosen when omitted'),
+    caption: optionalText(500).describe('Photo caption'),
+  })
+  .meta({ id: 'BookSlotUpdateDto' });
+
+const BookPageParamSchema = z.object({
+  id: z.uuidv4(),
+  pageId: z.uuidv4(),
+});
+
+const BookSlotPatchSchema = z
+  .object({
+    crop: NormalizedRectSchema.nullable().optional().describe('Crop of the placed asset'),
+    caption: optionalText(500).describe('Photo caption'),
+  })
+  .meta({ id: 'BookSlotPatchDto' });
+
+const BookSlotParamSchema = BookPageParamSchema.extend({
+  slot: z.coerce.number().int().min(0).max(99),
+});
+
+const BookRenderQuerySchema = z
+  .object({
+    size: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(4000)
+      .optional()
+      .describe('Length of the long edge of the rendered page in pixels (default 1200)'),
+  })
+  .meta({ id: 'BookRenderQueryDto' });
+
+const BookSlotResponseSchema = z
+  .object({
+    slot: z.int().min(0).describe('Zero-based slot index'),
+    aspectRatio: z.number().describe('Width / height of the slot on the page'),
+    assetId: z.uuidv4().nullable().describe('Placed asset, null when the slot is empty'),
+    crop: NormalizedRectSchema.nullable().describe('Crop of the placed asset'),
+    caption: z.string().nullable().describe('Photo caption'),
+  })
+  .meta({ id: 'BookSlotResponseDto' });
+
+const BookPageResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Page ID'),
+    position: z.int().min(0).describe('Zero-based position of the page in the book'),
+    layout: z.string().describe('Layout ID'),
+    sectionTitle: z.string().nullable().describe('Section title'),
+    caption: z.string().nullable().describe('Page caption'),
+    background: z.string().nullable().describe('Page background color override'),
+    slots: z.array(BookSlotResponseSchema).describe('Photo slots of the layout'),
+    updatedAt: isoDatetimeToDate.describe('Last update date'),
+  })
+  .meta({ id: 'BookPageResponseDto' });
+
+const BookResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Book ID'),
+    ownerId: z.uuidv4().describe('Owner user ID'),
+    albumId: z.uuidv4().nullable().describe('Album the book is made from'),
+    coverAssetId: z.uuidv4().nullable().describe('Cover asset ID'),
+    title: z.string().describe('Book title'),
+    subtitle: z.string().nullable().describe('Book subtitle'),
+    pageWidthMm: z.int().describe('Page width in millimeters'),
+    pageHeightMm: z.int().describe('Page height in millimeters'),
+    style: BookStyleSchema,
+    exportStatus: BookExportStatusSchema.nullable(),
+    pageCount: z.int().min(0).describe('Number of pages'),
+    createdAt: isoDatetimeToDate.describe('Creation date'),
+    updatedAt: isoDatetimeToDate.describe('Last update date'),
+  })
+  .meta({ id: 'BookResponseDto' });
+
+const BookDetailResponseSchema = BookResponseSchema.extend({
+  pages: z.array(BookPageResponseSchema).describe('Pages in book order'),
+}).meta({ id: 'BookDetailResponseDto' });
+
+const LayoutRectSchema = z
+  .object({
+    x: z.number().describe('Left edge, as a fraction of the layout area'),
+    y: z.number().describe('Top edge, as a fraction of the layout area'),
+    width: z.number().describe('Width, as a fraction of the layout area'),
+    height: z.number().describe('Height, as a fraction of the layout area'),
+  })
+  .meta({ id: 'BookLayoutRect' });
+
+const BookLayoutResponseSchema = z
+  .object({
+    id: z.string().describe('Layout ID'),
+    name: z.string().describe('Layout name'),
+    description: z.string().describe('Layout description'),
+    orientation: z.enum(['any', 'landscape', 'portrait']).describe('Preferred photo orientation'),
+    fullBleed: z.boolean().describe('Whether the layout ignores the page margins'),
+    slots: z.array(LayoutRectSchema).describe('Photo slots, relative to the area inside the margins'),
+    textAreas: z
+      .array(
+        LayoutRectSchema.extend({
+          kind: z.enum(['title', 'subtitle', 'sectionTitle', 'caption']).describe('Text shown in the area'),
+        }),
+      )
+      .describe('Text areas, relative to the area inside the margins'),
+  })
+  .meta({ id: 'BookLayoutResponseDto' });
+
+export class BookCreateDto extends createZodDto(BookCreateSchema) {}
+export class BookUpdateDto extends createZodDto(BookUpdateSchema) {}
+export class BookPageCreateDto extends createZodDto(BookPageCreateSchema) {}
+export class BookPageUpdateDto extends createZodDto(BookPageUpdateSchema) {}
+export class BookPageMoveDto extends createZodDto(BookPageMoveSchema) {}
+export class BookSlotUpdateDto extends createZodDto(BookSlotUpdateSchema) {}
+export class BookPageParamDto extends createZodDto(BookPageParamSchema) {}
+export class BookSlotPatchDto extends createZodDto(BookSlotPatchSchema) {}
+export class BookSlotParamDto extends createZodDto(BookSlotParamSchema) {}
+export class BookRenderQueryDto extends createZodDto(BookRenderQuerySchema) {}
+export class BookSlotResponseDto extends createZodDto(BookSlotResponseSchema) {}
+export class BookPageResponseDto extends createZodDto(BookPageResponseSchema) {}
+export class BookResponseDto extends createZodDto(BookResponseSchema) {}
+export class BookDetailResponseDto extends createZodDto(BookDetailResponseSchema) {}
+export class BookLayoutResponseDto extends createZodDto(BookLayoutResponseSchema) {}
+
+type BookRow = Selectable<BookTable> & { pageCount: number };
+
+type BookPageRow = Selectable<BookPageTable> & {
+  assets: { slot: number; assetId: string; crop: NormalizedRect | null; caption: string | null }[];
+};
+
+export const mapBook = (book: BookRow): BookResponseDto => ({
+  id: book.id,
+  ownerId: book.ownerId,
+  albumId: book.albumId,
+  coverAssetId: book.coverAssetId,
+  title: book.title,
+  subtitle: book.subtitle,
+  pageWidthMm: book.pageWidthMm,
+  pageHeightMm: book.pageHeightMm,
+  style: resolveBookStyle(book.style),
+  exportStatus: book.exportStatus,
+  pageCount: book.pageCount,
+  createdAt: book.createdAt,
+  updatedAt: book.updatedAt,
+});
+
+export const mapBookPage = (page: BookPageRow, book: PageSize & { style: BookStyle }): BookPageResponseDto => {
+  const layout = getLayout(page.layout);
+  const aspectRatios = layout ? getSlotAspectRatios(layout, book, resolveBookStyle(book.style)) : [];
+  const placements = new Map(page.assets.map((asset) => [asset.slot, asset]));
+
+  return {
+    id: page.id,
+    position: page.position,
+    layout: page.layout,
+    sectionTitle: page.sectionTitle,
+    caption: page.caption,
+    background: page.background,
+    slots: aspectRatios.map((aspectRatio, slot) => {
+      const placement = placements.get(slot);
+      return {
+        slot,
+        aspectRatio: Math.round(aspectRatio * 1000) / 1000,
+        assetId: placement?.assetId ?? null,
+        crop: placement?.crop ?? null,
+        caption: placement?.caption ?? null,
+      };
+    }),
+    updatedAt: page.updatedAt,
+  };
+};
+
+export const mapBookDetail = (book: BookRow, pages: BookPageRow[]): BookDetailResponseDto => ({
+  ...mapBook({ ...book, pageCount: pages.length }),
+  pages: pages.map((page) => mapBookPage(page, book)),
+});
+
+export const mapBookLayout = (layout: BookLayout): BookLayoutResponseDto => ({
+  id: layout.id,
+  name: layout.name,
+  description: layout.description,
+  orientation: layout.orientation,
+  fullBleed: !!layout.fullBleed,
+  slots: layout.slots.map(({ x, y, width, height }) => ({ x, y, width, height })),
+  textAreas: layout.text.map(({ kind, x, y, width, height }) => ({ kind, x, y, width, height })),
 });
