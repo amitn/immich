@@ -9,7 +9,7 @@ import {
   UpdateDateColumn,
 } from '@immich/sql-tools';
 import type { BookStyle } from 'src/dtos/book.dto.js';
-import { UpdatedAtTrigger } from 'src/decorators.js';
+import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { BookExportStatus } from 'src/enum.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
@@ -56,4 +56,7 @@ export class BookTable {
 
   @UpdateDateColumn()
   updatedAt!: Generated<Timestamp>;
+
+  @UpdateIdColumn()
+  updateId!: Generated<string>;
 }
