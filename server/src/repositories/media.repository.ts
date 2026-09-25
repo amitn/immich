@@ -22,7 +22,7 @@ import type {
 import type { ImageAnalysis } from 'src/utils/agent/scoring.js';
 import { ORIENTATION_TO_SHARP_ROTATION } from 'src/constants.js';
 import { Exif } from 'src/database.js';
-import { AssetEditActionItem } from 'src/dtos/editing.dto.js';
+import { AssetEditAction, AssetEditActionItem, CropParameters } from 'src/dtos/editing.dto.js';
 import {
   AacProfile,
   Av1Profile,
@@ -154,6 +154,42 @@ export class MediaRepository {
   async decodeImage(input: string | Buffer, options: DecodeToBufferOptions): Promise<Bitmap> {
     const decoded = await this.getImageDecodingPipeline(input, options).raw().toBuffer({ resolveWithObject: true });
     return await this.transform(decoded, options);
+  }
+
+  /** Crops a decoded image and encodes it as JPEG; with `size` the result is scaled down to fit inside that box. */
+  async cropImage(
+    image: Bitmap,
+    crop: CropParameters,
+    { colorspace, quality = 95, size }: { colorspace: string; quality?: number; size?: number },
+  ): Promise<{ data: Buffer; width: number; height: number }> {
+    const transformed = await this.transform(image, {
+      size,
+      fit: 'inside',
+      edits: [{ action: AssetEditAction.Crop, parameters: crop }],
+    });
+    const { data, info } = await this.tag(transformed, colorspace)
+      .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
+      .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
+  }
+
+  /** Finds the focal point of an image with sharp's attention strategy, as fractions (0..1) of the upright image. */
+  async getAttentionPoint(input: string | Buffer): Promise<{ x: number; y: number }> {
+    const { data, info } = await this.encoded(input, 'none')
+      .rotate()
+      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const { width, height } = info;
+    // a crop narrower than the image keeps the scale at 1, so the focal point is in the same coordinates
+    const { info: result } = await this.raw({ data, info })
+      // eslint-disable-next-line import-x/no-named-as-default-member
+      .resize(Math.max(1, Math.ceil(width / 2)), height, { fit: 'cover', position: sharp.strategy.attention })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const x = result.attentionX ?? width / 2;
+    const y = result.attentionY ?? height / 2;
+    return { x: Math.min(Math.max(x / width, 0), 1), y: Math.min(Math.max(y / height, 0), 1) };
   }
 
   private edit(pipeline: Sharp, edits: AssetEditActionItem[]): Sharp {
