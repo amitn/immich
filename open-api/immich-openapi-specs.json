@@ -2157,6 +2157,459 @@
         "x-immich-state": "Stable"
       }
     },
+    "/agent/sessions": {
+      "get": {
+        "description": "Retrieve the assistant sessions of the current user, most recently updated first.",
+        "operationId": "getAgentSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AgentSessionResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve assistant sessions",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Start a new chat with the AI assistant. The agent process is started with the first message.",
+        "operationId": "createAgentSession",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSessionCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create an assistant session",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/agent/sessions/{id}": {
+      "delete": {
+        "description": "Stop the agent process of the session and delete the session with its messages.",
+        "operationId": "deleteAgentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Delete an assistant session",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.delete",
+        "x-immich-state": "Alpha"
+      },
+      "get": {
+        "description": "Retrieve an assistant session with all of its messages.",
+        "operationId": "getAgentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve an assistant session",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.read",
+        "x-immich-state": "Alpha"
+      },
+      "patch": {
+        "description": "Rename an assistant session, or turn automatic approval of library changes on or off for it.",
+        "operationId": "updateAgentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSessionUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSessionResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update an assistant session",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/agent/sessions/{id}/cancel": {
+      "post": {
+        "description": "Stop the assistant from working on the current message.",
+        "operationId": "cancelAgentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Cancel the current assistant turn",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/agent/sessions/{id}/permissions/{requestId}": {
+      "post": {
+        "description": "Approve or decline a change the assistant wants to make to the library.",
+        "operationId": "respondToAgentPermission",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPermissionResponseDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Respond to an assistant permission request",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/agent/sessions/{id}/prompt": {
+      "post": {
+        "description": "Send a message to the assistant. Returns right away; the reply and tool calls are sent with the `on_agent_update` websocket event.",
+        "operationId": "promptAgentSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentPromptDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Send a message to the assistant",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "agentSession.update",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/albums": {
       "get": {
         "description": "Retrieve a list of albums available to the authenticated user.",
@@ -3463,6 +3916,168 @@
           }
         ],
         "x-immich-permission": "apiKey.rotate"
+      }
+    },
+    "/art/jobs": {
+      "post": {
+        "description": "Start an artistic style transform of a photo. The configured ACP art agent generates the image, which is saved as a new asset stacked with the photo.",
+        "operationId": "createArtJob",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtJobCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Transform a photo into artwork",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artJob.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/art/jobs/{id}": {
+      "get": {
+        "description": "Retrieve the status of an artistic style transform.",
+        "operationId": "getArtJob",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve an art job",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artJob.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/art/styles": {
+      "get": {
+        "description": "Retrieve the artistic styles that photos can be transformed into.",
+        "operationId": "getArtStyles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArtStyleDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve artistic styles",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artJob.read",
+        "x-immich-state": "Alpha"
       }
     },
     "/asset-files": {
@@ -6117,6 +6732,1232 @@
           }
         ],
         "x-immich-state": "Stable"
+      }
+    },
+    "/books": {
+      "get": {
+        "description": "Retrieve the photo books of the current user.",
+        "operationId": "getBooks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List books",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Create an empty photo book.",
+        "operationId": "createBook",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/from-album": {
+      "post": {
+        "description": "Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event opened by a map or a section title, and pages whose photo sizes follow the importance of the photos.",
+        "operationId": "createBookFromAlbum",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookFromAlbumDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create a book from an album",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/layouts": {
+      "get": {
+        "description": "Retrieve the page layouts that can be used in photo books.",
+        "operationId": "getBookLayouts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookLayoutResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List book layouts",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}": {
+      "delete": {
+        "description": "Delete a photo book and its exported PDF and HTML files. The photos are not affected.",
+        "operationId": "deleteBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Delete a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.delete",
+        "x-immich-state": "Alpha"
+      },
+      "get": {
+        "description": "Retrieve a photo book with its pages and placed photos.",
+        "operationId": "getBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      },
+      "patch": {
+        "description": "Update the title, subtitle, cover, page size or style of a photo book.",
+        "operationId": "updateBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/auto-layout": {
+      "post": {
+        "description": "Lay out the photos of the album of a book (or the given photos) automatically, replacing the pages of the book unless keepExisting is set.",
+        "operationId": "autoLayoutBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookAutoLayoutDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Lay out a book automatically",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/export": {
+      "post": {
+        "description": "Queue the export of a photo book: the print-ready (300 dpi) PDF (default), or a single self-contained HTML file with every photo embedded. Poll the book until exportStatus (PDF) or htmlExportStatus (HTML) is completed.",
+        "operationId": "exportBook",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookExportDto"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Export a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.download",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/html": {
+      "get": {
+        "description": "Download the exported single-file HTML version of a book, with every photo embedded.",
+        "operationId": "downloadBookHtml",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Download a book as HTML",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.download",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pages": {
+      "post": {
+        "description": "Insert a page with the given layout.",
+        "operationId": "addBookPage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookPageCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Add a book page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pages/{pageId}": {
+      "delete": {
+        "description": "Remove a page from a photo book.",
+        "operationId": "removeBookPage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Remove a book page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      },
+      "patch": {
+        "description": "Update the layout, section title, caption or background of a page.",
+        "operationId": "updateBookPage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookPageUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update a book page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pages/{pageId}/position": {
+      "put": {
+        "description": "Move a page to a new position.",
+        "operationId": "moveBookPage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookPageMoveDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Move a book page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pages/{pageId}/render": {
+      "get": {
+        "description": "Render a page of a photo book as a JPEG image, using the preview files of the placed assets.",
+        "operationId": "renderBookPage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Length of the long edge of the rendered page in pixels (default 1200)",
+            "schema": {
+              "minimum": 100,
+              "maximum": 4000,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Render a book page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pages/{pageId}/slots/{slot}": {
+      "delete": {
+        "description": "Remove the photo from a slot.",
+        "operationId": "clearBookSlot",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "slot",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minimum": 0,
+              "maximum": 99,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Clear a book page slot",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      },
+      "patch": {
+        "description": "Change the crop or caption of a placed photo. A null crop resets it to the default crop.",
+        "operationId": "updateBookSlot",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "slot",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minimum": 0,
+              "maximum": 99,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookSlotPatchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update a book page slot",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      },
+      "put": {
+        "description": "Place an asset in a slot of a page. Without a crop, a crop matching the slot is chosen.",
+        "operationId": "setBookSlot",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "slot",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "minimum": 0,
+              "maximum": 99,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookSlotUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Place a photo in a book page slot",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/pdf": {
+      "get": {
+        "description": "Download the exported PDF of a book.",
+        "operationId": "downloadBookPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Download a book PDF",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.download",
+        "x-immich-state": "Alpha"
       }
     },
     "/cluster-groups/requests": {
@@ -18407,6 +20248,41 @@
         ],
         "type": "object"
       },
+      "AdminConfigBookMapsDto": {
+        "properties": {
+          "defaultStyle": {
+            "description": "Map style used when a book asks for the automatic style",
+            "enum": [
+              "sketch",
+              "watercolor",
+              "toner",
+              "terrain"
+            ],
+            "type": "string"
+          },
+          "stadiaApiKey": {
+            "description": "Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "defaultStyle",
+          "stadiaApiKey"
+        ],
+        "type": "object"
+      },
+      "AdminConfigBooksDto": {
+        "description": "Photo book config",
+        "properties": {
+          "maps": {
+            "$ref": "#/components/schemas/AdminConfigBookMapsDto"
+          }
+        },
+        "required": [
+          "maps"
+        ],
+        "type": "object"
+      },
       "AdminConfigClipDto": {
         "properties": {
           "enabled": {
@@ -18456,6 +20332,9 @@
           },
           "backup": {
             "$ref": "#/components/schemas/AdminConfigBackupsDto"
+          },
+          "books": {
+            "$ref": "#/components/schemas/AdminConfigBooksDto"
           },
           "ffmpeg": {
             "$ref": "#/components/schemas/AdminConfigFFmpegDto"
@@ -18524,6 +20403,7 @@
         "required": [
           "agent",
           "backup",
+          "books",
           "ffmpeg",
           "image",
           "integrityChecks",
@@ -19622,6 +21502,396 @@
         ],
         "type": "object"
       },
+      "AgentMessageContentDto": {
+        "properties": {
+          "albumIds": {
+            "description": "Albums referenced by tool results",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "assetIds": {
+            "description": "Assets referenced by the message (context or tool results)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "bookIds": {
+            "description": "Books referenced by tool results",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "entries": {
+            "description": "Plan entries (plan)",
+            "items": {
+              "$ref": "#/components/schemas/AgentPlanEntryDto"
+            },
+            "type": "array"
+          },
+          "input": {
+            "description": "Compact tool input (tool_call, permission)"
+          },
+          "options": {
+            "description": "Permission options (permission)",
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionOptionDto"
+            },
+            "type": "array"
+          },
+          "output": {
+            "description": "Truncated tool output (tool_call)",
+            "type": "string"
+          },
+          "requestId": {
+            "description": "Permission request ID, used to respond (permission)",
+            "type": "string"
+          },
+          "status": {
+            "description": "Tool call status (pending, in_progress, completed, failed) or permission status",
+            "type": "string"
+          },
+          "summary": {
+            "description": "Human readable summary of the tool arguments (permission)",
+            "type": "string"
+          },
+          "text": {
+            "description": "Text (text, thought and error messages), markdown for agent text",
+            "type": "string"
+          },
+          "title": {
+            "description": "Human readable title (tool_call, permission)",
+            "type": "string"
+          },
+          "toolCallId": {
+            "description": "Tool call ID (tool_call)",
+            "type": "string"
+          },
+          "toolName": {
+            "description": "Immich tool name, or the agent tool name (tool_call, permission)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentMessageDto": {
+        "properties": {
+          "content": {
+            "$ref": "#/components/schemas/AgentMessageContentDto"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Message ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/AgentMessageKind"
+          },
+          "role": {
+            "$ref": "#/components/schemas/AgentMessageRole"
+          },
+          "sessionId": {
+            "description": "Session ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "createdAt",
+          "id",
+          "kind",
+          "role",
+          "sessionId"
+        ],
+        "type": "object"
+      },
+      "AgentMessageKind": {
+        "description": "Agent message kind",
+        "enum": [
+          "text",
+          "thought",
+          "tool_call",
+          "permission",
+          "plan",
+          "error"
+        ],
+        "type": "string"
+      },
+      "AgentMessageRole": {
+        "description": "Agent message author",
+        "enum": [
+          "user",
+          "agent"
+        ],
+        "type": "string"
+      },
+      "AgentPermissionOptionDto": {
+        "properties": {
+          "kind": {
+            "description": "Option kind",
+            "enum": [
+              "allow_once",
+              "allow_always",
+              "reject_once",
+              "reject_always"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Option label",
+            "type": "string"
+          },
+          "optionId": {
+            "description": "Option ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "optionId"
+        ],
+        "type": "object"
+      },
+      "AgentPermissionResponseDto": {
+        "properties": {
+          "approved": {
+            "description": "Whether the request is approved (alternative to optionId)",
+            "type": "boolean"
+          },
+          "optionId": {
+            "description": "Selected permission option ID",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentPlanEntryDto": {
+        "properties": {
+          "content": {
+            "description": "Plan step",
+            "type": "string"
+          },
+          "priority": {
+            "description": "Priority (high, medium, low)",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status (pending, in_progress, completed)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "priority",
+          "status"
+        ],
+        "type": "object"
+      },
+      "AgentPromptDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Assets selected by the user, passed as context",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "type": "array"
+          },
+          "text": {
+            "description": "Message for the assistant",
+            "maxLength": 20000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "AgentSessionCreateDto": {
+        "properties": {
+          "autoApprove": {
+            "description": "Let the assistant change the library without asking, in this session",
+            "type": "boolean"
+          },
+          "title": {
+            "description": "Session title",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentSessionDetailResponseDto": {
+        "properties": {
+          "autoApprove": {
+            "description": "Whether changes to the library are approved automatically in this session",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Session ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "messages": {
+            "description": "Messages, oldest first",
+            "items": {
+              "$ref": "#/components/schemas/AgentMessageDto"
+            },
+            "type": "array"
+          },
+          "profile": {
+            "description": "Agent profile",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentSessionStatus"
+          },
+          "title": {
+            "description": "Session title",
+            "nullable": true,
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "autoApprove",
+          "createdAt",
+          "id",
+          "messages",
+          "profile",
+          "status",
+          "title",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AgentSessionResponseDto": {
+        "properties": {
+          "autoApprove": {
+            "description": "Whether changes to the library are approved automatically in this session",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Session ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "profile": {
+            "description": "Agent profile",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentSessionStatus"
+          },
+          "title": {
+            "description": "Session title",
+            "nullable": true,
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "autoApprove",
+          "createdAt",
+          "id",
+          "profile",
+          "status",
+          "title",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AgentSessionStatus": {
+        "description": "Agent session status",
+        "enum": [
+          "idle",
+          "running",
+          "error"
+        ],
+        "type": "string"
+      },
+      "AgentSessionUpdateDto": {
+        "properties": {
+          "autoApprove": {
+            "description": "Let the assistant change the library without asking, in this session",
+            "type": "boolean"
+          },
+          "title": {
+            "description": "Session title",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AgentUpdateDto": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/AgentMessageDto",
+            "description": "Created or updated message (replace by ID)"
+          },
+          "sessionId": {
+            "description": "Session ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AgentSessionStatus"
+          }
+        },
+        "required": [
+          "sessionId",
+          "status"
+        ],
+        "type": "object"
+      },
       "AlbumResponseDto": {
         "properties": {
           "albumName": {
@@ -20024,6 +22294,139 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ArtJobCreateDto": {
+        "properties": {
+          "assetId": {
+            "description": "Photo to transform",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "caption": {
+            "description": "Caption for styles that render one",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "prompt": {
+            "description": "Custom art direction; replaces the style prompt. `{caption}` is replaced with the caption",
+            "maxLength": 5000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "style": {
+            "description": "Style ID, see the art styles endpoint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetId"
+        ],
+        "type": "object"
+      },
+      "ArtJobResponseDto": {
+        "properties": {
+          "caption": {
+            "description": "Caption",
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "error": {
+            "description": "Why the job failed",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "Job ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "resultAssetId": {
+            "description": "Generated artwork, once the job completed",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "sourceAssetId": {
+            "description": "Photo that is transformed",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ArtJobStatus"
+          },
+          "style": {
+            "description": "Style ID",
+            "nullable": true,
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "caption",
+          "createdAt",
+          "error",
+          "id",
+          "resultAssetId",
+          "sourceAssetId",
+          "status",
+          "style",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "ArtJobStatus": {
+        "description": "Art job status",
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "ArtStyleDto": {
+        "properties": {
+          "description": {
+            "description": "What the style looks like",
+            "type": "string"
+          },
+          "id": {
+            "description": "Style ID",
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "type": "string"
+          },
+          "usesCaption": {
+            "description": "Whether the style renders a caption into the image",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "description",
+          "id",
+          "name",
+          "usesCaption"
+        ],
         "type": "object"
       },
       "AssetBulkDeleteDto": {
@@ -21409,6 +23812,1084 @@
         },
         "type": "object"
       },
+      "BookAutoLayoutDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos to lay out (default: the photos of the book's album)",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "heroAssetIds": {
+            "description": "Photos that get a page of their own",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "illustratedMaps": {
+            "description": "Also redraw every map as an illustration with the art agent (default false)",
+            "type": "boolean"
+          },
+          "includeMaps": {
+            "description": "Open the sections that have GPS locations with a map page (default true)",
+            "type": "boolean"
+          },
+          "keepExisting": {
+            "description": "Append the new pages to the existing ones instead of replacing them (default false)",
+            "type": "boolean"
+          },
+          "mapStyle": {
+            "$ref": "#/components/schemas/BookMapStyleOption"
+          },
+          "targetPageCount": {
+            "description": "Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages)",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BookCreateDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the book is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "BookDetailResponseDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the book is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "coverAssetId": {
+            "description": "Cover asset ID",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "exportStale": {
+            "description": "Whether the book changed after the PDF was exported",
+            "type": "boolean"
+          },
+          "exportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the PDF export",
+            "nullable": true
+          },
+          "exportedAt": {
+            "description": "When the PDF export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "firstPageId": {
+            "description": "ID of the first page, e.g. to show the cover",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "htmlExportStale": {
+            "description": "Whether the book changed after the HTML file was exported",
+            "type": "boolean"
+          },
+          "htmlExportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the single-file HTML export",
+            "nullable": true
+          },
+          "htmlExportedAt": {
+            "description": "When the HTML export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Book ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "ownerId": {
+            "description": "Owner user ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pages": {
+            "description": "Pages in book order",
+            "items": {
+              "$ref": "#/components/schemas/BookPageResponseDto"
+            },
+            "type": "array"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyle"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId",
+          "coverAssetId",
+          "createdAt",
+          "exportStale",
+          "exportStatus",
+          "exportedAt",
+          "firstPageId",
+          "htmlExportStale",
+          "htmlExportStatus",
+          "htmlExportedAt",
+          "id",
+          "ownerId",
+          "pageCount",
+          "pageHeightMm",
+          "pageWidthMm",
+          "pages",
+          "style",
+          "subtitle",
+          "title",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BookExportDto": {
+        "properties": {
+          "format": {
+            "$ref": "#/components/schemas/BookExportFormat",
+            "default": "pdf",
+            "description": "Export format (default pdf)"
+          }
+        },
+        "type": "object"
+      },
+      "BookExportFormat": {
+        "description": "Book export format: a print-ready PDF or a single self-contained HTML file",
+        "enum": [
+          "pdf",
+          "html"
+        ],
+        "type": "string"
+      },
+      "BookExportStatus": {
+        "description": "Book export status",
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "BookFromAlbumDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album whose photos are laid out",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "illustratedMaps": {
+            "description": "Also redraw every map as an illustration with the art agent (default false)",
+            "type": "boolean"
+          },
+          "includeMaps": {
+            "description": "Open the sections that have GPS locations with a map page (default true)",
+            "type": "boolean"
+          },
+          "mapStyle": {
+            "$ref": "#/components/schemas/BookMapStyleOption"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "targetPageCount": {
+            "description": "Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages)",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "description": "Book title (default: the album name)",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId"
+        ],
+        "type": "object"
+      },
+      "BookLayoutRect": {
+        "properties": {
+          "height": {
+            "description": "Height, as a fraction of the layout area",
+            "format": "double",
+            "type": "number"
+          },
+          "width": {
+            "description": "Width, as a fraction of the layout area",
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge, as a fraction of the layout area",
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge, as a fraction of the layout area",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "height",
+          "width",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "BookLayoutResponseDto": {
+        "properties": {
+          "description": {
+            "description": "Layout description",
+            "type": "string"
+          },
+          "fullBleed": {
+            "description": "Whether the layout ignores the page margins",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Layout ID",
+            "type": "string"
+          },
+          "mapArea": {
+            "$ref": "#/components/schemas/BookLayoutRect",
+            "description": "Area of the page map, relative to the area inside the margins"
+          },
+          "name": {
+            "description": "Layout name",
+            "type": "string"
+          },
+          "orientation": {
+            "description": "Preferred photo orientation",
+            "enum": [
+              "any",
+              "landscape",
+              "portrait"
+            ],
+            "type": "string"
+          },
+          "slots": {
+            "description": "Photo slots, relative to the area inside the margins",
+            "items": {
+              "$ref": "#/components/schemas/BookLayoutRect"
+            },
+            "type": "array"
+          },
+          "textAreas": {
+            "description": "Text areas, relative to the area inside the margins",
+            "items": {
+              "properties": {
+                "height": {
+                  "description": "Height, as a fraction of the layout area",
+                  "format": "double",
+                  "type": "number"
+                },
+                "kind": {
+                  "description": "Text shown in the area",
+                  "enum": [
+                    "title",
+                    "subtitle",
+                    "sectionTitle",
+                    "caption"
+                  ],
+                  "type": "string"
+                },
+                "width": {
+                  "description": "Width, as a fraction of the layout area",
+                  "format": "double",
+                  "type": "number"
+                },
+                "x": {
+                  "description": "Left edge, as a fraction of the layout area",
+                  "format": "double",
+                  "type": "number"
+                },
+                "y": {
+                  "description": "Top edge, as a fraction of the layout area",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "description",
+          "fullBleed",
+          "id",
+          "name",
+          "orientation",
+          "slots",
+          "textAreas"
+        ],
+        "type": "object"
+      },
+      "BookMapDto": {
+        "description": "A map drawn in the map area of the page layout",
+        "properties": {
+          "artJobId": {
+            "description": "Art job that redraws the map as an illustration",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "assetIds": {
+            "description": "Photos whose locations are plotted; defaults to the photos of the section that follows the map",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "type": "array"
+          },
+          "illustratedAssetId": {
+            "description": "Illustrated map drawn instead of the rendered map",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "labels": {
+            "description": "Label the places",
+            "type": "boolean"
+          },
+          "showRoute": {
+            "description": "Connect the locations in time order",
+            "type": "boolean"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookMapStyle"
+          },
+          "title": {
+            "description": "Title drawn on the map",
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "labels",
+          "showRoute",
+          "style"
+        ],
+        "type": "object"
+      },
+      "BookMapStyle": {
+        "description": "Map style; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key",
+        "enum": [
+          "sketch",
+          "watercolor",
+          "toner",
+          "terrain"
+        ],
+        "type": "string"
+      },
+      "BookMapStyleOption": {
+        "description": "Map style; auto uses the default style from the server config",
+        "enum": [
+          "auto",
+          "sketch",
+          "watercolor",
+          "toner",
+          "terrain"
+        ],
+        "type": "string"
+      },
+      "BookPageCreateDto": {
+        "properties": {
+          "background": {
+            "description": "Page background color, overriding the book style",
+            "nullable": true,
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "caption": {
+            "description": "Page caption",
+            "maxLength": 2000,
+            "nullable": true,
+            "type": "string"
+          },
+          "layout": {
+            "description": "Layout ID (see GET /books/layouts)",
+            "type": "string"
+          },
+          "map": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookMapDto"
+              }
+            ],
+            "nullable": true
+          },
+          "position": {
+            "description": "Zero-based position to insert the page at; appended when omitted",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sectionTitle": {
+            "description": "Section title",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "layout"
+        ],
+        "type": "object"
+      },
+      "BookPageMoveDto": {
+        "properties": {
+          "position": {
+            "description": "New zero-based position of the page",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "type": "object"
+      },
+      "BookPageResponseDto": {
+        "properties": {
+          "background": {
+            "description": "Page background color override",
+            "nullable": true,
+            "type": "string"
+          },
+          "caption": {
+            "description": "Page caption",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "Page ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "layout": {
+            "description": "Layout ID",
+            "type": "string"
+          },
+          "map": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookMapDto"
+              }
+            ],
+            "nullable": true
+          },
+          "position": {
+            "description": "Zero-based position of the page in the book",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sectionTitle": {
+            "description": "Section title",
+            "nullable": true,
+            "type": "string"
+          },
+          "slots": {
+            "description": "Photo slots of the layout",
+            "items": {
+              "$ref": "#/components/schemas/BookSlotResponseDto"
+            },
+            "type": "array"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "background",
+          "caption",
+          "id",
+          "layout",
+          "map",
+          "position",
+          "sectionTitle",
+          "slots",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BookPageUpdateDto": {
+        "properties": {
+          "background": {
+            "description": "Page background color, overriding the book style",
+            "nullable": true,
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "caption": {
+            "description": "Page caption",
+            "maxLength": 2000,
+            "nullable": true,
+            "type": "string"
+          },
+          "layout": {
+            "description": "Layout ID; photos in slots the new layout lacks are removed",
+            "type": "string"
+          },
+          "map": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookMapDto"
+              }
+            ],
+            "nullable": true
+          },
+          "sectionTitle": {
+            "description": "Section title",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BookResponseDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the book is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "coverAssetId": {
+            "description": "Cover asset ID",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "exportStale": {
+            "description": "Whether the book changed after the PDF was exported",
+            "type": "boolean"
+          },
+          "exportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the PDF export",
+            "nullable": true
+          },
+          "exportedAt": {
+            "description": "When the PDF export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "firstPageId": {
+            "description": "ID of the first page, e.g. to show the cover",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "htmlExportStale": {
+            "description": "Whether the book changed after the HTML file was exported",
+            "type": "boolean"
+          },
+          "htmlExportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the single-file HTML export",
+            "nullable": true
+          },
+          "htmlExportedAt": {
+            "description": "When the HTML export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Book ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "ownerId": {
+            "description": "Owner user ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyle"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId",
+          "coverAssetId",
+          "createdAt",
+          "exportStale",
+          "exportStatus",
+          "exportedAt",
+          "firstPageId",
+          "htmlExportStale",
+          "htmlExportStatus",
+          "htmlExportedAt",
+          "id",
+          "ownerId",
+          "pageCount",
+          "pageHeightMm",
+          "pageWidthMm",
+          "style",
+          "subtitle",
+          "title",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BookSlotPatchDto": {
+        "properties": {
+          "caption": {
+            "description": "Photo caption",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "crop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NormalizedRect"
+              }
+            ],
+            "description": "Crop of the placed asset",
+            "nullable": true
+          }
+        },
+        "type": "object"
+      },
+      "BookSlotResponseDto": {
+        "properties": {
+          "aspectRatio": {
+            "description": "Width / height of the slot on the page",
+            "format": "double",
+            "type": "number"
+          },
+          "assetId": {
+            "description": "Placed asset, null when the slot is empty",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "caption": {
+            "description": "Photo caption",
+            "nullable": true,
+            "type": "string"
+          },
+          "crop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NormalizedRect"
+              }
+            ],
+            "description": "Crop of the placed asset",
+            "nullable": true
+          },
+          "slot": {
+            "description": "Zero-based slot index",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "aspectRatio",
+          "assetId",
+          "caption",
+          "crop",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "BookSlotUpdateDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset to place in the slot",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "caption": {
+            "description": "Photo caption",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "crop": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NormalizedRect"
+              }
+            ],
+            "description": "Crop of the asset; a default crop matching the slot is chosen when omitted",
+            "nullable": true
+          }
+        },
+        "required": [
+          "assetId"
+        ],
+        "type": "object"
+      },
+      "BookStyle": {
+        "description": "Visual style of a book",
+        "properties": {
+          "background": {
+            "description": "Page background color (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "captionSizePt": {
+            "description": "Caption font size in points",
+            "format": "double",
+            "maximum": 72,
+            "minimum": 4,
+            "type": "number"
+          },
+          "fontFamily": {
+            "description": "Font family used for captions and titles",
+            "maxLength": 100,
+            "pattern": "^[\\w\\s,'-]+$",
+            "type": "string"
+          },
+          "gutterMm": {
+            "description": "Space between photos in millimeters",
+            "format": "double",
+            "maximum": 30,
+            "minimum": 0,
+            "type": "number"
+          },
+          "marginMm": {
+            "description": "Outer page margin in millimeters",
+            "format": "double",
+            "maximum": 50,
+            "minimum": 0,
+            "type": "number"
+          },
+          "textColor": {
+            "description": "Caption and title color (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "titleSizePt": {
+            "description": "Title font size in points",
+            "format": "double",
+            "maximum": 144,
+            "minimum": 6,
+            "type": "number"
+          }
+        },
+        "required": [
+          "background",
+          "fontFamily",
+          "gutterMm",
+          "marginMm",
+          "textColor"
+        ],
+        "type": "object"
+      },
+      "BookStyleUpdate": {
+        "description": "Style changes; omitted properties keep their current value",
+        "properties": {
+          "background": {
+            "description": "Page background color (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "captionSizePt": {
+            "description": "Caption font size in points",
+            "format": "double",
+            "maximum": 72,
+            "minimum": 4,
+            "type": "number"
+          },
+          "fontFamily": {
+            "description": "Font family used for captions and titles",
+            "maxLength": 100,
+            "pattern": "^[\\w\\s,'-]+$",
+            "type": "string"
+          },
+          "gutterMm": {
+            "description": "Space between photos in millimeters",
+            "format": "double",
+            "maximum": 30,
+            "minimum": 0,
+            "type": "number"
+          },
+          "marginMm": {
+            "description": "Outer page margin in millimeters",
+            "format": "double",
+            "maximum": 50,
+            "minimum": 0,
+            "type": "number"
+          },
+          "textColor": {
+            "description": "Caption and title color (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
+          "titleSizePt": {
+            "description": "Title font size in points",
+            "format": "double",
+            "maximum": 144,
+            "minimum": 6,
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "BookUpdateDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the book is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "coverAssetId": {
+            "description": "Asset shown on the cover when its slot is empty",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "BoolFilter": {
         "properties": {
           "eq": {
@@ -22656,6 +26137,8 @@
           "AssetGenerateThumbnailsQueueAll",
           "AssetGenerateThumbnails",
           "AuditTableCleanup",
+          "BookExport",
+          "BookExportHtml",
           "DatabaseBackup",
           "FacialRecognitionQueueAll",
           "FacialRecognition",
@@ -24332,6 +27815,48 @@
         },
         "required": [
           "axis"
+        ],
+        "type": "object"
+      },
+      "NormalizedRect": {
+        "description": "Rectangle normalized to the 0..1 range of the source image",
+        "properties": {
+          "height": {
+            "description": "Height, as a fraction of the image height",
+            "exclusiveMinimum": true,
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "width": {
+            "description": "Width, as a fraction of the image width",
+            "exclusiveMinimum": true,
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge, as a fraction of the image width",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge, as a fraction of the image height",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "height",
+          "width",
+          "x",
+          "y"
         ],
         "type": "object"
       },

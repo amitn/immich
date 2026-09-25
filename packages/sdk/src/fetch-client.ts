@@ -99,6 +99,15 @@ export type AdminConfigDatabaseBackupDto = {
 export type AdminConfigBackupsDto = {
     database: AdminConfigDatabaseBackupDto;
 };
+export type AdminConfigBookMapsDto = {
+    /** Map style used when a book asks for the automatic style */
+    defaultStyle: DefaultStyle;
+    /** Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only) */
+    stadiaApiKey: string;
+};
+export type AdminConfigBooksDto = {
+    maps: AdminConfigBookMapsDto;
+};
 export type AdminConfigFFmpegRealtimeDto = {
     /** Enable real-time HLS transcoding (alpha) */
     enabled: boolean;
@@ -443,6 +452,7 @@ export type AdminConfigUserDto = {
 export type AdminConfigDto = {
     agent: AdminConfigAgentDto;
     backup: AdminConfigBackupsDto;
+    books: AdminConfigBooksDto;
     ffmpeg: AdminConfigFFmpegDto;
     image: AdminConfigImageDto;
     integrityChecks: AdminConfigIntegrityChecksDto;
@@ -879,6 +889,119 @@ export type AssetStatsResponseDto = {
     /** Number of videos */
     videos: number;
 };
+export type AgentSessionResponseDto = {
+    /** Whether changes to the library are approved automatically in this session */
+    autoApprove: boolean;
+    /** Creation date */
+    createdAt: string;
+    /** Session ID */
+    id: string;
+    /** Agent profile */
+    profile: string;
+    status: AgentSessionStatus;
+    /** Session title */
+    title: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type AgentSessionCreateDto = {
+    /** Let the assistant change the library without asking, in this session */
+    autoApprove?: boolean;
+    /** Session title */
+    title?: string;
+};
+export type AgentPlanEntryDto = {
+    /** Plan step */
+    content: string;
+    /** Priority (high, medium, low) */
+    priority: string;
+    /** Status (pending, in_progress, completed) */
+    status: string;
+};
+export type AgentPermissionOptionDto = {
+    /** Option kind */
+    kind: Kind;
+    /** Option label */
+    name: string;
+    /** Option ID */
+    optionId: string;
+};
+export type AgentMessageContentDto = {
+    /** Albums referenced by tool results */
+    albumIds?: string[];
+    /** Assets referenced by the message (context or tool results) */
+    assetIds?: string[];
+    /** Books referenced by tool results */
+    bookIds?: string[];
+    /** Plan entries (plan) */
+    entries?: AgentPlanEntryDto[];
+    /** Compact tool input (tool_call, permission) */
+    input?: any;
+    /** Permission options (permission) */
+    options?: AgentPermissionOptionDto[];
+    /** Truncated tool output (tool_call) */
+    output?: string;
+    /** Permission request ID, used to respond (permission) */
+    requestId?: string;
+    /** Tool call status (pending, in_progress, completed, failed) or permission status */
+    status?: string;
+    /** Human readable summary of the tool arguments (permission) */
+    summary?: string;
+    /** Text (text, thought and error messages), markdown for agent text */
+    text?: string;
+    /** Human readable title (tool_call, permission) */
+    title?: string;
+    /** Tool call ID (tool_call) */
+    toolCallId?: string;
+    /** Immich tool name, or the agent tool name (tool_call, permission) */
+    toolName?: string;
+};
+export type AgentMessageDto = {
+    content: AgentMessageContentDto;
+    /** Creation date */
+    createdAt: string;
+    /** Message ID */
+    id: string;
+    kind: AgentMessageKind;
+    role: AgentMessageRole;
+    /** Session ID */
+    sessionId: string;
+};
+export type AgentSessionDetailResponseDto = {
+    /** Whether changes to the library are approved automatically in this session */
+    autoApprove: boolean;
+    /** Creation date */
+    createdAt: string;
+    /** Session ID */
+    id: string;
+    /** Messages, oldest first */
+    messages: AgentMessageDto[];
+    /** Agent profile */
+    profile: string;
+    status: AgentSessionStatus;
+    /** Session title */
+    title: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type AgentSessionUpdateDto = {
+    /** Let the assistant change the library without asking, in this session */
+    autoApprove?: boolean;
+    /** Session title */
+    title?: string;
+};
+export type AgentPermissionResponseDto = {
+    /** Whether the request is approved (alternative to optionId) */
+    approved?: boolean;
+    /** Selected permission option ID */
+    optionId?: string;
+};
+export type AgentPromptDto = {
+    /** Assets selected by the user, passed as context */
+    assetIds?: string[];
+    /** Message for the assistant */
+    text: string;
+};
 export type AlbumUserResponseDto = {
     role: AlbumUserRole;
     user: UserResponseDto;
@@ -1043,6 +1166,45 @@ export type ApiKeyUpdateDto = {
     name?: string;
     /** List of permissions */
     permissions?: Permission[];
+};
+export type ArtJobCreateDto = {
+    /** Photo to transform */
+    assetId: string;
+    /** Caption for styles that render one */
+    caption?: string;
+    /** Custom art direction; replaces the style prompt. `{caption}` is replaced with the caption */
+    prompt?: string;
+    /** Style ID, see the art styles endpoint */
+    style?: string;
+};
+export type ArtJobResponseDto = {
+    /** Caption */
+    caption: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Why the job failed */
+    error: string | null;
+    /** Job ID */
+    id: string;
+    /** Generated artwork, once the job completed */
+    resultAssetId: string | null;
+    /** Photo that is transformed */
+    sourceAssetId: string;
+    status: ArtJobStatus;
+    /** Style ID */
+    style: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type ArtStyleDto = {
+    /** What the style looks like */
+    description: string;
+    /** Style ID */
+    id: string;
+    /** Style name */
+    name: string;
+    /** Whether the style renders a caption into the image */
+    usesCaption: boolean;
 };
 export type AssetFileResponseDto = {
     /** Creation date */
@@ -1533,6 +1695,322 @@ export type AuthStatusResponseDto = {
 export type ValidateAccessTokenResponseDto = {
     /** Authentication status */
     authStatus: boolean;
+};
+export type BookStyle = {
+    /** Page background color (hex) */
+    background: string;
+    /** Caption font size in points */
+    captionSizePt?: number;
+    /** Font family used for captions and titles */
+    fontFamily: string;
+    /** Space between photos in millimeters */
+    gutterMm: number;
+    /** Outer page margin in millimeters */
+    marginMm: number;
+    /** Caption and title color (hex) */
+    textColor: string;
+    /** Title font size in points */
+    titleSizePt?: number;
+};
+export type BookResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookStyleUpdate = {
+    /** Page background color (hex) */
+    background?: string;
+    /** Caption font size in points */
+    captionSizePt?: number;
+    /** Font family used for captions and titles */
+    fontFamily?: string;
+    /** Space between photos in millimeters */
+    gutterMm?: number;
+    /** Outer page margin in millimeters */
+    marginMm?: number;
+    /** Caption and title color (hex) */
+    textColor?: string;
+    /** Title font size in points */
+    titleSizePt?: number;
+};
+export type BookCreateDto = {
+    /** Album the book is made from */
+    albumId?: string | null;
+    /** Page height in millimeters (default 210) */
+    pageHeightMm?: number;
+    /** Page width in millimeters (default 210) */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Book title */
+    title: string;
+};
+export type BookMapDto = {
+    /** Art job that redraws the map as an illustration */
+    artJobId?: string;
+    /** Photos whose locations are plotted; defaults to the photos of the section that follows the map */
+    assetIds?: string[];
+    /** Illustrated map drawn instead of the rendered map */
+    illustratedAssetId?: string;
+    /** Label the places */
+    labels: boolean;
+    /** Connect the locations in time order */
+    showRoute: boolean;
+    style: BookMapStyle;
+    /** Title drawn on the map */
+    title?: string;
+};
+export type NormalizedRect = {
+    /** Height, as a fraction of the image height */
+    height: number;
+    /** Width, as a fraction of the image width */
+    width: number;
+    /** Left edge, as a fraction of the image width */
+    x: number;
+    /** Top edge, as a fraction of the image height */
+    y: number;
+};
+export type BookSlotResponseDto = {
+    /** Width / height of the slot on the page */
+    aspectRatio: number;
+    /** Placed asset, null when the slot is empty */
+    assetId: string | null;
+    /** Photo caption */
+    caption: string | null;
+    /** Crop of the placed asset */
+    crop: (NormalizedRect) | null;
+    /** Zero-based slot index */
+    slot: number;
+};
+export type BookPageResponseDto = {
+    /** Page background color override */
+    background: string | null;
+    /** Page caption */
+    caption: string | null;
+    /** Page ID */
+    id: string;
+    /** Layout ID */
+    layout: string;
+    map: (BookMapDto) | null;
+    /** Zero-based position of the page in the book */
+    position: number;
+    /** Section title */
+    sectionTitle: string | null;
+    /** Photo slots of the layout */
+    slots: BookSlotResponseDto[];
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookDetailResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    /** Pages in book order */
+    pages: BookPageResponseDto[];
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookFromAlbumDto = {
+    /** Album whose photos are laid out */
+    albumId: string;
+    /** Also redraw every map as an illustration with the art agent (default false) */
+    illustratedMaps?: boolean;
+    /** Open the sections that have GPS locations with a map page (default true) */
+    includeMaps?: boolean;
+    mapStyle?: BookMapStyleOption;
+    /** Page height in millimeters (default 210) */
+    pageHeightMm?: number;
+    /** Page width in millimeters (default 210) */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
+    targetPageCount?: number;
+    /** Book title (default: the album name) */
+    title?: string;
+};
+export type BookLayoutRect = {
+    /** Height, as a fraction of the layout area */
+    height: number;
+    /** Width, as a fraction of the layout area */
+    width: number;
+    /** Left edge, as a fraction of the layout area */
+    x: number;
+    /** Top edge, as a fraction of the layout area */
+    y: number;
+};
+export type BookLayoutResponseDto = {
+    /** Layout description */
+    description: string;
+    /** Whether the layout ignores the page margins */
+    fullBleed: boolean;
+    /** Layout ID */
+    id: string;
+    /** Area of the page map, relative to the area inside the margins */
+    mapArea?: BookLayoutRect;
+    /** Layout name */
+    name: string;
+    /** Preferred photo orientation */
+    orientation: Orientation;
+    /** Photo slots, relative to the area inside the margins */
+    slots: BookLayoutRect[];
+    /** Text areas, relative to the area inside the margins */
+    textAreas: {
+        /** Height, as a fraction of the layout area */
+        height: number;
+        /** Text shown in the area */
+        kind: Kind2;
+        /** Width, as a fraction of the layout area */
+        width: number;
+        /** Left edge, as a fraction of the layout area */
+        x: number;
+        /** Top edge, as a fraction of the layout area */
+        y: number;
+    }[];
+};
+export type BookUpdateDto = {
+    /** Album the book is made from */
+    albumId?: string | null;
+    /** Asset shown on the cover when its slot is empty */
+    coverAssetId?: string | null;
+    /** Page height in millimeters */
+    pageHeightMm?: number;
+    /** Page width in millimeters */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Book title */
+    title?: string;
+};
+export type BookAutoLayoutDto = {
+    /** Photos to lay out (default: the photos of the book's album) */
+    assetIds?: string[];
+    /** Photos that get a page of their own */
+    heroAssetIds?: string[];
+    /** Also redraw every map as an illustration with the art agent (default false) */
+    illustratedMaps?: boolean;
+    /** Open the sections that have GPS locations with a map page (default true) */
+    includeMaps?: boolean;
+    /** Append the new pages to the existing ones instead of replacing them (default false) */
+    keepExisting?: boolean;
+    mapStyle?: BookMapStyleOption;
+    /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
+    targetPageCount?: number;
+};
+export type BookExportDto = {
+    /** Export format (default pdf) */
+    format?: BookExportFormat;
+};
+export type BookPageCreateDto = {
+    /** Page background color, overriding the book style */
+    background?: string | null;
+    /** Page caption */
+    caption?: string | null;
+    /** Layout ID (see GET /books/layouts) */
+    layout: string;
+    map?: (BookMapDto) | null;
+    /** Zero-based position to insert the page at; appended when omitted */
+    position?: number;
+    /** Section title */
+    sectionTitle?: string | null;
+};
+export type BookPageUpdateDto = {
+    /** Page background color, overriding the book style */
+    background?: string | null;
+    /** Page caption */
+    caption?: string | null;
+    /** Layout ID; photos in slots the new layout lacks are removed */
+    layout?: string;
+    map?: (BookMapDto) | null;
+    /** Section title */
+    sectionTitle?: string | null;
+};
+export type BookPageMoveDto = {
+    /** New zero-based position of the page */
+    position: number;
+};
+export type BookSlotPatchDto = {
+    /** Photo caption */
+    caption?: string | null;
+    /** Crop of the placed asset */
+    crop?: (NormalizedRect) | null;
+};
+export type BookSlotUpdateDto = {
+    /** Asset to place in the slot */
+    assetId: string;
+    /** Photo caption */
+    caption?: string | null;
+    /** Crop of the asset; a default crop matching the slot is chosen when omitted */
+    crop?: (NormalizedRect) | null;
 };
 export type ClusterGroupRequestResponseDto = {
     /** Cluster group the user is invited to join */
@@ -3274,6 +3752,13 @@ export type WorkflowShareResponseDto = {
     /** Workflow trigger type */
     trigger: WorkflowTrigger;
 };
+export type AgentUpdateDto = {
+    /** Created or updated message (replace by ID) */
+    message?: AgentMessageDto;
+    /** Session ID */
+    sessionId: string;
+    status: AgentSessionStatus;
+};
 export type LicenseResponseDto = UserLicense;
 export type ReleaseEventV1 = {
     /** When the server last checked for a latest version. As an ISO timestamp */
@@ -4303,6 +4788,110 @@ export function getUserStatisticsAdmin({ id, isFavorite, isTrashed, visibility }
     }));
 }
 /**
+ * Retrieve assistant sessions
+ */
+export function getAgentSessions(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionResponseDto[];
+    }>("/agent/sessions", {
+        ...opts
+    }));
+}
+/**
+ * Create an assistant session
+ */
+export function createAgentSession({ agentSessionCreateDto }: {
+    agentSessionCreateDto: AgentSessionCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: AgentSessionResponseDto;
+    }>("/agent/sessions", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentSessionCreateDto
+    })));
+}
+/**
+ * Delete an assistant session
+ */
+export function deleteAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve an assistant session
+ */
+export function getAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionDetailResponseDto;
+    }>(`/agent/sessions/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update an assistant session
+ */
+export function updateAgentSession({ id, agentSessionUpdateDto }: {
+    id: string;
+    agentSessionUpdateDto: AgentSessionUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionResponseDto;
+    }>(`/agent/sessions/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: agentSessionUpdateDto
+    })));
+}
+/**
+ * Cancel the current assistant turn
+ */
+export function cancelAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Respond to an assistant permission request
+ */
+export function respondToAgentPermission({ id, requestId, agentPermissionResponseDto }: {
+    id: string;
+    requestId: string;
+    agentPermissionResponseDto: AgentPermissionResponseDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/permissions/${encodeURIComponent(requestId)}`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentPermissionResponseDto
+    })));
+}
+/**
+ * Send a message to the assistant
+ */
+export function promptAgentSession({ id, agentPromptDto }: {
+    id: string;
+    agentPromptDto: AgentPromptDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/prompt`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentPromptDto
+    })));
+}
+/**
  * List all albums
  */
 export function getAllAlbums({ assetId, id, isOwned, isShared, name }: {
@@ -4592,6 +5181,45 @@ export function rotateApiKey({ id }: {
     }>(`/api-keys/${encodeURIComponent(id)}/rotate`, {
         ...opts,
         method: "POST"
+    }));
+}
+/**
+ * Transform a photo into artwork
+ */
+export function createArtJob({ artJobCreateDto }: {
+    artJobCreateDto: ArtJobCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ArtJobResponseDto;
+    }>("/art/jobs", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: artJobCreateDto
+    })));
+}
+/**
+ * Retrieve an art job
+ */
+export function getArtJob({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtJobResponseDto;
+    }>(`/art/jobs/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Retrieve artistic styles
+ */
+export function getArtStyles(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtStyleDto[];
+    }>("/art/styles", {
+        ...opts
     }));
 }
 /**
@@ -5211,6 +5839,284 @@ export function validateAccessToken(opts?: Oazapfts.RequestOpts) {
     }>("/auth/validateToken", {
         ...opts,
         method: "POST"
+    }));
+}
+/**
+ * List books
+ */
+export function getBooks(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookResponseDto[];
+    }>("/books", {
+        ...opts
+    }));
+}
+/**
+ * Create a book
+ */
+export function createBook({ bookCreateDto }: {
+    bookCreateDto: BookCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookDetailResponseDto;
+    }>("/books", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookCreateDto
+    })));
+}
+/**
+ * Create a book from an album
+ */
+export function createBookFromAlbum({ bookFromAlbumDto }: {
+    bookFromAlbumDto: BookFromAlbumDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookDetailResponseDto;
+    }>("/books/from-album", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookFromAlbumDto
+    })));
+}
+/**
+ * List book layouts
+ */
+export function getBookLayouts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookLayoutResponseDto[];
+    }>("/books/layouts", {
+        ...opts
+    }));
+}
+/**
+ * Delete a book
+ */
+export function deleteBook({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a book
+ */
+export function getBook({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDetailResponseDto;
+    }>(`/books/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update a book
+ */
+export function updateBook({ id, bookUpdateDto }: {
+    id: string;
+    bookUpdateDto: BookUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDetailResponseDto;
+    }>(`/books/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookUpdateDto
+    })));
+}
+/**
+ * Lay out a book automatically
+ */
+export function autoLayoutBook({ id, bookAutoLayoutDto }: {
+    id: string;
+    bookAutoLayoutDto: BookAutoLayoutDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookDetailResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/auto-layout`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookAutoLayoutDto
+    })));
+}
+/**
+ * Export a book
+ */
+export function exportBook({ id, bookExportDto }: {
+    id: string;
+    bookExportDto?: BookExportDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/export`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookExportDto
+    })));
+}
+/**
+ * Download a book as HTML
+ */
+export function downloadBookHtml({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/html`, {
+        ...opts
+    }));
+}
+/**
+ * Add a book page
+ */
+export function addBookPage({ id, bookPageCreateDto }: {
+    id: string;
+    bookPageCreateDto: BookPageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookPageCreateDto
+    })));
+}
+/**
+ * Remove a book page
+ */
+export function removeBookPage({ id, pageId }: {
+    id: string;
+    pageId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Update a book page
+ */
+export function updateBookPage({ id, pageId, bookPageUpdateDto }: {
+    id: string;
+    pageId: string;
+    bookPageUpdateDto: BookPageUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookPageUpdateDto
+    })));
+}
+/**
+ * Move a book page
+ */
+export function moveBookPage({ id, pageId, bookPageMoveDto }: {
+    id: string;
+    pageId: string;
+    bookPageMoveDto: BookPageMoveDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/position`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookPageMoveDto
+    })));
+}
+/**
+ * Render a book page
+ */
+export function renderBookPage({ id, pageId, size }: {
+    id: string;
+    pageId: string;
+    size?: number;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/render${QS.query(QS.explode({
+        size
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Clear a book page slot
+ */
+export function clearBookSlot({ id, pageId, slot }: {
+    id: string;
+    pageId: string;
+    slot: number;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Update a book page slot
+ */
+export function updateBookSlot({ id, pageId, slot, bookSlotPatchDto }: {
+    id: string;
+    pageId: string;
+    slot: number;
+    bookSlotPatchDto: BookSlotPatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookSlotPatchDto
+    })));
+}
+/**
+ * Place a photo in a book page slot
+ */
+export function setBookSlot({ id, pageId, slot, bookSlotUpdateDto }: {
+    id: string;
+    pageId: string;
+    slot: number;
+    bookSlotUpdateDto: BookSlotUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookSlotUpdateDto
+    })));
+}
+/**
+ * Download a book PDF
+ */
+export function downloadBookPdf({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/pdf`, {
+        ...opts
     }));
 }
 /**
@@ -7850,6 +8756,12 @@ export enum UserAvatarColor {
     Gray = "gray",
     Amber = "amber"
 }
+export enum DefaultStyle {
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
 export enum TranscodeHWAccel {
     Nvenc = "nvenc",
     Qsv = "qsv",
@@ -7976,6 +8888,29 @@ export enum AssetVisibility {
     Timeline = "timeline",
     Hidden = "hidden",
     Locked = "locked"
+}
+export enum AgentSessionStatus {
+    Idle = "idle",
+    Running = "running",
+    Error = "error"
+}
+export enum Kind {
+    AllowOnce = "allow_once",
+    AllowAlways = "allow_always",
+    RejectOnce = "reject_once",
+    RejectAlways = "reject_always"
+}
+export enum AgentMessageKind {
+    Text = "text",
+    Thought = "thought",
+    ToolCall = "tool_call",
+    Permission = "permission",
+    Plan = "plan",
+    Error = "error"
+}
+export enum AgentMessageRole {
+    User = "user",
+    Agent = "agent"
 }
 export enum AlbumUserRole {
     Editor = "editor",
@@ -8170,6 +9105,12 @@ export enum Permission {
     AdminSessionRead = "adminSession.read",
     AdminAuthUnlinkAll = "adminAuth.unlinkAll"
 }
+export enum ArtJobStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed"
+}
 export enum AssetFileType {
     Fullsize = "fullsize",
     Preview = "preview",
@@ -8215,6 +9156,40 @@ export enum AssetMediaSize {
     Fullsize = "fullsize",
     Preview = "preview",
     Thumbnail = "thumbnail"
+}
+export enum BookExportStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed"
+}
+export enum BookMapStyle {
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
+export enum BookMapStyleOption {
+    Auto = "auto",
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
+export enum Orientation {
+    Any = "any",
+    Landscape = "landscape",
+    Portrait = "portrait"
+}
+export enum Kind2 {
+    Title = "title",
+    Subtitle = "subtitle",
+    SectionTitle = "sectionTitle",
+    Caption = "caption"
+}
+export enum BookExportFormat {
+    Pdf = "pdf",
+    Html = "html"
 }
 export enum SourceType {
     MachineLearning = "machine-learning",
@@ -8312,6 +9287,8 @@ export enum JobName {
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
+    BookExport = "BookExport",
+    BookExportHtml = "BookExportHtml",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",
