@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AgentSettings from './AgentSettings.svelte';
   import AuthSettings from './AuthSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
@@ -37,6 +38,7 @@
     mdiImageOutline,
     mdiLockOutline,
     mdiMapMarkerOutline,
+    mdiCreationOutline,
     mdiPaletteOutline,
     mdiRobotOutline,
     mdiServerOutline,
@@ -63,6 +65,13 @@
     key: string;
     icon: string;
   }> = [
+    {
+      component: AgentSettings,
+      title: $t('admin.agent_settings'),
+      subtitle: $t('admin.agent_settings_description'),
+      key: 'assistant',
+      icon: mdiCreationOutline,
+    },
     {
       component: AuthSettings,
       title: $t('admin.authentication_settings'),

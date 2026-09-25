@@ -1,10 +1,12 @@
-import { AssetVisibility, type AssetResponseDto } from '@immich/sdk';
-import { type ActionItem } from '@immich/ui';
-import { mdiCreationOutline } from '@mdi/js';
+import { AssetTypeEnum, AssetVisibility, type AssetResponseDto } from '@immich/sdk';
+import { modalManager, type ActionItem } from '@immich/ui';
+import { mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
+import { authManager } from '$lib/managers/auth-manager.svelte';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
+import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import { Route } from '$lib/route';
 
 /** Above this many assets the ids are handed over in memory instead of in the URL */
@@ -29,19 +31,24 @@ export const openAssistant = async ({ assetIds = [], prompt }: { assetIds?: stri
   await goto(Route.assistant({ assetIds, prompt }));
 };
 
-/** Read (and consume) the context passed to the assistant page by the URL or by openAssistant */
-export const takeAssistantContext = (url: URL): AssistantContext => {
-  const fromUrl = (url.searchParams.get('assetIds') ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-  const fromMemory = pendingContext?.assetIds ?? [];
-  pendingContext = undefined;
+/** Read the context passed to the assistant page in the URL */
+export const getAssistantUrlContext = (url: URL): AssistantContext => ({
+  assetIds: [
+    ...new Set(
+      (url.searchParams.get('assetIds') ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ],
+  prompt: url.searchParams.get('prompt') ?? '',
+});
 
-  return {
-    assetIds: [...new Set([...fromUrl, ...fromMemory])],
-    prompt: url.searchParams.get('prompt') ?? '',
-  };
+/** Consume the assets handed over in memory by openAssistant (used for large selections) */
+export const takePendingAssistantAssets = (): string[] => {
+  const assetIds = pendingContext?.assetIds ?? [];
+  pendingContext = undefined;
+  return assetIds;
 };
 
 export const getAssistantBulkActions = ($t: MessageFormatter) => {
@@ -60,6 +67,7 @@ export const getAssistantBulkActions = ($t: MessageFormatter) => {
 };
 
 export const getAssistantAssetActions = ($t: MessageFormatter, asset: AssetResponseDto) => {
+  const isOwner = authManager.authenticated && authManager.user.id === asset.ownerId;
   const isUsable = !asset.isTrashed && asset.visibility !== AssetVisibility.Locked;
 
   const AskAssistant: ActionItem = {
@@ -69,5 +77,12 @@ export const getAssistantAssetActions = ($t: MessageFormatter, asset: AssetRespo
     onAction: () => openAssistant({ assetIds: [asset.id] }),
   };
 
-  return { AskAssistant };
+  const ArtisticStyle: ActionItem = {
+    title: $t('artistic_style'),
+    icon: mdiPaletteOutline,
+    $if: () => isOwner && isUsable && asset.type === AssetTypeEnum.Image && featureFlagsManager.value.artisticStyles,
+    onAction: () => modalManager.show(ArtisticStyleModal, { asset }),
+  };
+
+  return { AskAssistant, ArtisticStyle };
 };
