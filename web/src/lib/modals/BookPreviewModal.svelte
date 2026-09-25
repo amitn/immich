@@ -23,6 +23,17 @@
   const preventAutoFocus = (event: Event) => event.preventDefault();
   $effect(() => frame?.focus());
 
+  // Esc inside the frame never reaches this dialog, so the preview page asks to close
+  const handleMessage = (event: MessageEvent) => {
+    if (!frame?.contentWindow || event.source !== frame.contentWindow) {
+      return;
+    }
+    const data = event.data as { type?: unknown; action?: unknown } | null | undefined;
+    if (data?.type === 'immich-book-preview' && data.action === 'close') {
+      onClose();
+    }
+  };
+
   const handleLoad = () => {
     loaded = true;
     // let ←/→ turn the pages right away, unless the user moved on to the header buttons meanwhile
@@ -32,6 +43,8 @@
     }
   };
 </script>
+
+<svelte:window onmessage={handleMessage} />
 
 <Modal size="full" onClose={() => onClose()} onOpenAutoFocus={preventAutoFocus}>
   <ModalHeader>

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
+  import { artJobManager } from '$lib/managers/art-job-manager.svelte';
   import { Route } from '$lib/route';
   import { websocketEvents } from '$lib/stores/websocket';
   import { getAssetMediaUrl } from '$lib/utils';
@@ -71,6 +72,14 @@
     return 'running';
   });
   const canGenerate = $derived(!isSubmitting && selectedStyle !== undefined && (!isCustom || prompt.trim().length > 0));
+
+  // this dialog shows the result; once it is closed, the app-wide toast does
+  const jobId = $derived(job?.id);
+  $effect(() => {
+    if (jobId) {
+      return artJobManager.watch(jobId);
+    }
+  });
 
   const stopTimers = () => {
     clearInterval(pollTimer);

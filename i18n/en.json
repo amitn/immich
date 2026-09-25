@@ -654,6 +654,8 @@
   "art_prompt_description": "Extra instructions for the art agent, added to the style.",
   "art_prompt_optional": "Custom prompt (optional)",
   "art_prompt_placeholder": "e.g. warmer colors, keep the sky empty",
+  "art_ready": "Your {style} artwork is ready",
+  "art_ready_custom": "Your artwork is ready",
   "art_result": "Generated artwork",
   "art_source_photo": "Source photo",
   "art_status_pending": "Waiting for the art agent…",

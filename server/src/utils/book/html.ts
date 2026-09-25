@@ -360,6 +360,13 @@ main .page::after{display:none!important}
 
 const SCRIPT = `(function () {
   'use strict';
+  // in the Immich preview this page is framed, and Esc would never reach the dialog around it
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && window.parent !== window) {
+      window.parent.postMessage({ type: 'immich-book-preview', action: 'close' }, '*');
+    }
+  });
+
   var root = document.documentElement;
   var body = document.body;
   root.classList.add('js');

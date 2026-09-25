@@ -413,6 +413,56 @@ describe('buildBookHtml', () => {
     const script = /<script>([\s\S]*)<\/script>/.exec(html)![1];
     expect(() => new Function(script)).not.toThrow();
   });
+
+  describe('pressing Esc', () => {
+    const STOP = new Error('stop at the pages');
+
+    /** runs the script up to the point where it looks for the pages */
+    const run = (framed: boolean) => {
+      const html = buildBookHtml(book, [page()], { images });
+      const script = /<script>([\s\S]*)<\/script>/.exec(html)![1];
+      const listeners: Array<(event: Partial<KeyboardEvent>) => void> = [];
+      const parent = { postMessage: vi.fn() };
+      const window: Record<string, unknown> = {};
+      window.parent = framed ? parent : window;
+      const document = {
+        addEventListener: (type: string, listener: (typeof listeners)[number]) => {
+          if (type === 'keydown') {
+            listeners.push(listener);
+          }
+        },
+        get documentElement(): never {
+          throw STOP;
+        },
+      };
+      expect(() => new Function('window', 'document', script)(window, document)).toThrow(STOP);
+      const press = (key: string) => {
+        for (const listener of listeners) {
+          listener({ key });
+        }
+      };
+      return { press, postMessage: parent.postMessage };
+    };
+
+    it('should ask the Immich preview around the page to close', () => {
+      const { press, postMessage } = run(true);
+      press('Escape');
+      expect(postMessage).toHaveBeenCalledWith({ type: 'immich-book-preview', action: 'close' }, '*');
+    });
+
+    it('should ignore other keys', () => {
+      const { press, postMessage } = run(true);
+      press('ArrowRight');
+      press('Enter');
+      expect(postMessage).not.toHaveBeenCalled();
+    });
+
+    it('should do nothing when the page is not framed', () => {
+      const { press, postMessage } = run(false);
+      expect(() => press('Escape')).not.toThrow();
+      expect(postMessage).not.toHaveBeenCalled();
+    });
+  });
 });
 
 /** four coloured quadrants, so a misplaced crop shows up as a wrong colour */
