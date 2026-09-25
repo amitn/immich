@@ -192,6 +192,7 @@ const BookResponseSchema = z
     style: BookStyleSchema,
     exportStatus: BookExportStatusSchema.nullable(),
     pageCount: z.int().min(0).describe('Number of pages'),
+    firstPageId: z.uuidv4().nullable().describe('ID of the first page, e.g. to show the cover'),
     createdAt: isoDatetimeToDate.describe('Creation date'),
     updatedAt: isoDatetimeToDate.describe('Last update date'),
   })
@@ -244,7 +245,7 @@ export class BookResponseDto extends createZodDto(BookResponseSchema) {}
 export class BookDetailResponseDto extends createZodDto(BookDetailResponseSchema) {}
 export class BookLayoutResponseDto extends createZodDto(BookLayoutResponseSchema) {}
 
-type BookRow = Selectable<BookTable> & { pageCount: number };
+type BookRow = Selectable<BookTable> & { pageCount: number; firstPageId: string | null };
 
 type BookPageRow = Selectable<BookPageTable> & {
   assets: { slot: number; assetId: string; crop: NormalizedRect | null; caption: string | null }[];
@@ -262,6 +263,7 @@ export const mapBook = (book: BookRow): BookResponseDto => ({
   style: resolveBookStyle(book.style),
   exportStatus: book.exportStatus,
   pageCount: book.pageCount,
+  firstPageId: book.firstPageId,
   createdAt: book.createdAt,
   updatedAt: book.updatedAt,
 });
@@ -293,7 +295,7 @@ export const mapBookPage = (page: BookPageRow, book: PageSize & { style: BookSty
 };
 
 export const mapBookDetail = (book: BookRow, pages: BookPageRow[]): BookDetailResponseDto => ({
-  ...mapBook({ ...book, pageCount: pages.length }),
+  ...mapBook({ ...book, pageCount: pages.length, firstPageId: pages[0]?.id ?? null }),
   pages: pages.map((page) => mapBookPage(page, book)),
 });
 

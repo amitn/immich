@@ -24,7 +24,7 @@ export class BookRepository {
       .insertInto('book')
       .values(book)
       .returningAll()
-      .returning(sql<number>`0`.as('pageCount'))
+      .returning([sql<number>`0`.as('pageCount'), sql<string | null>`null`.as('firstPageId')])
       .executeTakeFirstOrThrow();
   }
 
@@ -38,6 +38,15 @@ export class BookRepository {
           .select((eb) => eb.fn.countAll<number>().as('count'))
           .whereRef('book_page.bookId', '=', 'book.id')
           .as('pageCount'),
+      )
+      .select((eb) =>
+        eb
+          .selectFrom('book_page')
+          .select('book_page.id')
+          .whereRef('book_page.bookId', '=', 'book.id')
+          .orderBy('book_page.position', 'asc')
+          .limit(1)
+          .as('firstPageId'),
       );
   }
 

@@ -215,15 +215,15 @@ export class BookController {
 
   @Post(':id/export')
   @Authenticated({ permission: Permission.BookDownload })
-  @HttpCode(HttpStatus.ACCEPTED)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @Endpoint({
     summary: 'Export a book as PDF',
     description:
       'Queue the print-ready (300 dpi) PDF export of a photo book. Poll the book until exportStatus is completed.',
     history: history(),
   })
-  exportBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookResponseDto> {
-    return this.service.export(auth, id);
+  async exportBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
+    await this.service.export(auth, id);
   }
 
   @Get(':id/pdf')
