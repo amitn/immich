@@ -1,15 +1,19 @@
 <script lang="ts">
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
-  import { BookReviewState } from '$lib/components/books/book-review-state.svelte';
+  import BookEditPanel from '$lib/components/books/BookEditPanel.svelte';
   import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
+  import BookPageEditor from '$lib/components/books/BookPageEditor.svelte';
+  import BookPageStrip from '$lib/components/books/BookPageStrip.svelte';
   import BookReviewPanel from '$lib/components/books/BookReviewPanel.svelte';
   import BookSlotHighlight from '$lib/components/books/BookSlotHighlight.svelte';
   import BookStyleMenu from '$lib/components/books/BookStyleMenu.svelte';
+  import { BookReviewState } from '$lib/components/books/book-review-state.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
   import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
+  import { BookEditorManager } from '$lib/managers/book-editor-manager.svelte';
   import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
@@ -43,7 +47,7 @@
     type BookPageResponseDto,
     type BookResponseDto,
   } from '@immich/sdk';
-  import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
+  import { Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
     mdiArrowLeft,
     mdiAutoFix,
@@ -59,7 +63,7 @@
     mdiFileOutline,
     mdiFilePdfBox,
     mdiLanguageHtml5,
-    mdiMapOutline,
+    mdiPencilOutline,
     mdiTrashCanOutline,
   } from '@mdi/js';
   import { DateTime } from 'luxon';
@@ -87,6 +91,8 @@
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let strip = $state<HTMLElement>();
   const loaded = new SvelteSet<string>();
+  let editing = $state(false);
+  const editor = new BookEditorManager({ getBook: () => book, refresh: () => refresh() });
 
   const pages = $derived([...book.pages].sort((a, b) => a.position - b.position));
   const views = $derived(toViews(pages, mode));
@@ -145,6 +151,14 @@
   };
 
   const goToPage = (pageIndex: number) => goToView(viewIndexForPage(pageIndex, mode));
+
+  const toggleEditing = () => {
+    editing = !editing;
+    editor.select();
+    if (editing) {
+      void editor.loadLayouts();
+    }
+  };
 
   const setMode = (next: BookViewMode) => {
     if (next === mode) {
@@ -309,6 +323,7 @@
     book = next;
     viewIndex = 0;
     loaded.clear();
+    editor.select();
     strip?.scrollTo({ left: 0 });
     if (isBookExporting(next)) {
       startPolling();
@@ -583,30 +598,51 @@
   {:else}
     <div class="flex flex-col gap-4 pb-6">
       <div class="flex items-center justify-between gap-2 px-2 pt-2">
-        <p class="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">{pageLabel}</p>
-        <div class="flex gap-1" role="group" aria-label={$t('book_view_mode')}>
+        <div class="flex items-center gap-3">
+          <p class="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">{pageLabel}</p>
+          <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" role="status">
+            {#if editor.isSaving}
+              <LoadingSpinner size="small" />
+              <span>{$t('book_saving')}</span>
+            {/if}
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
           <Button
             size="small"
             shape="round"
-            variant={mode === 'single' ? 'filled' : 'ghost'}
-            color="secondary"
-            leadingIcon={mdiFileOutline}
-            aria-pressed={mode === 'single'}
-            onclick={() => setMode('single')}
+            variant={editing ? 'filled' : 'ghost'}
+            color={editing ? 'primary' : 'secondary'}
+            leadingIcon={mdiPencilOutline}
+            aria-pressed={editing}
+            onclick={toggleEditing}
           >
-            {$t('book_single_page')}
+            {$t('book_edit_pages')}
           </Button>
-          <Button
-            size="small"
-            shape="round"
-            variant={mode === 'spread' ? 'filled' : 'ghost'}
-            color="secondary"
-            leadingIcon={mdiBookOpenVariantOutline}
-            aria-pressed={mode === 'spread'}
-            onclick={() => setMode('spread')}
-          >
-            {$t('book_spread')}
-          </Button>
+          <div class="flex gap-1" role="group" aria-label={$t('book_view_mode')}>
+            <Button
+              size="small"
+              shape="round"
+              variant={mode === 'single' ? 'filled' : 'ghost'}
+              color="secondary"
+              leadingIcon={mdiFileOutline}
+              aria-pressed={mode === 'single'}
+              onclick={() => setMode('single')}
+            >
+              {$t('book_single_page')}
+            </Button>
+            <Button
+              size="small"
+              shape="round"
+              variant={mode === 'spread' ? 'filled' : 'ghost'}
+              color="secondary"
+              leadingIcon={mdiBookOpenVariantOutline}
+              aria-pressed={mode === 'spread'}
+              onclick={() => setMode('spread')}
+            >
+              {$t('book_spread')}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -642,6 +678,9 @@
                   onerror={() => loaded.add(page.id)}
                 />
                 <BookSlotHighlight {book} {page} slot={highlight?.pageId === page.id ? highlight.slot : undefined} />
+                {#if editing}
+                  <BookPageEditor {editor} {page} pageNumber={pageNumber(page)} />
+                {/if}
               </figure>
             {/each}
           </div>
@@ -659,7 +698,9 @@
         />
       </div>
 
-      {#if current.some((page) => page.sectionTitle || page.caption || page.slots.some((slot) => slot.caption))}
+      {#if editing}
+        <BookEditPanel {editor} pages={current} {pageNumber} />
+      {:else if current.some((page) => page.sectionTitle || page.caption || page.slots.some((slot) => slot.caption))}
         <div class="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 sm:flex-row">
           {#each current as page (page.id)}
             <div class="flex flex-1 flex-col gap-1 text-sm">
@@ -679,54 +720,15 @@
         </div>
       {/if}
 
-      <nav aria-label={$t('book_pages')}>
-        <ul bind:this={strip} class="flex immich-scrollbar gap-2 overflow-x-auto p-2">
-          {#each pages as page, index (page.id)}
-            {@const active = current.includes(page)}
-            {@const isMap = isMapPage(page)}
-            <li class="shrink-0">
-              <button
-                type="button"
-                class="flex flex-col items-center gap-1 rounded-md p-1 outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary {active
-                  ? 'bg-primary/15'
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"
-                aria-current={active ? 'true' : undefined}
-                aria-label={isMap
-                  ? $t('book_go_to_map_page', { values: { page: index + 1 } })
-                  : $t('book_go_to_page', { values: { page: index + 1 } })}
-                onclick={() => goToPage(index)}
-              >
-                <span class="relative block">
-                  <img
-                    src={renderUrl(page, 300)}
-                    alt=""
-                    loading="lazy"
-                    draggable="false"
-                    class="h-20 bg-gray-100 object-contain shadow-sm dark:bg-gray-800 {active
-                      ? 'ring-2 ring-primary'
-                      : ''}"
-                    style:aspect-ratio={ratio}
-                  />
-                  {#if isMap}
-                    <span
-                      class="absolute inset-e-1 bottom-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-primary shadow-sm dark:bg-gray-900/90"
-                      aria-hidden="true"
-                    >
-                      <Icon icon={mdiMapOutline} size="14" />
-                    </span>
-                  {/if}
-                </span>
-                <span class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                  {index + 1}
-                  {#if isMap}
-                    <span class="font-medium text-primary">· {$t('book_map_page')}</span>
-                  {/if}
-                </span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </nav>
+      <BookPageStrip
+        bind:element={strip}
+        {pages}
+        {current}
+        {ratio}
+        {renderUrl}
+        onGoToPage={goToPage}
+        editor={editing ? editor : undefined}
+      />
     </div>
   {/if}
 
