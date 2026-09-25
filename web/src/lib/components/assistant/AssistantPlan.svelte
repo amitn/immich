@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AgentPlanEntryDto } from '$lib/types/assistant';
+  import type { AgentPlanEntryDto } from '@immich/sdk';
   import { Icon } from '@immich/ui';
   import { mdiCheckboxBlankOutline, mdiCheckboxMarked, mdiFormatListChecks, mdiProgressClock } from '@mdi/js';
   import { t } from 'svelte-i18n';

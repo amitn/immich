@@ -6,7 +6,7 @@
   import AssistantPlan from '$lib/components/assistant/AssistantPlan.svelte';
   import AssistantToolCallCard from '$lib/components/assistant/AssistantToolCallCard.svelte';
   import type { ChatMessage } from '$lib/managers/agent-conversation.svelte';
-  import type { AgentPermissionResponseDto } from '$lib/types/assistant';
+  import { AgentMessageKind, AgentMessageRole, type AgentPermissionResponseDto } from '@immich/sdk';
   import { Icon } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiThoughtBubbleOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -21,7 +21,7 @@
   const content = $derived(message.content);
 </script>
 
-{#if message.role === 'user'}
+{#if message.role === AgentMessageRole.User}
   <div class="flex flex-col items-end gap-1.5" class:opacity-60={message.pending}>
     {#if content.assetIds?.length}
       <AssistantAssetStrip assetIds={content.assetIds} size="small" limit={8} />
@@ -37,7 +37,7 @@
       <span class="sr-only">{$t('assistant_sending')}</span>
     {/if}
   </div>
-{:else if message.kind === 'text'}
+{:else if message.kind === AgentMessageKind.Text}
   <div class="flex flex-col gap-2">
     <AssistantMarkdown text={content.text} />
     {#if content.assetIds?.length}
@@ -45,7 +45,7 @@
     {/if}
     <AssistantLinks albumIds={content.albumIds} bookIds={content.bookIds} />
   </div>
-{:else if message.kind === 'thought'}
+{:else if message.kind === AgentMessageKind.Thought}
   <details class="group rounded-lg text-gray-600 dark:text-gray-400">
     <summary class="flex cursor-pointer items-center gap-1.5 text-xs select-none">
       <Icon icon={mdiThoughtBubbleOutline} size="16" aria-hidden />
@@ -55,15 +55,15 @@
       <AssistantMarkdown text={content.text} class="text-xs/5" />
     </div>
   </details>
-{:else if message.kind === 'tool_call'}
+{:else if message.kind === AgentMessageKind.ToolCall}
   <AssistantToolCallCard {content} />
-{:else if message.kind === 'permission'}
+{:else if message.kind === AgentMessageKind.Permission}
   <AssistantPermissionCard {content} onRespond={(response) => onPermission(message, response)} />
-{:else if message.kind === 'plan'}
+{:else if message.kind === AgentMessageKind.Plan}
   {#if content.entries?.length}
     <AssistantPlan entries={content.entries} />
   {/if}
-{:else if message.kind === 'error'}
+{:else if message.kind === AgentMessageKind.Error}
   <div
     class="flex items-start gap-2 rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger"
     role="alert"

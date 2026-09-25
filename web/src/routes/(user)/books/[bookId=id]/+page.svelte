@@ -9,13 +9,7 @@
   import { openAssistant } from '$lib/services/assistant.service';
   import { deleteBook, exportBook, getBook, getBookExportUrl, getBookPageRenderUrl } from '$lib/services/book-api';
   import { websocketEvents } from '$lib/stores/websocket';
-  import type {
-    AgentUpdateDto,
-    BookDetailResponseDto,
-    BookExportFormat,
-    BookExportStatus,
-    BookPageDto,
-  } from '$lib/types/assistant';
+  import type { BookDetailResponseDto, BookExportFormat, BookExportStatus, BookPageDto } from '$lib/types/assistant';
   import { firstPageForView, toViews, viewIndexForPage, type BookViewMode } from '$lib/utils/book';
   import {
     getBookExportStatus,
@@ -25,6 +19,7 @@
     isMapPage,
   } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
+  import type { AgentUpdateDto } from '@immich/sdk';
   import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
     mdiAutoFix,
