@@ -97,4 +97,43 @@ describe('Route', () => {
       expect(Route.continue(String.raw`\/malicious.com`, '/fallback')).toBe('/fallback');
     });
   });
+
+  describe(Route.assistant.name, () => {
+    it('should work', () => {
+      expect(Route.assistant()).toBe('/assistant');
+    });
+
+    it('should select a session', () => {
+      expect(Route.assistant({ sessionId: 'session-1' })).toBe('/assistant?session=session-1');
+    });
+
+    it('should join asset ids with commas', () => {
+      expect(Route.assistant({ assetIds: ['a', 'b', 'c'] })).toBe('/assistant?assetIds=a%2Cb%2Cc');
+    });
+
+    it('should ignore an empty asset id list', () => {
+      expect(Route.assistant({ assetIds: [] })).toBe('/assistant');
+    });
+
+    it('should encode a prefilled prompt', () => {
+      expect(Route.assistant({ prompt: 'Edit book 1 & more' })).toBe('/assistant?prompt=Edit%20book%201%20%26%20more');
+    });
+
+    it('should round trip asset ids through URLSearchParams', () => {
+      const url = new URL(Route.assistant({ assetIds: ['id-1', 'id-2'] }), 'https://example.com');
+      expect(url.searchParams.get('assetIds')?.split(',')).toEqual(['id-1', 'id-2']);
+    });
+  });
+
+  describe(Route.books.name, () => {
+    it('should work', () => {
+      expect(Route.books()).toBe('/books');
+    });
+  });
+
+  describe(Route.viewBook.name, () => {
+    it('should work', () => {
+      expect(Route.viewBook({ id: 'book-1' })).toBe('/books/book-1');
+    });
+  });
 });

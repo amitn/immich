@@ -53,6 +53,19 @@ export const Route = {
   viewAlbumAsset: ({ albumId, assetId }: { albumId: string; assetId: string }) =>
     `/albums/${albumId}/photos/${assetId}`,
 
+  // assistant
+  assistant: (params?: { sessionId?: string; assetIds?: string[]; prompt?: string }) =>
+    '/assistant' +
+    asQueryString({
+      session: params?.sessionId,
+      assetIds: params?.assetIds?.length ? params.assetIds.join(',') : undefined,
+      prompt: params?.prompt,
+    }),
+
+  // books
+  books: () => '/books',
+  viewBook: ({ id }: { id: string }) => `/books/${id}`,
+
   // buy
   buy: () => '/buy',
 
