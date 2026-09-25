@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { BookMap } from 'src/dtos/book.dto.js';
+import { BookMap, BookStyleSchema } from 'src/dtos/book.dto.js';
 import {
   ArtJobStatus,
   AssetFileType,
@@ -18,6 +18,7 @@ import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BookService, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { validatePageStyle } from 'src/utils/book/layouts.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
@@ -203,6 +204,26 @@ describe(BookService.name, () => {
     expect(sut).toBeDefined();
   });
 
+  describe('getStylePresets', () => {
+    it('should list the presets with valid styles', () => {
+      const presets = sut.getStylePresets();
+      expect(presets.map(({ id }) => id)).toEqual(['classic', 'soft', 'bold']);
+      expect(presets[0].style).toEqual(
+        expect.objectContaining({ marginMm: 12, background: '#ffffff', fontFamily: 'serif' }),
+      );
+      expect(presets[1].style).toEqual(
+        expect.objectContaining({ marginMm: 18, background: '#f6f1e7', textColor: '#5b4636', fontFamily: 'serif' }),
+      );
+      expect(presets[2].style.gutterMm).toBeGreaterThanOrEqual(2);
+      expect(presets[2].style.gutterMm).toBeLessThanOrEqual(3);
+      expect(presets[2].style.fontFamily).toBe('sans-serif');
+      for (const { style } of presets) {
+        expect(BookStyleSchema.parse(style)).toEqual(style);
+        expect(validatePageStyle({ pageWidthMm: 150, pageHeightMm: 150 }, style)).toBeNull();
+      }
+    });
+  });
+
   describe('getLayouts', () => {
     it('should list the layouts', () => {
       expect(sut.getLayouts()).toEqual(
@@ -268,6 +289,28 @@ describe(BookService.name, () => {
       );
     });
 
+    it('should start from a style preset and apply the style on top', async () => {
+      mocks.book.create.mockImplementation((book) =>
+        Promise.resolve(BookFactory.create({ ...(book as object), id: newUuid() } as never)),
+      );
+
+      await sut.create(auth, { title: 'Ride', stylePreset: 'soft', style: { captionSizePt: 11 } });
+
+      expect(mocks.book.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          style: {
+            marginMm: 18,
+            gutterMm: 5,
+            background: '#f6f1e7',
+            textColor: '#5b4636',
+            fontFamily: 'serif',
+            titleSizePt: 28,
+            captionSizePt: 11,
+          },
+        }),
+      );
+    });
+
     it('should require access to the album', async () => {
       await expect(sut.create(auth, { title: 'Italy', albumId: newUuid() })).rejects.toBeInstanceOf(
         BadRequestException,
@@ -294,6 +337,27 @@ describe(BookService.name, () => {
       expect(mocks.book.update).toHaveBeenCalledWith(
         book.id,
         expect.objectContaining({ style: expect.objectContaining({ gutterMm: 1, marginMm: 12 }) }),
+      );
+    });
+
+    it('should replace the style with a preset', async () => {
+      const book = BookFactory.create({ style: { marginMm: 20, background: '#000000' } as never });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([]);
+
+      await sut.update(auth, book.id, { stylePreset: 'bold' });
+
+      expect(mocks.book.update).toHaveBeenCalledWith(
+        book.id,
+        expect.objectContaining({
+          style: expect.objectContaining({
+            marginMm: 6,
+            gutterMm: 2.5,
+            background: '#ffffff',
+            fontFamily: 'sans-serif',
+          }),
+        }),
       );
     });
 
@@ -1033,6 +1097,29 @@ describe(BookService.name, () => {
           .map((page) => page.map!.style);
         expect(styles.length).toBeGreaterThan(0);
         expect(new Set(styles)).toEqual(new Set(['toner']));
+      });
+
+      it('should warn when the map style needs a Stadia Maps API key', async () => {
+        const { albumId } = setupAlbum(trip());
+
+        const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'watercolor' });
+
+        expect(result.warnings).toEqual([
+          'Watercolor maps need a Stadia Maps API key (Administration → Settings → Photo books); using the offline sketch style',
+        ]);
+        expect(plannedPages().find((page) => page.map)?.map?.style).toBe('watercolor');
+      });
+
+      it('should pick a map style that works for auto', async () => {
+        const { albumId } = setupAlbum(trip());
+
+        const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'auto' });
+
+        expect(result.warnings).toEqual([]);
+        const styles = plannedPages()
+          .filter((page) => page.map)
+          .map((page) => page.map!.style);
+        expect(new Set(styles)).toEqual(new Set(['sketch']));
       });
 
       it('should not add maps when they are turned off', async () => {

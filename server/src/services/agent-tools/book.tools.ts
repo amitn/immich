@@ -1,17 +1,22 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import z from 'zod';
 import {
+  BookCaptionModeSchema,
   BookDetailResponseDto,
   BookMap,
   BookMapStyleOptionSchema,
   BookPageResponseDto,
+  BookStylePresetSchema,
   BookStyleUpdateSchema,
   NormalizedRectSchema,
+  bookStylePresetIds,
+  bookStylePresets,
   defaultBookStyle,
 } from 'src/dtos/book.dto.js';
 import { BookExportFormat, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
+import { isArtEnabled } from 'src/utils/agent/config.js';
 import {
   AgentTool,
   AgentToolContext,
@@ -22,7 +27,7 @@ import {
   toolJson,
 } from 'src/utils/agent/tools.js';
 import { bookLayouts, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
-import { BookMapStyleOption } from 'src/utils/book/map-styles.js';
+import { BookMapStyleOption, resolveMapStyle } from 'src/utils/book/map-styles.js';
 import { BookRenderWarning } from 'src/utils/book/render.js';
 
 /**
@@ -58,8 +63,12 @@ const WORKFLOW =
   'book by hand instead: create_book → add_page for each page (assetIds fill the slots in one call).';
 
 const mapStyle = BookMapStyleOptionSchema.describe(
-  'Map style: sketch (offline, hand-drawn look), watercolor, toner or terrain (Stadia Maps tiles; they fall back to ' +
-    'sketch without an API key), or auto for the server default',
+  'Map style: sketch (offline, hand-drawn look), watercolor, toner or terrain (Stadia Maps tiles; without an API ' +
+    'key they are drawn as sketches and the result warns about it), or auto for the server default when it works',
+);
+
+const stylePreset = BookStylePresetSchema.describe(
+  `Style preset: ${bookStylePresetIds.map((id) => `${id} (${bookStylePresets[id].description})`).join('; ')}`,
 );
 
 const mapOptions = {
@@ -130,6 +139,14 @@ const summarizeBook = (book: BookDetailResponseDto) => ({
 
 const summarizeWarnings = (warnings: BookRenderWarning[]) => warnings.map((warning) => warning.message);
 
+const countReasons = (reasons: Record<string, string>) => {
+  const counts: Record<string, number> = {};
+  for (const reason of Object.values(reasons)) {
+    counts[reason] = (counts[reason] ?? 0) + 1;
+  }
+  return counts;
+};
+
 /** one line per page, e.g. "3: hero-left-two, 3 photos" */
 const summarizeLayout = ({ book, plan, photoCount, warnings }: BookAutoLayoutResult) => {
   const offset = Math.max(0, book.pages.length - plan.pages.length);
@@ -137,7 +154,13 @@ const summarizeLayout = ({ book, plan, photoCount, warnings }: BookAutoLayoutRes
     bookId: book.id,
     title: book.title,
     pageCount: book.pages.length,
-    photos: { considered: photoCount, placed: plan.usedIds.length, leftOut: plan.droppedIds.length },
+    photos: {
+      considered: photoCount,
+      placed: plan.usedIds.length,
+      leftOut: plan.droppedIds.length,
+      ...(plan.droppedIds.length > 0 && { leftOutBecause: countReasons(plan.dropReasons) }),
+    },
+    ...(plan.people.length > 0 && { mainPeople: plan.people }),
     sections: plan.sections.map((section) => ({
       title: section.title,
       dates: section.dates,
@@ -157,7 +180,9 @@ const summarizeLayout = ({ book, plan, photoCount, warnings }: BookAutoLayoutRes
       return `${offset + index + 1}: ${parts.join(', ')}`;
     }),
     ...(warnings.length > 0 && { warnings }),
-    next: 'Call render_book to review the spreads, then render_page on pages that look weak and fix them.',
+    next:
+      'Call review_book and fix what it reports, then render_book to look at the spreads and render_page on weak ' +
+      'pages; swap in better unused photos, write captions for what is visible, and suggest a style preset.',
   };
 };
 
@@ -206,6 +231,7 @@ export class BookAgentTools extends BaseService {
                 ...(layout.text.length > 0 && { text: layout.text.map((area) => area.kind) }),
                 ...(layout.map && { map: true }),
               })),
+              stylePresets: bookStylePresetIds.map((id) => ({ id, ...bookStylePresets[id] })),
             });
           }),
       }),
@@ -237,7 +263,8 @@ export class BookAgentTools extends BaseService {
         title: 'Create a photo book',
         description:
           'Create an empty photo book (a draft the user can review in Immich). Page size defaults to 210×210mm. ' +
-          'Style options: marginMm, gutterMm, background and textColor (hex), fontFamily, titleSizePt, captionSizePt. ' +
+          'Start from a stylePreset (classic, soft or bold) and/or set style options: marginMm, gutterMm, ' +
+          'background and textColor (hex), fontFamily, titleSizePt, captionSizePt. ' +
           WORKFLOW,
         input: z.object({
           title: z.string().min(1).max(200).describe('Book title, shown on the cover'),
@@ -245,6 +272,7 @@ export class BookAgentTools extends BaseService {
           albumId: z.uuidv4().optional().describe('Album the book is made from'),
           pageWidthMm: z.int().min(50).max(600).optional().describe('Page width in millimeters'),
           pageHeightMm: z.int().min(50).max(600).optional().describe('Page height in millimeters'),
+          stylePreset: stylePreset.optional(),
           style: BookStyleUpdateSchema.optional(),
         }),
         mutating: false,
@@ -268,9 +296,18 @@ export class BookAgentTools extends BaseService {
           'picks the best photo of each near-duplicate burst, splits the photos into sections by event, opens ' +
           'every section with a map (when the photos have GPS) or a section title, gives the most important photos ' +
           '(heroAssetIds, favorites, sharp photos with faces) whole pages or hero slots, fits portrait photos in ' +
-          'portrait slots without cutting faces, and avoids repeating layouts. targetPageCount is approximate: ' +
-          'less important photos are left out when there are too many. The pages are replaced unless keepExisting ' +
-          '(which appends the photos that are not in the book yet). Returns a page summary. ' +
+          'portrait slots without cutting faces, and avoids repeating layouts. It shows one photo per stack (an ' +
+          'artwork only next to its original, at most maxStackPairs times), keeps artwork to about one page in ' +
+          'five (maxArtworkShare) and never on two pages in a row, never puts a photo in a slot it cannot print ' +
+          'at 150 dpi, avoids more than two single-photo pages in a row and similar photos on neighbouring pages, ' +
+          'splits a single day into chapters (e.g. the stops of a ride), keeps the main people in every section, ' +
+          'and drafts factual captions (captions: none, place, place-time or people; never descriptions of the ' +
+          'photos). targetPageCount is approximate: less important photos are left out when there are too many. ' +
+          'The pages are replaced unless keepExisting (which appends the photos that are not in the book yet). ' +
+          'Only when the user asks for illustrated (AI-drawn) maps and an art profile is configured, pass ' +
+          'illustratedMaps=true and then call illustrate_map without a page (the user approves it). Returns a page ' +
+          'summary with the photos left out (and why), the main people and warnings (e.g. a map style that is not ' +
+          'available). ' +
           WORKFLOW,
         input: z.object({
           albumId: z.uuidv4().optional().describe('Create a new book from this album'),
@@ -284,10 +321,31 @@ export class BookAgentTools extends BaseService {
           targetPageCount: z.int().min(1).max(200).optional().describe('Default: about one page per 2.5 photos'),
           includeMaps: z.boolean().optional().describe('Open sections with GPS locations with a map, default true'),
           mapStyle: mapStyle.optional(),
+          illustratedMaps: z
+            .boolean()
+            .optional()
+            .describe('The user asked for illustrated (AI-drawn) maps; default false'),
           keepExisting: z.boolean().optional(),
+          stylePreset: stylePreset.optional(),
+          captions: BookCaptionModeSchema.optional(),
+          maxArtworkShare: z
+            .number()
+            .min(0)
+            .max(1)
+            .optional()
+            .describe('Most pages with artwork, as a share of the pages, default 0.2'),
+          maxStackPairs: z
+            .int()
+            .min(0)
+            .max(20)
+            .optional()
+            .describe('Artworks shown next to their original on one page, default 2'),
         }),
         mutating: false,
-        handler: (ctx, { albumId, bookId, title, subtitle, pageWidthMm, pageHeightMm, ...options }) => {
+        handler: (
+          ctx,
+          { albumId, bookId, title, subtitle, pageWidthMm, pageHeightMm, stylePreset, illustratedMaps, ...options },
+        ) => {
           if (!!albumId === !!bookId) {
             return Promise.resolve(toolError('Pass either albumId (to create a book) or bookId (to lay out a book)'));
           }
@@ -300,20 +358,25 @@ export class BookAgentTools extends BaseService {
                 subtitle,
                 pageWidthMm,
                 pageHeightMm,
+                stylePreset,
                 targetPageCount: options.targetPageCount,
                 includeMaps: options.includeMaps,
                 mapStyle: options.mapStyle,
+                captions: options.captions,
+                maxArtworkShare: options.maxArtworkShare,
+                maxStackPairs: options.maxStackPairs,
               });
               markEditable(ctx, result.book.id);
-              return toolJson(summarizeLayout(result));
+              return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
             });
           }
 
           return this.edit(ctx, bookId!, async () => {
-            if (title !== undefined || subtitle !== undefined || pageWidthMm || pageHeightMm) {
-              await this.books.update(ctx.auth, bookId!, { title, subtitle, pageWidthMm, pageHeightMm });
+            if (title !== undefined || subtitle !== undefined || pageWidthMm || pageHeightMm || stylePreset) {
+              await this.books.update(ctx.auth, bookId!, { title, subtitle, pageWidthMm, pageHeightMm, stylePreset });
             }
-            return toolJson(summarizeLayout(await this.books.autoLayoutWithPlan(ctx.auth, bookId!, options)));
+            const result = await this.books.autoLayoutWithPlan(ctx.auth, bookId!, options);
+            return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
           });
         },
       }),
@@ -368,13 +431,14 @@ export class BookAgentTools extends BaseService {
         name: 'set_book_style',
         title: 'Set the book style',
         description:
-          'Change the style of the whole book. Omitted options keep their value. Colors are hex (#rrggbb). ' +
-          'Larger margins/gutters give a calmer look; small ones suit dense layouts.',
-        input: BookStyleUpdateSchema.extend({ bookId }),
+          'Change the style of the whole book. A preset (classic, soft or bold) replaces the style first; omitted ' +
+          'options keep their value. Colors are hex (#rrggbb). Larger margins/gutters give a calmer look; small ' +
+          'ones suit dense layouts.',
+        input: BookStyleUpdateSchema.extend({ bookId, preset: stylePreset.optional() }),
         mutating: false,
-        handler: (ctx, { bookId, ...style }) =>
+        handler: (ctx, { bookId, preset, ...style }) =>
           this.edit(ctx, bookId, async () => {
-            const book = await this.books.update(ctx.auth, bookId, { style });
+            const book = await this.books.update(ctx.auth, bookId, { style, stylePreset: preset });
             return toolJson({ style: book.style });
           }),
       }),
@@ -485,7 +549,7 @@ export class BookAgentTools extends BaseService {
         mutating: false,
         handler: (ctx, { bookId, position, photoAssetId, sectionTitle, caption, ...options }) =>
           this.edit(ctx, bookId, async () => {
-            const map = await this.toMap(options);
+            const { map, warning } = await this.toMap(options);
             let page = await this.books.addPage(ctx.auth, bookId, {
               layout: photoAssetId ? 'map-photo' : 'map',
               position: position === undefined ? undefined : position - 1,
@@ -496,7 +560,7 @@ export class BookAgentTools extends BaseService {
             if (photoAssetId) {
               page = await this.books.setSlot(ctx.auth, bookId, page.id, 0, { assetId: photoAssetId });
             }
-            return toolJson(summarizePage(page));
+            return toolJson({ ...summarizePage(page), ...(warning && { warnings: [warning] }) });
           }),
       }),
 
@@ -523,7 +587,7 @@ export class BookAgentTools extends BaseService {
             }
 
             const current = page.map;
-            const map = await this.toMap({
+            const { map, warning } = await this.toMap({
               style: options.style ?? current?.style,
               title: options.title ?? current?.title,
               assetIds: options.assetIds ?? current?.assetIds,
@@ -532,7 +596,7 @@ export class BookAgentTools extends BaseService {
             });
             const target = layout ?? (getLayout(page.layout)?.map ? undefined : 'map');
             const updated = await this.books.updatePage(ctx.auth, bookId, page.id, { map, layout: target });
-            return toolJson(summarizePage(updated));
+            return toolJson({ ...summarizePage(updated), ...(warning && { warnings: [warning] }) });
           }),
       }),
 
@@ -542,18 +606,38 @@ export class BookAgentTools extends BaseService {
         description:
           'Have the art agent redraw the map of a page as a hand-illustrated watercolor travel map (the rendered map ' +
           'is saved as a photo next to the first photo of the section, and the artwork as another one). It takes a ' +
-          'minute or two; render_page shows the plain map until the illustration is done. Only for photos the user ' +
-          'owns, and only when an art agent is configured.',
-        input: z.object({ bookId, page: pageRef }),
+          'minute or two; render_page shows the plain map until the illustration is done. Without a page, every map ' +
+          'page that is not illustrated yet is. Only for photos the user owns, and only when an art agent is ' +
+          'configured; use it only when the user asks for illustrated maps.',
+        input: z.object({ bookId, page: pageRef.optional() }),
         mutating: true,
         handler: (ctx, input) =>
           this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            const updated = await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
-            return toolJson({
-              ...summarizePage(updated),
-              next: 'The illustration takes a minute or two; render_page shows it once it is done.',
-            });
+            const next = 'The illustration takes a minute or two; render_page shows it once it is done.';
+            if (input.page !== undefined) {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              const updated = await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
+              return toolJson({ ...summarizePage(updated), next });
+            }
+
+            const book = await this.books.get(ctx.auth, input.bookId);
+            const pages = book.pages.filter(
+              (page) => getLayout(page.layout)?.map && !page.map?.artJobId && !page.map?.illustratedAssetId,
+            );
+            if (pages.length === 0) {
+              throw new ToolInputError('The book has no map pages to illustrate');
+            }
+            const started: number[] = [];
+            const failed: string[] = [];
+            for (const page of pages) {
+              try {
+                await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
+                started.push(page.position + 1);
+              } catch (error: any) {
+                failed.push(`page ${page.position + 1}: ${error?.response?.message ?? error?.message ?? error}`);
+              }
+            }
+            return toolJson({ started, ...(failed.length > 0 && { failed }), next });
           }),
       }),
 
@@ -714,21 +798,43 @@ export class BookAgentTools extends BaseService {
     ];
   }
 
+  /** the map, and a warning when its style can't be drawn yet */
   private async toMap(options: {
     style?: BookMapStyleOption;
     title?: string;
     assetIds?: string[];
     showRoute?: boolean;
     labels?: boolean;
-  }): Promise<BookMap> {
+  }): Promise<{ map: BookMap; warning?: string }> {
     const { books } = await this.getConfig({ withCache: true });
-    const style = !options.style || options.style === 'auto' ? books.maps.defaultStyle : options.style;
+    const { style, warning } = resolveMapStyle(options.style, books.maps);
     return {
-      style,
-      ...(options.title && { title: options.title }),
-      ...(options.assetIds?.length && { assetIds: options.assetIds }),
-      showRoute: options.showRoute ?? true,
-      labels: options.labels ?? true,
+      map: {
+        style,
+        ...(options.title && { title: options.title }),
+        ...(options.assetIds?.length && { assetIds: options.assetIds }),
+        showRoute: options.showRoute ?? true,
+        labels: options.labels ?? true,
+      },
+      warning,
+    };
+  }
+
+  /** after a layout for which the user asked for illustrated maps: how to start them, or why they can't be */
+  private async withIllustrationHint<T extends { next: string }>(summary: T, illustratedMaps?: boolean) {
+    if (!illustratedMaps) {
+      return summary;
+    }
+    const { agent } = await this.getConfig({ withCache: true });
+    if (!isArtEnabled(agent)) {
+      return {
+        ...summary,
+        illustratedMaps: 'Illustrated maps need an art agent profile (Administration → AI assistant)',
+      };
+    }
+    return {
+      ...summary,
+      next: `Call illustrate_map with this bookId and no page to redraw every map as an illustration. ${summary.next}`,
     };
   }
 

@@ -6,6 +6,7 @@ import { OnJob } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import {
   BookAutoLayoutDto,
+  BookAutoLayoutResponseDto,
   BookCreateDto,
   BookDetailResponseDto,
   BookExportDto,
@@ -21,13 +22,18 @@ import {
   BookSlotPatchDto,
   BookSlotUpdateDto,
   BookStyle,
+  BookStylePreset,
+  BookStylePresetResponseDto,
   BookStyleUpdate,
   BookUpdateDto,
   NormalizedRect,
+  bookStylePresetIds,
+  bookStylePresets,
   mapBook,
   mapBookDetail,
   mapBookLayout,
   mapBookPage,
+  mapBookStylePreset,
   resolveBookStyle,
 } from 'src/dtos/book.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
@@ -90,7 +96,7 @@ import {
   toPxRect,
   validatePageStyle,
 } from 'src/utils/book/layouts.js';
-import { BookMapStyle, BookMapStyleOption } from 'src/utils/book/map-styles.js';
+import { BookMapStyleOption, resolveMapStyle } from 'src/utils/book/map-styles.js';
 import {
   MapPoint,
   MapRenderContext,
@@ -278,6 +284,10 @@ export class BookService extends BaseService {
     return bookLayouts.map((layout) => mapBookLayout(layout));
   }
 
+  getStylePresets(): BookStylePresetResponseDto[] {
+    return bookStylePresetIds.map((id) => mapBookStylePreset(id));
+  }
+
   async getAll(auth: AuthDto): Promise<BookResponseDto[]> {
     const books = await this.bookRepository.getAll(auth.user.id);
     return books.map((book) => mapBook(book));
@@ -297,7 +307,7 @@ export class BookService extends BaseService {
       pageWidthMm: dto.pageWidthMm ?? DEFAULT_PAGE_SIZE_MM,
       pageHeightMm: dto.pageHeightMm ?? DEFAULT_PAGE_SIZE_MM,
     };
-    const style = this.mergeStyle(undefined, dto.style);
+    const style = this.mergeStyle(undefined, dto.style, dto.stylePreset);
     this.requireValidStyle(size, style);
 
     const book = await this.bookRepository.create({
@@ -313,9 +323,9 @@ export class BookService extends BaseService {
   }
 
   /** Creates a book from an album and lays out its photos automatically */
-  async createFromAlbum(auth: AuthDto, dto: BookFromAlbumDto): Promise<BookDetailResponseDto> {
-    const { book } = await this.createFromAlbumWithPlan(auth, dto);
-    return book;
+  async createFromAlbum(auth: AuthDto, dto: BookFromAlbumDto): Promise<BookAutoLayoutResponseDto> {
+    const { book, warnings } = await this.createFromAlbumWithPlan(auth, dto);
+    return { ...book, warnings };
   }
 
   async createFromAlbumWithPlan(auth: AuthDto, dto: BookFromAlbumDto): Promise<BookAutoLayoutResult> {
@@ -336,6 +346,7 @@ export class BookService extends BaseService {
       albumId: dto.albumId,
       pageWidthMm: dto.pageWidthMm,
       pageHeightMm: dto.pageHeightMm,
+      stylePreset: dto.stylePreset,
       style: dto.style,
     });
 
@@ -357,9 +368,9 @@ export class BookService extends BaseService {
   }
 
   /** Lays out a book again from its album (or the given photos), replacing its pages unless `keepExisting` */
-  async autoLayout(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookDetailResponseDto> {
-    const { book } = await this.autoLayoutWithPlan(auth, id, dto);
-    return book;
+  async autoLayout(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookAutoLayoutResponseDto> {
+    const { book, warnings } = await this.autoLayoutWithPlan(auth, id, dto);
+    return { ...book, warnings };
   }
 
   async autoLayoutWithPlan(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookAutoLayoutResult> {
@@ -399,7 +410,7 @@ export class BookService extends BaseService {
       pageWidthMm: dto.pageWidthMm ?? book.pageWidthMm,
       pageHeightMm: dto.pageHeightMm ?? book.pageHeightMm,
     };
-    const style = this.mergeStyle(book.style, dto.style);
+    const style = this.mergeStyle(book.style, dto.style, dto.stylePreset);
     this.requireValidStyle(size, style);
 
     await this.bookRepository.update(id, {
@@ -409,7 +420,7 @@ export class BookService extends BaseService {
       coverAssetId: dto.coverAssetId,
       pageWidthMm: dto.pageWidthMm,
       pageHeightMm: dto.pageHeightMm,
-      style: dto.style ? style : undefined,
+      style: dto.style || dto.stylePreset ? style : undefined,
     });
 
     return this.getDetail(id);
@@ -1190,12 +1201,8 @@ export class BookService extends BaseService {
     }
 
     const { books } = await this.getConfig({ withCache: true });
-    const mapStyle: BookMapStyle =
-      !options.mapStyle || options.mapStyle === 'auto' ? books.maps.defaultStyle : options.mapStyle;
+    const { style: mapStyle, warning: mapWarning } = resolveMapStyle(options.mapStyle, books.maps);
     const includeMaps = options.includeMaps ?? true;
-    if (includeMaps && mapStyle !== 'sketch' && !books.maps.stadiaApiKey) {
-      warnings.push(`No Stadia Maps API key is configured, so the ${mapStyle} maps are drawn as sketches`);
-    }
 
     const plan = planAutoLayout(photos, {
       size: book,
@@ -1210,6 +1217,9 @@ export class BookService extends BaseService {
       maxStackPairs: options.maxStackPairs,
     });
 
+    if (mapWarning && plan.pages.some((page) => page.map)) {
+      warnings.push(mapWarning);
+    }
     if (options.illustratedMaps && plan.pages.some((page) => page.map)) {
       await this.illustratePlannedMaps(auth, book, plan, photos, warnings);
     }
@@ -1443,8 +1453,15 @@ export class BookService extends BaseService {
     }
   }
 
-  private mergeStyle(current: BookStyle | undefined, update: BookStyleUpdate | undefined): BookStyle {
-    return resolveBookStyle({ ...resolveBookStyle(current), ...update });
+  /** the current style (or the preset), with the changes */
+  private mergeStyle(
+    current: BookStyle | undefined,
+    update: BookStyleUpdate | undefined,
+    preset?: BookStylePreset,
+  ): BookStyle {
+    const base = preset ? bookStylePresets[preset].style : resolveBookStyle(current);
+    const changes = Object.fromEntries(Object.entries(update ?? {}).filter(([, value]) => value !== undefined));
+    return resolveBookStyle({ ...base, ...changes });
   }
 
   private requireValidStyle(size: PageSize, style: BookStyle) {

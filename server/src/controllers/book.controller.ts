@@ -21,6 +21,7 @@ import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
   BookAutoLayoutDto,
+  BookAutoLayoutResponseDto,
   BookCreateDto,
   BookDetailResponseDto,
   BookExportDto,
@@ -36,6 +37,7 @@ import {
   BookSlotParamDto,
   BookSlotPatchDto,
   BookSlotUpdateDto,
+  BookStylePresetResponseDto,
   BookUpdateDto,
 } from 'src/dtos/book.dto.js';
 import { ApiTag, Permission } from 'src/enum.js';
@@ -75,10 +77,11 @@ export class BookController {
     summary: 'Create a book from an album',
     description:
       'Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event ' +
-      'opened by a map or a section title, and pages whose photo sizes follow the importance of the photos.',
+      'opened by a map or a section title, and pages whose photo sizes follow the importance of the photos. ' +
+      'The warnings report e.g. a map style that is not available.',
     history: history(),
   })
-  createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookDetailResponseDto> {
+  createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookAutoLayoutResponseDto> {
     return this.service.createFromAlbum(auth, dto);
   }
 
@@ -91,6 +94,17 @@ export class BookController {
   })
   getBookLayouts(): BookLayoutResponseDto[] {
     return this.service.getLayouts();
+  }
+
+  @Get('style-presets')
+  @Authenticated({ permission: Permission.BookRead })
+  @Endpoint({
+    summary: 'List book style presets',
+    description: 'Retrieve the style presets (background, text color, margins, gutters, font) for photo books.',
+    history: history(),
+  })
+  getBookStylePresets(): BookStylePresetResponseDto[] {
+    return this.service.getStylePresets();
   }
 
   @Get(':id')
@@ -144,7 +158,7 @@ export class BookController {
     @Auth() auth: AuthDto,
     @Param() { id }: UUIDParamDto,
     @Body() dto: BookAutoLayoutDto,
-  ): Promise<BookDetailResponseDto> {
+  ): Promise<BookAutoLayoutResponseDto> {
     return this.service.autoLayout(auth, id, dto);
   }
 

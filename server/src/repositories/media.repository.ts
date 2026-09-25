@@ -683,6 +683,25 @@ export class MediaRepository {
     };
   }
 
+  /** enlarges an image with Lanczos resampling and a very light sharpen, keeping its format (by file extension) */
+  upscaleImage(input: Buffer, size: { width: number; height: number }, extension: string): Promise<Buffer> {
+    const pipeline = sharp(input, { failOn: 'none' })
+      .resize(size.width, size.height, { kernel: 'lanczos3', fit: 'fill' })
+      .sharpen({ sigma: 0.5, m1: 0.5, m2: 1 });
+    switch (extension.replace(/^\./, '').toLowerCase()) {
+      case 'jpg':
+      case 'jpeg': {
+        return pipeline.jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+      }
+      case 'webp': {
+        return pipeline.webp({ quality: 92 }).toBuffer();
+      }
+      default: {
+        return pipeline.png().toBuffer();
+      }
+    }
+  }
+
   private configureFfmpegCall(input: string, output: string | Writable, options: TranscodeCommand) {
     const ffmpegCall = ffmpeg(input, { niceness: 10 })
       .inputOptions(options.inputOptions)

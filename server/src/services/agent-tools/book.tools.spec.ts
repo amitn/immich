@@ -1,6 +1,7 @@
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { AgentTool, AgentToolContext } from 'src/utils/agent/tools.js';
+import { clearConfigCache } from 'src/utils/config.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { newUuid } from 'test/small.factory.js';
@@ -348,10 +349,11 @@ describe(BookAgentTools.name, () => {
       expect(summary).toEqual(
         expect.objectContaining({
           bookId: result.book.id,
-          photos: { considered: 4, placed: 3, leftOut: 1 },
+          photos: { considered: 4, placed: 3, leftOut: 1, leftOutBecause: { budget: 1 } },
           sections: [{ title: 'Rome', dates: '1 June 2024', photos: 3 }],
           pages: ['1: cover, 1 photo', '2: map, "Rome", sketch map', '3: two-vertical, 2 photos'],
           warnings: ['a warning'],
+          next: expect.stringContaining('review_book'),
         }),
       );
 
@@ -390,6 +392,9 @@ describe(BookAgentTools.name, () => {
 
     it('should add a map page with the default style', async () => {
       const { book } = await createBook();
+      mocks.systemMetadata.get.mockResolvedValue({
+        books: { maps: { defaultStyle: 'watercolor', stadiaApiKey: 'key' } },
+      });
       mocks.book.addPage.mockImplementation((bookId, values) =>
         Promise.resolve(BookPageFactory.create({ bookId, position: 2, layout: values.layout, map: values.map })),
       );
@@ -407,6 +412,37 @@ describe(BookAgentTools.name, () => {
       expect(result).toEqual(
         expect.objectContaining({ page: 3, layout: 'map', map: { style: 'watercolor', title: 'Rome' } }),
       );
+      expect(result.warnings).toBeUndefined();
+    });
+
+    it('should pick the sketch style for auto without a Stadia Maps API key', async () => {
+      const { book } = await createBook();
+      mocks.book.addPage.mockImplementation((bookId, values) =>
+        Promise.resolve(BookPageFactory.create({ bookId, layout: values.layout, map: values.map })),
+      );
+
+      const result = JSON.parse(text(await call('add_map_page', { bookId: book.id, style: 'auto' })));
+
+      expect(result.map).toEqual({ style: 'sketch' });
+      expect(result.warnings).toBeUndefined();
+    });
+
+    it('should warn when the map style needs a Stadia Maps API key', async () => {
+      const { book, pages } = await createBook();
+      mocks.book.addPage.mockImplementation((bookId, values) =>
+        Promise.resolve(BookPageFactory.create({ bookId, layout: values.layout, map: values.map })),
+      );
+      mocks.book.updatePage.mockImplementation((bookId, pageId, values) =>
+        Promise.resolve(BookPageFactory.create({ ...pages[0], layout: 'map', map: values.map as never })),
+      );
+      const warning =
+        'Watercolor maps need a Stadia Maps API key (Administration → Settings → Photo books); using the offline sketch style';
+
+      const added = JSON.parse(text(await call('add_map_page', { bookId: book.id, style: 'watercolor' })));
+      expect(added.warnings).toEqual([warning]);
+
+      const updated = JSON.parse(text(await call('set_page_map', { bookId: book.id, page: 1, style: 'terrain' })));
+      expect(updated.warnings).toEqual([warning.replace('Watercolor', 'Terrain')]);
     });
 
     it('should add a map with a photo', async () => {
@@ -484,6 +520,87 @@ describe(BookAgentTools.name, () => {
 
       expect(illustrate).toHaveBeenCalledWith(authStub.admin, book.id, pages[0].id);
       expect(result.map).toEqual({ style: 'sketch', illustrated: 'started' });
+    });
+
+    it('should illustrate every map page that is not illustrated yet', async () => {
+      const { book, pages } = await createBook();
+      const map = { style: 'sketch' as const, showRoute: true, labels: true };
+      const mapPages = [
+        BookPageFactory.create({ bookId: book.id, position: 2, layout: 'map', map }),
+        BookPageFactory.create({ bookId: book.id, position: 3, layout: 'map-photo', map }),
+        BookPageFactory.create({ bookId: book.id, position: 4, layout: 'map', map: { ...map, artJobId: newUuid() } }),
+      ];
+      mocks.book.getPages.mockResolvedValue([...pages, ...mapPages]);
+      const illustrate = vi.spyOn(BookService.prototype, 'illustratePageMap').mockResolvedValue({} as never);
+
+      const result = JSON.parse(text(await call('illustrate_map', { bookId: book.id })));
+
+      expect(illustrate.mock.calls.map((args) => args[2])).toEqual([mapPages[0].id, mapPages[1].id]);
+      expect(result.started).toEqual([3, 4]);
+    });
+  });
+
+  describe('style presets and layout options', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+      clearConfigCache();
+    });
+
+    it('should apply a style preset', async () => {
+      const { book } = await createBook();
+      const update = vi.spyOn(BookService.prototype, 'update').mockResolvedValue({ style: {} } as never);
+
+      await call('set_book_style', { bookId: book.id, preset: 'soft', captionSizePt: 11 });
+
+      expect(update).toHaveBeenCalledWith(authStub.admin, book.id, {
+        style: { captionSizePt: 11 },
+        stylePreset: 'soft',
+      });
+    });
+
+    it('should pass the preset and the layout options to the automatic layout', async () => {
+      const albumId = newUuid();
+      const createFromAlbum = vi
+        .spyOn(BookService.prototype, 'createFromAlbumWithPlan')
+        .mockResolvedValue(layoutResult());
+
+      await call('auto_layout_book', {
+        albumId,
+        stylePreset: 'bold',
+        captions: 'people',
+        maxArtworkShare: 0.1,
+        maxStackPairs: 1,
+      });
+
+      expect(createFromAlbum).toHaveBeenCalledWith(
+        authStub.admin,
+        expect.objectContaining({
+          albumId,
+          stylePreset: 'bold',
+          captions: 'people',
+          maxArtworkShare: 0.1,
+          maxStackPairs: 1,
+        }),
+      );
+    });
+
+    it('should explain how to start illustrated maps', async () => {
+      clearConfigCache();
+      vi.spyOn(BookService.prototype, 'createFromAlbumWithPlan').mockResolvedValue(layoutResult());
+      const without = JSON.parse(text(await call('auto_layout_book', { albumId: newUuid(), illustratedMaps: true })));
+      expect(without.illustratedMaps).toMatch(/art agent profile/);
+
+      mocks.systemMetadata.get.mockResolvedValue({
+        agent: { enabled: true, artProfile: 'codex', profiles: [{ name: 'codex', command: 'codex-acp' }] },
+      });
+      clearConfigCache();
+      const summary = JSON.parse(text(await call('auto_layout_book', { albumId: newUuid(), illustratedMaps: true })));
+      expect(summary.next).toMatch(/^Call illustrate_map/);
+    });
+
+    it('should list the style presets with the layouts', async () => {
+      const result = JSON.parse(text(await call('list_layouts', {})));
+      expect(result.stylePresets.map(({ id }: { id: string }) => id)).toEqual(['classic', 'soft', 'bold']);
     });
   });
 });
