@@ -1,4 +1,4 @@
-import { BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
+import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
 import {
   BookLayout,
@@ -8,6 +8,7 @@ import {
   PxRect,
   getLayout,
   getLayoutBox,
+  getMapRectMm,
   getSlotRectsMm,
   getTextRectsMm,
   mmToPx,
@@ -59,6 +60,7 @@ export type RenderPageInput = {
   caption: string | null;
   background: string | null;
   assets: RenderPlacement[];
+  map?: BookMap | null;
 };
 
 export type RenderSource = {
@@ -72,7 +74,14 @@ export type RenderSource = {
 };
 
 export type BookRenderWarningType =
-  'empty-slot' | 'missing-asset' | 'low-dpi' | 'fallback-source' | 'crop-trimmed' | 'render-error' | 'unknown-layout';
+  | 'empty-slot'
+  | 'missing-asset'
+  | 'low-dpi'
+  | 'fallback-source'
+  | 'crop-trimmed'
+  | 'render-error'
+  | 'unknown-layout'
+  | 'map';
 
 export type BookRenderWarning = {
   /** one-based page number */
@@ -101,6 +110,8 @@ export type PagePlan = {
   layout: BookLayout;
   unknownLayout: boolean;
   slots: PagePlanSlot[];
+  /** the map area of the layout, if it has one */
+  map: { rect: PxRect; rectMm: LayoutRect } | null;
   spec: BookPageComposeSpec;
 };
 
@@ -339,7 +350,14 @@ export const ptToPx = (pt: number, dpi: number) => (pt * dpi) / 72;
 export const planPage = (
   book: RenderBookInput,
   page: RenderPageInput,
-  options: { dpi: number; mode: BookRenderMode; sources: Map<string, RenderSource>; quality?: number },
+  options: {
+    dpi: number;
+    mode: BookRenderMode;
+    sources: Map<string, RenderSource>;
+    quality?: number;
+    /** the rendered map, drawn in the layout's map area (see `renderMapImage`) */
+    mapImage?: Buffer | null;
+  },
 ): PagePlan => {
   const { dpi, mode } = options;
   const style = resolveBookStyle(book.style);
@@ -367,6 +385,9 @@ export const planPage = (
       source: placement ? (options.sources.get(placement.assetId) ?? null) : null,
     };
   });
+
+  const mapRectMm = getMapRectMm(layout, size, style);
+  const map = mapRectMm ? { rect: toPxRect(mapRectMm, dpi), rectMm: mapRectMm } : null;
 
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
@@ -456,6 +477,9 @@ export const planPage = (
         parts.push(renderPlaceholder(slot.rect, `Slot ${slot.index + 1}: missing photo`, style.fontFamily));
       }
     }
+    if (map && !options.mapImage) {
+      parts.unshift(renderPlaceholder(map.rect, 'Map', style.fontFamily));
+    }
   }
   parts.push(...blocks.filter((block) => block.text.trim()).map((block) => renderTextBlock(block, style.fontFamily)));
 
@@ -470,13 +494,18 @@ export const planPage = (
     layout,
     unknownLayout: !knownLayout,
     slots,
+    map,
     spec: {
       width,
       height,
       background: page.background ?? style.background,
       quality: options.quality ?? (mode === 'print' ? 90 : 80),
       overlay,
-      slots: slots.map((slot) => (slot.source ? { ...slot.rect, input: slot.source.input, crop: slot.crop } : null)),
+      slots: [
+        ...slots.map((slot) => (slot.source ? { ...slot.rect, input: slot.source.input, crop: slot.crop } : null)),
+        // drawn after the photos, so its result comes after theirs
+        ...(map && options.mapImage ? [{ ...map.rect, input: options.mapImage, crop: FULL_CROP }] : []),
+      ],
     },
   };
 };

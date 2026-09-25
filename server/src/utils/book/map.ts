@@ -3,7 +3,8 @@ import { LRUMap } from 'mnemonist';
 import sharp, { type Sharp } from 'sharp';
 import type { BookMap } from 'src/dtos/book.dto.js';
 import { haversineKm } from 'src/utils/agent/events.js';
-import { BookMapStyle, TileStyle, getTileStyle } from 'src/utils/book/map-styles.js';
+import { isMapLayout } from 'src/utils/book/layouts.js';
+import { TileStyle, getTileStyle } from 'src/utils/book/map-styles.js';
 import { escapeXml } from 'src/utils/book/render.js';
 
 export type MapPoint = { lat: number; lon: number; time: number; city?: string | null };
@@ -691,7 +692,7 @@ export const renderMap = async (
     warnings.push('None of the photos of this map have a GPS location');
   }
 
-  const tileStyle = getTileStyle(map.style as BookMapStyle);
+  const tileStyle = getTileStyle(map.style);
   let basemap: Buffer | undefined;
   if (tileStyle && !ctx.stadiaApiKey) {
     warnings.push(`The ${map.style} map style needs a Stadia Maps API key, so a sketch map is drawn instead`);
@@ -764,3 +765,28 @@ export const parsePolygon = (value: string): Array<[number, number]> =>
     .matchAll(/\(\s*(-?[\d.eE+-]+)\s*,\s*(-?[\d.eE+-]+)\s*\)/g)
     .map((match) => [Number(match[1]), Number(match[2])] as [number, number])
     .toArray();
+
+type MapSourcePage = { layout: string; map?: BookMap | null; assets: Array<{ assetId: string }> };
+
+/**
+ * The photos a map plots: its `assetIds`, or else the photos of its own page and of the pages that follow it, up to
+ * the next map or section opener
+ */
+export const getMapAssetIds = (pages: MapSourcePage[], index: number): string[] => {
+  const page = pages[index];
+  if (!page) {
+    return [];
+  }
+  if (page.map?.assetIds?.length) {
+    return [...new Set(page.map.assetIds)];
+  }
+
+  const ids = page.assets.map(({ assetId }) => assetId);
+  for (const next of pages.slice(index + 1)) {
+    if (next.map || isMapLayout(next.layout) || next.layout === 'section-opener') {
+      break;
+    }
+    ids.push(...next.assets.map(({ assetId }) => assetId));
+  }
+  return [...new Set(ids)];
+};

@@ -55,6 +55,75 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('POST /books/from-album', () => {
+    it('should require an album id', async () => {
+      const { status, body } = await request(ctx.getHttpServer()).post('/books/from-album').send({});
+      expect(status).toBe(400);
+      expect(body).toEqual(errorDto.validationError([{ path: ['albumId'], message: expect.any(String) }]));
+    });
+
+    it('should validate the map style', async () => {
+      const { status } = await request(ctx.getHttpServer())
+        .post('/books/from-album')
+        .send({ albumId: factory.uuid(), mapStyle: 'satellite' });
+      expect(status).toBe(400);
+    });
+
+    it('should create a book from an album', async () => {
+      const albumId = factory.uuid();
+      const { status } = await request(ctx.getHttpServer())
+        .post('/books/from-album')
+        .send({ albumId, targetPageCount: 24, mapStyle: 'auto', includeMaps: true, illustratedMaps: false });
+      expect(status).toBe(201);
+      expect(service.createFromAlbum).toHaveBeenCalledWith(undefined, {
+        albumId,
+        targetPageCount: 24,
+        mapStyle: 'auto',
+        includeMaps: true,
+        illustratedMaps: false,
+      });
+    });
+  });
+
+  describe('POST /books/:id/auto-layout', () => {
+    it('should lay out a book', async () => {
+      const [id, hero] = [factory.uuid(), factory.uuid()];
+      const { status } = await request(ctx.getHttpServer())
+        .post(`/books/${id}/auto-layout`)
+        .send({ heroAssetIds: [hero], keepExisting: true, mapStyle: 'watercolor' });
+      expect(status).toBe(201);
+      expect(service.autoLayout).toHaveBeenCalledWith(undefined, id, {
+        heroAssetIds: [hero],
+        keepExisting: true,
+        mapStyle: 'watercolor',
+      });
+    });
+
+    it('should validate the page count', async () => {
+      const { status } = await request(ctx.getHttpServer())
+        .post(`/books/${factory.uuid()}/auto-layout`)
+        .send({ targetPageCount: 0 });
+      expect(status).toBe(400);
+    });
+  });
+
+  describe('PATCH /books/:id/pages/:pageId', () => {
+    it('should validate the map', async () => {
+      const { status } = await request(ctx.getHttpServer())
+        .patch(`/books/${factory.uuid()}/pages/${factory.uuid()}`)
+        .send({ map: { style: 'sketch' } });
+      expect(status).toBe(400);
+    });
+
+    it('should accept a map', async () => {
+      const [id, pageId] = [factory.uuid(), factory.uuid()];
+      const map = { style: 'toner', showRoute: false, labels: true, title: 'Lisbon' };
+      const { status } = await request(ctx.getHttpServer()).patch(`/books/${id}/pages/${pageId}`).send({ map });
+      expect(status).toBe(200);
+      expect(service.updatePage).toHaveBeenCalledWith(undefined, id, pageId, { map });
+    });
+  });
+
   describe('GET /books/layouts', () => {
     it('should not be treated as a book id', async () => {
       service.getLayouts.mockReturnValue([]);

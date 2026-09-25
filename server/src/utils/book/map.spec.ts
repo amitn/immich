@@ -7,6 +7,7 @@ import {
   chooseZoom,
   clearTileCache,
   fitViewport,
+  getMapAssetIds,
   getPlaceLabels,
   getRoutePath,
   getScaleBar,
@@ -219,6 +220,38 @@ describe('getRoutePath', () => {
     expect(path).toMatch(/^M0,0 C.* 100,50 C.* 200,0$/);
     expect(getRoutePath(points, 2, 42)).toBe(path);
     expect(getRoutePath([{ x: 0, y: 0 }], 2)).toBe('');
+  });
+});
+
+const mapPage = (layout: string, ids: string[], map: object | null = null) => ({
+  layout,
+  map: map as never,
+  assets: ids.map((assetId) => ({ assetId })),
+});
+
+describe('getMapAssetIds', () => {
+  it('should use the photos of the section that follows the map', () => {
+    const pages = [
+      mapPage('cover', ['a']),
+      mapPage('map-photo', ['b']),
+      mapPage('four-grid', ['c', 'd']),
+      mapPage('single', ['c']),
+      mapPage('section-opener', ['e']),
+      mapPage('single', ['f']),
+    ];
+    expect(getMapAssetIds(pages, 1)).toEqual(['b', 'c', 'd']);
+  });
+
+  it('should stop at the next map', () => {
+    const pages = [mapPage('map', []), mapPage('single', ['a']), mapPage('map', []), mapPage('single', ['b'])];
+    expect(getMapAssetIds(pages, 0)).toEqual(['a']);
+    expect(getMapAssetIds(pages, 2)).toEqual(['b']);
+  });
+
+  it('should use the chosen photos', () => {
+    const pages = [mapPage('map', [], { assetIds: ['x', 'y', 'x'] }), mapPage('single', ['a'])];
+    expect(getMapAssetIds(pages, 0)).toEqual(['x', 'y']);
+    expect(getMapAssetIds(pages, 5)).toEqual([]);
   });
 });
 

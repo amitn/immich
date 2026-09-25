@@ -19,8 +19,10 @@ import type { NextFunction, Response } from 'express';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
+  BookAutoLayoutDto,
   BookCreateDto,
   BookDetailResponseDto,
+  BookFromAlbumDto,
   BookLayoutResponseDto,
   BookPageCreateDto,
   BookPageMoveDto,
@@ -63,6 +65,19 @@ export class BookController {
   @Endpoint({ summary: 'Create a book', description: 'Create an empty photo book.', history: history() })
   createBook(@Auth() auth: AuthDto, @Body() dto: BookCreateDto): Promise<BookDetailResponseDto> {
     return this.service.create(auth, dto);
+  }
+
+  @Post('from-album')
+  @Authenticated({ permission: Permission.BookCreate })
+  @Endpoint({
+    summary: 'Create a book from an album',
+    description:
+      'Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event ' +
+      'opened by a map or a section title, and pages whose photo sizes follow the importance of the photos.',
+    history: history(),
+  })
+  createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookDetailResponseDto> {
+    return this.service.createFromAlbum(auth, dto);
   }
 
   @Get('layouts')
@@ -112,6 +127,23 @@ export class BookController {
   })
   deleteBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
     return this.service.delete(auth, id);
+  }
+
+  @Post(':id/auto-layout')
+  @Authenticated({ permission: Permission.BookUpdate })
+  @Endpoint({
+    summary: 'Lay out a book automatically',
+    description:
+      'Lay out the photos of the album of a book (or the given photos) automatically, replacing the pages of the ' +
+      'book unless keepExisting is set.',
+    history: history(),
+  })
+  autoLayoutBook(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Body() dto: BookAutoLayoutDto,
+  ): Promise<BookDetailResponseDto> {
+    return this.service.autoLayout(auth, id, dto);
   }
 
   @Post(':id/pages')

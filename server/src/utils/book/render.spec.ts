@@ -4,6 +4,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { getLayout, getSlotRectsMm, toPxRect } from 'src/utils/book/layouts.js';
 import {
+  FULL_CROP,
   RenderBookInput,
   RenderPageInput,
   RenderSource,
@@ -67,6 +68,35 @@ const pixel = async (image: Buffer, x: number, y: number) => {
 
 const isClose = (actual: number[], expected: number[]) =>
   actual.every((value, i) => Math.abs(value - expected[i]) <= 24);
+
+describe('planPage maps', () => {
+  const options = { dpi: 100, mode: 'review' as const, sources: new Map<string, RenderSource>() };
+
+  it('should draw the map image in the map area after the photos', () => {
+    const photo = 'photo-1';
+    const plan = planPage(
+      book,
+      page({ layout: 'map-photo', assets: [{ slot: 0, assetId: photo, crop: null, caption: null }] }),
+      { ...options, sources: new Map([[photo, source()]]), mapImage: Buffer.from('map') },
+    );
+
+    expect(plan.map).toEqual({ rect: expect.any(Object), rectMm: expect.any(Object) });
+    expect(plan.spec.slots).toHaveLength(2);
+    expect(plan.spec.slots[1]).toEqual({ ...plan.map!.rect, input: Buffer.from('map'), crop: FULL_CROP });
+    // the map sits above the photo
+    expect(plan.map!.rect.top + plan.map!.rect.height).toBeLessThanOrEqual(plan.slots[0].rect.top);
+  });
+
+  it('should show a placeholder while there is no map image', () => {
+    const plan = planPage(book, page({ layout: 'map' }), options);
+    expect(plan.spec.slots).toEqual([]);
+    expect(plan.spec.overlay).toContain('>Map<');
+  });
+
+  it('should not have a map area on other layouts', () => {
+    expect(planPage(book, page({ layout: 'single' }), options).map).toBeNull();
+  });
+});
 
 describe('getDefaultCrop', () => {
   it('should centre a square crop in a landscape photo', () => {

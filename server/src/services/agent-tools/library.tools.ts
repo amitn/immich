@@ -1,11 +1,11 @@
 import { BadRequestException, HttpException, Injectable } from '@nestjs/common';
-import { LRUMap } from 'mnemonist';
 import z from 'zod';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetOrder, AssetType, AssetVisibility, Permission } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { SearchService } from 'src/services/search.service.js';
+import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import {
   Cluster,
   clusterSimilar,
@@ -21,7 +21,7 @@ import {
   summarizeEvent,
   toLocalIso,
 } from 'src/utils/agent/events.js';
-import { ImageAnalysis, PhotoScore, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
+import { PhotoScore, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
 import { SelectionCandidate, selectBest } from 'src/utils/agent/selection.js';
 import {
   AgentTool,
@@ -45,9 +45,6 @@ const LIMITS = {
   score: 200,
   select: 1000,
 };
-
-/** analysis results keyed by asset, checksum and preview path, shared by every session */
-const analysisCache = new LRUMap<string, ImageAnalysis>(20_000);
 
 const uuid = z.uuid();
 const ids = (max: number) => z.array(uuid).min(1).max(max);
@@ -708,7 +705,7 @@ export class LibraryAgentTools extends BaseService {
       return null;
     }
 
-    const key = `${row.id}:${row.checksum.toString('hex')}:${row.previewPath}`;
+    const key = getAnalysisKey({ ...row, previewPath: row.previewPath });
     const cached = analysisCache.get(key);
     if (cached) {
       return cached;

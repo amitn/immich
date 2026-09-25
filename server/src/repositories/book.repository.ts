@@ -14,6 +14,10 @@ const omitUndefined = <T extends object>(values: T) =>
 
 export type BookPageValues = Omit<Insertable<BookPageTable>, 'bookId' | 'position'>;
 
+export type BookPagePlacement = Omit<Insertable<BookPageAssetTable>, 'pageId'>;
+
+export type BookPageWithPlacements = BookPageValues & { assets: BookPagePlacement[] };
+
 @Injectable()
 export class BookRepository {
   constructor(@InjectKysely() private db: Kysely<DB>) {}
@@ -249,6 +253,44 @@ export class BookRepository {
     });
   }
 
+  /** Replaces all pages of a book (or appends to them with `keepExisting`) in one transaction */
+  @GenerateSql({ params: [DummyValue.UUID, [{ layout: 'single', assets: [{ slot: 0, assetId: DummyValue.UUID }] }]] })
+  replacePages(bookId: string, pages: BookPageWithPlacements[], options: { keepExisting?: boolean } = {}) {
+    return this.db.transaction().execute(async (trx) => {
+      await this.lockBook(trx, bookId);
+
+      let offset = 0;
+      if (options.keepExisting) {
+        const { count } = await trx
+          .selectFrom('book_page')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .where('book_page.bookId', '=', bookId)
+          .executeTakeFirstOrThrow();
+        offset = Number(count);
+      } else {
+        await trx.deleteFrom('book_page').where('book_page.bookId', '=', bookId).execute();
+      }
+
+      if (pages.length === 0) {
+        return;
+      }
+
+      const inserted = await trx
+        .insertInto('book_page')
+        .values(pages.map(({ assets: _, ...values }, index) => ({ ...values, bookId, position: offset + index })))
+        .returning(['book_page.id', 'book_page.position'])
+        .execute();
+
+      const ids = new Map(inserted.map(({ id, position }) => [position, id]));
+      const placements = pages.flatMap((page, index) =>
+        page.assets.map((asset) => ({ ...asset, pageId: ids.get(offset + index)! })),
+      );
+      if (placements.length > 0) {
+        await trx.insertInto('book_page_asset').values(placements).execute();
+      }
+    });
+  }
+
   @GenerateSql({ params: [DummyValue.UUID, { pageId: DummyValue.UUID, slot: 0, assetId: DummyValue.UUID }] })
   async upsertSlot(bookId: string, placement: Insertable<BookPageAssetTable>): Promise<void> {
     await this.db.transaction().execute(async (trx) => {
@@ -334,6 +376,46 @@ export class BookRepository {
       )
       .where('asset.id', 'in', ids)
       .where('asset.deletedAt', 'is', null)
+      .execute();
+  }
+
+  /** capture time and GPS location of assets, for maps */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getAssetLocations(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.localDateTime',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.country',
+      ])
+      .where('asset.id', 'in', ids)
+      .where('asset.deletedAt', 'is', null)
+      .where('asset_exif.latitude', 'is not', null)
+      .where('asset_exif.longitude', 'is not', null)
+      .orderBy('asset.localDateTime', 'asc')
+      .orderBy('asset.id', 'asc')
+      .execute();
+  }
+
+  /** outlines of the countries that overlap a longitude/latitude box, as Postgres polygons */
+  @GenerateSql({ params: [{ west: -10, south: 35, east: 20, north: 50 }] })
+  getCountryOutlines(bounds: { west: number; south: number; east: number; north: number }) {
+    return this.db
+      .selectFrom('naturalearth_countries')
+      .select(['naturalearth_countries.admin', sql<string>`"coordinates"::text`.as('coordinates')])
+      .where(
+        sql<boolean>`"coordinates" && polygon(box(point(${bounds.west}, ${bounds.south}), point(${bounds.east}, ${bounds.north})))`,
+      )
+      .limit(500)
       .execute();
   }
 
