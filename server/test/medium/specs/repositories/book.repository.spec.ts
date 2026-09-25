@@ -328,6 +328,35 @@ describe(BookRepository.name, () => {
     ]);
   });
 
+  it('should tell originals from their copies and artwork', async () => {
+    const { ctx, sut, user } = await newBook();
+    const { asset: original } = await ctx.newAsset({ ownerId: user.id, originalFileName: 'IMG_1.jpg' });
+    const { asset: crop } = await ctx.newAsset({ ownerId: user.id, originalFileName: 'IMG_1-crop.jpg' });
+    const { asset: artwork } = await ctx.newAsset({ ownerId: user.id, originalFileName: 'IMG_1-watercolor.png' });
+    const { asset: alone } = await ctx.newAsset({ ownerId: user.id, originalFileName: 'IMG_2.jpg' });
+    const { asset: trashed } = await ctx.newAsset({ ownerId: user.id, deletedAt: new Date() });
+    const { stack } = await ctx.newStack({ ownerId: user.id }, [original.id, crop.id, artwork.id]);
+    await ctx.database
+      .insertInto('art_job')
+      .values({ userId: user.id, sourceAssetId: original.id, resultAssetId: artwork.id, prompt: 'p', profile: 'codex' })
+      .execute();
+
+    const rows = await sut.getStackInfo([original.id, crop.id, artwork.id, alone.id, trashed.id]);
+    expect(rows.toSorted((a, b) => a.originalFileName.localeCompare(b.originalFileName))).toEqual([
+      { id: crop.id, stackId: stack.id, originalFileName: 'IMG_1-crop.jpg', isPrimary: false, isArtwork: false },
+      {
+        id: artwork.id,
+        stackId: stack.id,
+        originalFileName: 'IMG_1-watercolor.png',
+        isPrimary: false,
+        isArtwork: true,
+      },
+      { id: original.id, stackId: stack.id, originalFileName: 'IMG_1.jpg', isPrimary: true, isArtwork: false },
+      { id: alone.id, stackId: null, originalFileName: 'IMG_2.jpg', isPrimary: false, isArtwork: false },
+    ]);
+    await expect(sut.getStackInfo([])).resolves.toEqual([]);
+  });
+
   it('should find the countries that overlap a box', async () => {
     const { ctx, sut } = await newBook();
     await ctx.database

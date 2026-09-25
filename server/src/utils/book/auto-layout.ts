@@ -1220,8 +1220,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     const ctx = context();
     let planned = planner.partition(section.photos, count, true, ctx);
     // looser: crops may lose more, runs of singles and artwork back to back are only penalized, then fewer pages
-    for (let pageCount = count; !planned && pageCount >= fewest; pageCount--) {
-      planned = planner.partition(section.photos, pageCount, false, ctx);
+    const counts = new Set([count, count - 1, count - 2, fewest].filter((pageCount) => pageCount >= fewest));
+    for (const pageCount of counts) {
+      planned ??= planner.partition(section.photos, pageCount, false, ctx);
     }
     let previousCaption: string | undefined;
     for (const choice of planned ?? []) {
