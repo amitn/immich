@@ -107,11 +107,12 @@
   onMount(() => heading?.focus());
 </script>
 
+<!-- below the navigation bar and the page header (h-16), so the header buttons stay usable -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <aside
   {id}
   aria-labelledby={headingId}
-  class="fixed inset-e-0 top-(--navbar-height) bottom-0 z-20 flex w-full flex-col border-s border-gray-200 bg-light text-dark shadow-xl max-md:top-(--navbar-height-md) sm:w-96 dark:border-gray-700"
+  class="fixed inset-e-0 top-[calc(var(--navbar-height)+(--spacing(16)))] bottom-0 z-20 flex w-full flex-col border-s border-gray-200 bg-light text-dark shadow-xl max-md:top-[calc(var(--navbar-height-md)+(--spacing(16)))] sm:w-96 dark:border-gray-700"
   {onkeydown}
 >
   <div class="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-gray-700">

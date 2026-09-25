@@ -41,12 +41,8 @@ describe('BookStylePresetPicker component', () => {
     const { container } = render(BookStylePresetPicker);
 
     await waitFor(() => expect(screen.getAllByText('book_style_margins')).toHaveLength(3));
-    const swatches = [...container.querySelectorAll<HTMLElement>('label > span[aria-hidden="true"]')];
-    expect(swatches.map((swatch) => swatch.style.backgroundColor)).toEqual([
-      '#f6f1e7',
-      '#ffffff',
-      '#ffffff',
-    ]);
+    const swatches = [...container.querySelectorAll<HTMLElement>(':scope label > span[aria-hidden="true"]')];
+    expect(swatches.map((swatch) => swatch.style.backgroundColor)).toEqual(['#f6f1e7', '#ffffff', '#ffffff']);
     expect(sdkMock.getBookStylePresets).toHaveBeenCalledTimes(1);
   });
 

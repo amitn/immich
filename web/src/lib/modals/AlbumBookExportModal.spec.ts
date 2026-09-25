@@ -35,7 +35,7 @@ describe('AlbumBookExportModal component', () => {
 
   it('should create the book and start the export', async () => {
     const book = bookDetailFactory.build({ albumId: album.id });
-    sdkMock.createBookFromAlbum.mockResolvedValue(book);
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...book, warnings: [] });
 
     render(AlbumBookExportModal, { props: { album, onClose } });
     await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));

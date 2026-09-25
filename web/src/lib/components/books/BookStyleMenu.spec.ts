@@ -1,21 +1,25 @@
 import { BookStylePreset } from '@immich/sdk';
 import { modalManager, toastManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import type { Component, ComponentProps } from 'svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
 import { resetBookStylePresets } from '$lib/utils/book-style';
 import { bookDetailFactory } from '@test-data/factories/book-factory';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
-import type { ComponentProps } from 'svelte';
 import BookStyleMenu from './BookStyleMenu.svelte';
 
 const [classic, soft] = bookStylePresets;
 
+type Props = ComponentProps<typeof BookStyleMenu>;
+/** TestWrapper provides the tooltips of the menu button */
+type WrapperProps = { component: Component<Props>; componentProps: Props };
+
 describe('BookStyleMenu component', () => {
   const onUpdated = vi.fn();
 
-  const renderMenu = (props: ComponentProps<typeof BookStyleMenu>) =>
-    render(TestWrapper<ComponentProps<typeof BookStyleMenu>>, {
+  const renderMenu = (props: Props) =>
+    render(TestWrapper as Component<WrapperProps>, {
       props: { component: BookStyleMenu, componentProps: props },
     });
 

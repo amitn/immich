@@ -1,6 +1,6 @@
 import { Severity, Type } from '@immich/sdk';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
-import type { ComponentProps } from 'svelte';
+import type { Component, ComponentProps } from 'svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
 import { openAssistant } from '$lib/services/assistant.service';
@@ -10,6 +10,8 @@ import BookReviewPanel from './BookReviewPanel.svelte';
 vi.mock('$lib/services/assistant.service', () => ({ openAssistant: vi.fn() }));
 
 type Props = ComponentProps<typeof BookReviewPanel>;
+/** TestWrapper provides the tooltips of the icon buttons */
+type WrapperProps = { component: Component<Props>; componentProps: Props };
 
 describe('BookReviewPanel component', () => {
   const book = { id: 'book-1', title: 'Italy' };
@@ -45,7 +47,7 @@ describe('BookReviewPanel component', () => {
   });
 
   const renderPanel = (props: Partial<Props> = {}) =>
-    render(TestWrapper<Props>, {
+    render(TestWrapper as Component<WrapperProps>, {
       props: {
         component: BookReviewPanel,
         componentProps: {
