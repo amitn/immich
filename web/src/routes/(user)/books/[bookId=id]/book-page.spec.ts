@@ -1,16 +1,22 @@
-import type { BookPageResponseDto } from '@immich/sdk';
+import { AgentMessageKind, BookStylePreset, Orientation, Severity, type BookPageResponseDto } from '@immich/sdk';
 import { modalManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { ComponentProps } from 'svelte';
 import { goto } from '$app/navigation';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
+import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
 import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
+import { openAssistant } from '$lib/services/assistant.service';
+import { resetBookLayouts } from '$lib/utils/book-review';
+import { resetBookStylePresets } from '$lib/utils/book-style';
 import { bookDetailFactory, bookFactory } from '@test-data/factories/book-factory';
+import { bookReviewIssueFactory, bookStylePresets, buildBookReview } from '@test-data/factories/book-review-factory';
 import type BookPage from './+page.svelte';
 import BookPageTestWrapper from './BookPage.test-wrapper.svelte';
 
 const navigation = vi.hoisted(() => ({ afterNavigate: [] as Array<() => void> }));
+const websocket = vi.hoisted(() => ({ handlers: [] as Array<(update: unknown) => void> }));
 
 vi.mock('$app/navigation', () => ({
   goto: vi.fn(),
@@ -24,7 +30,15 @@ vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
 vi.mock('$lib/components/layouts/UserPageLayout.svelte', async () => {
   return await import('@test-data/mocks/UserPageLayout.mock.svelte');
 });
-vi.mock('$lib/stores/websocket', () => ({ websocketEvents: { on: () => () => {} } }));
+vi.mock('$lib/stores/websocket', () => ({
+  websocketEvents: {
+    on: (_event: string, handler: (update: unknown) => void) => {
+      websocket.handlers.push(handler);
+      return () => {};
+    },
+  },
+}));
+vi.mock('$lib/services/assistant.service', () => ({ openAssistant: vi.fn() }));
 
 type Data = ComponentProps<typeof BookPage>['data'];
 
@@ -63,6 +77,10 @@ describe('book page', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     navigation.afterNavigate = [];
+    websocket.handlers = [];
+    resetBookStylePresets();
+    resetBookLayouts();
+    sdkMock.getBookStylePresets.mockResolvedValue([]);
     sdkMock.getBaseUrl.mockReturnValue('/api');
     Element.prototype.animate = getAnimateMock();
     Element.prototype.scrollIntoView = vi.fn();
@@ -141,5 +159,140 @@ describe('book page', () => {
 
     expect(screen.getByRole('button', { name: /preview/ })).toBeDisabled();
     expect(sdkMock.getBook).not.toHaveBeenCalled();
+  });
+  describe('review', () => {
+    const review = buildBookReview({
+      issues: [
+        bookReviewIssueFactory.build({
+          severity: Severity.High,
+          message: 'Photo 1 prints at 120 dpi',
+          pages: [2],
+          slot: 1,
+        }),
+        bookReviewIssueFactory.build({ severity: Severity.Medium, message: 'Repeated layout', pages: [1, 2] }),
+        bookReviewIssueFactory.build({ severity: Severity.Low, message: 'No captions', pages: [1] }),
+      ],
+    });
+
+    const agentUpdate = (bookIds: string[]) => ({
+      message: {
+        kind: AgentMessageKind.ToolCall,
+        content: { status: AgentToolCallStatus.Completed, bookIds },
+      },
+    });
+
+    beforeEach(() => {
+      sdkMock.getBookReview.mockResolvedValue(review);
+      sdkMock.getBookLayouts.mockResolvedValue([
+        {
+          id: 'single',
+          name: 'Single',
+          description: 'One photo',
+          fullBleed: false,
+          orientation: Orientation.Any,
+          slots: [{ x: 0, y: 0, width: 1, height: 1 }],
+          textAreas: [],
+        },
+      ]);
+    });
+
+    it('should count the high and medium issues on the review button', async () => {
+      renderPage();
+
+      expect(await screen.findByTestId('book-review-badge')).toHaveTextContent('2');
+      expect(sdkMock.getBookReview).toHaveBeenCalledWith({ id: book.id });
+      expect(screen.getByRole('button', { name: /book_review/ })).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('should open the review and go to the page of an issue', async () => {
+      renderPage();
+      const button = screen.getByRole('button', { name: /book_review/ });
+
+      await fireEvent.click(button);
+      expect(button).toHaveAttribute('aria-expanded', 'true');
+      await fireEvent.click(await screen.findByRole('button', { name: /prints at 120 dpi/ }));
+
+      const thumbnails = screen.getAllByRole('button', { name: /book_go_to_page/ });
+      await waitFor(() => expect(thumbnails[1]).toHaveAttribute('aria-current', 'true'));
+      expect(await screen.findByTestId('book-slot-highlight')).toBeInTheDocument();
+    });
+
+    it('should close the review with Escape and focus the review button', async () => {
+      renderPage();
+      const button = screen.getByRole('button', { name: /book_review/ });
+
+      await fireEvent.click(button);
+      const heading = await screen.findByRole('heading', { name: 'book_review_title' });
+      await fireEvent.keyDown(heading, { key: 'Escape' });
+
+      expect(screen.queryByRole('complementary', { name: 'book_review_title' })).not.toBeInTheDocument();
+      expect(button).toHaveFocus();
+    });
+
+    it('should fix an issue with the assistant', async () => {
+      renderPage();
+
+      await fireEvent.click(screen.getByRole('button', { name: /book_review/ }));
+      const [fix] = await screen.findAllByRole('button', { name: 'book_review_fix_issue' });
+      await fireEvent.click(fix);
+
+      expect(openAssistant).toHaveBeenCalledWith({ prompt: expect.any(String), assetIds: undefined });
+    });
+
+    it('should review the book again after the assistant used a tool on it', async () => {
+      sdkMock.getBook.mockResolvedValue(book);
+      renderPage();
+      await waitFor(() => expect(sdkMock.getBookReview).toHaveBeenCalledTimes(1));
+
+      for (const handler of websocket.handlers) {
+        handler(agentUpdate([book.id]));
+        handler(agentUpdate(['another-book']));
+      }
+
+      await waitFor(() => expect(sdkMock.getBookReview).toHaveBeenCalledTimes(2));
+      expect(sdkMock.getBook).toHaveBeenCalledTimes(1);
+    });
+
+    it('should review the book again once when the assistant changed it', async () => {
+      sdkMock.getBook.mockResolvedValue({ ...book, updatedAt: '2026-09-25T11:00:00.000Z' });
+      renderPage();
+      await waitFor(() => expect(sdkMock.getBookReview).toHaveBeenCalledTimes(1));
+
+      for (const handler of websocket.handlers) {
+        handler(agentUpdate([book.id]));
+      }
+
+      await waitFor(() => expect(sdkMock.getBookReview).toHaveBeenCalledTimes(2));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(sdkMock.getBookReview).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('style', () => {
+    it('should apply a preset and render the pages again', async () => {
+      const [classic, soft] = bookStylePresets;
+      const styled = { ...book, style: { ...soft.style } };
+      sdkMock.getBookStylePresets.mockResolvedValue(bookStylePresets);
+      sdkMock.updateBook.mockResolvedValue({
+        ...styled,
+        style: { ...classic.style },
+        updatedAt: '2026-09-25T12:00:00.000Z',
+      });
+      renderPage({ book: styled });
+
+      await fireEvent.click(await screen.findByRole('button', { name: 'book_style_current' }));
+      await fireEvent.click(await screen.findByRole('menuitemradio', { name: /book_style_preset_classic/ }));
+
+      await waitFor(() =>
+        expect(screen.getByRole('img', { name: 'book_page_image' })).toHaveAttribute(
+          'src',
+          expect.stringContaining(encodeURIComponent('2026-09-25T12:00:00.000Z')),
+        ),
+      );
+      expect(sdkMock.updateBook).toHaveBeenCalledWith({
+        id: book.id,
+        bookUpdateDto: { stylePreset: BookStylePreset.Classic },
+      });
+    });
   });
 });

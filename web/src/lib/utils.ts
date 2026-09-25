@@ -280,7 +280,7 @@ export const getBookPreviewUrl = ({ id, cacheKey }: { id: string; cacheKey?: str
 export const getProfileImageUrl = (user: UserResponseDto) =>
   createUrl(getUserProfileImagePath(user.id), { updatedAt: user.profileChangedAt });
 
-export const getPeopleThumbnailUrl = (person: PersonResponseDto, updatedAt?: string) =>
+export const getPeopleThumbnailUrl = (person: Pick<PersonResponseDto, 'id' | 'updatedAt'>, updatedAt?: string) =>
   createUrl(getPeopleThumbnailPath(person.id), { updatedAt: updatedAt ?? person.updatedAt });
 
 export const copyToClipboard = async (secret: string | unknown) => {

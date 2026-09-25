@@ -1,7 +1,11 @@
 <script lang="ts">
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
+  import { BookReviewState } from '$lib/components/books/book-review-state.svelte';
   import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
+  import BookReviewPanel from '$lib/components/books/BookReviewPanel.svelte';
+  import BookSlotHighlight from '$lib/components/books/BookSlotHighlight.svelte';
+  import BookStyleMenu from '$lib/components/books/BookStyleMenu.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
@@ -10,6 +14,7 @@
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
+  import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
   import { locale } from '$lib/stores/preferences.store';
   import { websocketEvents } from '$lib/stores/websocket';
   import { getBookExportUrl, getBookPageRenderUrl } from '$lib/utils';
@@ -24,6 +29,7 @@
     isExportActive,
     isMapPage,
   } from '$lib/utils/book-export';
+  import { getBookReviewBadgeCount } from '$lib/utils/book-review';
   import { handleError } from '$lib/utils/handle-error';
   import {
     AgentMessageKind,
@@ -45,6 +51,7 @@
     mdiBookshelf,
     mdiChevronLeft,
     mdiChevronRight,
+    mdiClipboardCheckOutline,
     mdiCreationOutline,
     mdiDownload,
     mdiExportVariant,
@@ -56,7 +63,7 @@
     mdiTrashCanOutline,
   } from '@mdi/js';
   import { DateTime } from 'luxon';
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { t } from 'svelte-i18n';
   import { SvelteSet } from 'svelte/reactivity';
   import type { PageData } from './$types';
@@ -68,6 +75,8 @@
   const { data }: Props = $props();
 
   const POLL_INTERVAL = 3000;
+  const REVIEW_PANEL_ID = 'book-review-panel';
+  const REVIEW_BUTTON_ID = 'book-review-button';
 
   // a working copy: refreshed after edits and exports, and replaced by showBook when switching books
   // svelte-ignore state_referenced_locally
@@ -97,6 +106,13 @@
       )
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
   );
+  const review = new BookReviewState(() => $t('errors.unable_to_load_book_review'));
+  let reviewOpen = $state(false);
+  /** The slot of a review issue, until another page is shown */
+  let highlight = $state<{ pageId: string; slot: number }>();
+  const reviewBadge = $derived(getBookReviewBadgeCount(review.review));
+  const reviewKey = $derived(pages.length > 0 ? `${book.id}@${book.updatedAt}` : undefined);
+
   const hasPrevious = $derived(viewIndex > 0);
   const hasNext = $derived(viewIndex < views.length - 1);
 
@@ -328,6 +344,52 @@
     }
   };
 
+  const handleStyleUpdated = (updated: BookDetailResponseDto) => {
+    book = updated;
+    loaded.clear();
+  };
+
+  const toggleReview = () => {
+    if (reviewOpen) {
+      closeReview();
+      return;
+    }
+    reviewOpen = true;
+    if (!review.review && !review.loading) {
+      void review.reload();
+    }
+  };
+
+  const closeReview = () => {
+    reviewOpen = false;
+    document.querySelector<HTMLElement>(`#${REVIEW_BUTTON_ID}`)?.focus();
+  };
+
+  const handleReviewGoTo = (page: number, slot?: number) => {
+    const target = pages[page - 1];
+    if (!target) {
+      return;
+    }
+    highlight = slot === undefined ? undefined : { pageId: target.id, slot: slot - 1 };
+    void goToPage(page - 1);
+    if (mediaQueryManager.maxMd) {
+      // the panel covers the page on small screens
+      closeReview();
+    }
+  };
+
+  // review the book again whenever it changes: only the key is tracked, not the rest of the book
+  $effect(() => {
+    const key = reviewKey;
+    untrack(() => (key ? void review.load(book.id) : review.clear()));
+  });
+
+  $effect(() => {
+    if (highlight && current.every((page) => page.id !== highlight?.pageId)) {
+      highlight = undefined;
+    }
+  });
+
   const onAgentUpdate = ({ message }: AgentUpdateDto) => {
     // re-render when the assistant finishes changing this book
     if (
@@ -335,7 +397,13 @@
       message.content.status === AgentToolCallStatus.Completed &&
       message.content.bookIds?.includes(book.id)
     ) {
-      void refresh();
+      const previous = book.updatedAt;
+      void refresh().then((updated) => {
+        // e.g. after review_book the book is the same, so the effect does not review it again
+        if (updated && updated.updatedAt === previous) {
+          void review.reload();
+        }
+      });
     }
   };
 
@@ -415,6 +483,35 @@
         <span class="hidden sm:inline">{$t('book_relayout')}</span>
         <span class="sr-only sm:hidden">{$t('book_relayout')}</span>
       </Button>
+      <BookStyleMenu {book} onUpdated={handleStyleUpdated} />
+      {#if pages.length > 0}
+        <Button
+          id={REVIEW_BUTTON_ID}
+          variant={reviewOpen ? 'filled' : 'ghost'}
+          size="small"
+          color="secondary"
+          leadingIcon={mdiClipboardCheckOutline}
+          aria-expanded={reviewOpen}
+          aria-controls={reviewOpen ? REVIEW_PANEL_ID : undefined}
+          onclick={toggleReview}
+        >
+          <span class="hidden sm:inline">{$t('book_review')}</span>
+          <span class="sr-only sm:hidden">{$t('book_review')}</span>
+          {#if reviewBadge > 0}
+            <span
+              class="min-w-5 rounded-full px-1.5 text-center text-xs/5 font-medium text-white {review.review?.counts
+                .high
+                ? 'bg-red-600'
+                : 'bg-amber-600'}"
+              aria-hidden="true"
+              data-testid="book-review-badge"
+            >
+              {reviewBadge}
+            </span>
+            <span class="sr-only">{$t('book_review_badge', { values: { count: reviewBadge } })}</span>
+          {/if}
+        </Button>
+      {/if}
       {#if isExporting || startingExport}
         <div class="flex items-center gap-2 px-2 text-sm text-gray-600 dark:text-gray-400" role="status">
           <LoadingSpinner size="small" />
@@ -544,6 +641,7 @@
                   onload={() => loaded.add(page.id)}
                   onerror={() => loaded.add(page.id)}
                 />
+                <BookSlotHighlight {book} {page} slot={highlight?.pageId === page.id ? highlight.slot : undefined} />
               </figure>
             {/each}
           </div>
@@ -630,5 +728,18 @@
         </ul>
       </nav>
     </div>
+  {/if}
+
+  {#if reviewOpen && pages.length > 0}
+    <BookReviewPanel
+      id={REVIEW_PANEL_ID}
+      {book}
+      review={review.review}
+      loading={review.loading}
+      failed={review.failed}
+      onRefresh={() => review.reload()}
+      onGoToPage={handleReviewGoTo}
+      onClose={closeReview}
+    />
   {/if}
 </UserPageLayout>

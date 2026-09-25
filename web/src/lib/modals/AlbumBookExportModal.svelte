@@ -1,5 +1,6 @@
 <script lang="ts">
   import BookMapOptions from '$lib/components/books/BookMapOptions.svelte';
+  import BookStylePresetPicker from '$lib/components/books/BookStylePresetPicker.svelte';
   import BookExportProgressModal from '$lib/modals/BookExportProgressModal.svelte';
   import {
     BOOK_MAX_PAGES,
@@ -12,6 +13,7 @@
     type BookExportChoice,
     type BookPageSizePresetId,
   } from '$lib/utils/book-export';
+  import { DEFAULT_BOOK_STYLE_PRESET } from '$lib/utils/book-style';
   import { handleError } from '$lib/utils/handle-error';
   import {
     BookExportFormat,
@@ -36,6 +38,7 @@
   let title = $state(album.albumName);
   let subtitle = $state('');
   let pageSize = $state<BookPageSizePresetId>(DEFAULT_BOOK_PAGE_SIZE);
+  let stylePreset = $state(DEFAULT_BOOK_STYLE_PRESET);
   let targetPageCount = $state<number>();
   let includeMaps = $state(true);
   let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);
@@ -62,6 +65,7 @@
           subtitle: subtitle.trim() || undefined,
           pageWidthMm: widthMm,
           pageHeightMm: heightMm,
+          stylePreset,
           targetPageCount: normalizeBookPageCount(targetPageCount),
           includeMaps,
           mapStyle: includeMaps ? mapStyle : undefined,
@@ -144,6 +148,8 @@
         {/each}
       </div>
     </fieldset>
+
+    <BookStylePresetPicker bind:value={stylePreset} pageWidthMm={getBookPageSizePreset(pageSize).widthMm} />
 
     <Field
       label={$t('book_target_page_count')}

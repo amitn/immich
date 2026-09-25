@@ -1,4 +1,4 @@
-import { BookExportFormat, BookExportStatus, BookMapStyleOption } from '@immich/sdk';
+import { BookExportFormat, BookExportStatus, BookMapStyleOption, BookStylePreset } from '@immich/sdk';
 import { modalManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
@@ -48,6 +48,7 @@ describe('AlbumBookExportModal component', () => {
         subtitle: undefined,
         pageWidthMm: 210,
         pageHeightMm: 210,
+        stylePreset: BookStylePreset.Soft,
         targetPageCount: undefined,
         includeMaps: true,
         mapStyle: BookMapStyleOption.Auto,
@@ -58,6 +59,19 @@ describe('AlbumBookExportModal component', () => {
     expect(modalManager.show).toHaveBeenCalledWith(BookExportProgressModal, {
       book: expect.objectContaining({ id: book.id, exportStatus: BookExportStatus.Pending }),
       formats: [BookExportFormat.Pdf],
+    });
+  });
+
+  it('should create the book with the chosen style preset', async () => {
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build(), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    await fireEvent.click(screen.getByRole('radio', { name: /book_style_preset_bold/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(sdkMock.createBookFromAlbum).toHaveBeenCalled());
+    expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
+      bookFromAlbumDto: expect.objectContaining({ stylePreset: BookStylePreset.Bold }),
     });
   });
 
