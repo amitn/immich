@@ -6,7 +6,7 @@ import { Duration } from 'luxon';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { Writable } from 'node:stream';
-import sharp, { Sharp, strategy } from 'sharp';
+import sharp, { Sharp } from 'sharp';
 import type {
   Bitmap,
   DecodeToBufferOptions,
@@ -182,7 +182,8 @@ export class MediaRepository {
     const { width, height } = info;
     // a crop narrower than the image keeps the scale at 1, so the focal point is in the same coordinates
     const { info: result } = await this.raw({ data, info })
-      .resize(Math.max(1, Math.ceil(width / 2)), height, { fit: 'cover', position: strategy.attention })
+      // eslint-disable-next-line import-x/no-named-as-default-member
+      .resize(Math.max(1, Math.ceil(width / 2)), height, { fit: 'cover', position: sharp.strategy.attention })
       .raw()
       .toBuffer({ resolveWithObject: true });
     const x = result.attentionX ?? width / 2;
