@@ -36,6 +36,8 @@ const layoutResult = (bookId = newUuid()): BookAutoLayoutResult => {
     },
     photoCount: 4,
     warnings: ['a warning'],
+    improvements: [],
+    improved: [],
   };
 };
 
@@ -101,6 +103,7 @@ describe(BookAgentTools.name, () => {
         'add_map_page',
         'set_page_map',
         'illustrate_map',
+        'apply_improvements',
       ]),
     );
   });
@@ -111,7 +114,13 @@ describe(BookAgentTools.name, () => {
       .filter((tool) => tool.mutating)
       .map((tool) => tool.name)
       .toArray();
-    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_html', 'export_pdf', 'illustrate_map']);
+    expect(mutating.toSorted()).toEqual([
+      'apply_improvements',
+      'edit_existing_book',
+      'export_html',
+      'export_pdf',
+      'illustrate_map',
+    ]);
   });
 
   describe('list_layouts', () => {
@@ -382,7 +391,11 @@ describe(BookAgentTools.name, () => {
       const result = await call('auto_layout_book', { bookId: book.id, heroAssetIds: [hero], keepExisting: true });
 
       expect(result.isError).toBeUndefined();
-      expect(autoLayout).toHaveBeenCalledWith(authStub.admin, book.id, { heroAssetIds: [hero], keepExisting: true });
+      expect(autoLayout).toHaveBeenCalledWith(authStub.admin, book.id, {
+        heroAssetIds: [hero],
+        keepExisting: true,
+        improvePhotos: false,
+      });
     });
   });
 

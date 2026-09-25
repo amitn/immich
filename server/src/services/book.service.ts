@@ -58,10 +58,19 @@ import { BookPageWithPlacements, BookRepository } from 'src/repositories/book.re
 import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
 import { getAdaptiveEventOptions, splitEvents } from 'src/utils/agent/events.js';
+import {
+  IMPROVE_MAX_POOL,
+  ImproveEstimate,
+  ImproveRecipe,
+  getPoolScore,
+  isEmptyRecipe,
+  mapFaces,
+} from 'src/utils/agent/improve.js';
 import { ImageAnalysis, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
 import { MAIN_PEOPLE_DEFAULTS, getMainPeople, selectBest } from 'src/utils/agent/selection.js';
 import { getDimensions } from 'src/utils/asset.util.js';
@@ -111,6 +120,7 @@ import { createBookPdf } from 'src/utils/book/pdf.js';
 import {
   BookRenderMode,
   BookRenderWarning,
+  FULL_CROP,
   PRINT_DPI,
   REVIEW_LONG_EDGE_PX,
   RenderSource,
@@ -135,13 +145,30 @@ type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number]
 
 export type BookRenderResult = { data: Buffer; warnings: BookRenderWarning[] };
 
+/** a placed photo that an improved copy would help, see `ImproveService.estimate` */
+export type BookImprovement = { assetId: string; recipe: ImproveRecipe; gain: number };
+
+export type BookImprovedPhoto = { sourceId: string; id: string; description: string; pages: number[] };
+
 export type BookAutoLayoutResult = {
   book: BookDetailResponseDto;
   plan: AutoLayoutPlan;
   /** photos considered, after the album cap and the video filter */
   photoCount: number;
   warnings: string[];
+  /** placed photos that improved copies would help, when they were not created */
+  improvements: BookImprovement[];
+  /** improved copies that were created and placed instead of their originals */
+  improved: BookImprovedPhoto[];
 };
+
+export type BookApplyImprovementsResult = {
+  improved: BookImprovedPhoto[];
+  skipped: Array<{ assetId: string; reason: string }>;
+};
+
+/** the simulated fixes of the photos of a layout, by asset id */
+type LayoutEstimates = Map<string, ImproveEstimate>;
 
 type LayOutOptions = {
   assetIds: string[];
@@ -154,6 +181,8 @@ type LayOutOptions = {
   captions?: AutoLayoutCaptions;
   maxArtworkShare?: number;
   maxStackPairs?: number;
+  considerImprovements?: boolean;
+  improvePhotos?: boolean;
 };
 
 const DEFAULT_PAGE_SIZE_MM = 210;
@@ -362,6 +391,8 @@ export class BookService extends BaseService {
         captions: dto.captions,
         maxArtworkShare: dto.maxArtworkShare,
         maxStackPairs: dto.maxStackPairs,
+        considerImprovements: dto.considerImprovements,
+        improvePhotos: dto.improvePhotos,
       });
     } catch (error) {
       await this.bookRepository.delete(created.id);
@@ -419,13 +450,18 @@ export class BookService extends BaseService {
       albumIds = albums.has(book.albumId) ? await this.getAlbumAssetIds(auth, book.albumId) : [];
     }
 
-    const photos = await this.getLayoutPhotos(auth, [...placed, ...albumIds], placed, []);
+    const estimates: LayoutEstimates = new Map();
+    const photos = await this.getLayoutPhotos(auth, [...placed, ...albumIds], placed, [], {
+      estimates,
+      only: placed,
+      addGain: false,
+    });
     const { books } = await this.getConfig({ withCache: true });
     return reviewBook({
       size: book,
       style: resolveBookStyle(book.style),
       pages,
-      photos,
+      photos: photos.map((photo) => ({ ...photo, gain: estimates.get(photo.id)?.gain })),
       candidateIds: albumIds,
       coverAssetId: book.coverAssetId,
       stadiaApiKey: books.maps.stadiaApiKey,
@@ -1229,7 +1265,15 @@ export class BookService extends BaseService {
     const assetIds = options.assetIds.filter((assetId) => !placed.has(assetId) || heroIds.has(assetId));
 
     const warnings: string[] = [];
-    const photos = await this.getLayoutPhotos(auth, assetIds, heroIds, warnings);
+    const estimates: LayoutEstimates = new Map();
+    const considerImprovements = options.considerImprovements ?? true;
+    const photos = await this.getLayoutPhotos(
+      auth,
+      assetIds,
+      heroIds,
+      warnings,
+      considerImprovements ? { estimates, addGain: true } : undefined,
+    );
     if (photos.length === 0) {
       throw new BadRequestException(
         placed.size > 0 ? 'All photos are already in the book' : 'There are no photos to lay out',
@@ -1260,13 +1304,196 @@ export class BookService extends BaseService {
       await this.illustratePlannedMaps(auth, book, plan, photos, warnings);
     }
 
+    const byId = new Map(photos.map((photo) => [photo.id, photo]));
+    if (options.improvePhotos && !considerImprovements) {
+      const placedIds = new Set(plan.usedIds);
+      await this.getLayoutPhotos(auth, [...placedIds], new Set(), [], { estimates, only: placedIds, addGain: false });
+    }
+    const improvements = this.getImprovements(plan.usedIds, byId, estimates);
+    let improved: BookImprovedPhoto[] = [];
+    if (options.improvePhotos && improvements.length > 0) {
+      const copies = await this.createImprovedCopies(auth, improvements, warnings);
+      improved = this.swapInCopies(book, plan.pages, copies, byId);
+      plan.usedIds = plan.usedIds.map((assetId) => copies.get(assetId)?.id ?? assetId);
+    }
+
     await this.bookRepository.replacePages(
       id,
       plan.pages.map((page) => toPageValues(page)),
       { keepExisting: options.keepExisting },
     );
 
-    return { book: await this.getDetail(id), plan, photoCount: photos.length, warnings };
+    const improvedIds = new Set(improved.map(({ sourceId }) => sourceId));
+    return {
+      book: await this.getDetail(id),
+      plan,
+      photoCount: photos.length,
+      warnings,
+      improvements: improvements.filter(({ assetId }) => !improvedIds.has(assetId)),
+      improved,
+    };
+  }
+
+  /**
+   * Creates improved copies (straightened, auto-enhanced) of the photos in a book that the simulated fixes clearly
+   * help, and places them instead of their originals, with the crops of the slots recomputed for the copies.
+   */
+  async applyImprovements(
+    auth: AuthDto,
+    id: string,
+    options: { assetIds?: string[] } = {},
+  ): Promise<BookApplyImprovementsResult> {
+    await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    const pages = await this.bookRepository.getPages(id);
+
+    const placedIds = new Set(pages.flatMap((page) => page.assets.map(({ assetId }) => assetId)));
+    const wanted = options.assetIds ? new Set(options.assetIds) : placedIds;
+    const requested = placedIds.intersection(wanted);
+    const allowed =
+      requested.size > 0
+        ? await this.checkAccess({ auth, permission: Permission.AssetRead, ids: requested })
+        : new Set<string>();
+
+    const estimates: LayoutEstimates = new Map();
+    const photos = await this.getLayoutPhotos(auth, [...allowed], new Set(), [], {
+      estimates,
+      only: allowed,
+      addGain: false,
+    });
+    const byId = new Map(photos.map((photo) => [photo.id, photo]));
+    const improvements = this.getImprovements([...allowed], byId, estimates);
+
+    const failures = new Map<string, string>();
+    const copies = await this.createImprovedCopies(auth, improvements, [], failures);
+    const layoutPages: AutoLayoutPage[] = pages.map((page) => ({
+      layout: page.layout,
+      slots: page.assets.map((asset) => ({ assetId: asset.assetId, crop: asset.crop ?? { ...FULL_CROP } })),
+    }));
+    const improved = this.swapInCopies(book, layoutPages, copies, byId);
+
+    for (const [index, page] of pages.entries()) {
+      for (const [slotIndex, asset] of page.assets.entries()) {
+        const slot = layoutPages[index].slots[slotIndex];
+        if (slot.assetId === asset.assetId) {
+          continue;
+        }
+        await this.bookRepository.upsertSlot(id, {
+          pageId: page.id,
+          slot: asset.slot,
+          assetId: slot.assetId,
+          crop: slot.crop,
+          caption: asset.caption ?? null,
+        });
+      }
+    }
+    const coverCopy = book.coverAssetId ? copies.get(book.coverAssetId) : undefined;
+    if (coverCopy) {
+      await this.bookRepository.update(id, { coverAssetId: coverCopy.id });
+    }
+
+    const reasonFor = (assetId: string) => {
+      if (!placedIds.has(assetId)) {
+        return 'not in the book';
+      }
+      if (!allowed.has(assetId)) {
+        return 'no access';
+      }
+      const photo = byId.get(assetId);
+      if (photo?.kind === 'improved') {
+        return 'already improved';
+      }
+      return failures.get(assetId) ?? 'no fix helps it measurably';
+    };
+    const skipped = [...wanted]
+      .filter((assetId) => !copies.has(assetId))
+      .map((assetId) => ({ assetId, reason: reasonFor(assetId) }));
+    return { improved, skipped };
+  }
+
+  /** placed photos with a helpful recipe; artwork and copies that are already improved are left alone */
+  private getImprovements(
+    assetIds: string[],
+    photos: Map<string, AutoLayoutPhoto>,
+    estimates: LayoutEstimates,
+  ): BookImprovement[] {
+    const result: BookImprovement[] = [];
+    for (const assetId of new Set(assetIds)) {
+      const photo = photos.get(assetId);
+      const estimate = estimates.get(assetId);
+      if (!photo || !estimate || estimate.gain <= 0 || photo.kind === 'artwork' || photo.kind === 'improved') {
+        continue;
+      }
+      // the slots crop the photos, so only straightening and enhancing are applied
+      const { crop: _, ...recipe } = estimate.recipe;
+      if (!isEmptyRecipe(recipe)) {
+        result.push({ assetId, recipe, gain: estimate.gain });
+      }
+    }
+    return result;
+  }
+
+  /** one improved copy per photo, one at a time: every photo is decoded at full resolution */
+  private async createImprovedCopies(
+    auth: AuthDto,
+    improvements: BookImprovement[],
+    warnings: string[],
+    failures = new Map<string, string>(),
+  ) {
+    const improveService = BaseService.create(ImproveService, this);
+    const copies = new Map<string, ImprovedCopyResult>();
+    for (const { assetId, recipe } of improvements) {
+      try {
+        copies.set(assetId, await improveService.createImprovedCopy(auth, assetId, recipe));
+      } catch (error: any) {
+        const message = String(error?.response?.message ?? error?.message ?? error);
+        failures.set(assetId, message);
+        warnings.push(`Photo ${assetId} could not be improved (${message}), so the original is used`);
+      }
+    }
+    return copies;
+  }
+
+  /** places the copies instead of their originals, with the crops of the slots recomputed for the copies */
+  private swapInCopies(
+    book: Book,
+    pages: AutoLayoutPage[],
+    copies: Map<string, ImprovedCopyResult>,
+    photos: Map<string, AutoLayoutPhoto>,
+  ): BookImprovedPhoto[] {
+    const style = resolveBookStyle(book.style);
+    const improved = new Map<string, BookImprovedPhoto>();
+    for (const [index, page] of pages.entries()) {
+      const layout = getLayout(page.layout);
+      const aspects = layout ? getSlotAspectRatios(layout, book, style) : [];
+      for (const [slotIndex, slot] of page.slots.entries()) {
+        const copy = copies.get(slot.assetId);
+        const photo = photos.get(slot.assetId);
+        if (!copy || !photo) {
+          continue;
+        }
+        // the faces of the copy are detected later, so the faces of the original are moved into it
+        const faces = mapFaces(
+          photo.faces.map((face) => ({ x1: face.x, y1: face.y, x2: face.x + face.width, y2: face.y + face.height })),
+          { rotate: copy.applied.rotate, crop: copy.applied.crop },
+          photo,
+        ).map((face) => ({ x: face.x1, y: face.y1, width: face.x2 - face.x1, height: face.y2 - face.y1 }));
+        const aspect = aspects[slotIndex];
+        page.slots[slotIndex] = {
+          assetId: copy.id,
+          crop: aspect ? getDefaultCrop({ width: copy.width, height: copy.height }, faces, aspect) : slot.crop,
+        };
+        const entry = improved.get(copy.sourceId) ?? {
+          sourceId: copy.sourceId,
+          id: copy.id,
+          description: copy.description,
+          pages: [],
+        };
+        entry.pages.push(index + 1);
+        improved.set(copy.sourceId, entry);
+      }
+    }
+    return improved.values().toArray();
   }
 
   private async illustratePlannedMaps(
@@ -1325,6 +1552,14 @@ export class BookService extends BaseService {
     assetIds: string[],
     heroIds: Set<string>,
     warnings: string[],
+    improve?: {
+      /** filled with the simulated fixes of the photos */
+      estimates: LayoutEstimates;
+      /** simulate these photos; default: the best by the scores that forgive fixable weaknesses */
+      only?: Set<string>;
+      /** score the photos on what they can become */
+      addGain: boolean;
+    },
   ): Promise<AutoLayoutPhoto[]> {
     const found = await this.assetJobRepository.getForAgent([...new Set(assetIds)], auth.user.id);
     let rows = found.filter((row) => row.type === AssetType.Image);
@@ -1382,6 +1617,9 @@ export class BookService extends BaseService {
       warnings.push(`Photo quality was estimated from metadata, because ${uncached} photos have not been analyzed yet`);
     }
     const analyses = await mapLimit(rows, 4, (row) => this.getImageAnalysis(row, analyze));
+    if (improve && analyze) {
+      await this.estimateImprovements(rows, analyses, heroIds, improve);
+    }
 
     return rows.map((row, index) => {
       const asset = assets.get(row.id);
@@ -1396,7 +1634,9 @@ export class BookService extends BaseService {
         lon: row.longitude,
         city: row.city,
         country: row.country,
-        score: scorePhoto(analyses[index], faces, { isFavorite: row.isFavorite, rating: row.rating }).overall,
+        score:
+          scorePhoto(analyses[index], faces, { isFavorite: row.isFavorite, rating: row.rating }).overall +
+          (improve?.addGain ? (improve.estimates.get(row.id)?.gain ?? 0) : 0),
         // face boxes are relative to the unedited image
         faces: asset?.isEdited
           ? []
@@ -1410,6 +1650,40 @@ export class BookService extends BaseService {
         embedding: vectors.get(row.id) ?? null,
       };
     });
+  }
+
+  /**
+   * The simulated fixes (straightening and auto-enhance; the slots crop the photos) of up to `IMPROVE_MAX_POOL` photos:
+   * the given ones, or the heroes and the best by the scores that forgive what the fixes can repair
+   */
+  private async estimateImprovements(
+    rows: AgentAsset[],
+    analyses: Array<ImageAnalysis | null>,
+    heroIds: Set<string>,
+    improve: { estimates: LayoutEstimates; only?: Set<string> },
+  ) {
+    const sources = rows.map((row) => toImproveSource(row));
+    let pool = sources.filter((source, index) => analyses[index] && (!improve.only || improve.only.has(source.id)));
+    if (!improve.only && pool.length > IMPROVE_MAX_POOL) {
+      const scores = new Map(
+        sources.map((source, index) => [
+          source.id,
+          getPoolScore(analyses[index], source.faces, { isFavorite: source.isFavorite, rating: source.rating }, source),
+        ]),
+      );
+      pool = pool
+        .toSorted(
+          (a, b) => Number(heroIds.has(b.id)) - Number(heroIds.has(a.id)) || scores.get(b.id)! - scores.get(a.id)!,
+        )
+        .slice(0, IMPROVE_MAX_POOL);
+    }
+
+    const estimates = await BaseService.create(ImproveService, this).estimateMany(pool, { crop: false });
+    for (const [index, estimate] of estimates.entries()) {
+      if (estimate) {
+        improve.estimates.set(pool[index].id, estimate);
+      }
+    }
   }
 
   private async getImageAnalysis(

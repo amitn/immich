@@ -244,6 +244,20 @@ const layoutTuning = {
     .max(20)
     .optional()
     .describe('Artworks shown next to their original on the same page (default 2)'),
+  considerImprovements: z
+    .boolean()
+    .optional()
+    .describe(
+      'Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), ' +
+        'simulated on their previews (default true)',
+    ),
+  improvePhotos: z
+    .boolean()
+    .optional()
+    .describe(
+      'Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, ' +
+        'stacked with the originals, and place the copies instead (default false)',
+    ),
 };
 
 const BookFromAlbumSchema = z
@@ -407,6 +421,7 @@ export const bookReviewIssueTypes = [
   'too-many-pairs',
   'repeated-layout',
   'missing-captions',
+  'could-look-better',
 ] as const;
 
 const BookReviewIssueSchema = z
