@@ -29,6 +29,19 @@ const partialConfig = {
 } satisfies DeepPartial<SystemConfig>;
 
 const updatedConfig = Object.freeze<SystemConfig>({
+  agent: {
+    enabled: false,
+    profiles: [
+      { name: 'claude', command: 'claude-agent-acp', args: [], env: [], passEnv: ['ANTHROPIC_API_KEY'] },
+      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY'] },
+    ],
+    chatProfile: 'claude',
+    artProfile: '',
+    maxConcurrentSessions: 3,
+    idleTimeoutMinutes: 15,
+    autoApproveWrites: false,
+    mcpUrl: '',
+  },
   job: {
     [QueueName.BackgroundTask]: { concurrency: 5 },
     [QueueName.SmartSearch]: { concurrency: 2 },

@@ -613,13 +613,76 @@ class WorkflowAccess {
   }
 }
 
+class AgentSessionAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, sessionIds: Set<string>) {
+    if (sessionIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('agent_session')
+      .select('agent_session.id')
+      .where('agent_session.id', 'in', [...sessionIds])
+      .where('agent_session.userId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class ArtJobAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, jobIds: Set<string>) {
+    if (jobIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('art_job')
+      .select('art_job.id')
+      .where('art_job.id', 'in', [...jobIds])
+      .where('art_job.userId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class BookAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, bookIds: Set<string>) {
+    if (bookIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('book')
+      .select('book.id')
+      .where('book.id', 'in', [...bookIds])
+      .where('book.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
 @Injectable()
 export class AccessRepository {
   activity: ActivityAccess;
+  agentSession: AgentSessionAccess;
   album: AlbumAccess;
+  artJob: ArtJobAccess;
   asset: AssetAccess;
   assetFile: AssetFileAccess;
   authDevice: AuthDeviceAccess;
+  book: BookAccess;
   duplicate: DuplicateAccess;
   memory: MemoryAccess;
   notification: NotificationAccess;
@@ -635,10 +698,13 @@ export class AccessRepository {
 
   constructor(@InjectKysely() db: Kysely<DB>) {
     this.activity = new ActivityAccess(db);
+    this.agentSession = new AgentSessionAccess(db);
     this.album = new AlbumAccess(db);
+    this.artJob = new ArtJobAccess(db);
     this.asset = new AssetAccess(db);
     this.assetFile = new AssetFileAccess(db);
     this.authDevice = new AuthDeviceAccess(db);
+    this.book = new BookAccess(db);
     this.duplicate = new DuplicateAccess(db);
     this.memory = new MemoryAccess(db);
     this.notification = new NotificationAccess(db);

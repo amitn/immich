@@ -137,6 +137,8 @@ describe(ServerService.name, () => {
         smartSearch: true,
         duplicateDetection: true,
         facialRecognition: true,
+        assistant: false,
+        artisticStyles: false,
         importFaces: false,
         map: true,
         reverseGeocoding: true,
