@@ -14,6 +14,7 @@ import {
   AgentSessionCreateDto,
   AgentSessionDetailResponseDto,
   AgentSessionResponseDto,
+  AgentSessionUpdateDto,
   AgentToolCallStatus,
   mapAgentMessage,
   mapAgentSession,
@@ -176,6 +177,16 @@ export class AgentService extends BaseService {
       userId: auth.user.id,
       title: dto.title || null,
       profile: config.chatProfile,
+      autoApprove: dto.autoApprove ?? false,
+    });
+    return mapAgentSession(session);
+  }
+
+  async updateSession(auth: AuthDto, id: string, dto: AgentSessionUpdateDto): Promise<AgentSessionResponseDto> {
+    await this.requireAccess({ auth, permission: Permission.AgentSessionUpdate, ids: [id] });
+    const session = await this.agentRepository.updateSession(id, {
+      ...(dto.title !== undefined && { title: dto.title || null }),
+      ...(dto.autoApprove !== undefined && { autoApprove: dto.autoApprove }),
     });
     return mapAgentSession(session);
   }
@@ -286,8 +297,17 @@ export class AgentService extends BaseService {
       throw new BadRequestException('Permission request not found or expired');
     }
 
-    const approved = dto.approved ?? dto.optionId === 'allow';
+    if (dto.optionId === 'allow_always') {
+      await this.agentRepository.updateSession(id, { autoApprove: true });
+    }
+
+    const approved = dto.approved ?? (dto.optionId === 'allow' || dto.optionId === 'allow_always');
     approval.resolve(approved ? AgentPermissionStatus.Approved : AgentPermissionStatus.Denied);
+  }
+
+  private async isAutoApproved(sessionId: string) {
+    const session = await this.agentRepository.getSession(sessionId);
+    return !!session?.autoApprove;
   }
 
   /** Handles a (stateless) MCP request from an agent process, authenticated with its bearer token. */
@@ -327,7 +347,7 @@ export class AgentService extends BaseService {
     const entry = run ? await this.enqueue(run, () => this.startMcpToolCall(run, tool, input)) : undefined;
 
     let result: AgentToolResult | undefined;
-    if (tool.mutating && !config.autoApproveWrites) {
+    if (tool.mutating && !config.autoApproveWrites && !(run && (await this.isAutoApproved(run.sessionId)))) {
       const status = run ? await this.requestApproval(run, tool, input) : AgentPermissionStatus.Denied;
       if (status !== AgentPermissionStatus.Approved) {
         result = toolError(
@@ -918,6 +938,7 @@ export class AgentService extends BaseService {
       status: AgentPermissionStatus.Pending,
       options: [
         { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+        { optionId: 'allow_always', name: 'Allow all in this chat', kind: 'allow_always' },
         { optionId: 'deny', name: 'Deny', kind: 'reject_once' },
       ],
       ...mergeRefs({}, extractRefs(input)),

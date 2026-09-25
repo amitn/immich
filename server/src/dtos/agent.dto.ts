@@ -16,8 +16,22 @@ import { isoDatetimeToDate } from 'src/validation.js';
 const AgentSessionCreateSchema = z
   .object({
     title: z.string().trim().max(200).optional().describe('Session title'),
+    autoApprove: z
+      .boolean()
+      .optional()
+      .describe('Let the assistant change the library without asking, in this session'),
   })
   .meta({ id: 'AgentSessionCreateDto' });
+
+const AgentSessionUpdateSchema = z
+  .object({
+    title: z.string().trim().max(200).optional().describe('Session title'),
+    autoApprove: z
+      .boolean()
+      .optional()
+      .describe('Let the assistant change the library without asking, in this session'),
+  })
+  .meta({ id: 'AgentSessionUpdateDto' });
 
 const AgentPromptSchema = z
   .object({
@@ -113,6 +127,7 @@ const AgentSessionResponseSchema = z
     title: z.string().nullable().describe('Session title'),
     profile: z.string().describe('Agent profile'),
     status: AgentSessionStatusSchema,
+    autoApprove: z.boolean().describe('Whether changes to the library are approved automatically in this session'),
     createdAt: isoDatetimeToDate.describe('Creation date'),
     updatedAt: isoDatetimeToDate.describe('Last update date'),
   })
@@ -131,6 +146,7 @@ const AgentUpdateSchema = z
   .meta({ id: 'AgentUpdateDto' });
 
 export class AgentSessionCreateDto extends createZodDto(AgentSessionCreateSchema) {}
+export class AgentSessionUpdateDto extends createZodDto(AgentSessionUpdateSchema) {}
 export class AgentPromptDto extends createZodDto(AgentPromptSchema) {}
 export class AgentPermissionResponseDto extends createZodDto(AgentPermissionResponseSchema) {}
 export class AgentPermissionParamDto extends createZodDto(AgentPermissionParamSchema) {}
@@ -145,6 +161,7 @@ export const mapAgentSession = (session: Selectable<AgentSessionTable>): AgentSe
   title: session.title,
   profile: session.profile,
   status: session.status,
+  autoApprove: session.autoApprove,
   createdAt: session.createdAt,
   updatedAt: session.updatedAt,
 });

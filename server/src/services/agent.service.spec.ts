@@ -100,7 +100,7 @@ describe(AgentService.name, () => {
   let fake: ReturnType<typeof newFakeAgent>;
   const auth = factory.auth();
 
-  const newSession = (overrides: { acpSessionId?: string | null } = {}) => {
+  const newSession = (overrides: { acpSessionId?: string | null; autoApprove?: boolean } = {}) => {
     const session = {
       id: factory.uuid(),
       userId: auth.user.id,
@@ -108,6 +108,7 @@ describe(AgentService.name, () => {
       profile: 'claude',
       acpSessionId: null,
       status: AgentSessionStatus.Idle,
+      autoApprove: false,
       createdAt: new Date(),
       updatedAt: new Date(),
       updateId: factory.uuid(),
@@ -208,6 +209,7 @@ describe(AgentService.name, () => {
         userId: auth.user.id,
         title: 'Trip',
         profile: 'claude',
+        autoApprove: false,
       });
     });
   });
@@ -634,6 +636,31 @@ describe(AgentService.name, () => {
       expect(messages().some((message) => message.kind === AgentMessageKind.Permission)).toBe(false);
     });
 
+    it('should skip approval when the session is auto-approved', async () => {
+      const session = await mocks.agent.getSession(sessionId);
+      mocks.agent.getSession.mockResolvedValue({ ...session!, autoApprove: true });
+
+      const result = await sut.runTool({ auth, sessionId }, writeTool, input);
+
+      expect(result.isError).toBeUndefined();
+      expect(writeTool.handler).toHaveBeenCalledWith({ auth, sessionId }, input);
+      expect(messages().some((message) => message.kind === AgentMessageKind.Permission)).toBe(false);
+    });
+
+    it('should auto-approve the rest of the session when the user allows all', async () => {
+      const pending = sut.runTool({ auth, sessionId }, writeTool, input);
+      const permission = await waitForPermission(rows);
+      expect(permission.content.options).toContainEqual(expect.objectContaining({ optionId: 'allow_always' }));
+
+      await sut.respondToPermission(auth, sessionId, permission.content.requestId as string, {
+        optionId: 'allow_always',
+      });
+
+      await expect(pending).resolves.not.toMatchObject({ isError: true });
+      expect(mocks.agent.updateSession).toHaveBeenCalledWith(sessionId, { autoApprove: true });
+      expect(rows.get(permission.id)?.content.status).toBe('approved');
+    });
+
     it('should turn tool errors into MCP errors', async () => {
       const failing = defineTool({ ...readTool, handler: () => Promise.reject(new BadRequestException('Not found')) });
       await expect(sut.runTool({ auth, sessionId }, failing, { query: 'x' })).resolves.toEqual({
@@ -646,6 +673,25 @@ describe(AgentService.name, () => {
       await expect(sut.respondToPermission(auth, sessionId, factory.uuid(), { approved: true })).rejects.toBeInstanceOf(
         BadRequestException,
       );
+    });
+  });
+
+  describe('updateSession', () => {
+    it('should turn auto-approve on for a session', async () => {
+      const session = newSession();
+      mocks.agent.updateSession.mockResolvedValue({ ...session, autoApprove: true });
+
+      await expect(sut.updateSession(auth, session.id, { autoApprove: true })).resolves.toMatchObject({
+        id: session.id,
+        autoApprove: true,
+      });
+      expect(mocks.agent.updateSession).toHaveBeenCalledWith(session.id, { autoApprove: true });
+    });
+
+    it('should require access to the session', async () => {
+      mocks.access.agentSession.checkOwnerAccess.mockResolvedValue(new Set());
+      await expect(sut.updateSession(auth, factory.uuid(), { autoApprove: true })).rejects.toThrow();
+      expect(mocks.agent.updateSession).not.toHaveBeenCalled();
     });
   });
 

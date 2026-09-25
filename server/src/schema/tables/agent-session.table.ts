@@ -33,6 +33,10 @@ export class AgentSessionTable {
   @Column({ default: AgentSessionStatus.Idle })
   status!: Generated<AgentSessionStatus>;
 
+  /** run mutating tools without asking the user, for this session only */
+  @Column({ type: 'boolean', default: false })
+  autoApprove!: Generated<boolean>;
+
   @CreateDateColumn()
   createdAt!: Generated<Timestamp>;
 

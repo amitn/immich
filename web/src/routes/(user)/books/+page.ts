@@ -5,7 +5,9 @@ import { authenticate } from '$lib/utils/auth';
 import { getFormatter } from '$lib/utils/i18n';
 import type { PageLoad } from './$types';
 
-export const load = (async ({ url }) => {
+export const load = (async ({ url, parent }) => {
+  // feature flags are initialized by the root layout
+  await parent();
   await authenticate(url);
   const $t = await getFormatter();
 

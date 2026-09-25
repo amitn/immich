@@ -16,6 +16,7 @@
     getAgentSessions,
     respondToAgentPermission,
     sendAgentPrompt,
+    updateAgentSession,
   } from '$lib/services/assistant-api';
   import { takePendingAssistantAssets } from '$lib/services/assistant.service';
   import { websocketEvents } from '$lib/stores/websocket';
@@ -26,7 +27,7 @@
     AgentUpdateDto,
   } from '$lib/types/assistant';
   import { handleError } from '$lib/utils/handle-error';
-  import { Alert, Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
+  import { Alert, Button, IconButton, LoadingSpinner, modalManager, Switch, toastManager } from '@immich/ui';
   import { mdiArrowDown, mdiForumOutline, mdiPlus } from '@mdi/js';
   import { onMount, tick } from 'svelte';
   import { t } from 'svelte-i18n';
@@ -49,6 +50,10 @@
   let isSending = $state(false);
   let isLoadingSession = $state(false);
   let showSessions = $state(false);
+  /** auto-approve for a chat that doesn't exist yet, sent when it is created */
+  let autoApproveNewChat = $state(false);
+  const activeSession = $derived(sessions.find(({ id }) => id === conversation.sessionId));
+  const autoApprove = $derived(activeSession ? activeSession.autoApprove : autoApproveNewChat);
   let textarea = $state<HTMLTextAreaElement | null>(null);
   let scroller = $state<HTMLElement>();
   let isAtBottom = $state(true);
@@ -98,6 +103,7 @@
       title: session.title,
       profile: session.profile,
       status: session.status,
+      autoApprove: session.autoApprove,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
     };
@@ -174,7 +180,9 @@
     let sessionId = conversation.sessionId;
     if (!sessionId) {
       try {
-        const session = await createAgentSession({ agentSessionCreateDto: { title: toTitle(text) } });
+        const session = await createAgentSession({
+          agentSessionCreateDto: { title: toTitle(text), autoApprove: autoApproveNewChat },
+        });
         upsertSession(session);
         conversation.reset(session.id);
         sessionId = session.id;
@@ -230,6 +238,9 @@
 
     const previous = (message.content.status ?? 'pending') as AgentPermissionStatus;
     conversation.setPermissionStatus(requestId, approved ? 'approved' : 'denied');
+    if (optionId === 'allow_always' && activeSession) {
+      upsertSession({ ...activeSession, autoApprove: true });
+    }
 
     try {
       await respondToAgentPermission({
@@ -240,6 +251,22 @@
     } catch (error) {
       conversation.setPermissionStatus(requestId, previous);
       handleError(error, $t('errors.unable_to_respond_to_assistant_permission'));
+    }
+  };
+
+  const setAutoApprove = async (checked: boolean) => {
+    if (!activeSession) {
+      autoApproveNewChat = checked;
+      return;
+    }
+
+    const previous = activeSession;
+    upsertSession({ ...previous, autoApprove: checked });
+    try {
+      upsertSession(await updateAgentSession({ id: previous.id, agentSessionUpdateDto: { autoApprove: checked } }));
+    } catch (error) {
+      upsertSession(previous);
+      handleError(error, $t('errors.unable_to_update_assistant_chat'));
     }
   };
 
@@ -328,6 +355,13 @@
   {#snippet buttons()}
     {#if data.enabled}
       <div class="flex items-center gap-1">
+        <label
+          class="me-2 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300"
+          title={$t('assistant_auto_approve_description')}
+        >
+          <Switch checked={autoApprove} onCheckedChange={setAutoApprove} />
+          <span class="hidden sm:inline">{$t('assistant_auto_approve')}</span>
+        </label>
         <Button
           class="md:hidden"
           variant="ghost"

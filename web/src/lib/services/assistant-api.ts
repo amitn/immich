@@ -10,6 +10,7 @@ import type {
   AgentSessionCreateDto,
   AgentSessionDetailResponseDto,
   AgentSessionResponseDto,
+  AgentSessionUpdateDto,
 } from '$lib/types/assistant';
 
 export const createAgentSession = ({ agentSessionCreateDto }: { agentSessionCreateDto: AgentSessionCreateDto }) =>
@@ -19,6 +20,15 @@ export const getAgentSessions = () => adapterRequest<AgentSessionResponseDto[]>(
 
 export const getAgentSession = ({ id }: { id: string }) =>
   adapterRequest<AgentSessionDetailResponseDto>(`/agent/sessions/${id}`);
+
+export const updateAgentSession = ({
+  id,
+  agentSessionUpdateDto,
+}: {
+  id: string;
+  agentSessionUpdateDto: AgentSessionUpdateDto;
+}) =>
+  adapterRequest<AgentSessionResponseDto>(`/agent/sessions/${id}`, { method: 'PATCH', body: agentSessionUpdateDto });
 
 export const deleteAgentSession = ({ id }: { id: string }) =>
   adapterRequest(`/agent/sessions/${id}`, { method: 'DELETE' });

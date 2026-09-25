@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
@@ -9,6 +9,7 @@ import {
   AgentSessionCreateDto,
   AgentSessionDetailResponseDto,
   AgentSessionResponseDto,
+  AgentSessionUpdateDto,
 } from 'src/dtos/agent.dto.js';
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
@@ -53,6 +54,21 @@ export class AgentController {
   })
   getAgentSession(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<AgentSessionDetailResponseDto> {
     return this.service.getSession(auth, id);
+  }
+
+  @Patch(':id')
+  @Authenticated({ permission: Permission.AgentSessionUpdate })
+  @Endpoint({
+    summary: 'Update an assistant session',
+    description: 'Rename an assistant session, or turn automatic approval of library changes on or off for it.',
+    history: history(),
+  })
+  updateAgentSession(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Body() dto: AgentSessionUpdateDto,
+  ): Promise<AgentSessionResponseDto> {
+    return this.service.updateSession(auth, id, dto);
   }
 
   @Delete(':id')

@@ -15,6 +15,7 @@ const detail = (messages: AgentMessageDto[], overrides?: Partial<AgentSessionDet
   title: 'Chat',
   profile: 'claude',
   status: 'idle' as const,
+  autoApprove: false,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
   messages,

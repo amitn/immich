@@ -12,6 +12,12 @@ export type AgentSessionStatus = 'idle' | 'running' | 'error';
 
 export type AgentSessionCreateDto = {
   title?: string;
+  autoApprove?: boolean;
+};
+
+export type AgentSessionUpdateDto = {
+  title?: string;
+  autoApprove?: boolean;
 };
 
 export type AgentSessionResponseDto = {
@@ -19,6 +25,8 @@ export type AgentSessionResponseDto = {
   title: string | null;
   profile: string;
   status: AgentSessionStatus;
+  /** changes to the library run without asking in this session */
+  autoApprove: boolean;
   createdAt: string;
   updatedAt: string;
 };
