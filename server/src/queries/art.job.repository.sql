@@ -25,6 +25,35 @@ where
 returning
   *
 
+-- ArtJobRepository.getDerivedAssetsForTagging
+select
+  "asset"."id" as "assetId",
+  "asset"."ownerId",
+  "art_job"."id" as "artJobId",
+  "art_job"."style",
+  "asset"."originalFileName"
+from
+  "asset"
+  inner join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+  left join "art_job" on "art_job"."resultAssetId" = "asset"."id"
+where
+  "asset"."deletedAt" is null
+  and (
+    "art_job"."status" = $1
+    or (
+      "asset"."originalFileName" like $2
+      and "asset_exif"."description" like $3
+    )
+    or (
+      "asset"."originalFileName" like $4
+      and "asset_exif"."description" like $5
+    )
+    or (
+      "asset"."originalFileName" like $6
+      and "asset_exif"."description" like $7
+    )
+  )
+
 -- ArtJobRepository.failUnfinished
 update "art_job"
 set

@@ -1871,6 +1871,7 @@ export type BookCreateDto = {
     /** Page width in millimeters (default 210) */
     pageWidthMm?: number;
     style?: BookStyleUpdate;
+    stylePreset?: BookStylePreset;
     /** Book subtitle */
     subtitle?: string | null;
     /** Book title */
@@ -1991,12 +1992,56 @@ export type BookFromAlbumDto = {
     /** Page width in millimeters (default 210) */
     pageWidthMm?: number;
     style?: BookStyleUpdate;
+    stylePreset?: BookStylePreset;
     /** Book subtitle */
     subtitle?: string | null;
     /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
     targetPageCount?: number;
     /** Book title (default: the album name) */
     title?: string;
+};
+export type BookAutoLayoutResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    /** Pages in book order */
+    pages: BookPageResponseDto[];
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+    /** Problems met while laying out the book, e.g. a map style that is not available */
+    warnings: string[];
 };
 export type BookLayoutRect = {
     /** Height, as a fraction of the layout area */
@@ -2037,6 +2082,14 @@ export type BookLayoutResponseDto = {
         y: number;
     }[];
 };
+export type BookStylePresetResponseDto = {
+    /** Preset description */
+    description: string;
+    id: BookStylePreset;
+    /** Preset name */
+    name: string;
+    style: BookStyle;
+};
 export type BookUpdateDto = {
     /** Album the book is made from */
     albumId?: string | null;
@@ -2047,6 +2100,8 @@ export type BookUpdateDto = {
     /** Page width in millimeters */
     pageWidthMm?: number;
     style?: BookStyleUpdate;
+    /** Replace the style with a preset (see GET /books/style-presets); style overrides its values */
+    stylePreset?: BookStylePreset;
     /** Book subtitle */
     subtitle?: string | null;
     /** Book title */
@@ -2117,6 +2172,69 @@ export type BookSlotUpdateDto = {
     caption?: string | null;
     /** Crop of the asset; a default crop matching the slot is chosen when omitted */
     crop?: (NormalizedRect) | null;
+};
+export type BookReviewIssueDto = {
+    /** Photos involved, or photos to use instead */
+    assetIds?: string[];
+    /** Print resolution of the placement */
+    dpi?: number;
+    /** What is wrong and how to fix it */
+    message: string;
+    /** One-based page numbers */
+    pages: number[];
+    /** How much the issue hurts the book */
+    severity: Severity;
+    /** One-based slot number */
+    slot?: number;
+    /** Kind of issue */
+    "type": Type;
+};
+export type BookReviewSuggestionDto = {
+    /** Photo ID */
+    assetId: string;
+    /** Place of the photo */
+    city?: string;
+    /** Named people in the photo */
+    people?: string[];
+    /** Quality score, 0..1 */
+    score: number;
+};
+export type BookReviewPlacementDto = {
+    /** Photo ID */
+    assetId: string;
+    /** One-based page number */
+    page: number;
+    /** Quality score, 0..1 */
+    score: number;
+    /** One-based slot number */
+    slot: number;
+};
+export type BookReviewResponseDto = {
+    /** Number of issues per severity */
+    counts: {
+        high: number;
+        low: number;
+        medium: number;
+    };
+    /** Issues, most severe first */
+    issues: BookReviewIssueDto[];
+    /** Number of pages */
+    pageCount: number;
+    /** The people who appear most often in the album */
+    people: {
+        /** Person name */
+        name?: string;
+        /** Person ID */
+        personId: string;
+        /** Photos of the person in the album */
+        photos: number;
+        /** Photos of the person in the book */
+        placed: number;
+    }[];
+    /** The best photos of the album that are not in the book, photos of the main people first */
+    unusedPhotos: BookReviewSuggestionDto[];
+    /** The lowest scoring photos in the book */
+    weakestPlaced: BookReviewPlacementDto[];
 };
 export type ClusterGroupRequestResponseDto = {
     /** Cluster group the user is invited to join */
@@ -6029,7 +6147,7 @@ export function createBookFromAlbum({ bookFromAlbumDto }: {
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 201;
-        data: BookDetailResponseDto;
+        data: BookAutoLayoutResponseDto;
     }>("/books/from-album", oazapfts.json({
         ...opts,
         method: "POST",
@@ -6044,6 +6162,17 @@ export function getBookLayouts(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: BookLayoutResponseDto[];
     }>("/books/layouts", {
+        ...opts
+    }));
+}
+/**
+ * List book style presets
+ */
+export function getBookStylePresets(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookStylePresetResponseDto[];
+    }>("/books/style-presets", {
         ...opts
     }));
 }
@@ -6096,7 +6225,7 @@ export function autoLayoutBook({ id, bookAutoLayoutDto }: {
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
         status: 201;
-        data: BookDetailResponseDto;
+        data: BookAutoLayoutResponseDto;
     }>(`/books/${encodeURIComponent(id)}/auto-layout`, oazapfts.json({
         ...opts,
         method: "POST",
@@ -6283,6 +6412,19 @@ export function previewBook({ id }: {
         status: 200;
         data: Blob;
     }>(`/books/${encodeURIComponent(id)}/preview`, {
+        ...opts
+    }));
+}
+/**
+ * Review a book
+ */
+export function getBookReview({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookReviewResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/review`, {
         ...opts
     }));
 }
@@ -9344,6 +9486,11 @@ export enum BookExportStatus {
     Completed = "completed",
     Failed = "failed"
 }
+export enum BookStylePreset {
+    Classic = "classic",
+    Soft = "soft",
+    Bold = "bold"
+}
 export enum BookMapStyle {
     Sketch = "sketch",
     Watercolor = "watercolor",
@@ -9377,6 +9524,25 @@ export enum Kind2 {
 export enum BookExportFormat {
     Pdf = "pdf",
     Html = "html"
+}
+export enum Severity {
+    High = "high",
+    Medium = "medium",
+    Low = "low"
+}
+export enum Type {
+    DuplicateStack = "duplicate-stack",
+    LowDpi = "low-dpi",
+    EmptySlot = "empty-slot",
+    TooMuchArtwork = "too-much-artwork",
+    ArtworkBackToBack = "artwork-back-to-back",
+    SinglesInARow = "singles-in-a-row",
+    SimilarNeighbours = "similar-neighbours",
+    MapStyleFallback = "map-style-fallback",
+    PersonUnderrepresented = "person-underrepresented",
+    TooManyPairs = "too-many-pairs",
+    RepeatedLayout = "repeated-layout",
+    MissingCaptions = "missing-captions"
 }
 export enum SourceType {
     MachineLearning = "machine-learning",

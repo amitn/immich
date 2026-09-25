@@ -166,3 +166,17 @@ on conflict do nothing
 returning
   *
 rollback
+
+-- TagRepository.getAssetCounts
+select
+  "tag_closure"."id_ancestor" as "id",
+  count(distinct "tag_asset"."assetId") as "count"
+from
+  "tag_closure"
+  inner join "tag_asset" on "tag_asset"."tagId" = "tag_closure"."id_descendant"
+  inner join "asset" on "asset"."id" = "tag_asset"."assetId"
+where
+  "tag_closure"."id_ancestor" in ($1)
+  and "asset"."deletedAt" is null
+group by
+  "tag_closure"."id_ancestor"

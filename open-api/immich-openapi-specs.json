@@ -7040,7 +7040,7 @@
     },
     "/books/from-album": {
       "post": {
-        "description": "Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event opened by a map or a section title, and pages whose photo sizes follow the importance of the photos.",
+        "description": "Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event opened by a map or a section title, and pages whose photo sizes follow the importance of the photos. The warnings report e.g. a map style that is not available.",
         "operationId": "createBookFromAlbum",
         "parameters": [],
         "requestBody": {
@@ -7058,7 +7058,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                  "$ref": "#/components/schemas/BookAutoLayoutResponseDto"
                 }
               }
             },
@@ -7126,6 +7126,55 @@
           }
         ],
         "summary": "List book layouts",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/style-presets": {
+      "get": {
+        "description": "Retrieve the style presets (background, text color, margins, gutters, font) for photo books.",
+        "operationId": "getBookStylePresets",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookStylePresetResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List book style presets",
         "tags": [
           "Books"
         ],
@@ -7344,7 +7393,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BookDetailResponseDto"
+                  "$ref": "#/components/schemas/BookAutoLayoutResponseDto"
                 }
               }
             },
@@ -8202,6 +8251,63 @@
           }
         ],
         "summary": "Preview a book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/review": {
+      "get": {
+        "description": "A checklist of what to improve in a photo book, most severe first: photo stacks shown twice, low print resolution, empty slots, too much or back-to-back artwork, long runs of single photos, similar photos on neighbouring pages, maps drawn as sketches, main people with few photos, repeated layouts and pages without captions; with the best photos of the album that are not in the book.",
+        "operationId": "getBookReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookReviewResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Review a book",
         "tags": [
           "Books"
         ],
@@ -24134,6 +24240,167 @@
         },
         "type": "object"
       },
+      "BookAutoLayoutResponseDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the book is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "coverAssetId": {
+            "description": "Cover asset ID",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "exportStale": {
+            "description": "Whether the book changed after the PDF was exported",
+            "type": "boolean"
+          },
+          "exportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the PDF export",
+            "nullable": true
+          },
+          "exportedAt": {
+            "description": "When the PDF export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "firstPageId": {
+            "description": "ID of the first page, e.g. to show the cover",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "htmlExportStale": {
+            "description": "Whether the book changed after the HTML file was exported",
+            "type": "boolean"
+          },
+          "htmlExportStatus": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/BookExportStatus"
+              }
+            ],
+            "description": "Status of the single-file HTML export",
+            "nullable": true
+          },
+          "htmlExportedAt": {
+            "description": "When the HTML export last completed",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Book ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "ownerId": {
+            "description": "Owner user ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pages": {
+            "description": "Pages in book order",
+            "items": {
+              "$ref": "#/components/schemas/BookPageResponseDto"
+            },
+            "type": "array"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyle"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "warnings": {
+            "description": "Problems met while laying out the book, e.g. a map style that is not available",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "albumId",
+          "coverAssetId",
+          "createdAt",
+          "exportStale",
+          "exportStatus",
+          "exportedAt",
+          "firstPageId",
+          "htmlExportStale",
+          "htmlExportStatus",
+          "htmlExportedAt",
+          "id",
+          "ownerId",
+          "pageCount",
+          "pageHeightMm",
+          "pageWidthMm",
+          "pages",
+          "style",
+          "subtitle",
+          "title",
+          "updatedAt",
+          "warnings"
+        ],
+        "type": "object"
+      },
       "BookCaptionMode": {
         "description": "Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time) or people (place and the names of the people); default place",
         "enum": [
@@ -24167,6 +24434,9 @@
           },
           "style": {
             "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset"
           },
           "subtitle": {
             "description": "Book subtitle",
@@ -24416,6 +24686,9 @@
           },
           "style": {
             "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset"
           },
           "subtitle": {
             "description": "Book subtitle",
@@ -24945,6 +25218,245 @@
         ],
         "type": "object"
       },
+      "BookReviewIssueDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos involved, or photos to use instead",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dpi": {
+            "description": "Print resolution of the placement",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "message": {
+            "description": "What is wrong and how to fix it",
+            "type": "string"
+          },
+          "pages": {
+            "description": "One-based page numbers",
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "severity": {
+            "description": "How much the issue hurts the book",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "string"
+          },
+          "slot": {
+            "description": "One-based slot number",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "description": "Kind of issue",
+            "enum": [
+              "duplicate-stack",
+              "low-dpi",
+              "empty-slot",
+              "too-much-artwork",
+              "artwork-back-to-back",
+              "singles-in-a-row",
+              "similar-neighbours",
+              "map-style-fallback",
+              "person-underrepresented",
+              "too-many-pairs",
+              "repeated-layout",
+              "missing-captions"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "pages",
+          "severity",
+          "type"
+        ],
+        "type": "object"
+      },
+      "BookReviewPlacementDto": {
+        "properties": {
+          "assetId": {
+            "description": "Photo ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "page": {
+            "description": "One-based page number",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "score": {
+            "description": "Quality score, 0..1",
+            "format": "double",
+            "type": "number"
+          },
+          "slot": {
+            "description": "One-based slot number",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assetId",
+          "page",
+          "score",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "BookReviewResponseDto": {
+        "properties": {
+          "counts": {
+            "description": "Number of issues per severity",
+            "properties": {
+              "high": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "low": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "medium": {
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "type": "object"
+          },
+          "issues": {
+            "description": "Issues, most severe first",
+            "items": {
+              "$ref": "#/components/schemas/BookReviewIssueDto"
+            },
+            "type": "array"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "people": {
+            "description": "The people who appear most often in the album",
+            "items": {
+              "properties": {
+                "name": {
+                  "description": "Person name",
+                  "type": "string"
+                },
+                "personId": {
+                  "description": "Person ID",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+                  "type": "string"
+                },
+                "photos": {
+                  "description": "Photos of the person in the album",
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "placed": {
+                  "description": "Photos of the person in the book",
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "personId",
+                "photos",
+                "placed"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "unusedPhotos": {
+            "description": "The best photos of the album that are not in the book, photos of the main people first",
+            "items": {
+              "$ref": "#/components/schemas/BookReviewSuggestionDto"
+            },
+            "type": "array"
+          },
+          "weakestPlaced": {
+            "description": "The lowest scoring photos in the book",
+            "items": {
+              "$ref": "#/components/schemas/BookReviewPlacementDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "counts",
+          "issues",
+          "pageCount",
+          "people",
+          "unusedPhotos",
+          "weakestPlaced"
+        ],
+        "type": "object"
+      },
+      "BookReviewSuggestionDto": {
+        "properties": {
+          "assetId": {
+            "description": "Photo ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "city": {
+            "description": "Place of the photo",
+            "type": "string"
+          },
+          "people": {
+            "description": "Named people in the photo",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "score": {
+            "description": "Quality score, 0..1",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "assetId",
+          "score"
+        ],
+        "type": "object"
+      },
       "BookSlotPatchDto": {
         "properties": {
           "caption": {
@@ -25095,6 +25607,40 @@
         ],
         "type": "object"
       },
+      "BookStylePreset": {
+        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif) or bold (small margins, tight gutters, sans-serif; suits full-bleed photos). The style options override its values",
+        "enum": [
+          "classic",
+          "soft",
+          "bold"
+        ],
+        "type": "string"
+      },
+      "BookStylePresetResponseDto": {
+        "properties": {
+          "description": {
+            "description": "Preset description",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/BookStylePreset"
+          },
+          "name": {
+            "description": "Preset name",
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyle"
+          }
+        },
+        "required": [
+          "description",
+          "id",
+          "name",
+          "style"
+        ],
+        "type": "object"
+      },
       "BookStyleUpdate": {
         "description": "Style changes; omitted properties keep their current value",
         "properties": {
@@ -25175,6 +25721,10 @@
           },
           "style": {
             "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "Replace the style with a preset (see GET /books/style-presets); style overrides its values"
           },
           "subtitle": {
             "description": "Book subtitle",

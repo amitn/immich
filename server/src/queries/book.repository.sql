@@ -429,3 +429,24 @@ where
   "asset_face"."assetId" in ($1)
   and "asset_face"."deletedAt" is null
   and "asset_face"."isVisible" is true
+
+-- BookRepository.getStackInfo
+select
+  "asset"."id",
+  "asset"."stackId",
+  "asset"."originalFileName",
+  coalesce("stack"."primaryAssetId" = "asset"."id", false) as "isPrimary",
+  exists (
+    select
+      "art_job"."id"
+    from
+      "art_job"
+    where
+      "art_job"."resultAssetId" = "asset"."id"
+  ) as "isArtwork"
+from
+  "asset"
+  left join "stack" on "stack"."id" = "asset"."stackId"
+where
+  "asset"."id" = any ($1::uuid[])
+  and "asset"."deletedAt" is null
