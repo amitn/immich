@@ -39,6 +39,15 @@ import {
 } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { BookPageComposeResult, BookPageComposeSpec, getCropRegion } from 'src/utils/book/render.js';
+import {
+  EnhancePlan,
+  ImageStats,
+  applyLocalContrast,
+  computeClaheLuts,
+  computeImageStats,
+  getLinearCoefficients,
+  toLuma,
+} from 'src/utils/enhance.js';
 import { handlePromiseError } from 'src/utils/misc.js';
 import { createAffineMatrix } from 'src/utils/transform.js';
 
@@ -338,6 +347,133 @@ export class MediaRepository {
       .toBuffer();
 
     return { data, slots };
+  }
+
+  /** Auto-enhance statistics of a decoded image, downscaled to fit in `size` x `size` */
+  async getEnhanceStats(image: Bitmap, size = 512): Promise<ImageStats> {
+    const { data, info } = await this.raw(image)
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return computeImageStats(data, info.width, info.height, info.channels);
+  }
+
+  /** Applies an auto-enhance plan to a decoded image and encodes the result as JPEG */
+  async enhanceImage(
+    image: Bitmap,
+    plan: EnhancePlan,
+    { colorspace, quality = 93 }: { colorspace: string; quality?: number },
+  ): Promise<{ data: Buffer; width: number; height: number }> {
+    const enhanced = await this.applyEnhanceTones(image, plan);
+    const { data, info } = await this.applyEnhanceFinish(this.tag(enhanced, colorspace), plan)
+      .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
+      .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
+  }
+
+  /** The image before and after an auto-enhance plan, side by side in a JPEG at most `width` wide */
+  async renderEnhanceComparison(
+    image: Bitmap,
+    plan: EnhancePlan,
+    { width = 1024, quality = 82 }: { width?: number; quality?: number } = {},
+  ): Promise<Buffer> {
+    const gap = 8;
+    const half = Math.floor((width - gap) / 2);
+    const before = await this.raw(image)
+      .resize(half, Math.round(half * 1.5), { fit: 'inside', withoutEnlargement: true })
+      .flatten({ background: '#ffffff' })
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const after = await this.applyEnhanceFinish(this.raw(await this.applyEnhanceTones(before, plan)), plan)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const { width: w, height: h } = before.info;
+    const label = (text: string) => {
+      const fontSize = Math.max(12, Math.round(w * 0.035));
+      const labelWidth = Math.round(fontSize * (0.62 * text.length + 1));
+      const labelHeight = Math.round(fontSize * 1.5);
+      return Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${labelWidth}" height="${labelHeight}">` +
+          `<rect width="100%" height="100%" rx="${Math.round(fontSize * 0.3)}" fill="#000" fill-opacity="0.6"/>` +
+          `<text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" ` +
+          `font-weight="bold" font-size="${fontSize}" fill="#fff">${text}</text></svg>`,
+      );
+    };
+
+    return sharp({ create: { width: w * 2 + gap, height: h, channels: 3, background: '#1c1c1c' } })
+      .composite([
+        { input: before.data, raw: before.info, left: 0, top: 0 },
+        { input: after.data, raw: after.info, left: w + gap, top: 0 },
+        { input: label('Before'), left: 6, top: 6 },
+        { input: label('After'), left: w + gap + 6, top: 6 },
+      ])
+      .jpeg({ quality })
+      .toBuffer();
+  }
+
+  /* The tonal corrections of an auto-enhance plan, as separate stages because sharp applies the operations of one
+   * pipeline in a fixed order: noise reduction, then white balance and levels, then gamma, then local contrast. */
+  private async applyEnhanceTones(image: Bitmap, plan: EnhancePlan): Promise<Bitmap> {
+    let current = image;
+    if (current.info.channels !== 3) {
+      current = await this.toBitmap(this.raw(current).flatten({ background: '#ffffff' }).toColourspace('srgb'));
+    }
+
+    if (plan.denoise || plan.levels || plan.whiteBalance) {
+      let pipeline = this.raw(current);
+      if (plan.denoise) {
+        pipeline = pipeline.median(plan.denoise.size);
+      }
+      if (plan.levels || plan.whiteBalance) {
+        const { a, b } = getLinearCoefficients(plan);
+        pipeline = pipeline.linear(a, b);
+      }
+      current = await this.toBitmap(pipeline);
+    }
+
+    if (plan.exposure) {
+      const gamma = Math.min(Math.max(plan.exposure.gamma, 1 / 3), 3);
+      // sharp brightens with `gammaOut` and darkens with `gamma`: without a resize only one of them has an effect
+      current = await this.toBitmap(
+        gamma >= 1 ? this.raw(current).gamma(1, gamma) : this.raw(current).gamma(1 / gamma, 1),
+      );
+    }
+
+    if (plan.localContrast) {
+      // libvips' CLAHE is very slow on large images, so the tile histograms come from a downscaled copy
+      const sample = await this.toBitmap(
+        this.raw(current).resize(512, 512, { fit: 'inside', withoutEnlargement: true }),
+      );
+      const pixels = sample.info.width * sample.info.height;
+      const luma = new Uint8Array(pixels);
+      for (let i = 0; i < pixels; i++) {
+        luma[i] = Math.round(toLuma(sample.data[i * 3], sample.data[i * 3 + 1], sample.data[i * 3 + 2]));
+      }
+      const luts = computeClaheLuts(luma, sample.info.width, sample.info.height, plan.localContrast);
+      const data = current === image ? Buffer.from(image.data) : current.data;
+      applyLocalContrast(data, current.info.width, current.info.height, 3, luts, plan.localContrast.amount);
+      current = { data, info: current.info };
+    }
+
+    return current;
+  }
+
+  private toBitmap(pipeline: Sharp): Promise<Bitmap> {
+    return pipeline.raw().toBuffer({ resolveWithObject: true });
+  }
+
+  private applyEnhanceFinish(pipeline: Sharp, { saturation, sharpen }: EnhancePlan): Sharp {
+    if (saturation) {
+      pipeline = pipeline.modulate({ saturation: saturation.factor });
+    }
+    if (sharpen) {
+      pipeline = pipeline.sharpen(sharpen);
+    }
+    return pipeline;
   }
 
   async probe(input: string, options?: ProbeOptions): Promise<VideoInfo> {
