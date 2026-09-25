@@ -1,5 +1,5 @@
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
-import { bookDetailFactory } from '@test-data/factories/book-factory';
+import { bookDetailFactory, bookFactory } from '@test-data/factories/book-factory';
 import { load } from './+page';
 
 vi.mock('$lib/utils/auth', () => ({ authenticate: vi.fn() }));
@@ -11,14 +11,26 @@ const loadBook = (bookId: string) =>
 describe('book page load', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    sdkMock.getBooks.mockResolvedValue([]);
   });
 
-  it('should load the book', async () => {
+  it('should load the book and the list of books', async () => {
     const book = bookDetailFactory.build({ title: 'Italy' });
+    const books = [bookFactory.build({ id: book.id }), bookFactory.build()];
     sdkMock.getBook.mockResolvedValue(book);
+    sdkMock.getBooks.mockResolvedValue(books);
 
-    await expect(loadBook(book.id)).resolves.toMatchObject({ book, meta: { title: 'Italy' } });
+    await expect(loadBook(book.id)).resolves.toMatchObject({ book, books, meta: { title: 'Italy' } });
     expect(sdkMock.getBook).toHaveBeenCalledWith({ id: book.id });
+    expect(sdkMock.getBooks).toHaveBeenCalled();
+  });
+
+  it('should still load the book when the list of books fails', async () => {
+    const book = bookDetailFactory.build();
+    sdkMock.getBook.mockResolvedValue(book);
+    sdkMock.getBooks.mockRejectedValue(new Error('offline'));
+
+    await expect(loadBook(book.id)).resolves.toMatchObject({ book, books: [] });
   });
 
   it('should go back to the book list when the book does not exist', async () => {
