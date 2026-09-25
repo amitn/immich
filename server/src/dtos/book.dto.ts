@@ -5,6 +5,7 @@ import type { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import type { BookTable } from 'src/schema/tables/book.table.js';
 import { BookExportFormat, BookExportFormatSchema, BookExportStatusSchema } from 'src/enum.js';
 import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
+import { bookMapStyles } from 'src/utils/book/map-styles.js';
 import { isoDatetimeToDate } from 'src/validation.js';
 
 export const NormalizedRectSchema = z
@@ -73,6 +74,35 @@ export const BookStyleUpdateSchema = BookStyleSchema.partial()
 
 export type BookStyleUpdate = z.infer<typeof BookStyleUpdateSchema>;
 
+export const BookMapStyleSchema = z
+  .enum(bookMapStyles)
+  .describe('Map style; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key')
+  .meta({ id: 'BookMapStyle' });
+
+export const BookMapStyleOptionSchema = z
+  .enum(['auto', ...bookMapStyles])
+  .describe('Map style; auto uses the default style from the server config')
+  .meta({ id: 'BookMapStyleOption' });
+
+export const BookMapSchema = z
+  .object({
+    style: BookMapStyleSchema,
+    title: z.string().trim().max(200).optional().describe('Title drawn on the map'),
+    assetIds: z
+      .array(z.uuidv4())
+      .max(2000)
+      .optional()
+      .describe('Photos whose locations are plotted; defaults to the photos of the section that follows the map'),
+    showRoute: z.boolean().describe('Connect the locations in time order'),
+    labels: z.boolean().describe('Label the places'),
+    artJobId: z.uuidv4().optional().describe('Art job that redraws the map as an illustration'),
+    illustratedAssetId: z.uuidv4().optional().describe('Illustrated map drawn instead of the rendered map'),
+  })
+  .describe('A map drawn in the map area of the page layout')
+  .meta({ id: 'BookMapDto' });
+
+export type BookMap = z.infer<typeof BookMapSchema>;
+
 const pageSizeMm = z.int().min(50).max(600);
 const optionalText = (max: number) => z.string().trim().max(max).nullable().optional();
 
@@ -106,6 +136,7 @@ const BookPageCreateSchema = z
     sectionTitle: optionalText(200).describe('Section title'),
     caption: optionalText(2000).describe('Page caption'),
     background: cssColor.nullable().optional().describe('Page background color, overriding the book style'),
+    map: BookMapSchema.nullable().optional(),
   })
   .meta({ id: 'BookPageCreateDto' });
 
@@ -115,8 +146,59 @@ const BookPageUpdateSchema = z
     sectionTitle: optionalText(200).describe('Section title'),
     caption: optionalText(2000).describe('Page caption'),
     background: cssColor.nullable().optional().describe('Page background color, overriding the book style'),
+    map: BookMapSchema.nullable().optional(),
   })
   .meta({ id: 'BookPageUpdateDto' });
+
+const targetPageCount = z
+  .int()
+  .min(1)
+  .max(200)
+  .optional()
+  .describe('Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages)');
+const includeMaps = z
+  .boolean()
+  .optional()
+  .describe('Open the sections that have GPS locations with a map page (default true)');
+const illustratedMaps = z
+  .boolean()
+  .optional()
+  .describe('Also redraw every map as an illustration with the art agent (default false)');
+
+const BookFromAlbumSchema = z
+  .object({
+    albumId: z.uuidv4().describe('Album whose photos are laid out'),
+    title: z.string().trim().min(1).max(200).optional().describe('Book title (default: the album name)'),
+    subtitle: optionalText(200).describe('Book subtitle'),
+    pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters (default 210)'),
+    pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters (default 210)'),
+    style: BookStyleUpdateSchema.optional(),
+    targetPageCount,
+    includeMaps,
+    mapStyle: BookMapStyleOptionSchema.optional(),
+    illustratedMaps,
+  })
+  .meta({ id: 'BookFromAlbumDto' });
+
+const BookAutoLayoutSchema = z
+  .object({
+    assetIds: z
+      .array(z.uuidv4())
+      .min(1)
+      .max(2000)
+      .optional()
+      .describe("Photos to lay out (default: the photos of the book's album)"),
+    targetPageCount,
+    includeMaps,
+    mapStyle: BookMapStyleOptionSchema.optional(),
+    illustratedMaps,
+    heroAssetIds: z.array(z.uuidv4()).max(100).optional().describe('Photos that get a page of their own'),
+    keepExisting: z
+      .boolean()
+      .optional()
+      .describe('Append the new pages to the existing ones instead of replacing them (default false)'),
+  })
+  .meta({ id: 'BookAutoLayoutDto' });
 
 const BookPageMoveSchema = z
   .object({
@@ -186,6 +268,7 @@ const BookPageResponseSchema = z
     sectionTitle: z.string().nullable().describe('Section title'),
     caption: z.string().nullable().describe('Page caption'),
     background: z.string().nullable().describe('Page background color override'),
+    map: BookMapSchema.nullable(),
     slots: z.array(BookSlotResponseSchema).describe('Photo slots of the layout'),
     updatedAt: isoDatetimeToDate.describe('Last update date'),
   })
@@ -239,6 +322,7 @@ const BookLayoutResponseSchema = z
         }),
       )
       .describe('Text areas, relative to the area inside the margins'),
+    mapArea: LayoutRectSchema.optional().describe('Area of the page map, relative to the area inside the margins'),
   })
   .meta({ id: 'BookLayoutResponseDto' });
 
@@ -247,6 +331,8 @@ export class BookUpdateDto extends createZodDto(BookUpdateSchema) {}
 export class BookPageCreateDto extends createZodDto(BookPageCreateSchema) {}
 export class BookPageUpdateDto extends createZodDto(BookPageUpdateSchema) {}
 export class BookPageMoveDto extends createZodDto(BookPageMoveSchema) {}
+export class BookFromAlbumDto extends createZodDto(BookFromAlbumSchema) {}
+export class BookAutoLayoutDto extends createZodDto(BookAutoLayoutSchema) {}
 export class BookSlotUpdateDto extends createZodDto(BookSlotUpdateSchema) {}
 export class BookPageParamDto extends createZodDto(BookPageParamSchema) {}
 export class BookSlotPatchDto extends createZodDto(BookSlotPatchSchema) {}
@@ -295,6 +381,7 @@ export const mapBookPage = (page: BookPageRow, book: PageSize & { style: BookSty
     sectionTitle: page.sectionTitle,
     caption: page.caption,
     background: page.background,
+    map: page.map ?? null,
     slots: aspectRatios.map((aspectRatio, slot) => {
       const placement = placements.get(slot);
       return {
@@ -322,4 +409,7 @@ export const mapBookLayout = (layout: BookLayout): BookLayoutResponseDto => ({
   fullBleed: !!layout.fullBleed,
   slots: layout.slots.map(({ x, y, width, height }) => ({ x, y, width, height })),
   textAreas: layout.text.map(({ kind, x, y, width, height }) => ({ kind, x, y, width, height })),
+  ...(layout.map && {
+    mapArea: { x: layout.map.x, y: layout.map.y, width: layout.map.width, height: layout.map.height },
+  }),
 });

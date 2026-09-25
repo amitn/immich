@@ -8,6 +8,7 @@ import {
   Timestamp,
   UpdateDateColumn,
 } from '@immich/sql-tools';
+import type { BookMap } from 'src/dtos/book.dto.js';
 import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 
@@ -35,6 +36,10 @@ export class BookPageTable {
 
   @Column({ nullable: true })
   background!: string | null;
+
+  /** map drawn in the layout's map area */
+  @Column({ type: 'jsonb', nullable: true })
+  map!: BookMap | null;
 
   @CreateDateColumn()
   createdAt!: Generated<Timestamp>;

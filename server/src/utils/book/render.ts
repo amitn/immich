@@ -1,4 +1,5 @@
-import { BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
+import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
+import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
 import {
   BookLayout,
   LayoutRect,
@@ -7,6 +8,7 @@ import {
   PxRect,
   getLayout,
   getLayoutBox,
+  getMapRectMm,
   getSlotRectsMm,
   getTextRectsMm,
   mmToPx,
@@ -58,6 +60,7 @@ export type RenderPageInput = {
   caption: string | null;
   background: string | null;
   assets: RenderPlacement[];
+  map?: BookMap | null;
 };
 
 export type RenderSource = {
@@ -71,7 +74,14 @@ export type RenderSource = {
 };
 
 export type BookRenderWarningType =
-  'empty-slot' | 'missing-asset' | 'low-dpi' | 'fallback-source' | 'crop-trimmed' | 'render-error' | 'unknown-layout';
+  | 'empty-slot'
+  | 'missing-asset'
+  | 'low-dpi'
+  | 'fallback-source'
+  | 'crop-trimmed'
+  | 'render-error'
+  | 'unknown-layout'
+  | 'map';
 
 export type BookRenderWarning = {
   /** one-based page number */
@@ -102,6 +112,8 @@ export type PagePlan = {
   slots: PagePlanSlot[];
   /** titles and captions, in pixels; drawn into `spec.overlay` */
   text: PageTextBlock[];
+  /** the map area of the layout, if it has one */
+  map: { rect: PxRect; rectMm: LayoutRect } | null;
   spec: BookPageComposeSpec;
 };
 
@@ -128,39 +140,60 @@ export const normalizeFaces = (
       return { x: x1, y: y1, width: Math.max(0, x2 - x1), height: Math.max(0, y2 - y1) };
     });
 
+export type SmartCrop = {
+  crop: NormalizedRect;
+  /** false when every crop with the slot's aspect ratio cuts through the main face (or another large face) */
+  feasible: boolean;
+  /** fraction of the image area inside the crop */
+  kept: number;
+  /** number of faces left out of the crop */
+  droppedFaces: number;
+};
+
 /**
- * The crop used when a photo is placed without one: the largest centred rect with the slot's aspect ratio,
- * moved so the faces' bounding box stays centred when there are faces.
- * TODO: replace with `suggestCrop` from src/utils/agent/crop.ts once it is merged.
+ * The largest crop with the slot's aspect ratio that keeps the faces whole, with headroom and the eyes on the upper
+ * third (see `suggestCrop`); centred when there are no faces.
  */
+export const getSmartCrop = (
+  image: { width: number; height: number },
+  faces: NormalizedRect[],
+  slotAspect: number,
+): SmartCrop => {
+  if (!image.width || !image.height || !(slotAspect > 0)) {
+    return { crop: { ...FULL_CROP }, feasible: true, kept: 1, droppedFaces: 0 };
+  }
+
+  const { width, height } = image;
+  const suggestion = suggestCrop({
+    width,
+    height,
+    aspectRatio: clamp(slotAspect, 0.1, 10),
+    faces: faces.map((face) => ({
+      x1: face.x * width,
+      y1: face.y * height,
+      x2: (face.x + face.width) * width,
+      y2: (face.y + face.height) * height,
+    })),
+  });
+
+  const rect = normalizeRect(suggestion.rect, width, height);
+  const x = round4(clamp(rect.x, 0, 1));
+  const y = round4(clamp(rect.y, 0, 1));
+  const crop = { x, y, width: Math.min(round4(rect.width), 1 - x), height: Math.min(round4(rect.height), 1 - y) };
+  return {
+    crop,
+    feasible: suggestion.feasible,
+    kept: crop.width * crop.height,
+    droppedFaces: suggestion.droppedFaces.length,
+  };
+};
+
+/** The crop used when a photo is placed without one */
 export const getDefaultCrop = (
   image: { width: number; height: number },
   faces: NormalizedRect[],
   slotAspect: number,
-): NormalizedRect => {
-  if (!image.width || !image.height || !(slotAspect > 0)) {
-    return { ...FULL_CROP };
-  }
-
-  const imageAspect = image.width / image.height;
-  const width = imageAspect > slotAspect ? slotAspect / imageAspect : 1;
-  const height = imageAspect > slotAspect ? 1 : imageAspect / slotAspect;
-
-  let centerX = 0.5;
-  let centerY = 0.5;
-  if (faces.length > 0) {
-    const x1 = Math.min(...faces.map((face) => face.x));
-    const y1 = Math.min(...faces.map((face) => face.y));
-    const x2 = Math.max(...faces.map((face) => face.x + face.width));
-    const y2 = Math.max(...faces.map((face) => face.y + face.height));
-    centerX = (x1 + x2) / 2;
-    centerY = (y1 + y2) / 2;
-  }
-
-  const x = round4(clamp(centerX - width / 2, 0, 1 - width));
-  const y = round4(clamp(centerY - height / 2, 0, 1 - height));
-  return { x, y, width: Math.min(round4(width), 1 - x), height: Math.min(round4(height), 1 - y) };
-};
+): NormalizedRect => getSmartCrop(image, faces, slotAspect).crop;
 
 /** The pixel region of a normalized crop in an image of the given size */
 export const getCropRegion = (crop: NormalizedRect, width: number, height: number): PxRect => {
@@ -322,7 +355,14 @@ export const ptToPx = (pt: number, dpi: number) => (pt * dpi) / 72;
 export const planPage = (
   book: RenderBookInput,
   page: RenderPageInput,
-  options: { dpi: number; mode: BookRenderMode; sources: Map<string, RenderSource>; quality?: number },
+  options: {
+    dpi: number;
+    mode: BookRenderMode;
+    sources: Map<string, RenderSource>;
+    quality?: number;
+    /** the rendered map, drawn in the layout's map area (see `renderMapImage`) */
+    mapImage?: Buffer | null;
+  },
 ): PagePlan => {
   const { dpi, mode } = options;
   const style = resolveBookStyle(book.style);
@@ -350,6 +390,9 @@ export const planPage = (
       source: placement ? (options.sources.get(placement.assetId) ?? null) : null,
     };
   });
+
+  const mapRectMm = getMapRectMm(layout, size, style);
+  const map = mapRectMm ? { rect: toPxRect(mapRectMm, dpi), rectMm: mapRectMm } : null;
 
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
@@ -447,6 +490,9 @@ export const planPage = (
         parts.push(renderPlaceholder(slot.rect, `Slot ${slot.index + 1}: missing photo`, style.fontFamily));
       }
     }
+    if (map && !options.mapImage) {
+      parts.unshift(renderPlaceholder(map.rect, 'Map', style.fontFamily));
+    }
   }
   const text = blocks.filter((block) => block.text.trim());
   parts.push(...text.map((block) => renderTextBlock(block, style.fontFamily)));
@@ -463,13 +509,18 @@ export const planPage = (
     unknownLayout: !knownLayout,
     slots,
     text,
+    map,
     spec: {
       width,
       height,
       background: page.background ?? style.background,
       quality: options.quality ?? (mode === 'print' ? 90 : 80),
       overlay,
-      slots: slots.map((slot) => (slot.source ? { ...slot.rect, input: slot.source.input, crop: slot.crop } : null)),
+      slots: [
+        ...slots.map((slot) => (slot.source ? { ...slot.rect, input: slot.source.input, crop: slot.crop } : null)),
+        // drawn after the photos, so its result comes after theirs
+        ...(map && options.mapImage ? [{ ...map.rect, input: options.mapImage, crop: FULL_CROP }] : []),
+      ],
     },
   };
 };

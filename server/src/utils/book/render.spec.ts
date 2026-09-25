@@ -4,6 +4,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { getLayout, getSlotRectsMm, toPxRect } from 'src/utils/book/layouts.js';
 import {
+  FULL_CROP,
   RenderBookInput,
   RenderPageInput,
   RenderSource,
@@ -15,6 +16,7 @@ import {
   getDpiForLongEdge,
   getEffectiveDpi,
   getPageWarnings,
+  getSmartCrop,
   normalizeFaces,
   planContactSheet,
   planPage,
@@ -67,6 +69,35 @@ const pixel = async (image: Buffer, x: number, y: number) => {
 const isClose = (actual: number[], expected: number[]) =>
   actual.every((value, i) => Math.abs(value - expected[i]) <= 24);
 
+describe('planPage maps', () => {
+  const options = { dpi: 100, mode: 'review' as const, sources: new Map<string, RenderSource>() };
+
+  it('should draw the map image in the map area after the photos', () => {
+    const photo = 'photo-1';
+    const plan = planPage(
+      book,
+      page({ layout: 'map-photo', assets: [{ slot: 0, assetId: photo, crop: null, caption: null }] }),
+      { ...options, sources: new Map([[photo, source()]]), mapImage: Buffer.from('map') },
+    );
+
+    expect(plan.map).toEqual({ rect: expect.any(Object), rectMm: expect.any(Object) });
+    expect(plan.spec.slots).toHaveLength(2);
+    expect(plan.spec.slots[1]).toEqual({ ...plan.map!.rect, input: Buffer.from('map'), crop: FULL_CROP });
+    // the map sits above the photo
+    expect(plan.map!.rect.top + plan.map!.rect.height).toBeLessThanOrEqual(plan.slots[0].rect.top);
+  });
+
+  it('should show a placeholder while there is no map image', () => {
+    const plan = planPage(book, page({ layout: 'map' }), options);
+    expect(plan.spec.slots).toEqual([]);
+    expect(plan.spec.overlay).toContain('>Map<');
+  });
+
+  it('should not have a map area on other layouts', () => {
+    expect(planPage(book, page({ layout: 'single' }), options).map).toBeNull();
+  });
+});
+
 describe('getDefaultCrop', () => {
   it('should centre a square crop in a landscape photo', () => {
     expect(getDefaultCrop({ width: 3000, height: 2000 }, [], 1)).toEqual({
@@ -78,12 +109,10 @@ describe('getDefaultCrop', () => {
   });
 
   it('should centre a landscape crop in a portrait photo', () => {
-    expect(getDefaultCrop({ width: 2000, height: 3000 }, [], 1.5)).toEqual({
-      x: 0,
-      y: 0.2778,
-      width: 1,
-      height: 0.4444,
-    });
+    const crop = getDefaultCrop({ width: 2000, height: 3000 }, [], 1.5);
+    expect(crop).toEqual({ x: 0, y: expect.any(Number), width: 1, height: expect.any(Number) });
+    expect(crop.y).toBeCloseTo(0.2778, 3);
+    expect(crop.height).toBeCloseTo(0.4444, 3);
   });
 
   it('should use the full photo when the aspect ratios match', () => {
@@ -102,6 +131,19 @@ describe('getDefaultCrop', () => {
     const crop = getDefaultCrop({ width: 3000, height: 2000 }, faces, 1);
     expect(crop.x + crop.width / 2).toBeCloseTo(0.575, 3);
     expect(crop.y).toBe(0);
+  });
+
+  it('should keep the faces whole and leave headroom above them', () => {
+    const face = { x: 0.4, y: 0.1, width: 0.2, height: 0.15 };
+    const crop = getDefaultCrop({ width: 2000, height: 3000 }, [face], 1.5);
+    expect(crop.y).toBeLessThan(face.y);
+    expect(crop.y + crop.height).toBeGreaterThan(face.y + face.height);
+  });
+
+  it('should report a crop that cuts the main face as not feasible', () => {
+    const result = getSmartCrop({ width: 3000, height: 1000 }, [{ x: 0.1, y: 0, width: 0.8, height: 1 }], 1);
+    expect(result.feasible).toBe(false);
+    expect(result.kept).toBeCloseTo(1 / 3, 2);
   });
 
   it('should keep the crop inside the photo when the faces are near an edge', () => {

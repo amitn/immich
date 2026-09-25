@@ -5,10 +5,13 @@ import { StorageCore } from 'src/cores/storage.core.js';
 import { OnJob } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import {
+  BookAutoLayoutDto,
   BookCreateDto,
   BookDetailResponseDto,
   BookExportDto,
+  BookFromAlbumDto,
   BookLayoutResponseDto,
+  BookMap,
   BookPageCreateDto,
   BookPageMoveDto,
   BookPageResponseDto,
@@ -29,6 +32,7 @@ import {
 } from 'src/dtos/book.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
+  ArtJobStatus,
   AssetFileType,
   AssetType,
   BookExportFormat,
@@ -42,9 +46,19 @@ import {
   QueueName,
   StorageFolder,
 } from 'src/enum.js';
-import { BookRepository } from 'src/repositories/book.repository.js';
+import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
+import { BookPageWithPlacements, BookRepository } from 'src/repositories/book.repository.js';
+import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
+import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
+import { isArtEnabled } from 'src/utils/agent/config.js';
+import { splitEvents } from 'src/utils/agent/events.js';
+import { ImageAnalysis, normalizeFaceBox, scorePhoto } from 'src/utils/agent/scoring.js';
+import { selectBest } from 'src/utils/agent/selection.js';
 import { getDimensions } from 'src/utils/asset.util.js';
+import { AutoLayoutPage, AutoLayoutPhoto, AutoLayoutPlan, planAutoLayout } from 'src/utils/book/auto-layout.js';
 import {
   HTML_JPEG_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -57,7 +71,26 @@ import {
   isImagePageLayout,
   planHtmlImages,
 } from 'src/utils/book/html.js';
-import { PageSize, bookLayouts, getLayout, getSlotAspectRatios, validatePageStyle } from 'src/utils/book/layouts.js';
+import {
+  BookLayout,
+  PageSize,
+  bookLayouts,
+  getLayout,
+  getMapRectMm,
+  getSlotAspectRatios,
+  toPxRect,
+  validatePageStyle,
+} from 'src/utils/book/layouts.js';
+import { BookMapStyle, BookMapStyleOption } from 'src/utils/book/map-styles.js';
+import {
+  MapPoint,
+  MapRenderContext,
+  MapRenderResult,
+  MapRenderSize,
+  getMapAssetIds,
+  parsePolygon,
+  renderMap,
+} from 'src/utils/book/map.js';
 import { createBookPdf } from 'src/utils/book/pdf.js';
 import {
   BookRenderMode,
@@ -81,10 +114,58 @@ import { findOrFail } from 'src/utils/misc.js';
 type Book = NonNullable<Awaited<ReturnType<BookRepository['get']>>>;
 type BookPage = Awaited<ReturnType<BookRepository['getPages']>>[number];
 type RenderAsset = Awaited<ReturnType<BookRepository['getAssetsForRender']>>[number];
+type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
 
 export type BookRenderResult = { data: Buffer; warnings: BookRenderWarning[] };
 
+export type BookAutoLayoutResult = {
+  book: BookDetailResponseDto;
+  plan: AutoLayoutPlan;
+  /** photos considered, after the album cap and the video filter */
+  photoCount: number;
+  warnings: string[];
+};
+
+type LayOutOptions = {
+  assetIds: string[];
+  targetPageCount?: number;
+  includeMaps?: boolean;
+  mapStyle?: BookMapStyleOption;
+  illustratedMaps?: boolean;
+  heroAssetIds?: string[];
+  keepExisting?: boolean;
+};
+
 const DEFAULT_PAGE_SIZE_MM = 210;
+/** most photos an automatic layout considers; larger albums are narrowed down first */
+export const MAX_LAYOUT_PHOTOS = 600;
+const MAX_ALBUM_PHOTOS = 3000;
+/** image analysis is skipped for more uncached photos than this, using metadata-only scores */
+const MAX_ANALYZED_PHOTOS = 300;
+const ILLUSTRATED_MAP_LONG_EDGE = 1536;
+
+export const getMapArtPrompt = (title?: string) =>
+  [
+    'Redraw this map as a hand-illustrated vintage watercolor travel map, like a page of a travel journal:',
+    'soft watercolor washes on textured cream paper, hand-inked coastlines, rivers and roads, and small illustrated',
+    'landmarks or scenery where they fit.',
+    'Keep the geography, the route line, the pins and the place names exactly where they are and clearly legible,',
+    `and keep the compass rose and the scale bar${title ? ` and the title "${title}"` : ''}.`,
+    'Do not add, remove or translate any text, and keep the aspect ratio of the map.',
+  ].join(' ');
+
+const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) => {
+  const results: R[] = Array.from({ length: items.length });
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+};
 
 export const getBookPdfPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.pdf`);
@@ -140,6 +221,31 @@ const getRenderInput = (asset: RenderAsset, mode: BookRenderMode): Omit<RenderSo
   }
 };
 
+const toPageValues = (page: AutoLayoutPage): BookPageWithPlacements => ({
+  layout: page.layout,
+  sectionTitle: page.sectionTitle ?? null,
+  caption: page.caption ?? null,
+  background: null,
+  map: page.map ?? null,
+  assets: page.slots.map((slot, index) => ({ slot: index, assetId: slot.assetId, crop: slot.crop, caption: null })),
+});
+
+/** event index of every photo, see `splitEvents` */
+const getEventIndex = (rows: AgentAsset[]) => {
+  const events = splitEvents(
+    rows.map((row) => ({
+      id: row.id,
+      time: row.localDateTime.getTime(),
+      latitude: row.latitude,
+      longitude: row.longitude,
+    })),
+  );
+  return new Map(events.flatMap((event, index) => event.map(({ id }) => [id, index] as const)));
+};
+
+const toCountryOutlines = (rows: Array<{ admin: string; coordinates: string }>) =>
+  rows.map((row) => ({ name: row.admin, rings: [parsePolygon(row.coordinates)] }));
+
 @Injectable()
 export class BookService extends BaseService {
   getLayouts(): BookLayoutResponseDto[] {
@@ -178,6 +284,76 @@ export class BookService extends BaseService {
     });
 
     return mapBookDetail(book, []);
+  }
+
+  /** Creates a book from an album and lays out its photos automatically */
+  async createFromAlbum(auth: AuthDto, dto: BookFromAlbumDto): Promise<BookDetailResponseDto> {
+    const { book } = await this.createFromAlbumWithPlan(auth, dto);
+    return book;
+  }
+
+  async createFromAlbumWithPlan(auth: AuthDto, dto: BookFromAlbumDto): Promise<BookAutoLayoutResult> {
+    await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [dto.albumId] });
+    const album = await this.albumRepository.getById(dto.albumId, { withAssets: false });
+    if (!album) {
+      throw new BadRequestException('Album not found');
+    }
+
+    const assetIds = await this.getAlbumAssetIds(auth, dto.albumId);
+    if (assetIds.length === 0) {
+      throw new BadRequestException('The album has no photos');
+    }
+
+    const created = await this.create(auth, {
+      title: dto.title ?? (album.albumName.trim() || 'Photo book'),
+      subtitle: dto.subtitle,
+      albumId: dto.albumId,
+      pageWidthMm: dto.pageWidthMm,
+      pageHeightMm: dto.pageHeightMm,
+      style: dto.style,
+    });
+
+    try {
+      return await this.layOut(auth, created.id, {
+        assetIds,
+        targetPageCount: dto.targetPageCount,
+        includeMaps: dto.includeMaps,
+        mapStyle: dto.mapStyle,
+        illustratedMaps: dto.illustratedMaps,
+      });
+    } catch (error) {
+      await this.bookRepository.delete(created.id);
+      throw error;
+    }
+  }
+
+  /** Lays out a book again from its album (or the given photos), replacing its pages unless `keepExisting` */
+  async autoLayout(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookDetailResponseDto> {
+    const { book } = await this.autoLayoutWithPlan(auth, id, dto);
+    return book;
+  }
+
+  async autoLayoutWithPlan(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookAutoLayoutResult> {
+    await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+
+    let assetIds: string[];
+    if (dto.assetIds) {
+      await this.requireAccess({ auth, permission: Permission.AssetRead, ids: dto.assetIds });
+      assetIds = dto.assetIds;
+    } else if (book.albumId) {
+      await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [book.albumId] });
+      assetIds = await this.getAlbumAssetIds(auth, book.albumId);
+    } else {
+      throw new BadRequestException('The book is not linked to an album, so pass the assetIds to lay out');
+    }
+
+    if (dto.heroAssetIds?.length) {
+      await this.requireAccess({ auth, permission: Permission.AssetRead, ids: dto.heroAssetIds });
+      assetIds = [...new Set([...assetIds, ...dto.heroAssetIds])];
+    }
+
+    return this.layOut(auth, id, { ...dto, assetIds });
   }
 
   async update(auth: AuthDto, id: string, dto: BookUpdateDto): Promise<BookDetailResponseDto> {
@@ -229,6 +405,7 @@ export class BookService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     this.requireLayout(dto.layout);
+    await this.requireMapAccess(auth, dto.map);
 
     const page = await this.bookRepository.addPage(
       id,
@@ -237,6 +414,7 @@ export class BookService extends BaseService {
         sectionTitle: dto.sectionTitle ?? null,
         caption: dto.caption ?? null,
         background: dto.background ?? null,
+        map: dto.map ?? null,
       },
       dto.position,
     );
@@ -248,6 +426,7 @@ export class BookService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const current = await findOrFail(() => this.bookRepository.getPage(id, pageId), 'Page');
+    await this.requireMapAccess(auth, dto.map);
 
     let slotCount: number | undefined;
     if (dto.layout !== undefined && dto.layout !== current.layout) {
@@ -264,6 +443,7 @@ export class BookService extends BaseService {
             sectionTitle: dto.sectionTitle,
             caption: dto.caption,
             background: dto.background,
+            map: dto.map,
           },
           slotCount,
         ),
@@ -359,6 +539,7 @@ export class BookService extends BaseService {
     return this.renderBookPage(auth, book, pages[index], index + 1, {
       mode: longEdge <= 400 ? 'thumbnail' : 'review',
       dpi: getDpiForLongEdge(book, longEdge),
+      pages,
     });
   }
 
@@ -386,7 +567,11 @@ export class BookService extends BaseService {
     const rendered: { number: number; image: Buffer }[] = [];
     const warnings: BookRenderWarning[] = [];
     for (const number of numbers) {
-      const result = await this.renderBookPage(auth, book, pages[number - 1], number, { mode: 'thumbnail', dpi });
+      const result = await this.renderBookPage(auth, book, pages[number - 1], number, {
+        mode: 'thumbnail',
+        dpi,
+        pages,
+      });
       rendered.push({ number, image: result.data });
       warnings.push(...result.warnings);
     }
@@ -669,7 +854,7 @@ export class BookService extends BaseService {
     book: Book,
     page: BookPage,
     number: number,
-    options: { mode: BookRenderMode; dpi: number },
+    options: { mode: BookRenderMode; dpi: number; pages?: BookPage[] },
   ): Promise<BookRenderResult> {
     const assetIds = page.assets.map((asset) => asset.assetId);
     if (page.layout === 'cover' && book.coverAssetId) {
@@ -677,9 +862,460 @@ export class BookService extends BaseService {
     }
 
     const sources = await this.getRenderSources(auth, assetIds, options.mode);
-    const plan = planPage(book, page, { ...options, sources });
+    const { mapImage, warnings } = await this.renderMapArea(auth, book, page, number, options);
+    const plan = planPage(book, page, { ...options, sources, mapImage });
     const result = await this.mediaRepository.composeBookPage(plan.spec);
-    return { data: result.data, warnings: getPageWarnings(plan, result, number) };
+    return { data: result.data, warnings: [...getPageWarnings(plan, result, number), ...warnings] };
+  }
+
+  /**
+   * The map of a page as an image (see `renderMapImage`), e.g. for exports. `pages` are the pages of the book, used to
+   * find the photos a map plots by default; they are loaded when omitted.
+   */
+  async renderPageMap(
+    auth: AuthDto,
+    book: Book,
+    page: BookPage,
+    size: MapRenderSize,
+    options: { mode?: BookRenderMode; pages?: BookPage[] } = {},
+  ): Promise<MapRenderResult> {
+    const { ctx, warnings } = await this.getMapRenderContext(auth, book, page, options);
+    const result = await renderMap(ctx, page, size);
+    return { ...result, warnings: [...warnings, ...result.warnings] };
+  }
+
+  /** Everything `renderMapImage` needs to draw the map of a page */
+  async getMapRenderContext(
+    auth: AuthDto,
+    book: Book,
+    page: BookPage,
+    options: { mode?: BookRenderMode; pages?: BookPage[] } = {},
+  ): Promise<{ ctx: MapRenderContext; warnings: string[] }> {
+    const warnings: string[] = [];
+    const pages = options.pages ?? (await this.bookRepository.getPages(book.id));
+    const index = pages.findIndex((item) => item.id === page.id);
+    const assetIds = index === -1 ? getMapAssetIds([page], 0) : getMapAssetIds(pages, index);
+    const illustrated = await this.getIllustratedMap(auth, book, page, options.mode ?? 'review', warnings);
+
+    return {
+      ctx: await this.newMapContext(book, illustrated ? [] : await this.getMapPoints(auth, assetIds), illustrated),
+      warnings,
+    };
+  }
+
+  /** Starts an art job that redraws the map of a page as an illustration; the renderer uses it once it completes */
+  async illustratePageMap(auth: AuthDto, id: string, pageId: string): Promise<BookPageResponseDto> {
+    await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    const pages = await this.bookRepository.getPages(id);
+    const index = pages.findIndex((item) => item.id === pageId);
+    if (index === -1) {
+      throw new BadRequestException('Page not found');
+    }
+
+    const page = pages[index];
+    const layout = this.requireLayout(page.layout);
+    if (!layout.map) {
+      throw new BadRequestException(`Layout "${layout.id}" has no map; use the map or map-photo layout`);
+    }
+
+    const { agent } = await this.getConfig({ withCache: true });
+    if (!isArtEnabled(agent)) {
+      throw new BadRequestException('Illustrated maps need an art agent profile (Administration → AI assistant)');
+    }
+
+    const map: BookMap = { style: 'sketch', showRoute: true, labels: true, ...page.map };
+    delete map.artJobId;
+    delete map.illustratedAssetId;
+    const assetIds = getMapAssetIds(pages, index);
+    const points = await this.getMapPoints(auth, assetIds);
+    if (points.length === 0) {
+      throw new BadRequestException('None of the photos of this map have a GPS location');
+    }
+
+    const ctx = await this.newMapContext(book, points);
+    const artJobId = await this.startMapIllustration(
+      auth,
+      book,
+      layout,
+      { map, sectionTitle: page.sectionTitle },
+      ctx,
+      assetIds[0],
+    );
+    const updated = await findOrFail(
+      () => this.bookRepository.updatePage(id, pageId, { map: { ...map, artJobId } }),
+      'Page',
+    );
+    return mapBookPage(updated, book);
+  }
+
+  private async newMapContext(
+    book: Book,
+    points: MapPoint[],
+    illustrated?: string | Buffer,
+  ): Promise<MapRenderContext> {
+    const { books } = await this.getConfig({ withCache: true });
+    return {
+      points,
+      stadiaApiKey: books.maps.stadiaApiKey || undefined,
+      getCountries: async (bounds) => toCountryOutlines(await this.bookRepository.getCountryOutlines(bounds)),
+      illustrated,
+      fontFamily: resolveBookStyle(book.style).fontFamily,
+    };
+  }
+
+  private async renderMapArea(
+    auth: AuthDto,
+    book: Book,
+    page: BookPage,
+    number: number,
+    options: { mode: BookRenderMode; dpi: number; pages?: BookPage[] },
+  ): Promise<{ mapImage?: Buffer; warnings: BookRenderWarning[] }> {
+    const warning = (message: string): BookRenderWarning => ({
+      page: number,
+      type: 'map',
+      message: `Page ${number}: ${message}`,
+    });
+    const layout = getLayout(page.layout);
+    const rectMm = layout ? getMapRectMm(layout, book, resolveBookStyle(book.style)) : null;
+    if (!rectMm) {
+      return {
+        warnings: page.map
+          ? [
+              warning(
+                `the page has a map, but its layout "${page.layout}" has no map area; use the map or map-photo layout`,
+              ),
+            ]
+          : [],
+      };
+    }
+
+    const rect = toPxRect(rectMm, options.dpi);
+    try {
+      const result = await this.renderPageMap(
+        auth,
+        book,
+        page,
+        { width: rect.width, height: rect.height, quality: options.mode === 'print' ? 92 : 85 },
+        options,
+      );
+      return { mapImage: result.data, warnings: result.warnings.map((message) => warning(message)) };
+    } catch (error: any) {
+      this.logger.warn(`Unable to render the map of book page ${page.id}: ${error?.message ?? error}`);
+      return { warnings: [warning(`the map could not be drawn (${error?.message ?? error})`)] };
+    }
+  }
+
+  private async getMapPoints(auth: AuthDto, assetIds: string[]): Promise<MapPoint[]> {
+    if (assetIds.length === 0) {
+      return [];
+    }
+
+    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: new Set(assetIds) });
+    const rows = await this.bookRepository.getAssetLocations([...allowed]);
+    return rows
+      .filter((row) => row.latitude !== null && row.longitude !== null && !(row.latitude === 0 && row.longitude === 0))
+      .map((row) => ({ lat: row.latitude!, lon: row.longitude!, time: row.localDateTime.getTime(), city: row.city }));
+  }
+
+  /** the illustrated map of a page, once its art job completed; caches the result on the page */
+  private async getIllustratedMap(
+    auth: AuthDto,
+    book: Book,
+    page: BookPage,
+    mode: BookRenderMode,
+    warnings: string[],
+  ): Promise<string | Buffer | undefined> {
+    const map = page.map;
+    if (!map || (!map.illustratedAssetId && !map.artJobId)) {
+      return;
+    }
+
+    let assetId = map.illustratedAssetId;
+    if (!assetId && map.artJobId) {
+      const allowed = await this.checkAccess({ auth, permission: Permission.ArtJobRead, ids: new Set([map.artJobId]) });
+      const job = allowed.has(map.artJobId) ? await this.artJobRepository.get(map.artJobId) : undefined;
+      if (!job) {
+        warnings.push('the illustrated map was not found, so the map is rendered');
+        return;
+      }
+
+      switch (job.status) {
+        case ArtJobStatus.Pending:
+        case ArtJobStatus.Running: {
+          warnings.push('the illustrated map is still being drawn, so the map is rendered for now');
+          return;
+        }
+        case ArtJobStatus.Failed: {
+          warnings.push(`the map could not be illustrated (${job.error ?? 'unknown error'}), so the map is rendered`);
+          return;
+        }
+        case ArtJobStatus.Completed: {
+          assetId = job.resultAssetId ?? undefined;
+          if (assetId) {
+            await this.bookRepository
+              .updatePage(book.id, page.id, { map: { ...map, illustratedAssetId: assetId } })
+              .catch((error) => this.logger.warn(`Unable to save the illustrated map of page ${page.id}: ${error}`));
+          }
+          break;
+        }
+      }
+    }
+
+    if (!assetId) {
+      return;
+    }
+
+    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: new Set([assetId]) });
+    const [asset] = allowed.has(assetId) ? await this.bookRepository.getAssetsForRender([assetId]) : [];
+    if (!asset) {
+      warnings.push('the illustrated map is missing or not accessible, so the map is rendered');
+      return;
+    }
+
+    // a new artwork has no thumbnails for a little while
+    return getRenderInput(asset, mode)?.input ?? asset.originalPath;
+  }
+
+  /** saves the rendered map as an asset next to the section's first photo and starts an art job that redraws it */
+  private async startMapIllustration(
+    auth: AuthDto,
+    book: Book,
+    layout: BookLayout,
+    page: { map: BookMap; sectionTitle?: string | null },
+    ctx: MapRenderContext,
+    sourceAssetId: string,
+  ): Promise<string> {
+    const rect = getMapRectMm(layout, book, resolveBookStyle(book.style))!;
+    const aspect = rect.width / rect.height;
+    const size =
+      aspect >= 1
+        ? { width: ILLUSTRATED_MAP_LONG_EDGE, height: Math.round(ILLUSTRATED_MAP_LONG_EDGE / aspect) }
+        : { width: Math.round(ILLUSTRATED_MAP_LONG_EDGE * aspect), height: ILLUSTRATED_MAP_LONG_EDGE };
+    const { data } = await renderMap({ ...ctx, illustrated: null }, page, { ...size, format: 'png' });
+
+    const title = page.map.title ?? page.sectionTitle ?? undefined;
+    const derivedAssetService = BaseService.create(DerivedAssetService, this);
+    const { id } = await derivedAssetService.createDerivedAsset(
+      auth,
+      sourceAssetId,
+      { buffer: data, extension: 'png' },
+      { description: `Map${title ? ` of ${title}` : ''} for the book “${book.title}”`, suffix: 'map', stack: false },
+    );
+
+    const artService = BaseService.create(ArtService, this);
+    const job = await artService.createJob(auth, { assetId: id, prompt: getMapArtPrompt(title) });
+    return job.id;
+  }
+
+  /** accessible photos of an album in time order */
+  private async getAlbumAssetIds(auth: AuthDto, albumId: string) {
+    const rows = await this.assetJobRepository.getForAgentEvents({
+      albumId,
+      viewingUserId: auth.user.id,
+      limit: MAX_ALBUM_PHOTOS,
+    });
+    return rows.map((row) => row.id);
+  }
+
+  private async layOut(auth: AuthDto, id: string, options: LayOutOptions): Promise<BookAutoLayoutResult> {
+    const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    const existing = options.keepExisting ? await this.bookRepository.getPages(id) : [];
+    const placed = new Set(existing.flatMap((page) => page.assets.map(({ assetId }) => assetId)));
+    const heroIds = new Set(options.heroAssetIds);
+    const assetIds = options.assetIds.filter((assetId) => !placed.has(assetId) || heroIds.has(assetId));
+
+    const warnings: string[] = [];
+    const photos = await this.getLayoutPhotos(auth, assetIds, heroIds, warnings);
+    if (photos.length === 0) {
+      throw new BadRequestException(
+        placed.size > 0 ? 'All photos are already in the book' : 'There are no photos to lay out',
+      );
+    }
+
+    const { books } = await this.getConfig({ withCache: true });
+    const mapStyle: BookMapStyle =
+      !options.mapStyle || options.mapStyle === 'auto' ? books.maps.defaultStyle : options.mapStyle;
+    const includeMaps = options.includeMaps ?? true;
+    if (includeMaps && mapStyle !== 'sketch' && !books.maps.stadiaApiKey) {
+      warnings.push(`No Stadia Maps API key is configured, so the ${mapStyle} maps are drawn as sketches`);
+    }
+
+    const plan = planAutoLayout(photos, {
+      size: book,
+      style: resolveBookStyle(book.style),
+      targetPageCount: options.targetPageCount,
+      includeMaps,
+      mapStyle,
+      heroIds: [...heroIds],
+      cover: existing.length === 0,
+    });
+
+    if (options.illustratedMaps && plan.pages.some((page) => page.map)) {
+      await this.illustratePlannedMaps(auth, book, plan, photos, warnings);
+    }
+
+    await this.bookRepository.replacePages(
+      id,
+      plan.pages.map((page) => toPageValues(page)),
+      { keepExisting: options.keepExisting },
+    );
+
+    return { book: await this.getDetail(id), plan, photoCount: photos.length, warnings };
+  }
+
+  private async illustratePlannedMaps(
+    auth: AuthDto,
+    book: Book,
+    plan: AutoLayoutPlan,
+    photos: AutoLayoutPhoto[],
+    warnings: string[],
+  ) {
+    const { agent } = await this.getConfig({ withCache: true });
+    if (!isArtEnabled(agent)) {
+      warnings.push('Illustrated maps need an art agent profile (Administration → AI assistant), so they were skipped');
+      return;
+    }
+
+    const byId = new Map(photos.map((photo) => [photo.id, photo]));
+    const pages = plan.pages.map((page) => ({ ...page, assets: page.slots }));
+
+    for (const [index, page] of plan.pages.entries()) {
+      const layout = getLayout(page.layout);
+      if (!page.map || !layout?.map) {
+        continue;
+      }
+
+      const assetIds = getMapAssetIds(pages, index);
+      const points = assetIds
+        .map((assetId) => byId.get(assetId))
+        .filter((photo) => typeof photo?.lat === 'number' && typeof photo?.lon === 'number')
+        .map((photo) => ({ lat: photo!.lat!, lon: photo!.lon!, time: photo!.takenAt, city: photo!.city }))
+        .toSorted((a, b) => a.time - b.time);
+      if (points.length === 0) {
+        continue;
+      }
+
+      try {
+        const ctx = await this.newMapContext(book, points);
+        const artJobId = await this.startMapIllustration(
+          auth,
+          book,
+          layout,
+          { map: page.map, sectionTitle: page.sectionTitle },
+          ctx,
+          assetIds[0],
+        );
+        page.map = { ...page.map, artJobId };
+      } catch (error: any) {
+        const message = error?.response?.message ?? error?.message ?? String(error);
+        warnings.push(`Page ${index + 1}: the map could not be illustrated (${message})`);
+      }
+    }
+  }
+
+  /** photos with their size, faces, place, quality score, near-duplicate cluster and event */
+  private async getLayoutPhotos(
+    auth: AuthDto,
+    assetIds: string[],
+    heroIds: Set<string>,
+    warnings: string[],
+  ): Promise<AutoLayoutPhoto[]> {
+    const found = await this.assetJobRepository.getForAgent([...new Set(assetIds)], auth.user.id);
+    let rows = found.filter((row) => row.type === AssetType.Image);
+
+    if (rows.length > MAX_LAYOUT_PHOTOS) {
+      const eventIndex = getEventIndex(rows);
+      const { ids } = selectBest(
+        rows.map((row) => ({
+          id: row.id,
+          time: row.localDateTime.getTime(),
+          score: scorePhoto(
+            null,
+            row.faces.map((face) => normalizeFaceBox(face)),
+            { isFavorite: row.isFavorite, rating: row.rating },
+          ).overall,
+          event: eventIndex.get(row.id) ?? null,
+        })),
+        { count: MAX_LAYOUT_PHOTOS, minPerEvent: 1, mustIncludeIds: [...heroIds], chronological: true },
+      );
+      const selected = new Set(ids);
+      warnings.push(`There are ${rows.length} photos, so the best ${selected.size} of them were laid out`);
+      rows = rows.filter((row) => selected.has(row.id));
+    }
+
+    const ids = rows.map((row) => row.id);
+    const [renderAssets, embeddings, { machineLearning }] = await Promise.all([
+      this.bookRepository.getAssetsForRender(ids),
+      this.searchRepository.getEmbeddings(ids),
+      this.getConfig({ withCache: true }),
+    ]);
+
+    const assets = new Map(renderAssets.map((asset) => [asset.id, asset]));
+    const vectors = new Map(embeddings.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
+    const clusters = clusterSimilar(
+      rows.map((row) => ({ id: row.id, time: row.fileCreatedAt.getTime(), embedding: vectors.get(row.id) })),
+      getClusterDefaults(machineLearning.duplicateDetection.maxDistance),
+    );
+    const clusterIndex = toClusterIndex(clusters.filter((cluster) => cluster.ids.length > 1));
+    const eventIndex = getEventIndex(rows);
+
+    const uncached = rows.filter(
+      (row) => row.previewPath && !analysisCache.has(getAnalysisKey({ ...row, previewPath: row.previewPath })),
+    ).length;
+    const analyze = uncached <= MAX_ANALYZED_PHOTOS;
+    if (!analyze) {
+      warnings.push(`Photo quality was estimated from metadata, because ${uncached} photos have not been analyzed yet`);
+    }
+    const analyses = await mapLimit(rows, 4, (row) => this.getImageAnalysis(row, analyze));
+
+    return rows.map((row, index) => {
+      const asset = assets.get(row.id);
+      const size = asset ? getAssetDimensions(asset) : { width: row.width ?? 0, height: row.height ?? 0 };
+      const faces = row.faces.map((face) => normalizeFaceBox(face));
+      return {
+        id: row.id,
+        width: size.width,
+        height: size.height,
+        takenAt: row.localDateTime.getTime(),
+        lat: row.latitude,
+        lon: row.longitude,
+        city: row.city,
+        country: row.country,
+        score: scorePhoto(analyses[index], faces, { isFavorite: row.isFavorite, rating: row.rating }).overall,
+        // face boxes are relative to the unedited image
+        faces: asset?.isEdited
+          ? []
+          : faces.map((box) => ({ x: box.x1, y: box.y1, width: box.x2 - box.x1, height: box.y2 - box.y1 })),
+        isFavorite: row.isFavorite,
+        clusterId: clusterIndex.get(row.id) ?? null,
+        eventIndex: eventIndex.get(row.id) ?? 0,
+      };
+    });
+  }
+
+  private async getImageAnalysis(
+    row: { id: string; checksum: Buffer; previewPath: string | null },
+    analyze: boolean,
+  ): Promise<ImageAnalysis | null> {
+    if (!row.previewPath) {
+      return null;
+    }
+
+    const key = getAnalysisKey({ ...row, previewPath: row.previewPath });
+    const cached = analysisCache.get(key);
+    if (cached || !analyze) {
+      return cached ?? null;
+    }
+
+    try {
+      const analysis = await this.mediaRepository.analyzeImage(row.previewPath);
+      analysisCache.set(key, analysis);
+      return analysis;
+    } catch (error) {
+      this.logger.warn(`Unable to analyze preview of asset ${row.id}: ${error}`);
+      return null;
+    }
   }
 
   private async getRenderSources(auth: AuthDto, assetIds: string[], mode: BookRenderMode) {
@@ -719,6 +1355,20 @@ export class BookService extends BaseService {
   private async getPageResponse(book: Book, pageId: string) {
     const page = await findOrFail(() => this.bookRepository.getPage(book.id, pageId), 'Page');
     return mapBookPage(page, book);
+  }
+
+  private async requireMapAccess(auth: AuthDto, map: BookMap | null | undefined) {
+    if (!map) {
+      return;
+    }
+
+    const assetIds = [...(map.assetIds ?? []), ...(map.illustratedAssetId ? [map.illustratedAssetId] : [])];
+    if (assetIds.length > 0) {
+      await this.requireAccess({ auth, permission: Permission.AssetRead, ids: assetIds });
+    }
+    if (map.artJobId) {
+      await this.requireAccess({ auth, permission: Permission.ArtJobRead, ids: [map.artJobId] });
+    }
   }
 
   private mergeStyle(current: BookStyle | undefined, update: BookStyleUpdate | undefined): BookStyle {

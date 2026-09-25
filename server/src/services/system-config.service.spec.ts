@@ -72,6 +72,12 @@ const updatedConfig = Object.freeze<SystemConfig>({
       keepLastAmount: 14,
     },
   },
+  books: {
+    maps: {
+      stadiaApiKey: '',
+      defaultStyle: 'watercolor',
+    },
+  },
   ffmpeg: {
     crf: 30,
     threads: 0,

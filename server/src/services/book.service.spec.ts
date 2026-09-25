@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import sharp from 'sharp';
+import { BookMap } from 'src/dtos/book.dto.js';
 import {
+  ArtJobStatus,
   AssetFileType,
   AssetType,
   BookExportFormat,
@@ -9,13 +14,18 @@ import {
   JobStatus,
   NotificationType,
 } from 'src/enum.js';
+import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
+import { ArtService } from 'src/services/art.service.js';
 import { BookService, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { userStub } from 'test/fixtures/user.stub.js';
 import { newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
+
+type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
 
 const renderAsset = (dto: Record<string, unknown> = {}) => ({
   id: newUuid(),
@@ -35,6 +45,62 @@ const renderAsset = (dto: Record<string, unknown> = {}) => ({
   ],
   ...dto,
 });
+
+const agentAsset = (overrides: Partial<AgentAsset> = {}): AgentAsset => {
+  const time = overrides.localDateTime ?? new Date('2024-06-01T10:00:00.000Z');
+  return {
+    id: newUuid(),
+    type: AssetType.Image,
+    localDateTime: time,
+    fileCreatedAt: time,
+    isFavorite: false,
+    width: 3000,
+    height: 2000,
+    checksum: Buffer.from(newUuid()),
+    updatedAt: time,
+    exifImageWidth: 3000,
+    exifImageHeight: 2000,
+    make: null,
+    model: null,
+    lensModel: null,
+    fNumber: null,
+    exposureTime: null,
+    iso: null,
+    focalLength: null,
+    latitude: null,
+    longitude: null,
+    city: null,
+    state: null,
+    country: null,
+    description: null,
+    rating: null,
+    timeZone: null,
+    previewPath: null,
+    faces: [],
+    ...overrides,
+  };
+};
+
+/** a day in Rome and a day in Florence */
+const trip = () => [
+  ...Array.from({ length: 10 }, (_, i) =>
+    agentAsset({
+      localDateTime: new Date(Date.UTC(2024, 5, 1, 9, i * 10)),
+      latitude: 41.9,
+      longitude: 12.5,
+      city: 'Rome',
+      isFavorite: i === 3,
+    }),
+  ),
+  ...Array.from({ length: 10 }, (_, i) =>
+    agentAsset({
+      localDateTime: new Date(Date.UTC(2024, 5, 2, 9, i * 10)),
+      latitude: 43.77,
+      longitude: 11.25,
+      city: 'Florence',
+    }),
+  ),
+];
 
 describe(BookService.name, () => {
   let sut: BookService;
@@ -56,6 +122,40 @@ describe(BookService.name, () => {
     mocks.book.getAssetsForRender.mockResolvedValue([asset]);
     mocks.book.getFaces.mockResolvedValue([]);
     return { book, page, asset };
+  };
+
+  const setupPhotos = (rows: AgentAsset[]) => {
+    mocks.assetJob.getForAgentEvents.mockResolvedValue(
+      rows.map((row) => ({
+        id: row.id,
+        localDateTime: row.localDateTime,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        city: row.city,
+        country: row.country,
+        people: [],
+      })),
+    );
+    mocks.assetJob.getForAgent.mockResolvedValue(rows);
+    mocks.book.getAssetsForRender.mockResolvedValue(
+      rows.map((row) => renderAsset({ id: row.id, width: row.width, height: row.height })),
+    );
+    mocks.search.getEmbeddings.mockResolvedValue([]);
+    mocks.book.replacePages.mockResolvedValue();
+  };
+
+  const plannedPages = () => mocks.book.replacePages.mock.calls[0][1];
+
+  const setupAlbum = (rows: AgentAsset[], albumName = 'Italy 2024') => {
+    const albumId = newUuid();
+    const book = BookFactory.create({ ownerId: auth.user.id, albumId, title: albumName });
+    mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+    mocks.album.getById.mockResolvedValue({ id: albumId, albumName } as never);
+    mocks.book.create.mockResolvedValue(book);
+    mocks.book.get.mockResolvedValue(book);
+    mocks.book.getPages.mockResolvedValue([]);
+    setupPhotos(rows);
+    return { albumId, book };
   };
 
   const setupExport = async () => {
@@ -255,7 +355,7 @@ describe(BookService.name, () => {
       expect(page.slots).toHaveLength(4);
       expect(mocks.book.addPage).toHaveBeenCalledWith(
         book.id,
-        { layout: 'four-grid', sectionTitle: null, caption: 'Hi', background: null },
+        { layout: 'four-grid', sectionTitle: null, caption: 'Hi', background: null, map: null },
         2,
       );
     });
@@ -818,6 +918,373 @@ describe(BookService.name, () => {
       mocks.book.get.mockResolvedValue(undefined);
       await expect(sut.handleBookExportHtml({ id: newUuid() })).resolves.toBe(JobStatus.Skipped);
       expect(mocks.book.setHtmlExportStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('auto layout', () => {
+    describe('createFromAlbum', () => {
+      it('should require access to the album', async () => {
+        await expect(sut.createFromAlbum(auth, { albumId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
+        expect(mocks.book.create).not.toHaveBeenCalled();
+      });
+
+      it('should create a book named after the album and lay out its photos', async () => {
+        const rows = trip();
+        const video = agentAsset({ type: AssetType.Video });
+        const { albumId, book } = setupAlbum([...rows, video]);
+
+        const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'sketch', targetPageCount: 8 });
+
+        expect(result.id).toBe(book.id);
+        expect(mocks.book.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Italy 2024', albumId }));
+        expect(mocks.assetJob.getForAgentEvents).toHaveBeenCalledWith(
+          expect.objectContaining({ albumId, viewingUserId: auth.user.id }),
+        );
+        expect(mocks.book.replacePages).toHaveBeenCalledWith(book.id, expect.any(Array), { keepExisting: undefined });
+
+        const pages = plannedPages();
+        expect(pages[0]).toEqual(expect.objectContaining({ layout: 'cover', map: null }));
+        expect(pages.filter((page) => page.map)).toEqual([
+          expect.objectContaining({ sectionTitle: 'Rome', map: expect.objectContaining({ style: 'sketch' }) }),
+          expect.objectContaining({ sectionTitle: 'Florence', map: expect.objectContaining({ style: 'sketch' }) }),
+        ]);
+        const placed = pages.flatMap((page) => page.assets.map((asset) => asset.assetId));
+        expect(placed).not.toContain(video.id);
+        expect(new Set(placed).size).toBe(placed.length);
+        for (const page of pages) {
+          expect(page.assets.map((asset) => asset.slot)).toEqual(page.assets.map((_, index) => index));
+          for (const asset of page.assets) {
+            expect(asset.crop).toEqual(expect.objectContaining({ x: expect.any(Number), width: expect.any(Number) }));
+          }
+        }
+      });
+
+      it('should use the title from the request and the default map style from the config', async () => {
+        const { albumId } = setupAlbum(trip());
+        mocks.systemMetadata.get.mockResolvedValue({ books: { maps: { defaultStyle: 'toner', stadiaApiKey: 'key' } } });
+
+        await sut.createFromAlbum(auth, { albumId, title: 'Our trip' });
+
+        expect(mocks.book.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Our trip' }));
+        const styles = plannedPages()
+          .filter((page) => page.map)
+          .map((page) => page.map!.style);
+        expect(styles.length).toBeGreaterThan(0);
+        expect(new Set(styles)).toEqual(new Set(['toner']));
+      });
+
+      it('should not add maps when they are turned off', async () => {
+        const { albumId } = setupAlbum(trip());
+        await sut.createFromAlbum(auth, { albumId, includeMaps: false });
+        expect(plannedPages().some((page) => page.map)).toBe(false);
+      });
+
+      it('should score the photos from their previews and cache the analysis', async () => {
+        const rows = trip().map((row) => ({ ...row, previewPath: `/data/thumbs/${row.id}.jpeg` }));
+        const { albumId } = setupAlbum(rows);
+        mocks.media.analyzeImage.mockResolvedValue({
+          width: 512,
+          height: 341,
+          laplacianVariance: 800,
+          meanLuma: 0.5,
+          shadowClip: 0,
+          highlightClip: 0,
+        });
+
+        await sut.createFromAlbum(auth, { albumId });
+        expect(mocks.media.analyzeImage).toHaveBeenCalledTimes(rows.length);
+
+        await sut.createFromAlbum(auth, { albumId });
+        expect(mocks.media.analyzeImage).toHaveBeenCalledTimes(rows.length);
+      });
+
+      it('should delete the book when there is nothing to lay out', async () => {
+        const { albumId, book } = setupAlbum([agentAsset({ type: AssetType.Video })]);
+
+        await expect(sut.createFromAlbum(auth, { albumId })).rejects.toThrow('There are no photos to lay out');
+        expect(mocks.book.delete).toHaveBeenCalledWith(book.id);
+        expect(mocks.book.replacePages).not.toHaveBeenCalled();
+      });
+
+      it('should reject an empty album', async () => {
+        const { albumId } = setupAlbum([]);
+        await expect(sut.createFromAlbum(auth, { albumId })).rejects.toThrow('The album has no photos');
+        expect(mocks.book.create).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('autoLayout', () => {
+      it('should require access to the book', async () => {
+        await expect(sut.autoLayout(auth, newUuid(), {})).rejects.toBeInstanceOf(BadRequestException);
+        expect(mocks.book.replacePages).not.toHaveBeenCalled();
+      });
+
+      it('should need photos when the book has no album', async () => {
+        const book = BookFactory.create();
+        allowBook(book.id);
+        mocks.book.get.mockResolvedValue(book);
+
+        await expect(sut.autoLayout(auth, book.id, {})).rejects.toThrow(/assetIds/);
+      });
+
+      it('should require access to the photos', async () => {
+        const book = BookFactory.create();
+        allowBook(book.id);
+        mocks.book.get.mockResolvedValue(book);
+
+        await expect(sut.autoLayout(auth, book.id, { assetIds: [newUuid()] })).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+      });
+
+      it('should lay out the album of the book again', async () => {
+        const rows = trip();
+        const { book } = setupAlbum(rows);
+        allowBook(book.id);
+        const hero = rows[12];
+        allowAssets(hero.id);
+
+        await sut.autoLayout(auth, book.id, { heroAssetIds: [hero.id], targetPageCount: 8 });
+
+        expect(mocks.book.replacePages).toHaveBeenCalledWith(book.id, expect.any(Array), { keepExisting: undefined });
+        const heroPage = plannedPages().find((page) => page.assets.some((asset) => asset.assetId === hero.id))!;
+        expect(heroPage.assets).toHaveLength(1);
+      });
+
+      it('should append the photos that are not in the book yet without a cover', async () => {
+        const rows = trip();
+        const book = BookFactory.create();
+        allowBook(book.id);
+        allowAssets(...rows.map(({ id }) => id));
+        mocks.book.get.mockResolvedValue(book);
+        mocks.book.getPages.mockResolvedValue([
+          BookPageFactory.create({
+            bookId: book.id,
+            layout: 'cover',
+            assets: [BookPageFactory.placement({ assetId: rows[0].id })],
+          }),
+        ]);
+        setupPhotos(rows);
+
+        await sut.autoLayout(auth, book.id, { assetIds: rows.map(({ id }) => id), keepExisting: true });
+
+        expect(mocks.book.replacePages).toHaveBeenCalledWith(book.id, expect.any(Array), { keepExisting: true });
+        expect(mocks.assetJob.getForAgent).toHaveBeenCalledWith(
+          rows.slice(1).map(({ id }) => id),
+          auth.user.id,
+        );
+        expect(plannedPages()[0].layout).not.toBe('cover');
+      });
+
+      it('should skip illustrated maps without an art profile', async () => {
+        const { book } = setupAlbum(trip());
+        allowBook(book.id);
+
+        const { warnings } = await sut.autoLayoutWithPlan(auth, book.id, { illustratedMaps: true, mapStyle: 'sketch' });
+
+        expect(warnings).toEqual([expect.stringMatching(/art agent profile/)]);
+        expect(plannedPages().every((page) => !page.map?.artJobId)).toBe(true);
+      });
+
+      it('should start an art job for every map', async () => {
+        const rows = trip();
+        const { book } = setupAlbum(rows);
+        allowBook(book.id);
+        mocks.systemMetadata.get.mockResolvedValue({ agent: { enabled: true, artProfile: 'codex' } });
+        const derived = vi
+          .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
+          .mockResolvedValue({ id: newUuid(), duplicate: false });
+        const jobIds = [newUuid(), newUuid()];
+        const createJob = vi
+          .spyOn(ArtService.prototype, 'createJob')
+          .mockResolvedValueOnce({ id: jobIds[0] } as never)
+          .mockResolvedValueOnce({ id: jobIds[1] } as never);
+
+        const { warnings } = await sut.autoLayoutWithPlan(auth, book.id, {
+          illustratedMaps: true,
+          mapStyle: 'sketch',
+          targetPageCount: 8,
+        });
+
+        expect(warnings).toEqual([]);
+        expect(derived).toHaveBeenCalledTimes(2);
+        expect(derived).toHaveBeenCalledWith(
+          auth,
+          expect.any(String),
+          { buffer: expect.any(Buffer), extension: 'png' },
+          expect.objectContaining({ stack: false }),
+        );
+        // the map is saved next to the first photo of its section
+        expect(rows.slice(0, 10).map(({ id }) => id)).toContain(derived.mock.calls[0][1]);
+        expect(createJob).toHaveBeenCalledWith(auth, {
+          assetId: expect.any(String),
+          prompt: expect.stringContaining('Keep the geography, the route line, the pins and the place names'),
+        });
+        expect(
+          plannedPages()
+            .filter((page) => page.map)
+            .map((page) => page.map!.artJobId),
+        ).toEqual(jobIds);
+      });
+    });
+  });
+
+  describe('maps', () => {
+    const setupMapPage = (map: BookMap | null, layout = 'map') => {
+      const book = BookFactory.create();
+      const photo = renderAsset();
+      const mapPage = BookPageFactory.create({ bookId: book.id, layout, map, position: 0 });
+      const next = BookPageFactory.create({
+        bookId: book.id,
+        layout: 'single',
+        position: 1,
+        assets: [BookPageFactory.placement({ assetId: photo.id })],
+      });
+      const opener = BookPageFactory.create({
+        bookId: book.id,
+        layout: 'section-opener',
+        position: 2,
+        assets: [BookPageFactory.placement({ assetId: newUuid() })],
+      });
+      allowBook(book.id);
+      allowAssets(photo.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([mapPage, next, opener]);
+      mocks.book.getAssetsForRender.mockResolvedValue([photo]);
+      mocks.book.getAssetLocations.mockResolvedValue([
+        { id: photo.id, localDateTime: new Date(), latitude: 41.9, longitude: 12.5, city: 'Rome', country: 'Italy' },
+      ]);
+      mocks.book.getCountryOutlines.mockResolvedValue([]);
+      mocks.media.composeBookPage.mockResolvedValue({ data: Buffer.from('jpeg'), slots: [] });
+      return { book, mapPage, photo };
+    };
+
+    const sketch: BookMap = { style: 'sketch', showRoute: true, labels: true, title: 'Rome' };
+
+    it('should draw the map of the following section in the map area', async () => {
+      const { book, mapPage, photo } = setupMapPage(sketch);
+
+      const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 600 });
+
+      expect(warnings).toEqual([]);
+      expect(mocks.book.getAssetLocations).toHaveBeenCalledWith([photo.id]);
+      const spec = mocks.media.composeBookPage.mock.calls[0][0];
+      const layer = spec.slots.at(-1)!;
+      expect(layer).toEqual(expect.objectContaining({ input: expect.any(Buffer), left: expect.any(Number) }));
+      await expect(sharp(layer.input as Buffer).metadata()).resolves.toEqual(
+        expect.objectContaining({ width: layer.width, height: layer.height }),
+      );
+    });
+
+    it('should plot the photos chosen for the map', async () => {
+      const chosen = newUuid();
+      const { book, mapPage } = setupMapPage({ ...sketch, assetIds: [chosen] });
+      allowAssets(chosen);
+
+      await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
+      expect(mocks.book.getAssetLocations).toHaveBeenCalledWith([chosen]);
+    });
+
+    it('should draw a sketch and warn without a Stadia API key', async () => {
+      const { book, mapPage } = setupMapPage({ ...sketch, style: 'watercolor' });
+
+      const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
+      expect(warnings).toEqual([
+        expect.objectContaining({ page: 1, type: 'map', message: expect.stringMatching(/Stadia Maps API key/) }),
+      ]);
+    });
+
+    it('should warn about a map on a layout without a map area', async () => {
+      const { book, mapPage } = setupMapPage(sketch, 'single');
+
+      const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
+      expect(warnings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ type: 'map', message: expect.stringMatching(/no map area/) }),
+        ]),
+      );
+      expect(mocks.book.getAssetLocations).not.toHaveBeenCalled();
+    });
+
+    it('should use the illustrated map once its art job completed', async () => {
+      const artJobId = newUuid();
+      const dir = await mkdtemp(join(tmpdir(), 'book-map-'));
+      const path = join(dir, 'map-art.png');
+      await writeFile(
+        path,
+        await sharp({ create: { width: 30, height: 20, channels: 3, background: '#ff0000' } })
+          .png()
+          .toBuffer(),
+      );
+      const illustrated = renderAsset({ originalPath: path, files: [] });
+      const { book, mapPage, photo } = setupMapPage({ ...sketch, artJobId });
+      allowAssets(photo.id, illustrated.id);
+      mocks.access.artJob.checkOwnerAccess.mockResolvedValue(new Set([artJobId]));
+      mocks.artJob.get.mockResolvedValue({
+        id: artJobId,
+        status: ArtJobStatus.Completed,
+        resultAssetId: illustrated.id,
+      } as never);
+      mocks.book.getAssetsForRender.mockResolvedValue([illustrated]);
+      mocks.book.updatePage.mockResolvedValue(mapPage);
+
+      try {
+        const result = await sut.renderPageMap(auth, book, mapPage, { width: 60, height: 40 });
+
+        expect(result).toEqual({ data: expect.any(Buffer), source: 'illustrated', warnings: [] });
+        const { data } = await sharp(result.data).raw().toBuffer({ resolveWithObject: true });
+        expect(data[0]).toBeGreaterThan(240);
+        expect(mocks.book.getAssetLocations).not.toHaveBeenCalled();
+        expect(mocks.book.updatePage).toHaveBeenCalledWith(book.id, mapPage.id, {
+          map: { ...sketch, artJobId, illustratedAssetId: illustrated.id },
+        });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should render the map while the illustration is running', async () => {
+      const artJobId = newUuid();
+      const { book, mapPage } = setupMapPage({ ...sketch, artJobId });
+      mocks.access.artJob.checkOwnerAccess.mockResolvedValue(new Set([artJobId]));
+      mocks.artJob.get.mockResolvedValue({ id: artJobId, status: ArtJobStatus.Running } as never);
+
+      const result = await sut.renderPageMap(auth, book, mapPage, { width: 60, height: 40 });
+      expect(result.source).toBe('sketch');
+      expect(result.warnings).toEqual([expect.stringMatching(/still being drawn/)]);
+      expect(mocks.book.updatePage).not.toHaveBeenCalled();
+    });
+
+    it('should check access to the map photos when a page is added', async () => {
+      const book = BookFactory.create();
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(
+        sut.addPage(auth, book.id, { layout: 'map', map: { ...sketch, assetIds: [newUuid()] } }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.book.addPage).not.toHaveBeenCalled();
+    });
+
+    it('should save the map of a new page', async () => {
+      const book = BookFactory.create();
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.addPage.mockResolvedValue(BookPageFactory.create({ bookId: book.id, layout: 'map', map: sketch }));
+
+      const page = await sut.addPage(auth, book.id, { layout: 'map', map: sketch });
+
+      expect(page.map).toEqual(sketch);
+      expect(mocks.book.addPage).toHaveBeenCalledWith(book.id, expect.objectContaining({ map: sketch }), undefined);
+    });
+
+    it('should list the map layouts with their map area', () => {
+      expect(sut.getLayouts()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'map', slots: [], mapArea: { x: 0, y: 0, width: 1, height: 1 } }),
+          expect.objectContaining({ id: 'map-photo', slots: [expect.any(Object)] }),
+        ]),
+      );
     });
   });
 });

@@ -44,6 +44,7 @@ export const BookPageFactory = {
       sectionTitle: null,
       caption: null,
       background: null,
+      map: null,
       assets: [],
       createdAt: newDate(),
       updatedAt: newDate(),
