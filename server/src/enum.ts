@@ -880,6 +880,8 @@ export enum JobName {
 
   AuditTableCleanup = 'AuditTableCleanup',
 
+  BookExport = 'BookExport',
+
   DatabaseBackup = 'DatabaseBackup',
 
   FacialRecognitionQueueAll = 'FacialRecognitionQueueAll',
