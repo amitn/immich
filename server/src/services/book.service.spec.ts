@@ -1,7 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import sharp from 'sharp';
-import { AssetFileType, AssetType, BookExportStatus, JobName, JobStatus, NotificationType } from 'src/enum.js';
-import { BookService, getBookPdfPath } from 'src/services/book.service.js';
+import {
+  AssetFileType,
+  AssetType,
+  BookExportFormat,
+  BookExportStatus,
+  JobName,
+  JobStatus,
+  NotificationType,
+} from 'src/enum.js';
+import { BookService, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
@@ -15,6 +23,7 @@ const renderAsset = (dto: Record<string, unknown> = {}) => ({
   originalPath: '/data/library/photo.jpg',
   originalFileName: 'photo.jpg',
   isEdited: false,
+  localDateTime: new Date('2025-06-01T10:00:00.000Z'),
   width: 3000,
   height: 2000,
   exifImageWidth: 3000,
@@ -34,6 +43,7 @@ describe(BookService.name, () => {
 
   const allowBook = (id: string) => mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([id]));
   const allowAssets = (...ids: string[]) => mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(ids));
+  const written = () => ({ html: (mocks.storage.createOrOverwriteFile.mock.calls[0][1] as Buffer).toString() });
 
   const setupSlot = (layout = 'four-grid') => {
     const book = BookFactory.create();
@@ -83,6 +93,7 @@ describe(BookService.name, () => {
     mocks.book.updateSlot.mockResolvedValue(true);
     mocks.book.deleteSlot.mockResolvedValue();
     mocks.book.setExportStatus.mockResolvedValue();
+    mocks.book.setHtmlExportStatus.mockResolvedValue();
   });
 
   it('should work', () => {
@@ -193,8 +204,11 @@ describe(BookService.name, () => {
   });
 
   describe('delete', () => {
-    it('should delete the book and its PDF', async () => {
-      const book = BookFactory.create({ exportPath: '/data/thumbs/owner/books/old.pdf' });
+    it('should delete the book and its exported files', async () => {
+      const book = BookFactory.create({
+        exportPath: '/data/thumbs/owner/books/old.pdf',
+        htmlExportPath: '/data/thumbs/owner/books/old.html',
+      });
       allowBook(book.id);
       mocks.book.get.mockResolvedValue(book);
 
@@ -203,7 +217,14 @@ describe(BookService.name, () => {
       expect(mocks.book.delete).toHaveBeenCalledWith(book.id);
       expect(mocks.job.queue).toHaveBeenCalledWith({
         name: JobName.FileDelete,
-        data: { files: [getBookPdfPath(book), '/data/thumbs/owner/books/old.pdf'] },
+        data: {
+          files: [
+            getBookPdfPath(book),
+            '/data/thumbs/owner/books/old.pdf',
+            getBookHtmlPath(book),
+            '/data/thumbs/owner/books/old.html',
+          ],
+        },
       });
     });
 
@@ -524,6 +545,64 @@ describe(BookService.name, () => {
       mocks.book.get.mockResolvedValue(book);
 
       await expect(sut.export(auth, book.id)).rejects.toThrow('The book has no pages');
+      await expect(sut.export(auth, book.id, { format: BookExportFormat.Html })).rejects.toThrow(
+        'The book has no pages',
+      );
+    });
+
+    it('should queue the HTML export separately from the PDF', async () => {
+      const book = BookFactory.create({ pageCount: 2, exportStatus: BookExportStatus.Pending });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.export(auth, book.id, { format: BookExportFormat.Html })).resolves.toEqual(
+        expect.objectContaining({ exportStatus: BookExportStatus.Pending, htmlExportStatus: BookExportStatus.Pending }),
+      );
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenCalledWith(book.id, BookExportStatus.Pending);
+      expect(mocks.book.setExportStatus).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExportHtml, data: { id: book.id } });
+    });
+
+    it('should not queue the HTML export twice', async () => {
+      const book = BookFactory.create({ pageCount: 2, htmlExportStatus: BookExportStatus.Pending });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await sut.export(auth, book.id, { format: BookExportFormat.Html });
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+    });
+
+    it('should require download access', async () => {
+      await expect(sut.export(auth, newUuid(), { format: BookExportFormat.Html })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('downloadHtml', () => {
+    it('should reject books that were not exported as HTML', async () => {
+      const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf' });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.downloadHtml(auth, book.id)).rejects.toThrow('The book has not been exported as HTML yet');
+    });
+
+    it('should return the HTML file as an attachment', async () => {
+      const book = BookFactory.create({ title: 'Été à Rome / 2025', htmlExportPath: '/data/thumbs/books/book.html' });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.downloadHtml(auth, book.id)).resolves.toEqual(
+        new ImmichFileResponse({
+          path: '/data/thumbs/books/book.html',
+          contentType: 'text/html',
+          cacheControl: 'private_without_cache' as never,
+          fileName: 'ete-a-rome-2025.html',
+          disposition: 'attachment',
+        }),
+      );
     });
   });
 
@@ -605,6 +684,140 @@ describe(BookService.name, () => {
     it('should skip deleted books', async () => {
       mocks.book.get.mockResolvedValue(undefined);
       await expect(sut.handleBookExport({ id: newUuid() })).resolves.toBe(JobStatus.Skipped);
+    });
+  });
+
+  describe('handleBookExportHtml', () => {
+    it('should write the HTML file and notify the owner', async () => {
+      const { book } = await setupExport();
+      const path = getBookHtmlPath(book);
+
+      await expect(sut.handleBookExportHtml({ id: book.id })).resolves.toBe(JobStatus.Success);
+
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenNthCalledWith(1, book.id, BookExportStatus.Running);
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenNthCalledWith(2, book.id, BookExportStatus.Completed, path);
+      expect(mocks.book.setExportStatus).not.toHaveBeenCalled();
+      expect(mocks.storage.rename).toHaveBeenCalledWith(`${path}.tmp`, path);
+
+      const { html } = written();
+      expect(html).toContain('<!doctype html>');
+      expect(html).toContain('data:image/jpeg;base64,');
+      expect(html.match(/<section class="page"/g)).toHaveLength(2);
+      expect(html).toContain('June 1, 2025');
+      expect(mocks.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: book.ownerId, type: NotificationType.Custom, title: 'Web photo book ready' }),
+      );
+      expect(mocks.websocket.clientSend).toHaveBeenCalledWith('on_notification', book.ownerId, expect.anything());
+    });
+
+    it('should embed a screen-sized image of the visible crop', async () => {
+      const { book } = await setupExport();
+
+      await sut.handleBookExportHtml({ id: book.id });
+
+      // one embedded photo, and nothing rendered for the empty page
+      expect(mocks.media.composeBookPage).toHaveBeenCalledTimes(1);
+      const spec = mocks.media.composeBookPage.mock.calls[0][0];
+      // a 3:2 photo in the square content box of a single layout: the centre 2/3 of the width is visible
+      expect(spec.slots[0]!.crop).toEqual({
+        x: expect.closeTo(1 / 6, 6),
+        y: 0,
+        width: expect.closeTo(2 / 3, 6),
+        height: 1,
+      });
+      // 2× the CSS size of the slot (186 of 210mm, on a 1000px page) is more than the 1440px preview has
+      expect(spec.slots[0]).toEqual(expect.objectContaining({ input: '/data/library/photo.jpg' }));
+      expect(spec.width).toBe(1771);
+      expect(spec.height).toBe(1771);
+      expect(spec.quality).toBe(82);
+    });
+
+    it('should use the preview for smaller slots', async () => {
+      const { book, asset } = await setupExport();
+      mocks.book.getPages.mockResolvedValue([
+        BookPageFactory.create({
+          bookId: book.id,
+          layout: 'four-grid',
+          assets: [BookPageFactory.placement({ slot: 0, assetId: asset.id })],
+        }),
+      ]);
+
+      await sut.handleBookExportHtml({ id: book.id });
+
+      const spec = mocks.media.composeBookPage.mock.calls[0][0];
+      expect(spec.slots[0]).toEqual(expect.objectContaining({ input: '/data/thumbs/preview.jpeg' }));
+      // a 91mm slot: 2 × 91/210 × 1000px
+      expect(spec.width).toBe(867);
+      expect(spec.height).toBe(867);
+    });
+
+    it('should use the original when a photo is shown larger than its preview', async () => {
+      const { book, asset } = await setupExport();
+      mocks.book.getAssetsForRender.mockResolvedValue([{ ...asset, width: 8000, height: 1000 }]);
+      mocks.book.getPages.mockResolvedValue([
+        BookPageFactory.create({
+          bookId: book.id,
+          layout: 'full-bleed',
+          assets: [
+            BookPageFactory.placement({ slot: 0, assetId: asset.id, crop: { x: 0, y: 0, width: 0.125, height: 1 } }),
+          ],
+        }),
+      ]);
+
+      await sut.handleBookExportHtml({ id: book.id });
+
+      const spec = mocks.media.composeBookPage.mock.calls[0][0];
+      expect(spec.slots[0]).toEqual(expect.objectContaining({ input: '/data/library/photo.jpg' }));
+      expect(spec.width).toBe(1000);
+      expect(spec.height).toBe(1000);
+    });
+
+    it('should render map pages as one image', async () => {
+      const { book, asset } = await setupExport();
+      mocks.book.getPages.mockResolvedValue([
+        BookPageFactory.create({ bookId: book.id, layout: 'map', sectionTitle: 'Our route' }),
+        BookPageFactory.create({
+          bookId: book.id,
+          position: 1,
+          assets: [BookPageFactory.placement({ slot: 0, assetId: asset.id })],
+        }),
+      ]);
+
+      await sut.handleBookExportHtml({ id: book.id });
+
+      expect(mocks.media.composeBookPage).toHaveBeenCalledTimes(2);
+      expect(mocks.media.composeBookPage.mock.calls.map(([spec]) => spec.width)).toContain(2000);
+      expect(written().html).toContain('class="page-image"');
+      expect(written().html).toContain('alt="Our route"');
+    });
+
+    it('should skip photos the owner can no longer access', async () => {
+      const { book } = await setupExport();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set());
+      mocks.book.getAssetsForRender.mockResolvedValue([]);
+
+      await expect(sut.handleBookExportHtml({ id: book.id })).resolves.toBe(JobStatus.Success);
+      expect(mocks.book.getAssetsForRender).toHaveBeenCalledWith([]);
+      expect(mocks.media.composeBookPage).not.toHaveBeenCalled();
+      expect(written().html).not.toContain('data:image/jpeg');
+    });
+
+    it('should mark the export as failed', async () => {
+      const { book } = await setupExport();
+      mocks.media.composeBookPage.mockRejectedValue(new Error('boom'));
+
+      await expect(sut.handleBookExportHtml({ id: book.id })).resolves.toBe(JobStatus.Failed);
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenLastCalledWith(book.id, BookExportStatus.Failed);
+      expect(mocks.storage.rename).not.toHaveBeenCalled();
+      expect(mocks.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({ title: 'Photo book export failed' }),
+      );
+    });
+
+    it('should skip deleted books', async () => {
+      mocks.book.get.mockResolvedValue(undefined);
+      await expect(sut.handleBookExportHtml({ id: newUuid() })).resolves.toBe(JobStatus.Skipped);
+      expect(mocks.book.setHtmlExportStatus).not.toHaveBeenCalled();
     });
   });
 });

@@ -43,6 +43,7 @@ describe(BookAgentTools.name, () => {
     mocks.book.upsertSlot.mockResolvedValue();
     mocks.book.removePage.mockResolvedValue();
     mocks.book.setExportStatus.mockResolvedValue();
+    mocks.book.setHtmlExportStatus.mockResolvedValue();
   });
 
   it('should define the book tools', () => {
@@ -63,6 +64,7 @@ describe(BookAgentTools.name, () => {
         'render_page',
         'render_book',
         'export_pdf',
+        'export_html',
       ]),
     );
   });
@@ -73,7 +75,7 @@ describe(BookAgentTools.name, () => {
       .filter((tool) => tool.mutating)
       .map((tool) => tool.name)
       .toArray();
-    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_pdf']);
+    expect(mutating.toSorted()).toEqual(['edit_existing_book', 'export_html', 'export_pdf']);
   });
 
   describe('list_layouts', () => {
@@ -265,6 +267,23 @@ describe(BookAgentTools.name, () => {
       const result = JSON.parse(text(await call('export_pdf', { bookId: book.id })));
 
       expect(result).toEqual({ queued: true, exportStatus: 'pending', downloadPath: `/api/books/${book.id}/pdf` });
+    });
+  });
+
+  describe('export_html', () => {
+    it('should queue the HTML export', async () => {
+      const { book } = setupBook();
+
+      const result = JSON.parse(text(await call('export_html', { bookId: book.id })));
+
+      expect(result).toEqual({
+        queued: true,
+        htmlExportStatus: 'pending',
+        downloadPath: `/api/books/${book.id}/html`,
+      });
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenCalledWith(book.id, 'pending');
+      expect(mocks.book.setExportStatus).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: 'BookExportHtml', data: { id: book.id } });
     });
   });
 });

@@ -175,6 +175,23 @@ describe(BookRepository.name, () => {
     );
   });
 
+  it('should set the HTML export status separately', async () => {
+    const { sut, book } = await newBook();
+
+    await sut.setExportStatus(book.id, BookExportStatus.Completed, '/path/book.pdf');
+    await sut.setHtmlExportStatus(book.id, BookExportStatus.Completed, '/path/book.html');
+    await sut.setHtmlExportStatus(book.id, BookExportStatus.Running);
+
+    await expect(sut.get(book.id)).resolves.toEqual(
+      expect.objectContaining({
+        exportStatus: BookExportStatus.Completed,
+        exportPath: '/path/book.pdf',
+        htmlExportStatus: BookExportStatus.Running,
+        htmlExportPath: '/path/book.html',
+      }),
+    );
+  });
+
   it('should load assets and faces for rendering', async () => {
     const { ctx, sut, user } = await newBook();
     const { asset } = await ctx.newAsset({ ownerId: user.id });

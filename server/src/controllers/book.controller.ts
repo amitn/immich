@@ -14,13 +14,15 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiTags } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
 import type { NextFunction, Response } from 'express';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
   BookCreateDto,
   BookDetailResponseDto,
+  BookExportDto,
   BookLayoutResponseDto,
   BookPageCreateDto,
   BookPageMoveDto,
@@ -107,7 +109,7 @@ export class BookController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Endpoint({
     summary: 'Delete a book',
-    description: 'Delete a photo book and its exported PDF. The photos are not affected.',
+    description: 'Delete a photo book and its exported PDF and HTML files. The photos are not affected.',
     history: history(),
   })
   deleteBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
@@ -217,13 +219,20 @@ export class BookController {
   @Authenticated({ permission: Permission.BookDownload })
   @HttpCode(HttpStatus.NO_CONTENT)
   @Endpoint({
-    summary: 'Export a book as PDF',
+    summary: 'Export a book',
     description:
-      'Queue the print-ready (300 dpi) PDF export of a photo book. Poll the book until exportStatus is completed.',
+      'Queue the export of a photo book: the print-ready (300 dpi) PDF (default), or a single self-contained HTML ' +
+      'file with every photo embedded. Poll the book until exportStatus (PDF) or htmlExportStatus (HTML) is completed.',
     history: history(),
   })
-  async exportBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
-    await this.service.export(auth, id);
+  @ApiBody({ type: BookExportDto, required: false })
+  async exportBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto, @Body() body?: unknown): Promise<void> {
+    // the body is optional, and the global pipe rejects a missing one
+    const dto: BookExportDto = await new ZodValidationPipe().transform(body ?? {}, {
+      type: 'body',
+      metatype: BookExportDto,
+    });
+    await this.service.export(auth, id, dto);
   }
 
   @Get(':id/pdf')
@@ -237,5 +246,24 @@ export class BookController {
     @Next() next: NextFunction,
   ): Promise<void> {
     await sendFile(res, next, () => this.service.downloadPdf(auth, id), this.logger);
+  }
+
+  @Get(':id/html')
+  @Authenticated({ permission: Permission.BookDownload })
+  @FileResponse()
+  @Endpoint({
+    summary: 'Download a book as HTML',
+    description: 'Download the exported single-file HTML version of a book, with every photo embedded.',
+    history: history(),
+  })
+  async downloadBookHtml(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Res() res: Response,
+    @Next() next: NextFunction,
+  ): Promise<void> {
+    // never run the exported page on the server's origin, even if a browser ignores the attachment disposition
+    res.header('Content-Security-Policy', "sandbox; default-src 'none'");
+    await sendFile(res, next, () => this.service.downloadHtml(auth, id), this.logger);
   }
 }
