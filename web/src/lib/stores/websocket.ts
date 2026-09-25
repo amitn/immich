@@ -16,6 +16,8 @@ import { eventManager } from '$lib/managers/event-manager.svelte';
 import { Route } from '$lib/route';
 import { maintenanceStore } from '$lib/stores/maintenance.store';
 import { notificationManager } from '$lib/stores/notification-manager.svelte';
+// TODO: import these from @immich/sdk once the open-api spec is regenerated
+import type { AgentUpdateDto, ArtJobResponseDto } from '$lib/types/assistant';
 import { createEventEmitter } from '$lib/utils/eventemitter';
 
 interface AppRestartEvent {
@@ -37,6 +39,8 @@ export interface Events {
   on_new_release: (event: ReleaseEventV1) => void;
   on_session_delete: (sessionId: string) => void;
   on_notification: (notification: NotificationDto) => void;
+  on_agent_update: (update: AgentUpdateDto) => void;
+  on_art_job_update: (job: ArtJobResponseDto) => void;
 
   AppRestartV1: (event: AppRestartEvent) => void;
 

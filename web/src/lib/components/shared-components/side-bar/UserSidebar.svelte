@@ -14,8 +14,12 @@
     mdiAccountOutline,
     mdiArchiveArrowDown,
     mdiArchiveArrowDownOutline,
+    mdiBookOpenPageVariant,
+    mdiBookOpenPageVariantOutline,
     mdiCards,
     mdiCardsOutline,
+    mdiCreation,
+    mdiCreationOutline,
     mdiFolderOutline,
     mdiHeart,
     mdiHeartOutline,
@@ -69,6 +73,10 @@
     activeIcon={mdiAccountMultiple}
   />
 
+  {#if featureFlagsManager.value.assistant}
+    <NavbarItem title={$t('assistant')} href={Route.assistant()} icon={mdiCreationOutline} activeIcon={mdiCreation} />
+  {/if}
+
   <NavbarGroup title={$t('library')} size="tiny" />
 
   <NavbarItem title={$t('favorites')} href={Route.favorites()} icon={mdiHeartOutline} activeIcon={mdiHeart} />
@@ -85,6 +93,15 @@
       </span>
     {/snippet}
   </NavbarItem>
+
+  {#if featureFlagsManager.value.assistant}
+    <NavbarItem
+      title={$t('photo_books')}
+      href={Route.books()}
+      icon={mdiBookOpenPageVariantOutline}
+      activeIcon={mdiBookOpenPageVariant}
+    />
+  {/if}
 
   {#if authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb}
     <NavbarItem title={$t('tags')} href={Route.tags()} icon={{ icon: mdiTagMultipleOutline, flipped: true }} />

@@ -25,6 +25,7 @@
   import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
   import { Route } from '$lib/route';
   import { getAssetBulkActions } from '$lib/services/asset.service';
+  import { getAssistantBulkActions } from '$lib/services/assistant.service';
   import { getStackBulkActions } from '$lib/services/stack.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import { type OnLink, type OnUnlink } from '$lib/utils/actions';
@@ -112,11 +113,13 @@
   <AssetSelectControlBar>
     {@const Actions = getAssetBulkActions($t)}
     {@const StackActions = getStackBulkActions($t)}
+    {@const AssistantActions = getAssistantBulkActions($t)}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
     <CreateSharedLink />
     <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
     <ActionButton action={Actions.AddToAlbum} />
+    <ActionButton action={AssistantActions.AskAssistant} />
 
     {#if assetMultiSelectManager.isAllUserOwned}
       <FavoriteAction
