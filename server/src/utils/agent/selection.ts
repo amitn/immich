@@ -18,6 +18,8 @@ export type SelectionConstraints = {
   requirePersonIds?: string[];
   /** default 1 when `requirePersonIds` is set */
   minPerPerson?: number;
+  /** picks of every required person in each event where they appear, default 0 */
+  minPerPersonPerEvent?: number;
   maxPerEvent?: number;
   minPerEvent?: number;
   /** favour photos with people in them */
@@ -41,6 +43,36 @@ export type SelectionResult = {
   clusters: { represented: number; capped: number };
   unmet: string[];
 };
+
+/** defaults for the main people of a personal selection, see `getMainPeople` */
+export const MAIN_PEOPLE_DEFAULTS = { maxPeople: 3, minShare: 0.08, minPhotos: 3, perEvent: 1, perBook: 4 };
+
+/**
+ * The people (named or not) who appear most often: at least `minPhotos` photos and `minShare` of the photos, at most
+ * `maxPeople`, most frequent first.
+ */
+export const getMainPeople = (
+  photos: Array<{ personIds?: string[] }>,
+  options: Partial<Pick<typeof MAIN_PEOPLE_DEFAULTS, 'maxPeople' | 'minShare' | 'minPhotos'>> = {},
+): string[] => {
+  const { maxPeople, minShare, minPhotos } = { ...MAIN_PEOPLE_DEFAULTS, ...options };
+  const counts = new Map<string, number>();
+  for (const photo of photos) {
+    for (const id of new Set(photo.personIds)) {
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  const threshold = Math.max(minPhotos, minShare * photos.length);
+  return [...counts]
+    .filter(([, count]) => count >= threshold)
+    .toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, maxPeople)
+    .map(([id]) => id);
+};
+
+/** the per-book minimum of each main person for a selection of `count` photos: at most half the budget in total */
+export const getMainPersonMinimum = (count: number, people: number, perBook = MAIN_PEOPLE_DEFAULTS.perBook) =>
+  people === 0 ? 0 : Math.min(perBook, Math.max(1, Math.floor((0.5 * count) / people)));
 
 const TIME_WINDOW_MS = 30 * 60 * 1000;
 const TIME_DECAY_MS = 2 * 60 * 1000;
@@ -76,8 +108,8 @@ const hasEvent = (candidate: SelectionCandidate): candidate is SelectionCandidat
 
 /**
  * Greedy, deterministic selection in the spirit of maximal marginal relevance. Order of precedence:
- * `mustIncludeIds`, then the hard caps (`maxPerCluster`, `maxPerEvent`), then the minimums (people first,
- * then events), then the best remaining photos, each pick penalized by its similarity to earlier picks
+ * `mustIncludeIds`, then the hard caps (`maxPerCluster`, `maxPerEvent`), then the minimums (people, people per
+ * event, then events), then the best remaining photos, each pick penalized by its similarity to earlier picks
  * and by over-representing its event.
  */
 export const selectBest = (candidates: SelectionCandidate[], constraints: SelectionConstraints): SelectionResult => {
@@ -86,6 +118,7 @@ export const selectBest = (candidates: SelectionCandidate[], constraints: Select
   const maxPerEvent = constraints.maxPerEvent;
   const requirePersonIds = [...new Set(constraints.requirePersonIds)];
   const minPerPerson = requirePersonIds.length > 0 ? (constraints.minPerPerson ?? 1) : 0;
+  const minPerPersonPerEvent = requirePersonIds.length > 0 ? (constraints.minPerPersonPerEvent ?? 0) : 0;
   const minPerEvent = constraints.minPerEvent ?? 0;
   const diversity = constraints.diversity ?? 0.3;
   const excluded = new Set(constraints.excludeIds);
@@ -220,11 +253,50 @@ export const selectBest = (candidates: SelectionCandidate[], constraints: Select
     }
   }
 
-  // 3. event minimums
   const events = eventSizes
     .keys()
     .toArray()
     .toSorted((a, b) => a - b);
+
+  // 3. people in every event they appear in
+  if (minPerPersonPerEvent > 0) {
+    const has = (candidate: SelectionCandidate, personId: string, event: number) =>
+      candidate.event === event && (candidate.personIds?.includes(personId) ?? false);
+    const pickedIn = (personId: string, event: number) =>
+      picked.filter(({ candidate }) => has(candidate, personId, event)).length;
+    const pairs = events.flatMap((event) =>
+      requirePersonIds
+        .filter((personId) => states.some(({ candidate }) => has(candidate, personId, event)))
+        .map((personId) => ({ event, personId })),
+    );
+    const impossible = new Set<string>();
+    progress = true;
+    while (progress && remaining() > 0) {
+      progress = false;
+      for (const { event, personId } of pairs) {
+        const key = `${event}:${personId}`;
+        if (remaining() <= 0 || impossible.has(key) || pickedIn(personId, event) >= minPerPersonPerEvent) {
+          continue;
+        }
+        const state = best(({ candidate }) => has(candidate, personId, event));
+        if (state) {
+          pick(state);
+          progress = true;
+        } else {
+          impossible.add(key);
+        }
+      }
+    }
+    for (const { event, personId } of pairs) {
+      const available = states.filter(({ candidate }) => has(candidate, personId, event)).length;
+      const needed = Math.min(minPerPersonPerEvent, available);
+      if (pickedIn(personId, event) < needed) {
+        unmet.push(`minPerPersonPerEvent ${personId} event ${event}: ${pickedIn(personId, event)}/${needed}`);
+      }
+    }
+  }
+
+  // 4. event minimums
   if (minPerEvent > 0) {
     const eventDeficit = (event: number) =>
       Math.min(minPerEvent, eventSizes.get(event)!) - (eventCounts.get(event) ?? 0);
@@ -267,7 +339,7 @@ export const selectBest = (candidates: SelectionCandidate[], constraints: Select
     );
   }
 
-  // 4. fill with the best remaining photos
+  // 5. fill with the best remaining photos
   while (remaining() > 0) {
     const state = best(() => true);
     if (!state) {

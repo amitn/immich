@@ -1,17 +1,25 @@
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
+import { DEFAULT_EVENT_OPTIONS, getAdaptiveEventOptions, splitEvents } from 'src/utils/agent/events.js';
 import {
   AutoLayoutOptions,
   AutoLayoutPhoto,
   AutoLayoutPlan,
   MAX_CROP_LOSS,
+  MAX_SINGLES_IN_A_ROW,
   allocatePages,
   formatDateRange,
+  getFactualCaption,
+  getPersonMinimums,
+  getPhotoKind,
+  getPhotoSimilarity,
+  getPlacementDpi,
   getSectionTitle,
   getTargetPageCount,
+  isSinglePhotoPage,
   mergeEvents,
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
-import { getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
+import { getLayout, getSlotAspectRatios, getSlotRectsMm } from 'src/utils/book/layouts.js';
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -53,7 +61,7 @@ beforeEach(() => {
 
 describe('planAutoLayout', () => {
   it('should return no pages without photos', () => {
-    expect(plan([])).toEqual({ pages: [], sections: [], usedIds: [], droppedIds: [] });
+    expect(plan([])).toEqual({ pages: [], sections: [], usedIds: [], droppedIds: [], dropReasons: {}, people: [] });
   });
 
   it('should be deterministic and independent of the input order', () => {
@@ -353,5 +361,336 @@ describe('formatDateRange', () => {
     expect(formatDateRange(start, start + HOUR)).toBe('12 June 2024');
     expect(formatDateRange(Date.UTC(2024, 5, 30), Date.UTC(2024, 6, 2))).toBe('30 June – 2 July 2024');
     expect(formatDateRange(Date.UTC(2024, 11, 30), Date.UTC(2025, 0, 2))).toBe('30 December 2024 – 2 January 2025');
+  });
+});
+
+/** a unit vector along `axis`, tilted towards `towards` by `tilt` */
+const embedding = (axis: number, tilt = 0, towards = axis + 1) => {
+  const vector = new Float32Array(16);
+  vector[axis % 16] = 1;
+  vector[towards % 16] += tilt;
+  const norm = Math.hypot(...vector);
+  return vector.map((value) => value / norm);
+};
+
+const pageOf = (result: AutoLayoutPlan, id: string) =>
+  result.pages.findIndex((page) => page.slots.some((slot) => slot.assetId === id));
+
+const isArtworkPage = (photos: AutoLayoutPhoto[]) => (page: AutoLayoutPlan['pages'][number]) =>
+  page.slots.some((slot) => photos.find(({ id }) => id === slot.assetId)?.kind === 'artwork');
+
+describe('planAutoLayout stacks and artwork', () => {
+  it('should use one photo per stack and prefer the original', () => {
+    const photos = event(12, start, (i) => ({ score: 0.5 + (i % 4) / 10 }));
+    const original = photo({ takenAt: start + 30 * 60_000, stackId: 'a', score: 0.6 });
+    const crop = photo({ takenAt: start + 30 * 60_000, stackId: 'a', kind: 'crop', score: 0.62 });
+    const enhanced = photo({ takenAt: start + 30 * 60_000, stackId: 'a', kind: 'enhanced', score: 0.64 });
+    const result = plan([...photos, original, crop, enhanced], { includeMaps: false });
+
+    const placed = placedIds(result);
+    expect(placed).toContain(original.id);
+    expect(placed).not.toContain(crop.id);
+    expect(placed).not.toContain(enhanced.id);
+    expect(result.dropReasons).toMatchObject({ [crop.id]: 'stack', [enhanced.id]: 'stack' });
+  });
+
+  it('should use a crop that scores clearly better than its original', () => {
+    const photos = event(12, start);
+    const original = photo({ takenAt: start + 30 * 60_000, stackId: 'a', score: 0.5 });
+    const crop = photo({ takenAt: start + 30 * 60_000, stackId: 'a', kind: 'crop', score: 0.7 });
+    const placed = placedIds(plan([...photos, original, crop], { includeMaps: false }));
+    expect(placed).toContain(crop.id);
+    expect(placed).not.toContain(original.id);
+  });
+
+  it('should show an artwork next to its original as an intentional pair, a few times per book', () => {
+    const photos = event(30, start, (i) => ({ score: 0.4 + (i % 5) / 20 }));
+    const stacks = [0, 1, 2, 3].map((i) => {
+      const takenAt = start + (40 + i * 20) * 60_000;
+      return [
+        photo({ takenAt, stackId: `s${i}`, score: 0.8 }),
+        photo({ takenAt, stackId: `s${i}`, kind: 'artwork', score: 0.7, width: 2400, height: 1600 }),
+      ];
+    });
+    const result = plan([...photos, ...stacks.flat()], { includeMaps: false, targetPageCount: 16 });
+    const placed = placedIds(result);
+
+    const pairs = stacks.filter(([original, artwork]) => placed.includes(original.id) && placed.includes(artwork.id));
+    expect(pairs).toHaveLength(2);
+    for (const [original, artwork] of pairs) {
+      const page = result.pages[pageOf(result, original.id)];
+      expect(page.slots.map((slot) => slot.assetId).toSorted()).toEqual([original.id, artwork.id].toSorted());
+    }
+    // the other stacks show only their original
+    const unpaired = stacks.filter((stack) => !pairs.includes(stack));
+    expect(unpaired.map(([original]) => placed.includes(original.id))).toEqual([true, true]);
+    expect(unpaired.map(([, artwork]) => placed.includes(artwork.id))).toEqual([false, false]);
+  });
+
+  it('should add a page for a pair in a small section', () => {
+    const photos = event(6, start, (i) => ({ stackId: i === 2 || i === 3 ? 's' : null }));
+    photos[3].kind = 'artwork';
+    photos[3].takenAt = photos[2].takenAt;
+    const result = plan(photos, { targetPageCount: 3, includeMaps: false });
+    expect(result.dropReasons).toEqual({});
+    expect(result.pages[pageOf(result, photos[2].id)].slots.map((slot) => slot.assetId)).toContain(photos[3].id);
+  });
+
+  it('should not pair artwork when pairs are turned off', () => {
+    const photos = event(12, start);
+    const original = photo({ takenAt: start + 30 * 60_000, stackId: 'a', score: 0.9 });
+    const artwork = photo({ takenAt: start + 30 * 60_000, stackId: 'a', kind: 'artwork', score: 0.5 });
+    const placed = placedIds(plan([...photos, original, artwork], { includeMaps: false, maxStackPairs: 0 }));
+    expect(placed).toContain(original.id);
+    expect(placed).not.toContain(artwork.id);
+  });
+
+  it('should limit the pages with artwork and never put them back to back', () => {
+    const photos = event(40, start, (i) => ({ score: 0.3 + (i % 7) / 20 }));
+    const artworks = Array.from({ length: 12 }, (_, i) =>
+      photo({ takenAt: start + (i * 17 + 3) * 60_000, kind: 'artwork', score: 0.9, width: 2400, height: 1600 }),
+    );
+    for (const maxArtworkShare of [0.2, 0.1]) {
+      const result = plan([...photos, ...artworks], { includeMaps: false, targetPageCount: 20, maxArtworkShare });
+      const artworkPages = result.pages.map(isArtworkPage(artworks));
+      expect(artworkPages.filter(Boolean).length).toBeGreaterThan(0);
+      expect(artworkPages.filter(Boolean).length).toBeLessThanOrEqual(Math.floor(20 * maxArtworkShare));
+      for (const [i, isArtwork] of artworkPages.entries()) {
+        expect(isArtwork && artworkPages[i + 1]).toBeFalsy();
+      }
+      expect(artworkPages[0]).toBe(false);
+      expect(artworks.some(({ id }) => result.dropReasons[id] === 'artwork')).toBe(true);
+    }
+  });
+});
+
+const dpiOf = (result: AutoLayoutPlan, photos: AutoLayoutPhoto[]) =>
+  result.pages.flatMap((page) => {
+    const rects = getSlotRectsMm(getLayout(page.layout)!, size, style);
+    return page.slots.map((slot, i) => {
+      const input = photos.find(({ id }) => id === slot.assetId)!;
+      return { id: input.id, dpi: getPlacementDpi(input, slot.crop, rects[i]), page };
+    });
+  });
+
+const rideAt = (hours: number, minutes: number) => Date.UTC(2025, 2, 15, hours, minutes);
+
+const toPoints = (photos: AutoLayoutPhoto[]) =>
+  photos.map((item) => ({ id: item.id, time: item.takenAt, latitude: item.lat, longitude: item.lon }));
+
+/** a 30 km day ride in the Surrey Hills: photos at three stops and a few on the way */
+const ride = () => [
+  ...Array.from({ length: 12 }, (_, i) =>
+    photo({ takenAt: rideAt(9, 40 + i * 2), lat: 51.2556 + i * 0.0003, lon: -0.3106, city: 'Box Hill' }),
+  ),
+  ...Array.from({ length: 2 }, (_, i) =>
+    photo({ takenAt: rideAt(10, 45 + i * 9), lat: 51.24 - i * 0.004, lon: -0.33 - i * 0.008, city: 'Dorking' }),
+  ),
+  ...Array.from({ length: 10 }, (_, i) =>
+    photo({ takenAt: rideAt(11, 30 + i * 4), lat: 51.2236, lon: -0.3697 + i * 0.0002, city: 'Westcott' }),
+  ),
+  ...Array.from({ length: 12 }, (_, i) =>
+    photo({ takenAt: rideAt(13, 30 + i * 5), lat: 51.2442 + i * 0.0002, lon: -0.3327, city: 'Denbies' }),
+  ),
+];
+
+describe('planAutoLayout print resolution', () => {
+  it('should never place a photo in a slot it cannot fill at 150 dpi', () => {
+    // 1024 px on a 186 mm slot is 140 dpi, so these go in smaller slots
+    const small = [0, 1, 2].map((i) =>
+      photo({ takenAt: start + (10 + i * 7) * 60_000, width: 1024, height: 683, score: 1, isFavorite: true }),
+    );
+    const photos = [...event(14, start, () => ({ score: 0.3 })), ...small];
+    const result = plan(photos, { includeMaps: false, targetPageCount: 8 });
+
+    const placements = dpiOf(result, photos);
+    for (const placement of placements) {
+      expect(placement.dpi).toBeGreaterThanOrEqual(150);
+    }
+    for (const item of small) {
+      const placement = placements.find(({ id }) => id === item.id)!;
+      expect(placement).toBeDefined();
+      expect(placement.page.slots.length).toBeGreaterThan(1);
+    }
+  });
+
+  it('should leave out photos too small for every slot', () => {
+    const tiny = photo({ takenAt: start + 7 * 60_000, width: 320, height: 240, score: 1, isFavorite: true });
+    const result = plan([...event(8, start), tiny], { includeMaps: false });
+    expect(placedIds(result)).not.toContain(tiny.id);
+    expect(result.dropReasons[tiny.id]).toBe('resolution');
+  });
+
+  it('should not use a photo too small for the cover', () => {
+    const small = photo({ takenAt: start, width: 1024, height: 683, score: 1, isFavorite: true });
+    const result = plan([small, ...event(8, start + HOUR)], { includeMaps: false });
+    expect(result.pages[0].layout).toBe('cover');
+    expect(result.pages[0].slots[0].assetId).not.toBe(small.id);
+  });
+});
+
+describe('planAutoLayout pacing', () => {
+  it('should not put more than two single-photo pages in a row', () => {
+    const photos = event(24, start, (i) => ({ score: i % 2 === 0 ? 1 : 0.2, isFavorite: i % 2 === 0 }));
+    const result = plan(photos, { includeMaps: false, targetPageCount: 18 });
+    let run = 0;
+    for (const page of result.pages) {
+      run = isSinglePhotoPage(page.layout) ? run + 1 : 0;
+      expect(run).toBeLessThanOrEqual(MAX_SINGLES_IN_A_ROW);
+    }
+    expect(result.pages.filter((page) => isSinglePhotoPage(page.layout)).length).toBeGreaterThan(2);
+  });
+
+  it('should keep similar photos off neighbouring pages', () => {
+    // pairs of photos of the same view, e.g. two vineyard views
+    const photos = event(24, start, (i) => ({
+      score: 0.5 + ((i * 7) % 5) / 20,
+      embedding: embedding(Math.floor(i / 2), 0.1),
+    }));
+    const neighbours = (result: AutoLayoutPlan) => {
+      let count = 0;
+      for (const [i, page] of result.pages.slice(1).entries()) {
+        const before = result.pages[i].slots.map((slot) => photos.find(({ id }) => id === slot.assetId)!);
+        const after = page.slots.map((slot) => photos.find(({ id }) => id === slot.assetId)!);
+        count += before.some((a) => after.some((b) => getPhotoSimilarity(a, b) > 0.5)) ? 1 : 0;
+      }
+      return count;
+    };
+
+    const without = plan(
+      photos.map(({ embedding: _, ...item }) => item),
+      { includeMaps: false, targetPageCount: 10 },
+    );
+    const withSimilarity = plan(photos, { includeMaps: false, targetPageCount: 10 });
+    expect(neighbours(without)).toBeGreaterThan(0);
+    expect(neighbours(withSimilarity)).toBeLessThan(neighbours(without));
+  });
+
+  it('should rate similarity by the CLIP distance, ignoring stacks', () => {
+    const a = photo({ embedding: embedding(0) });
+    expect(getPhotoSimilarity(a, photo({ embedding: embedding(0, 0.05) }))).toBe(1);
+    expect(getPhotoSimilarity(a, photo({ embedding: embedding(1) }))).toBe(0);
+    expect(getPhotoSimilarity(a, photo())).toBe(0);
+    expect(getPhotoSimilarity({ ...a, stackId: 's' }, photo({ embedding: embedding(0), stackId: 's' }))).toBe(0);
+  });
+});
+
+describe('planAutoLayout chapters', () => {
+  it('should split a day ride into chapters, each opened by a map with the place', () => {
+    const result = plan(ride(), { targetPageCount: 16 });
+    expect(result.sections.map((section) => section.title)).toEqual(['Box Hill', 'Westcott', 'Denbies']);
+    const openers = result.pages.filter((page) => page.map && page.sectionTitle);
+    expect(openers.map((page) => page.sectionTitle)).toEqual(['Box Hill', 'Westcott', 'Denbies']);
+    // the photos on the way join the closest stop
+    expect(openers.map((page) => page.caption)).toEqual([
+      expect.stringMatching(/^15 March 2025 · 9:4\d am$/),
+      '15 March 2025 · 10:45 am',
+      '15 March 2025 · 1:30 pm',
+    ]);
+  });
+
+  it('should scale the gaps to a single day and keep the defaults for longer trips', () => {
+    const options = getAdaptiveEventOptions(toPoints(ride()));
+    expect(options.maxGapMinutes).toBe(15);
+    expect(options.maxDistanceKm).toBeGreaterThan(0.5);
+    expect(options.maxDistanceKm).toBeLessThan(2);
+    expect(splitEvents(toPoints(ride()), DEFAULT_EVENT_OPTIONS)).toHaveLength(1);
+
+    const trip = [...event(10, start), ...event(10, start + 3 * DAY)];
+    expect(getAdaptiveEventOptions(toPoints(trip))).toEqual(DEFAULT_EVENT_OPTIONS);
+  });
+});
+
+describe('planAutoLayout people', () => {
+  const amit = { id: 'person-amit', name: 'Amit' };
+  const dana = { id: 'person-dana', name: null };
+
+  it('should keep photos of the main people in every section and in the book', () => {
+    const days = [0, 1, 2].map((day) =>
+      event(30, start + day * DAY, (i) => ({
+        score: i % 6 === 0 ? 0.1 : 0.9,
+        people: i % 6 === 0 ? [amit] : i === 5 ? [dana] : [],
+      })),
+    );
+    const photos = days.flat();
+    const result = plan(photos, { includeMaps: false, targetPageCount: 8 });
+    const placed = new Set(placedIds(result));
+
+    expect(result.people.map(({ personId }) => personId)).toEqual([amit.id]);
+    expect(result.sections.length).toBeGreaterThan(1);
+    for (const section of result.sections) {
+      const withAmit = section.photoIds.filter((id) => photos.find((item) => item.id === id)!.people?.includes(amit));
+      expect(withAmit.filter((id) => placed.has(id)).length).toBeGreaterThanOrEqual(1);
+    }
+    expect(result.people[0]).toEqual({ personId: amit.id, name: 'Amit', photos: 15, placed: expect.any(Number) });
+    expect(result.people[0].placed).toBeGreaterThanOrEqual(4);
+  });
+
+  it('should spread the per-book minimum over the sections', () => {
+    const sections = [
+      [0, 1, 2, 3].map((i) => ({ id: `a${i}`, importance: 1 - i / 10, takenAt: i, people: [amit] })),
+      [0, 1].map((i) => ({ id: `b${i}`, importance: 0.5 - i / 10, takenAt: 10 + i, people: [amit] })),
+      [{ id: 'c0', importance: 0.9, takenAt: 20, people: [] }],
+    ];
+    expect([...getPersonMinimums(sections, [amit.id], 1, 4)].toSorted()).toEqual(['a0', 'a1', 'b0', 'b1']);
+    expect([...getPersonMinimums(sections, [amit.id], 0, 1)]).toEqual(['a0']);
+  });
+});
+
+describe('planAutoLayout captions', () => {
+  const factual = /^[\p{L}\s,&·:0-9]+$/u;
+
+  it('should draft factual captions from places, times and names only', () => {
+    const photos = event(8, Date.UTC(2025, 2, 15, 14, 15), (i) => ({
+      city: 'Westcott',
+      people: i < 3 ? [{ id: 'p1', name: 'Amit' }] : [],
+    }));
+    for (const captions of ['place-time', 'people'] as const) {
+      const result = plan(photos, { includeMaps: false, captions, targetPageCount: 5 });
+      const texts = result.pages.map((page) => page.caption).filter((caption): caption is string => !!caption);
+      expect(texts.length).toBeGreaterThan(0);
+      for (const text of texts) {
+        expect(text).toMatch(factual);
+        expect(text).not.toMatch(/light|sun|morning|evening|beautiful|golden|lane|view/i);
+      }
+    }
+  });
+
+  it('should format the captions', () => {
+    const westcott = photo({ takenAt: Date.UTC(2025, 2, 15, 14, 15), city: 'Westcott' });
+    const withPeople = photo({
+      takenAt: Date.UTC(2025, 2, 15, 9, 5),
+      city: 'Box Hill',
+      people: [
+        { id: 'a', name: 'Amit' },
+        { id: 'b', name: null },
+        { id: 'c', name: 'Dana' },
+      ],
+    });
+    expect(getFactualCaption([westcott], 'place-time')).toBe('Westcott · 2:15 pm');
+    expect(getFactualCaption([withPeople], 'people')).toBe('Box Hill with Amit and Dana');
+    expect(getFactualCaption([photo({ people: [{ id: 'a', name: 'Amit' }] })], 'people')).toBe('With Amit');
+    expect(getFactualCaption([westcott], 'place', { sectionTitle: 'Westcott' })).toBeUndefined();
+    expect(getFactualCaption([westcott], 'place', { sectionTitle: 'Surrey' })).toBe('Westcott');
+    expect(getFactualCaption([westcott], 'none')).toBeUndefined();
+    expect(getFactualCaption([photo({ takenAt: Date.UTC(2025, 2, 15, 0, 30) })], 'place-time')).toBe('12:30 am');
+  });
+
+  it('should leave out captions and opener dates when turned off', () => {
+    const photos = [...event(10, start), ...event(10, start + DAY)];
+    const result = plan(photos, { captions: 'none', targetPageCount: 10 });
+    expect(result.pages.every((page) => !page.caption)).toBe(true);
+  });
+});
+
+describe('getPhotoKind', () => {
+  it('should tell originals, artwork and copies apart', () => {
+    expect(getPhotoKind({ stackId: null })).toBe('original');
+    expect(getPhotoKind({ stackId: 's', isPrimary: true })).toBe('original');
+    expect(getPhotoKind({ stackId: 's', isPrimary: false, isArtwork: true })).toBe('artwork');
+    expect(getPhotoKind({ stackId: null, isArtwork: true })).toBe('artwork');
+    expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_1-crop.jpg' })).toBe('crop');
+    expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_1-enhanced.JPG' })).toBe('enhanced');
+    expect(getPhotoKind({ stackId: 's', originalFileName: 'IMG_2.jpg' })).toBe('copy');
   });
 });

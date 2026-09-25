@@ -60,6 +60,52 @@ export const toLocalDay = (time: number | Date) => new Date(time).toISOString().
 export const sortByTime = <T extends { time: number; id: string }>(items: T[]) =>
   items.toSorted((a, b) => a.time - b.time || a.id.localeCompare(b.id));
 
+/** books spanning at most this long are split into chapters with gaps and distances scaled to the photos */
+export const SHORT_SPAN_MS = 36 * 60 * 60 * 1000;
+const MIN_ADAPTIVE_GAP_MINUTES = 15;
+const MIN_ADAPTIVE_DISTANCE_KM = 0.5;
+
+export const isShortSpan = (points: Array<{ time: number }>) => {
+  if (points.length < 2) {
+    return true;
+  }
+  const times = points.map((point) => point.time);
+  return Math.max(...times) - Math.min(...times) <= SHORT_SPAN_MS;
+};
+
+/**
+ * Event splitting scaled to the photos: the default for longer periods, and for a single day (or a night and a day)
+ * a gap of three times the median gap between photos (at least 15 minutes, at most the default) and a distance of a
+ * sixth of the extent of the locations (at least 500 m), so that e.g. a day ride becomes one chapter per stop.
+ */
+export const getAdaptiveEventOptions = (points: EventPoint[]): EventSplitOptions => {
+  if (!isShortSpan(points)) {
+    return DEFAULT_EVENT_OPTIONS;
+  }
+
+  const times = points.map((point) => point.time).toSorted((a, b) => a - b);
+  const gaps = times
+    .slice(1)
+    .map((time, i) => (time - times[i]) / 60_000)
+    .toSorted((a, b) => a - b);
+  const median = gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 0;
+  const maxGapMinutes = Math.min(DEFAULT_EVENT_OPTIONS.maxGapMinutes, Math.max(MIN_ADAPTIVE_GAP_MINUTES, 3 * median));
+
+  const located = points.filter((point) => hasLocation(point));
+  let maxDistanceKm = DEFAULT_EVENT_OPTIONS.maxDistanceKm;
+  if (located.length >= 2) {
+    const lats = located.map((point) => point.latitude!);
+    const lons = located.map((point) => point.longitude!);
+    const extent = haversineKm(
+      { latitude: Math.min(...lats), longitude: Math.min(...lons) },
+      { latitude: Math.max(...lats), longitude: Math.max(...lons) },
+    );
+    maxDistanceKm = Math.min(DEFAULT_EVENT_OPTIONS.maxDistanceKm, Math.max(MIN_ADAPTIVE_DISTANCE_KM, extent / 6));
+  }
+
+  return { maxGapMinutes: Math.round(maxGapMinutes * 10) / 10, maxDistanceKm: Math.round(maxDistanceKm * 100) / 100 };
+};
+
 /** splits photos into events; the result is ordered by time, as is each event */
 export const splitEvents = <T extends EventPoint>(points: T[], options: EventSplitOptions = DEFAULT_EVENT_OPTIONS) => {
   const events: T[][] = [];
