@@ -52,7 +52,7 @@ describe(getDefaultBookPageCount.name, () => {
   it('should use the minimum for empty albums', () => {
     expect(getDefaultBookPageCount(0)).toBe(BOOK_MIN_PAGES);
     expect(getDefaultBookPageCount(-3)).toBe(BOOK_MIN_PAGES);
-    expect(getDefaultBookPageCount(Number.NaN)).toBe(BOOK_MIN_PAGES);
+    expect(getDefaultBookPageCount(NaN)).toBe(BOOK_MIN_PAGES);
   });
 
   it('should plan about three photos per page plus a cover', () => {
@@ -77,7 +77,7 @@ describe(normalizeBookPageCount.name, () => {
     expect(normalizeBookPageCount(undefined)).toBeUndefined();
     expect(normalizeBookPageCount(null)).toBeUndefined();
     expect(normalizeBookPageCount(0)).toBeUndefined();
-    expect(normalizeBookPageCount(Number.NaN)).toBeUndefined();
+    expect(normalizeBookPageCount(NaN)).toBeUndefined();
   });
 
   it('should round and clamp', () => {

@@ -44,8 +44,9 @@
   } from '$lib/services/album.service';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetBulkActions } from '$lib/services/asset.service';
+  import { getAlbumBookActions } from '$lib/services/book.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
-  import { handlePromiseError } from '$lib/utils';
+  import { handlePromiseError, isEnabled } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
   import { AlbumUserRole, AssetVisibility, getAlbumInfo, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
@@ -329,6 +330,7 @@
 
   const { Cast } = $derived(getGlobalActions($t));
   const { Share, Leave } = $derived(getAlbumActions($t, album));
+  const { ExportAsBook } = $derived(getAlbumBookActions($t, album));
   const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets));
 
   const Close = $derived({
@@ -561,13 +563,14 @@
               />
             {/if}
 
-            {#if isOwned || album.albumUsers.length > 1}
+            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook)}
               <ButtonContextMenu
                 icon={mdiDotsVertical}
                 title={$t('album_options')}
                 color="secondary"
                 offset={{ x: 175, y: 25 }}
               >
+                <ActionMenuItem action={ExportAsBook} />
                 {#if containsEditors}
                   <MenuOption
                     icon={showAlbumUsers ? mdiAccountEye : mdiAccountEyeOutline}

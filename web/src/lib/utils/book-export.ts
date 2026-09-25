@@ -1,3 +1,4 @@
+import type { Translations } from 'svelte-i18n';
 import type {
   BookExportFormat,
   BookExportStatus,
@@ -15,8 +16,7 @@ export type BookPageSizePresetId = 'square-21' | 'a4-portrait' | 'a4-landscape' 
 
 export type BookPageSizePreset = {
   id: BookPageSizePresetId;
-  /** i18n key of the label */
-  labelKey: string;
+  labelKey: Translations;
   widthMm: number;
   heightMm: number;
 };
@@ -113,7 +113,7 @@ export const getCombinedExportStatus = (
   formats: BookExportFormat[],
 ): BookExportStatus | null => {
   const statuses = formats.map((format) => getBookExportStatus(book, format));
-  if (statuses.length === 0 || statuses.every((status) => status === null)) {
+  if (statuses.every((status) => status === null)) {
     return null;
   }
   if (statuses.includes('running')) {
@@ -136,7 +136,7 @@ export const getBookFileName = ({ title }: { title: string }, format: BookExport
   const name =
     title
       // eslint-disable-next-line no-control-regex
-      .replaceAll(/[\u0000-\u001F<>:"/\\|?*]+/g, ' ')
+      .replaceAll(/[\u{0}-\u{1F}<>:"/\\|?*]+/gu, ' ')
       .replaceAll(/\s+/g, ' ')
       .trim() || 'photo-book';
   return `${name}.${format}`;

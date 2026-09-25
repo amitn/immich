@@ -2,22 +2,42 @@
   import { goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
+  import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
+  import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
+  import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
-  import { deleteBook, exportBook, getBook, getBookPageRenderUrl, getBookPdfUrl } from '$lib/services/book-api';
+  import { deleteBook, exportBook, getBook, getBookExportUrl, getBookPageRenderUrl } from '$lib/services/book-api';
   import { websocketEvents } from '$lib/stores/websocket';
-  import type { AgentUpdateDto, BookDetailResponseDto, BookPageDto } from '$lib/types/assistant';
+  import type {
+    AgentUpdateDto,
+    BookDetailResponseDto,
+    BookExportFormat,
+    BookExportStatus,
+    BookPageDto,
+  } from '$lib/types/assistant';
   import { firstPageForView, toViews, viewIndexForPage, type BookViewMode } from '$lib/utils/book';
-  import { handleError } from '$lib/utils/handle-error';
-  import { Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
+    getBookExportStatus,
+    getBookFileName,
+    isBookExporting,
+    isExportActive,
+    isMapPage,
+  } from '$lib/utils/book-export';
+  import { handleError } from '$lib/utils/handle-error';
+  import { Button, Icon, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
+  import {
+    mdiAutoFix,
     mdiBookOpenVariantOutline,
     mdiChevronLeft,
     mdiChevronRight,
     mdiCreationOutline,
     mdiDownload,
-    mdiFilePdfBox,
+    mdiExportVariant,
     mdiFileOutline,
+    mdiFilePdfBox,
+    mdiLanguageHtml5,
+    mdiMapOutline,
     mdiTrashCanOutline,
   } from '@mdi/js';
   import { onDestroy, onMount, tick } from 'svelte';
@@ -32,11 +52,12 @@
   const { data }: Props = $props();
 
   const POLL_INTERVAL = 3000;
+  const EXPORT_FORMATS: BookExportFormat[] = ['pdf', 'html'];
 
   let book = $state<BookDetailResponseDto>(data.book);
   let mode = $state<BookViewMode>('single');
   let viewIndex = $state(0);
-  let isStartingExport = $state(false);
+  let startingExport = $state<BookExportFormat>();
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let strip = $state<HTMLElement>();
   const loaded = new SvelteSet<string>();
@@ -45,11 +66,17 @@
   const views = $derived(toViews(pages, mode));
   const current = $derived(views[Math.min(viewIndex, views.length - 1)] ?? []);
   const ratio = $derived(book.pageWidthMm > 0 && book.pageHeightMm > 0 ? book.pageWidthMm / book.pageHeightMm : 1);
-  const isExporting = $derived(book.exportStatus === 'pending' || book.exportStatus === 'running');
+  const isExporting = $derived(isBookExporting(book));
+  const activeExports = $derived(EXPORT_FORMATS.filter((format) => isExportActive(getBookExportStatus(book, format))));
   const hasPrevious = $derived(viewIndex > 0);
   const hasNext = $derived(viewIndex < views.length - 1);
 
   const pageNumber = (page: BookPageDto) => pages.indexOf(page) + 1;
+
+  const pageImageLabel = (page: BookPageDto) =>
+    isMapPage(page)
+      ? $t('book_map_page_image', { values: { page: pageNumber(page) } })
+      : $t('book_page_image', { values: { page: pageNumber(page) } });
 
   const renderUrl = (page: BookPageDto, size: number) =>
     getBookPageRenderUrl({ id: book.id, pageId: page.id, size, cacheKey: book.updatedAt });
@@ -103,16 +130,27 @@
     }
   };
 
+  const formatLabel = (format: BookExportFormat) => (format === 'pdf' ? $t('book_format_pdf') : $t('book_format_html'));
+
   const pollExport = async () => {
+    const previous = { pdf: getBookExportStatus(book, 'pdf'), html: getBookExportStatus(book, 'html') };
     const updated = await refresh();
-    if (!updated || updated.exportStatus === 'pending' || updated.exportStatus === 'running') {
+    if (!updated) {
       return;
     }
-    stopPolling();
-    if (updated.exportStatus === 'completed') {
-      toastManager.success($t('book_pdf_ready'));
-    } else if (updated.exportStatus === 'failed') {
-      toastManager.danger($t('errors.unable_to_export_book'));
+    for (const format of EXPORT_FORMATS) {
+      const status = getBookExportStatus(updated, format);
+      if (!isExportActive(previous[format]) || isExportActive(status)) {
+        continue;
+      }
+      if (status === 'completed') {
+        toastManager.success(format === 'pdf' ? $t('book_pdf_ready') : $t('book_html_ready'));
+      } else if (status === 'failed') {
+        toastManager.danger($t('errors.unable_to_export_book_format', { values: { format: formatLabel(format) } }));
+      }
+    }
+    if (!isBookExporting(updated)) {
+      stopPolling();
     }
   };
 
@@ -121,18 +159,72 @@
     pollTimer = setInterval(() => void pollExport(), POLL_INTERVAL);
   };
 
-  const handleExport = async () => {
-    isStartingExport = true;
+  const handleExport = async (format: BookExportFormat) => {
+    if (startingExport || isExportActive(getBookExportStatus(book, format))) {
+      return;
+    }
+    startingExport = format;
     try {
-      await exportBook({ id: book.id });
-      book.exportStatus = 'pending';
-      toastManager.primary($t('book_export_started'));
+      await exportBook({ id: book.id, bookExportDto: { format } });
+      if (format === 'html') {
+        book.htmlExportStatus = 'pending';
+      } else {
+        book.exportStatus = 'pending';
+      }
+      toastManager.primary(format === 'pdf' ? $t('book_export_started') : $t('book_export_html_started'));
       startPolling();
     } catch (error) {
       handleError(error, $t('errors.unable_to_export_book'));
     } finally {
-      isStartingExport = false;
+      startingExport = undefined;
     }
+  };
+
+  const handleDownload = (format: BookExportFormat) => {
+    const link = document.createElement('a');
+    link.href = getBookExportUrl({ id: book.id, format });
+    link.download = getBookFileName(book, format);
+    document.body.append(link);
+    link.click();
+    link.remove();
+  };
+
+  const exportStatusLabel = (status: BookExportStatus | null) => {
+    switch (status) {
+      case 'pending': {
+        return $t('book_export_status_pending');
+      }
+      case 'running': {
+        return $t('book_export_status_running');
+      }
+      case 'completed': {
+        return $t('book_export_status_completed');
+      }
+      case 'failed': {
+        return $t('book_export_status_failed');
+      }
+      default: {
+        return $t('book_export_status_none');
+      }
+    }
+  };
+
+  const exportActionLabel = (format: BookExportFormat, status: BookExportStatus | null) => {
+    if (status === 'completed') {
+      return format === 'pdf' ? $t('book_export_again') : $t('book_export_html_again');
+    }
+    return format === 'pdf' ? $t('book_export_pdf') : $t('book_export_html');
+  };
+
+  const handleRelayout = async () => {
+    const updated = await modalManager.show(BookRelayoutModal, { book });
+    if (!updated) {
+      return;
+    }
+    book = updated;
+    loaded.clear();
+    void goToView(0);
+    toastManager.success($t('book_relayout_done'));
   };
 
   const handleEditWithAssistant = () =>
@@ -201,35 +293,50 @@
         <span class="hidden sm:inline">{$t('book_edit_with_assistant')}</span>
         <span class="sr-only sm:hidden">{$t('book_edit_with_assistant')}</span>
       </Button>
-      {#if isExporting}
+      <Button variant="ghost" size="small" color="secondary" leadingIcon={mdiAutoFix} onclick={handleRelayout}>
+        <span class="hidden sm:inline">{$t('book_relayout')}</span>
+        <span class="sr-only sm:hidden">{$t('book_relayout')}</span>
+      </Button>
+      {#if isExporting || startingExport}
         <div class="flex items-center gap-2 px-2 text-sm text-gray-600 dark:text-gray-400" role="status">
           <LoadingSpinner size="small" />
-          <span>{$t('book_exporting')}</span>
+          <span class="hidden md:inline">
+            {#if activeExports.length > 1}
+              {$t('book_exporting_all')}
+            {:else if (activeExports[0] ?? startingExport) === 'html'}
+              {$t('book_exporting_html')}
+            {:else}
+              {$t('book_exporting')}
+            {/if}
+          </span>
         </div>
-      {:else}
-        {#if book.exportStatus === 'completed'}
-          <Button
-            href={getBookPdfUrl(book)}
-            download="{book.title}.pdf"
-            variant="ghost"
-            size="small"
-            color="secondary"
-            leadingIcon={mdiDownload}
-          >
-            {$t('book_download_pdf')}
-          </Button>
-        {/if}
-        <Button
-          variant="ghost"
-          size="small"
+      {/if}
+      {#if pages.length > 0}
+        <ButtonContextMenu
+          icon={mdiExportVariant}
+          title={$t('export')}
           color="secondary"
-          leadingIcon={mdiFilePdfBox}
-          loading={isStartingExport}
-          disabled={pages.length === 0}
-          onclick={handleExport}
+          size="small"
+          align="top-right"
         >
-          {book.exportStatus === 'completed' ? $t('book_export_again') : $t('book_export_pdf')}
-        </Button>
+          {#each EXPORT_FORMATS as format (format)}
+            {@const status = getBookExportStatus(book, format)}
+            {#if status === 'completed'}
+              <MenuOption
+                icon={mdiDownload}
+                text={format === 'pdf' ? $t('book_download_pdf') : $t('book_download_html')}
+                subtitle={exportStatusLabel(status)}
+                onClick={() => handleDownload(format)}
+              />
+            {/if}
+            <MenuOption
+              icon={format === 'pdf' ? mdiFilePdfBox : mdiLanguageHtml5}
+              text={exportActionLabel(format, status)}
+              subtitle={status === 'completed' ? undefined : exportStatusLabel(status)}
+              onClick={() => handleExport(format)}
+            />
+          {/each}
+        </ButtonContextMenu>
       {/if}
       <IconButton
         variant="ghost"
@@ -247,9 +354,16 @@
   {#if pages.length === 0}
     <div class="mx-auto mt-16 flex max-w-md flex-col items-center gap-4 text-center">
       <p class="text-gray-600 dark:text-gray-400">{$t('book_no_pages')}</p>
-      <Button shape="round" leadingIcon={mdiCreationOutline} onclick={handleEditWithAssistant}>
-        {$t('book_edit_with_assistant')}
-      </Button>
+      <div class="flex flex-wrap justify-center gap-2">
+        <Button shape="round" leadingIcon={mdiCreationOutline} onclick={handleEditWithAssistant}>
+          {$t('book_edit_with_assistant')}
+        </Button>
+        {#if book.albumId}
+          <Button shape="round" color="secondary" leadingIcon={mdiAutoFix} onclick={handleRelayout}>
+            {$t('book_relayout')}
+          </Button>
+        {/if}
+      </div>
     </div>
   {:else}
     <div class="flex flex-col gap-4 pb-6">
@@ -306,7 +420,7 @@
                 {/if}
                 <img
                   src={renderUrl(page, 1200)}
-                  alt={$t('book_page_image', { values: { page: pageNumber(page) } })}
+                  alt={pageImageLabel(page)}
                   class="absolute inset-0 size-full object-contain"
                   draggable="false"
                   onload={() => loaded.add(page.id)}
@@ -353,6 +467,7 @@
         <ul bind:this={strip} class="flex immich-scrollbar gap-2 overflow-x-auto p-2">
           {#each pages as page, index (page.id)}
             {@const active = current.includes(page)}
+            {@const isMap = isMapPage(page)}
             <li class="shrink-0">
               <button
                 type="button"
@@ -360,20 +475,37 @@
                   ? 'bg-primary/15'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"
                 aria-current={active ? 'true' : undefined}
-                aria-label={$t('book_go_to_page', { values: { page: index + 1 } })}
+                aria-label={isMap
+                  ? $t('book_go_to_map_page', { values: { page: index + 1 } })
+                  : $t('book_go_to_page', { values: { page: index + 1 } })}
                 onclick={() => goToPage(index)}
               >
-                <img
-                  src={renderUrl(page, 300)}
-                  alt=""
-                  loading="lazy"
-                  draggable="false"
-                  class="h-20 bg-gray-100 object-contain shadow-sm dark:bg-gray-800 {active
-                    ? 'ring-2 ring-primary'
-                    : ''}"
-                  style:aspect-ratio={ratio}
-                />
-                <span class="text-xs text-gray-600 dark:text-gray-400">{index + 1}</span>
+                <span class="relative block">
+                  <img
+                    src={renderUrl(page, 300)}
+                    alt=""
+                    loading="lazy"
+                    draggable="false"
+                    class="h-20 bg-gray-100 object-contain shadow-sm dark:bg-gray-800 {active
+                      ? 'ring-2 ring-primary'
+                      : ''}"
+                    style:aspect-ratio={ratio}
+                  />
+                  {#if isMap}
+                    <span
+                      class="absolute inset-e-1 bottom-1 flex size-5 items-center justify-center rounded-full bg-white/90 text-primary shadow-sm dark:bg-gray-900/90"
+                      aria-hidden="true"
+                    >
+                      <Icon icon={mdiMapOutline} size="14" />
+                    </span>
+                  {/if}
+                </span>
+                <span class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
+                  {index + 1}
+                  {#if isMap}
+                    <span class="font-medium text-primary">· {$t('book_map_page')}</span>
+                  {/if}
+                </span>
               </button>
             </li>
           {/each}
