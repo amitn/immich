@@ -20,8 +20,9 @@
     createBookFromAlbum,
     exportBook,
     type AlbumResponseDto,
+    type BookFromAlbumDto,
   } from '@immich/sdk';
-  import { Field, FormModal, Icon, Input, modalManager, NumberInput, Text } from '@immich/ui';
+  import { Checkbox, Field, FormModal, Icon, Input, Label, modalManager, NumberInput, Text } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline, mdiCheckCircle } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
@@ -29,6 +30,9 @@
     album: AlbumResponseDto;
     onClose: () => void;
   };
+
+  // TODO: drop once the SDK is regenerated with `improvePhotos`
+  type BookFromAlbumRequest = BookFromAlbumDto & { improvePhotos?: boolean };
 
   const { album, onClose }: Props = $props();
 
@@ -41,6 +45,7 @@
   let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);
   let illustratedMaps = $state(false);
   let exportChoice = $state<BookExportChoice>(BookExportFormat.Pdf);
+  let improvePhotos = $state(true);
 
   const suggestedPageCount = $derived(getDefaultBookPageCount(album.assetCount));
 
@@ -53,21 +58,22 @@
   const onSubmit = async () => {
     const { widthMm, heightMm } = getBookPageSizePreset(pageSize);
 
+    const bookFromAlbumDto: BookFromAlbumRequest = {
+      albumId: album.id,
+      title: title.trim() || album.albumName,
+      subtitle: subtitle.trim() || undefined,
+      pageWidthMm: widthMm,
+      pageHeightMm: heightMm,
+      targetPageCount: normalizeBookPageCount(targetPageCount),
+      includeMaps,
+      mapStyle: includeMaps ? mapStyle : undefined,
+      illustratedMaps: includeMaps && illustratedMaps,
+      improvePhotos,
+    };
+
     let book;
     try {
-      book = await createBookFromAlbum({
-        bookFromAlbumDto: {
-          albumId: album.id,
-          title: title.trim() || album.albumName,
-          subtitle: subtitle.trim() || undefined,
-          pageWidthMm: widthMm,
-          pageHeightMm: heightMm,
-          targetPageCount: normalizeBookPageCount(targetPageCount),
-          includeMaps,
-          mapStyle: includeMaps ? mapStyle : undefined,
-          illustratedMaps: includeMaps && illustratedMaps,
-        },
-      });
+      book = await createBookFromAlbum({ bookFromAlbumDto });
     } catch (error) {
       handleError(error, $t('errors.unable_to_create_book'));
       return;
@@ -161,6 +167,14 @@
     </Field>
 
     <BookMapOptions bind:includeMaps bind:mapStyle bind:illustratedMaps />
+
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-2">
+        <Checkbox id="book-improve-photos" size="tiny" bind:checked={improvePhotos} />
+        <Label label={$t('book_improve_photos')} for="book-improve-photos" class="text-sm font-medium" />
+      </div>
+      <Text size="tiny" color="muted" class="ps-6">{$t('book_improve_photos_description')}</Text>
+    </div>
 
     <fieldset>
       <legend class="mb-2 text-sm font-medium">{$t('book_export_format')}</legend>

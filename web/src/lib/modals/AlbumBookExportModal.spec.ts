@@ -35,7 +35,7 @@ describe('AlbumBookExportModal component', () => {
 
   it('should create the book and start the export', async () => {
     const book = bookDetailFactory.build({ albumId: album.id });
-    sdkMock.createBookFromAlbum.mockResolvedValue(book);
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...book, warnings: [] });
 
     render(AlbumBookExportModal, { props: { album, onClose } });
     await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
@@ -52,12 +52,26 @@ describe('AlbumBookExportModal component', () => {
         includeMaps: true,
         mapStyle: BookMapStyleOption.Auto,
         illustratedMaps: false,
+        improvePhotos: true,
       },
     });
     expect(sdkMock.exportBook).toHaveBeenCalledWith({ id: book.id, bookExportDto: { format: BookExportFormat.Pdf } });
     expect(modalManager.show).toHaveBeenCalledWith(BookExportProgressModal, {
       book: expect.objectContaining({ id: book.id, exportStatus: BookExportStatus.Pending }),
       formats: [BookExportFormat.Pdf],
+    });
+  });
+
+  it('should not improve the photos when the checkbox is cleared', async () => {
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build({ albumId: album.id }), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    await fireEvent.click(screen.getByRole('checkbox', { name: 'book_improve_photos' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
+      bookFromAlbumDto: expect.objectContaining({ improvePhotos: false }),
     });
   });
 
