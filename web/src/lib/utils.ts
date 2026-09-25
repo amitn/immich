@@ -2,6 +2,7 @@ import {
   AssetMediaSize,
   AssetTypeEnum,
   BookExportFormat,
+  EnhanceStrength,
   MemoryType,
   finishOAuth,
   getAssetOriginalPath,
@@ -264,6 +265,10 @@ export const getBookPageRenderUrl = ({
   size?: number;
   cacheKey?: string;
 }) => createUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
+
+/** a JPEG of the photo before and after auto-enhance, side by side */
+export const getEnhancePreviewUrl = ({ id, strength }: { id: string; strength?: EnhanceStrength }) =>
+  createUrl(`/assets/${id}/enhance/preview.jpg`, { strength });
 
 export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
   createUrl(format === BookExportFormat.Html ? `/books/${id}/html` : `/books/${id}/pdf`);

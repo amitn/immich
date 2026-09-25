@@ -1,17 +1,16 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { Route } from '$lib/route';
+  import { getEnhancePreviewUrl } from '$lib/utils';
+  import { getServerErrorMessage, handleError } from '$lib/utils/handle-error';
   import {
     analyzeEnhancement,
-    EnhanceApiError,
     enhanceAsset,
-    getEnhancePreviewUrl,
+    EnhanceStrength,
+    type AssetResponseDto,
     type EnhanceAnalysisResponseDto,
     type EnhanceResponseDto,
-    type EnhanceStrength,
-  } from '$lib/services/enhance-api';
-  import { handleError } from '$lib/utils/handle-error';
-  import type { AssetResponseDto } from '@immich/sdk';
+  } from '@immich/sdk';
   import { Alert, Button, HStack, Icon, LoadingSpinner, Modal, ModalBody, ModalFooter, Text } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiAutoFix, mdiCheck, mdiContentSave, mdiOpenInNew } from '@mdi/js';
   import { onMount } from 'svelte';
@@ -24,9 +23,9 @@
 
   const { asset, onClose }: Props = $props();
 
-  const strengths: EnhanceStrength[] = ['subtle', 'normal', 'strong'];
+  const strengths = [EnhanceStrength.Subtle, EnhanceStrength.Normal, EnhanceStrength.Strong];
 
-  let strength = $state<EnhanceStrength>('normal');
+  let strength = $state<EnhanceStrength>(EnhanceStrength.Normal);
   let analysis = $state<EnhanceAnalysisResponseDto>();
   let isAnalyzing = $state(true);
   let isImageLoading = $state(true);
@@ -35,25 +34,24 @@
   let result = $state<EnhanceResponseDto>();
   let request = 0;
 
-  const previewUrl = $derived(getEnhancePreviewUrl(asset.id, strength));
+  const previewUrl = $derived(getEnhancePreviewUrl({ id: asset.id, strength }));
   const canSave = $derived(!isAnalyzing && !isSaving && !!analysis?.needed);
 
   const strengthLabel = (value: EnhanceStrength) =>
     ({
-      subtle: $t('auto_enhance_strength_subtle'),
-      normal: $t('auto_enhance_strength_normal'),
-      strong: $t('auto_enhance_strength_strong'),
+      [EnhanceStrength.Subtle]: $t('auto_enhance_strength_subtle'),
+      [EnhanceStrength.Normal]: $t('auto_enhance_strength_normal'),
+      [EnhanceStrength.Strong]: $t('auto_enhance_strength_strong'),
     })[value];
 
-  const getMessage = (error: unknown, fallback: string) =>
-    error instanceof EnhanceApiError && error.serverMessage ? error.serverMessage : fallback;
+  const getMessage = (error: unknown, fallback: string) => getServerErrorMessage(error) || fallback;
 
   const analyze = async (value: EnhanceStrength) => {
     const current = ++request;
     isAnalyzing = true;
     errorMessage = undefined;
     try {
-      const next = await analyzeEnhancement(asset.id, { strength: value });
+      const next = await analyzeEnhancement({ id: asset.id, enhancePreviewDto: { strength: value } });
       if (current === request) {
         analysis = next;
       }
@@ -86,7 +84,7 @@
 
     isSaving = true;
     try {
-      result = await enhanceAsset(asset.id, { strength });
+      result = await enhanceAsset({ id: asset.id, enhanceDto: { strength } });
     } catch (error) {
       errorMessage = getMessage(error, $t('errors.unable_to_enhance_photo'));
       handleError(error, $t('errors.unable_to_enhance_photo'), { notify: false });
