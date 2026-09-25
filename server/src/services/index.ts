@@ -18,6 +18,7 @@ import { DatabaseService } from 'src/services/database.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
+import { EnhanceService } from 'src/services/enhance.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
 import { JobService } from 'src/services/job.service.js';
@@ -77,6 +78,7 @@ export const services = [
   DerivedAssetService,
   DownloadService,
   DuplicateService,
+  EnhanceService,
   IntegrityService,
   HlsService,
   JobService,
