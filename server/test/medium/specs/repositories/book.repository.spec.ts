@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely';
+import { Kysely } from 'kysely';
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import { AssetFileType, BookExportStatus } from 'src/enum.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
@@ -21,9 +21,6 @@ const setup = (db?: Kysely<DB>) => {
 
 beforeAll(async () => {
   defaultDatabase = await getKyselyDB();
-  // TODO: remove once the book tables get an updateId column (the shared updated_at() trigger sets it)
-  await sql`ALTER TABLE "book" ADD COLUMN IF NOT EXISTS "updateId" uuid`.execute(defaultDatabase);
-  await sql`ALTER TABLE "book_page" ADD COLUMN IF NOT EXISTS "updateId" uuid`.execute(defaultDatabase);
 });
 
 const newBook = async () => {

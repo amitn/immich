@@ -2,7 +2,7 @@ import { Selectable } from 'kysely';
 import { NormalizedRect, defaultBookStyle } from 'src/dtos/book.dto.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
-import { newDate, newUuid } from 'test/small.factory.js';
+import { newDate, newUuid, newUuidV7 } from 'test/small.factory.js';
 
 type BookRow = Selectable<BookTable> & { pageCount: number; firstPageId: string | null };
 type BookPlacement = { slot: number; assetId: string; crop: NormalizedRect | null; caption: string | null };
@@ -26,6 +26,7 @@ export const BookFactory = {
       firstPageId: null,
       createdAt: newDate(),
       updatedAt: newDate(),
+      updateId: newUuidV7(),
       ...dto,
     };
   },
@@ -44,6 +45,7 @@ export const BookPageFactory = {
       assets: [],
       createdAt: newDate(),
       updatedAt: newDate(),
+      updateId: newUuidV7(),
       ...dto,
     };
   },
