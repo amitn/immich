@@ -112,7 +112,6 @@
     "book_maps_style_needs_key": "This style needs a Stadia Maps API key. Without one, maps use the offline sketch style.",
     "book_settings": "Photo books",
     "book_settings_description": "Manage the map pages of photo books",
-    "book_settings_unsupported": "This server does not support photo book settings yet. Saving may fail until it is updated.",
     "cleared_jobs": "Cleared jobs for: {job}",
     "config_set_by_file": "Config is currently set by a config file",
     "confirm_delete_library": "Are you sure you want to delete {library} library?",
