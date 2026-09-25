@@ -9,7 +9,13 @@ export const MIN_VISIBLE_TILT_DEGREES = 0.4;
 /** tilt estimates with less confidence than this are not worth acting on without looking */
 export const TILT_CONFIDENCE_THRESHOLD = 0.3;
 
-const MAX_DETECTED_TILT = 12;
+const MAX_DETECTED_TILT = 10;
+
+/** handheld photos are rarely off by more than this; larger "tilts" are usually perspective lines */
+const MAX_RECOMMENDED_TILT = 8;
+
+/** when the lines already line up this well without rotating, the photo is level and the peak is perspective */
+const LEVEL_SHARE = 0.6;
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
@@ -218,10 +224,15 @@ export const estimateTilt = ({
   const typical = coarse.map(({ score }) => score).sort((a, b) => a - b)[Math.floor(coarse.length / 2)];
   const confidence = typical > 0 ? Math.max(0, Math.min(1, 1 - typical / best.score) * 1.25 - 0.25) : 0;
   const angle = Math.round(best.angle * 100) / 100 || 0;
+  const level = alignmentScore(points, 0) / best.score >= LEVEL_SHARE;
 
   return {
     angle,
     confidence: Math.round(Math.max(0, confidence) * 100) / 100,
-    recommended: confidence >= TILT_CONFIDENCE_THRESHOLD && Math.abs(angle) >= MIN_VISIBLE_TILT_DEGREES,
+    recommended:
+      !level &&
+      confidence >= TILT_CONFIDENCE_THRESHOLD &&
+      Math.abs(angle) >= MIN_VISIBLE_TILT_DEGREES &&
+      Math.abs(angle) <= MAX_RECOMMENDED_TILT,
   };
 };

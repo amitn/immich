@@ -150,6 +150,20 @@ describe('estimateTilt', () => {
     expect(tilt.recommended).toBe(true);
   });
 
+  it('should not mistake perspective lines for a tilt when the horizon is level', () => {
+    const level = horizon(512, 384, 0, { noise: 20 });
+    const rails = horizon(512, 384, 9, { noise: 20 });
+    // the level horizon in the top half, converging rails in the bottom half
+    const data = new Uint8Array(512 * 384);
+    data.set(level.data.subarray(0, 512 * 192), 0);
+    data.set(rails.data.subarray(512 * 192), 512 * 192);
+    expect(estimateTilt({ data, width: 512, height: 384 }).recommended).toBe(false);
+  });
+
+  it('should not recommend large rotations', () => {
+    expect(estimateTilt(horizon(512, 384, -9.5, { noise: 20 })).recommended).toBe(false);
+  });
+
   it('should not recommend straightening a level photo', () => {
     const tilt = estimateTilt(horizon(512, 384, 0, { noise: 20 }));
     expect(Math.abs(tilt.angle)).toBeLessThan(0.3);
