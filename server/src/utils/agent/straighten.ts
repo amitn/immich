@@ -128,30 +128,29 @@ const getBest = (scores: { angle: number; score: number }[]) => {
   return best;
 };
 
-type EdgePoint = { dx: number; dy: number; weight: number; level: boolean };
+/** the strong edge points, relative to the image centre, of level (horizontal) and plumb (vertical) edges */
+type EdgePoints = { levelX: Float64Array; levelY: Float64Array; plumbX: Float64Array; plumbY: Float64Array };
 
 /** how tightly the edge points line up into rows (level edges) and columns (plumb edges) after rotating by `angle` */
-const alignmentScore = (points: EdgePoint[], angle: number) => {
+const alignmentScore = (points: EdgePoints, angle: number, bins: { rows: Float64Array; columns: Float64Array }) => {
   const radians = toRadians(angle);
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
-  const rows = new Map<number, number>();
-  const columns = new Map<number, number>();
-  for (const { dx, dy, weight, level } of points) {
-    if (level) {
-      const row = Math.round(dx * sin + dy * cos);
-      rows.set(row, (rows.get(row) ?? 0) + weight);
-    } else {
-      const column = Math.round(dx * cos - dy * sin);
-      columns.set(column, (columns.get(column) ?? 0) + weight);
-    }
+  const { rows, columns } = bins;
+  // the points are within `offset` of the centre, so the bins are indexed from there
+  const offset = (rows.length - 1) / 2;
+  rows.fill(0);
+  columns.fill(0);
+  const { levelX, levelY, plumbX, plumbY } = points;
+  for (let i = 0; i < levelX.length; i++) {
+    rows[Math.round(levelX[i] * sin + levelY[i] * cos) + offset]++;
+  }
+  for (let i = 0; i < plumbX.length; i++) {
+    columns[Math.round(plumbX[i] * cos - plumbY[i] * sin) + offset]++;
   }
   let score = 0;
-  for (const value of rows.values()) {
-    score += value * value;
-  }
-  for (const value of columns.values()) {
-    score += value * value;
+  for (let i = 0; i < rows.length; i++) {
+    score += rows[i] * rows[i] + columns[i] * columns[i];
   }
   return score;
 };
@@ -175,16 +174,20 @@ export const estimateTilt = ({
     return none;
   }
 
-  const candidates: (EdgePoint & { magnitude: number })[] = [];
+  const candidates: { dx: number; dy: number; level: boolean; magnitude: number }[] = [];
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
-      const at = (dx: number, dy: number) => data[(y + dy) * width + x + dx];
-      const gx = at(1, -1) + 2 * at(1, 0) + at(1, 1) - at(-1, -1) - 2 * at(-1, 0) - at(-1, 1);
-      const gy = at(-1, 1) + 2 * at(0, 1) + at(1, 1) - at(-1, -1) - 2 * at(0, -1) - at(1, -1);
-      const magnitude = Math.hypot(gx, gy);
-      if (magnitude < 60) {
+      const i = y * width + x;
+      const [nw, n, ne] = [data[i - width - 1], data[i - width], data[i - width + 1]];
+      const [w, e] = [data[i - 1], data[i + 1]];
+      const [sw, s, se] = [data[i + width - 1], data[i + width], data[i + width + 1]];
+      const gx = ne + 2 * e + se - nw - 2 * w - sw;
+      const gy = sw + 2 * s + se - nw - 2 * n - ne;
+      // the squared magnitude is compared first: most pixels are flat
+      if (gx * gx + gy * gy < 3600) {
         continue;
       }
+      const magnitude = Math.hypot(gx, gy);
 
       // keep edges within the detectable tilt of level (vertical gradient) or plumb (horizontal gradient)
       const level = Math.abs(gy) >= Math.abs(gx);
@@ -193,7 +196,7 @@ export const estimateTilt = ({
       if (offset > MAX_DETECTED_TILT + 3) {
         continue;
       }
-      candidates.push({ dx: x - width / 2, dy: y - height / 2, weight: 1, level, magnitude });
+      candidates.push({ dx: x - width / 2, dy: y - height / 2, level, magnitude });
     }
   }
 
@@ -205,12 +208,22 @@ export const estimateTilt = ({
   const threshold = candidates.map(({ magnitude }) => magnitude).sort((a, b) => a - b)[
     Math.floor(candidates.length * 0.6)
   ];
-  const points = candidates.filter(({ magnitude }) => magnitude >= threshold);
+  const strong = candidates.filter(({ magnitude }) => magnitude >= threshold);
+  const level = strong.filter((point) => point.level);
+  const plumb = strong.filter((point) => !point.level);
+  const points: EdgePoints = {
+    levelX: Float64Array.from(level, ({ dx }) => dx),
+    levelY: Float64Array.from(level, ({ dy }) => dy),
+    plumbX: Float64Array.from(plumb, ({ dx }) => dx),
+    plumbY: Float64Array.from(plumb, ({ dy }) => dy),
+  };
+  const radius = Math.ceil(Math.hypot(width, height) / 2) + 1;
+  const bins = { rows: new Float64Array(2 * radius + 1), columns: new Float64Array(2 * radius + 1) };
 
   const scan = (from: number, to: number, step: number) => {
     const scores: { angle: number; score: number }[] = [];
     for (let angle = from; angle <= to + 1e-9; angle += step) {
-      scores.push({ angle, score: alignmentScore(points, angle) });
+      scores.push({ angle, score: alignmentScore(points, angle, bins) });
     }
     return scores;
   };
@@ -224,13 +237,13 @@ export const estimateTilt = ({
   const typical = coarse.map(({ score }) => score).sort((a, b) => a - b)[Math.floor(coarse.length / 2)];
   const confidence = typical > 0 ? Math.max(0, Math.min(1, 1 - typical / best.score) * 1.25 - 0.25) : 0;
   const angle = Math.round(best.angle * 100) / 100 || 0;
-  const level = alignmentScore(points, 0) / best.score >= LEVEL_SHARE;
+  const isLevel = alignmentScore(points, 0, bins) / best.score >= LEVEL_SHARE;
 
   return {
     angle,
     confidence: Math.round(Math.max(0, confidence) * 100) / 100,
     recommended:
-      !level &&
+      !isLevel &&
       confidence >= TILT_CONFIDENCE_THRESHOLD &&
       Math.abs(angle) >= MIN_VISIBLE_TILT_DEGREES &&
       Math.abs(angle) <= MAX_RECOMMENDED_TILT,
