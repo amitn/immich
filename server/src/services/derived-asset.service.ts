@@ -42,6 +42,7 @@ export const DERIVED_ASSET_TAGS: Record<string, string[]> = {
   crop: ['Edits/Cropped'],
   straight: ['Edits/Straightened'],
   enhanced: ['Edits/Enhanced'],
+  improved: ['Edits/Improved'],
   map: ['Photo books/Maps'],
 };
 
