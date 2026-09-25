@@ -71,6 +71,52 @@ describe('BookPreviewModal component', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  describe('messages from the preview', () => {
+    const close = { type: 'immich-book-preview', action: 'close' };
+    const post = (data: unknown, source: unknown) =>
+      dispatchEvent(new MessageEvent('message', { data, source: source as MessageEventSource | null }));
+
+    /** the frame does not load in tests, so it gets a stand-in for its window */
+    const getFrameWindow = async () => {
+      const frame = await waitFor(getFrame);
+      const contentWindow = {};
+      Object.defineProperty(frame, 'contentWindow', { value: contentWindow, configurable: true });
+      return contentWindow;
+    };
+
+    it('should close when the preview asks to, e.g. on Esc', async () => {
+      render(BookPreviewModal, { props: { book, onClose } });
+      const frameWindow = await getFrameWindow();
+
+      post(close, frameWindow);
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should ignore messages from other windows', async () => {
+      render(BookPreviewModal, { props: { book, onClose } });
+      await getFrameWindow();
+
+      post(close, document.defaultView);
+      post(close, {});
+      post(close, null);
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('should ignore other messages from the preview', async () => {
+      render(BookPreviewModal, { props: { book, onClose } });
+      const frameWindow = await getFrameWindow();
+
+      post({ type: 'immich-book-preview', action: 'next' }, frameWindow);
+      post({ type: 'other', action: 'close' }, frameWindow);
+      post('close', frameWindow);
+      post(null, frameWindow);
+
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  });
+
   it('should not load a preview of a book without pages', async () => {
     render(BookPreviewModal, { props: { book: { ...book, pageCount: 0 }, onClose } });
 
