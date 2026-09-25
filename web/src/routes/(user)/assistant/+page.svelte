@@ -17,6 +17,7 @@
     respondToAgentPermission,
     sendAgentPrompt,
   } from '$lib/services/assistant-api';
+  import { takePendingAssistantAssets } from '$lib/services/assistant.service';
   import { websocketEvents } from '$lib/stores/websocket';
   import type {
     AgentPermissionResponseDto,
@@ -44,7 +45,7 @@
 
   let sessions = $state<AgentSessionResponseDto[]>(data.sessions);
   let draft = $state(data.context.prompt);
-  let contextAssetIds = $state<string[]>(data.context.assetIds);
+  let contextAssetIds = $state<string[]>([...new Set([...data.context.assetIds, ...takePendingAssistantAssets()])]);
   let isSending = $state(false);
   let isLoadingSession = $state(false);
   let showSessions = $state(false);

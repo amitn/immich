@@ -31,19 +31,24 @@ export const openAssistant = async ({ assetIds = [], prompt }: { assetIds?: stri
   await goto(Route.assistant({ assetIds, prompt }));
 };
 
-/** Read (and consume) the context passed to the assistant page by the URL or by openAssistant */
-export const takeAssistantContext = (url: URL): AssistantContext => {
-  const fromUrl = (url.searchParams.get('assetIds') ?? '')
-    .split(',')
-    .map((id) => id.trim())
-    .filter(Boolean);
-  const fromMemory = pendingContext?.assetIds ?? [];
-  pendingContext = undefined;
+/** Read the context passed to the assistant page in the URL */
+export const getAssistantUrlContext = (url: URL): AssistantContext => ({
+  assetIds: [
+    ...new Set(
+      (url.searchParams.get('assetIds') ?? '')
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
+  ],
+  prompt: url.searchParams.get('prompt') ?? '',
+});
 
-  return {
-    assetIds: [...new Set([...fromUrl, ...fromMemory])],
-    prompt: url.searchParams.get('prompt') ?? '',
-  };
+/** Consume the assets handed over in memory by openAssistant (used for large selections) */
+export const takePendingAssistantAssets = (): string[] => {
+  const assetIds = pendingContext?.assetIds ?? [];
+  pendingContext = undefined;
+  return assetIds;
 };
 
 export const getAssistantBulkActions = ($t: MessageFormatter) => {

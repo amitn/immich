@@ -13,6 +13,8 @@ export class ApiAdapterError extends Error {
     message: string,
     readonly status: number,
     readonly data?: unknown,
+    /** the `message` of the server's error response, if any */
+    readonly serverMessage?: string,
   ) {
     super(message);
   }
@@ -56,11 +58,11 @@ export const adapterRequest = async <T = void>(
   }
 
   if (!response.ok) {
-    const message =
+    const serverMessage =
       data && typeof data === 'object' && 'message' in data && typeof data.message === 'string'
         ? data.message
-        : `HTTP ${response.status}`;
-    throw new ApiAdapterError(message, response.status, data);
+        : undefined;
+    throw new ApiAdapterError(serverMessage ?? `HTTP ${response.status}`, response.status, data, serverMessage);
   }
 
   return data as T;

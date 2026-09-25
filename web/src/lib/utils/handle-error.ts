@@ -1,7 +1,13 @@
 import { isHttpError } from '@immich/sdk';
 import { toastManager } from '@immich/ui';
+import { ApiAdapterError } from '$lib/services/api-adapter';
 
 export function getServerErrorMessage(error: unknown) {
+  // TODO: remove once the assistant, book and art endpoints are in @immich/sdk
+  if (error instanceof ApiAdapterError) {
+    return error.serverMessage;
+  }
+
   if (!isHttpError(error)) {
     return;
   }
