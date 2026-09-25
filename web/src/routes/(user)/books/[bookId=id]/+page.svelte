@@ -659,10 +659,11 @@
         />
 
         <div class="flex min-w-0 flex-1 justify-center">
-          <div class="flex max-w-full shadow-lg">
+          <!-- full width, so the pages' percentage widths have something to resolve against -->
+          <div class="flex w-full max-w-full justify-center">
             {#each current as page (page.id)}
               <figure
-                class="relative bg-gray-100 dark:bg-gray-800"
+                class="relative bg-gray-100 shadow-lg dark:bg-gray-800"
                 style:aspect-ratio={ratio}
                 style:width="min({current.length === 1 ? '100%' : '50%'}, calc(65dvh * {ratio}))"
               >
