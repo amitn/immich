@@ -14,6 +14,7 @@ import type {
   GenerateThumbnailOptions,
   ImageDimensions,
   ProbeOptions,
+  RawImageInfo,
   TranscodeCommand,
   TransformOptions,
   VideoInfo,
@@ -38,6 +39,7 @@ import {
   RawExtractedFormat,
 } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { toCanvasRect } from 'src/utils/agent/straighten.js';
 import { BookPageComposeResult, BookPageComposeSpec, getCropRegion } from 'src/utils/book/render.js';
 import { handlePromiseError } from 'src/utils/misc.js';
 import { createAffineMatrix } from 'src/utils/transform.js';
@@ -191,6 +193,62 @@ export class MediaRepository {
     const x = result.attentionX ?? width / 2;
     const y = result.attentionY ?? height / 2;
     return { x: Math.min(Math.max(x / width, 0), 1), y: Math.min(Math.max(y / height, 0), 1) };
+  }
+
+  /** A small upright grayscale copy, e.g. to find the tilt of a photo. */
+  async getGrayscale(input: string | Buffer, size = 512): Promise<{ data: Uint8Array; width: number; height: number }> {
+    const { data, info } = await this.encoded(input, 'none')
+      .rotate()
+      .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+      .grayscale()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return {
+      data: new Uint8Array(data.buffer, data.byteOffset, info.width * info.height),
+      width: info.width,
+      height: info.height,
+    };
+  }
+
+  /**
+   * Rotates an image by a small angle (clockwise when positive), keeps the largest part without blank corners, applies
+   * `crop` (in pixels of that straightened image, or null for all of it) and encodes a JPEG.
+   */
+  async straightenImage(
+    image: Bitmap,
+    angle: number,
+    crop: CropParameters | null,
+    { colorspace, quality = 95, size }: { colorspace: string; quality?: number; size?: number },
+  ): Promise<{ data: Buffer; width: number; height: number }> {
+    const rotated = await this.raw(image)
+      .rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 1 } })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const rect = toCanvasRect(crop, rotated.info, image.info, angle);
+    const left = Math.min(Math.max(Math.ceil(rect.x), 0), rotated.info.width - 1);
+    const top = Math.min(Math.max(Math.ceil(rect.y), 0), rotated.info.height - 1);
+    // round inwards so no blank corner pixel survives
+    const width = Math.max(1, Math.min(Math.floor(rect.x + rect.width) - left, rotated.info.width - left));
+    const height = Math.max(1, Math.min(Math.floor(rect.y + rect.height) - top, rotated.info.height - top));
+
+    let pipeline = this.raw({ data: rotated.data, info: rotated.info as RawImageInfo }).extract({
+      left,
+      top,
+      width,
+      height,
+    });
+    if (size) {
+      pipeline = pipeline.resize(size, size, { fit: 'inside', withoutEnlargement: true });
+    }
+    const straightened = await pipeline.raw().toBuffer({ resolveWithObject: true });
+    const { data, info } = await this.tag(
+      { data: straightened.data, info: straightened.info as RawImageInfo },
+      colorspace,
+    )
+      .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
+      .toBuffer({ resolveWithObject: true });
+    return { data, width: info.width, height: info.height };
   }
 
   private edit(pipeline: Sharp, edits: AssetEditActionItem[]): Sharp {

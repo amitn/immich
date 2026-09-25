@@ -12,6 +12,8 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     decodeImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: {} }),
     cropImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
     getAttentionPoint: vitest.fn().mockResolvedValue({ x: 0.5, y: 0.5 }),
+    getGrayscale: vitest.fn().mockResolvedValue({ data: new Uint8Array(0), width: 0, height: 0 }),
+    straightenImage: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
     extract: vitest.fn().mockResolvedValue(null),
     probe: vitest.fn(),
     probePackets: vitest.fn().mockResolvedValue({

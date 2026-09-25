@@ -24,6 +24,21 @@ const errorText = (result: AgentToolResult) => {
   return (result.content[0] as { text: string }).text;
 };
 
+/** a level image with one strong line at the given angle (image coordinates, y down) */
+const tilted = (lineAngle: number) => {
+  const width = 512;
+  const height = 384;
+  const data = new Uint8Array(width * height);
+  const radians = (lineAngle * Math.PI) / 180;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const distance = (y - height / 2) * Math.cos(radians) - (x - width / 2) * Math.sin(radians);
+      data[y * width + x] = Math.round(60 + 140 / (1 + Math.exp(distance / 0.7)));
+    }
+  }
+  return { data, width, height };
+};
+
 describe(CropAgentTools.name, () => {
   let sut: CropAgentTools;
   let mocks: ServiceMocks;
@@ -66,6 +81,7 @@ describe(CropAgentTools.name, () => {
     expect(sut.getTools().map(({ name, mutating }) => ({ name, mutating }))).toEqual([
       { name: 'suggest_crop', mutating: false },
       { name: 'crop_photo', mutating: true },
+      { name: 'straighten_photo', mutating: true },
     ]);
   });
 
@@ -74,6 +90,30 @@ describe(CropAgentTools.name, () => {
       const text = errorText(await call('suggest_crop', { id: newUuid(), aspectRatio: '1:1' }));
       expect(text).toContain('Not found or no asset.view access');
       expect(mocks.asset.getById).not.toHaveBeenCalled();
+    });
+
+    it('should report the tilt and suggest a straightened crop', async () => {
+      const asset = setupAsset();
+      mocks.media.straightenImage.mockResolvedValue({ data: Buffer.from('straight-preview'), width: 768, height: 576 });
+
+      const result = await call('suggest_crop', { id: asset.id, rotate: 5 });
+      const suggestion = parse(result);
+
+      expect(suggestion.rotate).toBe(5);
+      expect(suggestion.width).toBeLessThan(4000);
+      expect(suggestion.width / suggestion.height).toBeCloseTo(4 / 3, 2);
+      expect(suggestion.rectNormalized).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+      expect(suggestion.tilt).toEqual({ angle: 0, confidence: 0, recommended: false });
+      expect(mocks.media.straightenImage).toHaveBeenCalledWith(
+        expect.anything(),
+        5,
+        expect.objectContaining({ x: 0, y: 0 }),
+        expect.objectContaining({ size: 768 }),
+      );
+      expect(result.content[1]).toMatchObject({
+        type: 'image',
+        data: Buffer.from('straight-preview').toString('base64'),
+      });
     });
 
     it('should suggest a face-aware crop with a preview', async () => {
@@ -199,6 +239,52 @@ describe(CropAgentTools.name, () => {
     });
   });
 
+  describe('straighten_photo', () => {
+    beforeEach(() => {
+      mocks.media.decodeImage.mockResolvedValue({
+        data: Buffer.from('original'),
+        info: { width: 4000, height: 3000, channels: 3 },
+      } as any);
+      mocks.media.straightenImage.mockResolvedValue({ data: Buffer.from('straight'), width: 3700, height: 2775 });
+    });
+
+    it('should use the measured tilt', async () => {
+      const asset = setupAsset();
+      mocks.media.getGrayscale.mockResolvedValue(tilted(-2.5));
+
+      const result = parse(await call('straighten_photo', { id: asset.id }));
+
+      expect(result.rotate).toBeCloseTo(2.5, 0);
+      expect(mocks.media.getGrayscale).toHaveBeenCalledWith(PREVIEW_PATH);
+      expect(mocks.media.straightenImage).toHaveBeenCalledWith(
+        expect.anything(),
+        result.rotate,
+        null,
+        expect.anything(),
+      );
+    });
+
+    it('should refuse when there is no clear tilt', async () => {
+      const asset = setupAsset();
+      mocks.media.getGrayscale.mockResolvedValue(tilted(0));
+
+      expect(errorText(await call('straighten_photo', { id: asset.id }))).toContain('No clear tilt');
+      expect(mocks.media.straightenImage).not.toHaveBeenCalled();
+    });
+
+    it('should use an explicit angle', async () => {
+      const asset = setupAsset();
+      await call('straighten_photo', { id: asset.id, rotate: -4 });
+      expect(mocks.media.getGrayscale).not.toHaveBeenCalled();
+      expect(mocks.media.straightenImage).toHaveBeenCalledWith(expect.anything(), -4, null, expect.anything());
+    });
+
+    it('should reject large rotations', () => {
+      const tool = sut.getTools().find(({ name }) => name === 'straighten_photo')!;
+      expect(() => tool.input.parse({ id: newUuid(), rotate: 45 })).toThrow();
+    });
+  });
+
   describe('crop_photo', () => {
     beforeEach(() => {
       mocks.media.decodeImage.mockResolvedValue({
@@ -215,14 +301,51 @@ describe(CropAgentTools.name, () => {
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });
 
-    it('should require exactly one crop', async () => {
+    it('should require one crop or a rotation', async () => {
       const asset = setupAsset();
-      expect(errorText(await call('crop_photo', { id: asset.id }))).toContain('Pass exactly one of');
+      expect(errorText(await call('crop_photo', { id: asset.id }))).toContain('Pass one of');
       expect(
         errorText(
           await call('crop_photo', { id: asset.id, aspectRatio: '1:1', rect: { x: 0, y: 0, width: 10, height: 10 } }),
         ),
-      ).toContain('Pass exactly one of');
+      ).toContain('Pass one of');
+    });
+
+    it('should straighten the whole photo', async () => {
+      const asset = setupAsset();
+      mocks.media.straightenImage.mockResolvedValue({ data: Buffer.from('straight'), width: 3600, height: 2700 });
+
+      const result = parse(await call('crop_photo', { id: asset.id, rotate: 3 }));
+
+      expect(result).toEqual({ id: 'new-asset-id', sourceId: asset.id, width: 3600, height: 2700, duplicate: false });
+      expect(mocks.media.straightenImage).toHaveBeenCalledWith(
+        expect.objectContaining({ data: Buffer.from('original') }),
+        3,
+        null,
+        { colorspace: Colorspace.Srgb, quality: 95 },
+      );
+      expect(mocks.media.cropImage).not.toHaveBeenCalled();
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ originalFileName: 'IMG_0001-straight.jpg' }),
+      );
+      expect(mocks.metadata.writeTags).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ Description: 'Straightened (3°) from IMG_0001.jpg' }),
+      );
+    });
+
+    it('should straighten and then crop inside the straightened photo', async () => {
+      const asset = setupAsset();
+      mocks.media.straightenImage.mockResolvedValue({ data: Buffer.from('straight'), width: 2000, height: 2000 });
+
+      await call('crop_photo', { id: asset.id, rotate: -2, aspectRatio: '1:1' });
+
+      const [, angle, crop] = mocks.media.straightenImage.mock.calls[0];
+      expect(angle).toBe(-2);
+      // a square inside the straightened 4:3 photo, which is smaller than the 4000x3000 original
+      expect(crop!.width).toBe(crop!.height);
+      expect(crop!.height).toBeLessThan(3000);
+      expect(crop!.x + crop!.width).toBeLessThanOrEqual(4000);
     });
 
     it('should create a cropped copy stacked with the original', async () => {
