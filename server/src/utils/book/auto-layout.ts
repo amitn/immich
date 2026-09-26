@@ -2,7 +2,15 @@ import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
 import { cosineDistance } from 'src/utils/agent/clustering.js';
 import { EventSplitOptions, getAdaptiveEventOptions, isShortSpan, splitEvents } from 'src/utils/agent/events.js';
 import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.js';
-import { BookLayout, LayoutRect, PageSize, bookLayouts, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
+import {
+  BookLayout,
+  LayoutRect,
+  PageSize,
+  bookLayouts,
+  getLayout,
+  getSlotRectsMm,
+  isMapLayout,
+} from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
 import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
 
@@ -288,21 +296,52 @@ const countValues = (values: Array<string | null | undefined>) => {
   return [...counts].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 };
 
-/** the main place (or two) of a section, falling back to the date */
-export const getSectionTitle = (photos: AutoLayoutPhoto[]) => {
-  const cities = countValues(photos.map((photo) => photo.city));
-  if (cities.length > 0) {
-    const [[first, firstCount], second] = cities;
-    if (!second || second[1] < Math.max(2, 0.25 * (firstCount + second[1]))) {
-      return first;
+/** place names listed in full up to this many; more are shortened to the first two and a count */
+export const MAX_LISTED_PLACES = 3;
+
+/** e.g. "Taormina", "Taormina & Catania", "Taormina, Catania & Milo" or "Taormina, Catania & 2 more" */
+export const formatPlaces = (places: string[]) => {
+  if (places.length <= 1) {
+    return places[0] ?? '';
+  }
+  if (places.length > MAX_LISTED_PLACES) {
+    return `${places[0]}, ${places[1]} & ${places.length - 2} more`;
+  }
+  return `${places.slice(0, -1).join(', ')} & ${places.at(-1)}`;
+};
+
+/**
+ * The places (EXIF cities) of the photos, every one of them: the most frequent first when they are too many to list,
+ * then in the order they were first visited
+ */
+export const getPlaces = (photos: Array<Pick<AutoLayoutPhoto, 'city' | 'takenAt'>>) => {
+  const ordered = photos.toSorted((a, b) => a.takenAt - b.takenAt);
+  const cities = countValues(ordered.map((photo) => photo.city));
+  const first = new Map<string, number>();
+  for (const [index, photo] of ordered.entries()) {
+    const city = photo.city?.trim();
+    if (city && !first.has(city)) {
+      first.set(city, index);
     }
-    const order = photos.map((photo) => photo.city?.trim());
-    return order.indexOf(first) <= order.indexOf(second[0]) ? `${first} & ${second[0]}` : `${second[0]} & ${first}`;
+  }
+  const byVisit = (a: string, b: string) => first.get(a)! - first.get(b)!;
+  const names = cities.toSorted((a, b) => b[1] - a[1] || byVisit(a[0], b[0])).map(([city]) => city);
+  if (names.length > MAX_LISTED_PLACES) {
+    return [...names.slice(0, 2).toSorted(byVisit), ...names.slice(2)];
+  }
+  return names.toSorted(byVisit);
+};
+
+/** the places of the photos (see `formatPlaces`), falling back to the country and then to the dates */
+export const getSectionTitle = (photos: AutoLayoutPhoto[]) => {
+  const places = getPlaces(photos);
+  if (places.length > 0) {
+    return formatPlaces(places);
   }
 
-  const [country] = countValues(photos.map((photo) => photo.country));
-  if (country) {
-    return country[0];
+  const countries = countValues(photos.map((photo) => photo.country)).map(([country]) => country);
+  if (countries.length > 0) {
+    return formatPlaces(countries);
   }
 
   const times = photos.map((photo) => photo.takenAt);
@@ -310,9 +349,10 @@ export const getSectionTitle = (photos: AutoLayoutPhoto[]) => {
 };
 
 /**
- * A short caption made only of facts about the photos of a page: the main place (from EXIF), the local time of the
- * first photo and the names of the named people, e.g. "Westcott · 2:15 pm" or "Box Hill with Amit". It never
- * describes what the photos look like. `place` skips a place that repeats the section title or the previous caption.
+ * A short caption made only of facts about the photos of a page: their places (EXIF cities, see `formatPlaces`), the
+ * local time of the first photo and the names of the named people, e.g. "Westcott · 2:15 pm", "Taormina & Catania"
+ * or "Box Hill with Amit". It never describes what the photos look like. `place` skips a place that repeats the
+ * section title or the previous caption.
  */
 export const getFactualCaption = (
   photos: AutoLayoutPhoto[],
@@ -323,7 +363,7 @@ export const getFactualCaption = (
     return;
   }
 
-  const [place] = countValues(photos.map((photo) => photo.city)).map(([city]) => city);
+  const place = formatPlaces(getPlaces(photos)) || undefined;
   const time = formatTime(Math.min(...photos.map((photo) => photo.takenAt)));
   const isNew = (value: string) => value !== context.sectionTitle && value !== context.previous;
 
@@ -1234,7 +1274,6 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     for (const pageCount of counts) {
       planned ??= planner.partition(section.photos, pageCount, false, ctx);
     }
-    let previousCaption: string | undefined;
     for (const choice of planned ?? []) {
       const page: AutoLayoutPage = {
         layout: choice.layout.id,
@@ -1244,14 +1283,6 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         }),
         section: index,
       };
-      const caption = getFactualCaption(choice.order, captions, {
-        sectionTitle: section.title,
-        previous: previousCaption,
-      });
-      if (caption) {
-        page.caption = caption;
-        previousCaption = caption;
-      }
       pages.push(page);
       pagePhotos.set(page, choice.order);
     }
@@ -1260,6 +1291,64 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         drop(photo, 'resolution');
       }
     }
+  }
+
+  // titles and captions name the places of the photos that are actually placed: an opener covers the pages up to the
+  // next opener, like its map (see `getMapAssetIds`), which may include a section that has no opener of its own
+  const photosOf = (page: AutoLayoutPage) => (pagePhotos.get(page) ?? []).flatMap((unit) => membersOf(unit));
+  const isOpener = (page: AutoLayoutPage) =>
+    page.section !== undefined && (!!page.map || page.layout === 'section-opener' || isMapLayout(page.layout));
+  let chapterTitle: string | undefined;
+  let previousCaption: string | undefined;
+  for (const [index, page] of pages.entries()) {
+    if (page.map?.assetIds || page.layout === 'cover') {
+      chapterTitle = undefined;
+      previousCaption = undefined;
+      continue;
+    }
+
+    if (isOpener(page)) {
+      const covered = [...photosOf(page)];
+      for (const next of pages.slice(index + 1)) {
+        if (next.map || next.layout === 'section-opener' || isMapLayout(next.layout)) {
+          break;
+        }
+        covered.push(...photosOf(next));
+      }
+      previousCaption = undefined;
+      if (covered.length === 0) {
+        chapterTitle = page.sectionTitle;
+        continue;
+      }
+
+      const title = getSectionTitle(covered);
+      const times = covered.map((photo) => photo.takenAt);
+      const range = formatDateRange(Math.min(...times), Math.max(...times));
+      const dates = singleDay ? `${range} · ${formatTime(Math.min(...times))}` : range;
+      page.sectionTitle = title;
+      if (page.map?.title) {
+        page.map = { ...page.map, title };
+      }
+      delete page.caption;
+      if (page.layout === 'map' || title !== dates) {
+        Object.assign(page, openerCaption(dates));
+      }
+      chapterTitle = title;
+      continue;
+    }
+
+    if (page.section === undefined) {
+      continue;
+    }
+    const caption = getFactualCaption(pagePhotos.get(page) ?? [], captions, {
+      sectionTitle: chapterTitle,
+      previous: previousCaption,
+    });
+    if (!caption) {
+      continue;
+    }
+    page.caption = caption;
+    previousCaption = caption;
   }
 
   if (options.closing && hasLayout('text')) {
@@ -1282,12 +1371,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   return {
     pages,
-    sections: sectionPlans.map((section) => ({
-      title: section.title,
-      dates: section.dates,
-      photoIds: section.all.map((photo) => photo.id),
-      located: section.all.some((photo) => photo.located),
-    })),
+    sections: sectionPlans.map((section, index) => {
+      const placed = pages.filter((page) => page.section === index).flatMap((page) => photosOf(page));
+      return {
+        title: getSectionTitle(placed.length > 0 ? placed : section.all),
+        dates: section.dates,
+        photoIds: section.all.map((photo) => photo.id),
+        located: section.all.some((photo) => photo.located),
+      };
+    }),
     usedIds: photos.filter((photo) => used.has(photo.id)).map((photo) => photo.id),
     droppedIds,
     dropReasons: Object.fromEntries(droppedIds.map((id) => [id, dropReasons.get(id) ?? 'budget'])),

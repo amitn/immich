@@ -8,6 +8,7 @@ import {
   MAX_SINGLES_IN_A_ROW,
   allocatePages,
   formatDateRange,
+  formatPlaces,
   getFactualCaption,
   getPersonMinimums,
   getPhotoKind,
@@ -338,16 +339,32 @@ describe('allocatePages', () => {
 });
 
 describe('getSectionTitle', () => {
-  it('should use the main city, or the two main cities', () => {
-    expect(getSectionTitle([photo({ city: 'Rome' }), photo({ city: 'Rome' }), photo({ city: 'Ostia' })])).toBe('Rome');
-    expect(
-      getSectionTitle([
-        photo({ city: 'Rome' }),
-        photo({ city: 'Rome' }),
-        photo({ city: 'Ostia' }),
-        photo({ city: 'Ostia' }),
-      ]),
-    ).toBe('Rome & Ostia');
+  it('should name every place of the photos, in the order they were visited', () => {
+    expect(getSectionTitle([photo({ city: 'Rome' }), photo({ city: 'Rome' })])).toBe('Rome');
+    expect(getSectionTitle([photo({ city: 'Rome' }), photo({ city: 'Rome' }), photo({ city: 'Ostia' })])).toBe(
+      'Rome & Ostia',
+    );
+    expect(getSectionTitle([photo({ city: 'Ostia' }), photo({ city: 'Rome' }), photo({ city: 'Rome' })])).toBe(
+      'Ostia & Rome',
+    );
+    expect(getSectionTitle([photo({ city: 'Taormina' }), photo({ city: 'Catania' }), photo({ city: 'Milo' })])).toBe(
+      'Taormina, Catania & Milo',
+    );
+  });
+
+  it('should shorten more than three places to the two main ones and a count', () => {
+    const photos = [
+      photo({ city: 'Mazzeo' }),
+      photo({ city: 'Taormina' }),
+      photo({ city: 'Catania' }),
+      photo({ city: 'Taormina' }),
+      photo({ city: 'Catania' }),
+      photo({ city: 'Avola' }),
+      photo({ city: 'Milo' }),
+      photo({ city: 'Catania' }),
+    ];
+    expect(getSectionTitle(photos)).toBe('Taormina, Catania & 3 more');
+    expect(formatPlaces(['Catania', 'Taormina', 'Avola', 'Milo'])).toBe('Catania, Taormina & 2 more');
   });
 
   it('should fall back to the country and then the date', () => {
@@ -592,9 +609,10 @@ describe('planAutoLayout pacing', () => {
 describe('planAutoLayout chapters', () => {
   it('should split a day ride into chapters, each opened by a map with the place', () => {
     const result = plan(ride(), { targetPageCount: 16 });
-    expect(result.sections.map((section) => section.title)).toEqual(['Box Hill', 'Westcott', 'Denbies']);
+    // the photos taken in Dorking on the way to Westcott are part of its chapter
+    expect(result.sections.map((section) => section.title)).toEqual(['Box Hill', 'Dorking & Westcott', 'Denbies']);
     const openers = result.pages.filter((page) => page.map && page.sectionTitle);
-    expect(openers.map((page) => page.sectionTitle)).toEqual(['Box Hill', 'Westcott', 'Denbies']);
+    expect(openers.map((page) => page.sectionTitle)).toEqual(['Box Hill', 'Dorking & Westcott', 'Denbies']);
     // the photos on the way join the closest stop
     expect(openers.map((page) => page.caption)).toEqual([
       expect.stringMatching(/^15 March 2025 · 9:4\d am$/),
@@ -688,6 +706,58 @@ describe('planAutoLayout captions', () => {
     expect(getFactualCaption([westcott], 'place', { sectionTitle: 'Surrey' })).toBe('Westcott');
     expect(getFactualCaption([westcott], 'none')).toBeUndefined();
     expect(getFactualCaption([photo({ takenAt: Date.UTC(2025, 2, 15, 0, 30) })], 'place-time')).toBe('12:30 am');
+  });
+
+  it('should name every place on a page', () => {
+    const taormina = photo({ takenAt: Date.UTC(2009, 6, 20, 19, 30), city: 'Taormina' });
+    const fountain = photo({ takenAt: Date.UTC(2009, 6, 20, 19, 45), city: 'Catania' });
+    expect(getFactualCaption([taormina, photo({ city: 'Taormina' }), fountain], 'place-time')).toBe(
+      'Taormina & Catania · 7:30 pm',
+    );
+    expect(getFactualCaption([fountain, taormina], 'place', { sectionTitle: 'Taormina' })).toBe('Taormina & Catania');
+  });
+
+  it('should title chapters and caption pages by the photos placed on them', () => {
+    const sicily = { lat: 37.8, lon: 15.2 };
+    const photos = [
+      ...event(8, start, (i) => ({ ...sicily, city: i === 7 ? 'Catania' : i % 2 === 0 ? 'Mazzeo' : 'Taormina' })),
+      ...event(8, start + 3 * DAY, (i) => ({ ...sicily, city: i < 4 ? 'Milo' : 'Avola' })),
+    ];
+    const result = plan(photos, { targetPageCount: 8, captions: 'place' });
+    const byId = new Map(photos.map((item) => [item.id, item]));
+    const citiesOf = (ids: string[]) => new Set(ids.map((id) => byId.get(id)!.city!));
+
+    const openers = result.pages.flatMap((page, index) => (page.map && page.sectionTitle ? [index] : []));
+    expect(openers.length).toBeGreaterThanOrEqual(1);
+    for (const index of openers) {
+      const page = result.pages[index];
+      const covered = page.slots.map((slot) => slot.assetId);
+      for (const next of result.pages.slice(index + 1)) {
+        if (next.map || next.layout === 'section-opener') {
+          break;
+        }
+        covered.push(...next.slots.map((slot) => slot.assetId));
+      }
+      const cities = citiesOf(covered);
+      if (cities.size <= 3) {
+        for (const city of cities) {
+          expect(page.sectionTitle).toContain(city);
+        }
+      }
+      if (page.map?.title) {
+        expect(page.map.title).toBe(page.sectionTitle);
+      }
+    }
+
+    for (const page of result.pages) {
+      if (!page.caption || page.section === undefined || page.map || page.layout === 'section-opener') {
+        continue;
+      }
+      for (const city of citiesOf(page.slots.map((slot) => slot.assetId))) {
+        expect(page.caption).toContain(city);
+      }
+    }
+    expect(result.pages.map((page) => page.sectionTitle).filter(Boolean)).not.toContain('Mazzeo & Taormina');
   });
 
   it('should leave out captions and opener dates when turned off', () => {
