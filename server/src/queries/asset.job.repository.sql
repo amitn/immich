@@ -862,3 +862,195 @@ from
   "asset"
 where
   "asset"."deletedAt" is null
+
+-- AssetJobRepository.getForAgent
+select
+  "asset"."id",
+  "asset"."type",
+  "asset"."localDateTime",
+  "asset"."fileCreatedAt",
+  "asset"."isFavorite",
+  "asset"."width",
+  "asset"."height",
+  "asset"."checksum",
+  "asset"."updatedAt",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."make",
+  "asset_exif"."model",
+  "asset_exif"."lensModel",
+  "asset_exif"."fNumber",
+  "asset_exif"."exposureTime",
+  "asset_exif"."iso",
+  "asset_exif"."focalLength",
+  "asset_exif"."latitude",
+  "asset_exif"."longitude",
+  "asset_exif"."city",
+  "asset_exif"."state",
+  "asset_exif"."country",
+  "asset_exif"."description",
+  "asset_exif"."rating",
+  "asset_exif"."timeZone",
+  (
+    select
+      "asset_file"."path"
+    from
+      "asset_file"
+    where
+      "asset_file"."assetId" = "asset"."id"
+      and "asset_file"."type" = 'preview'
+    order by
+      "asset_file"."isEdited" desc
+    limit
+      $1
+  ) as "previewPath",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_face"."personGroupId" as "personId",
+          "person"."name",
+          "asset_face"."imageWidth",
+          "asset_face"."imageHeight",
+          "asset_face"."boundingBoxX1",
+          "asset_face"."boundingBoxY1",
+          "asset_face"."boundingBoxX2",
+          "asset_face"."boundingBoxY2"
+        from
+          "asset_face"
+          left join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+          and "person"."ownerId" = $2::uuid
+          and "person"."isHidden" = $3
+        where
+          "asset_face"."assetId" = "asset"."id"
+          and "asset_face"."deletedAt" is null
+          and "asset_face"."isVisible" is true
+      ) as agg
+  ) as "faces"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "asset"."id" = any ($4::uuid[])
+  and "asset"."deletedAt" is null
+
+-- AssetJobRepository.getAlbumsForAgent
+select
+  "album_asset"."assetId",
+  "album"."id",
+  "album"."albumName"
+from
+  "album_asset"
+  inner join "album" on "album"."id" = "album_asset"."albumId"
+  and "album"."deletedAt" is null
+  inner join "album_user" on "album_user"."albumId" = "album"."id"
+  and "album_user"."userId" = $1::uuid
+where
+  "album_asset"."assetId" = any ($2::uuid[])
+order by
+  "album"."albumName"
+
+-- AssetJobRepository.getForAgentEvents
+select
+  "asset"."id",
+  "asset"."localDateTime",
+  "asset_exif"."latitude",
+  "asset_exif"."longitude",
+  "asset_exif"."city",
+  "asset_exif"."country",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "person"."name"
+        from
+          "asset_face"
+          inner join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+          and "person"."ownerId" = $1::uuid
+          and "person"."isHidden" = $2
+          and "person"."name" != $3
+        where
+          "asset_face"."assetId" = "asset"."id"
+          and "asset_face"."deletedAt" is null
+          and "asset_face"."isVisible" is true
+      ) as agg
+  ) as "people"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+  inner join (
+    select
+      "assetId"
+    from
+      "asset_face"
+    where
+      "personGroupId" = any ($4::uuid[])
+      and "deletedAt" is null
+      and "isVisible" is true
+    group by
+      "assetId"
+    having
+      count(distinct "personGroupId") = $5
+  ) as "has_people" on "has_people"."assetId" = "asset"."id"
+where
+  "asset"."ownerId" = any ($6::uuid[])
+  and "asset"."fileCreatedAt" >= $7
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+order by
+  "asset"."localDateTime" asc,
+  "asset"."id" asc
+limit
+  $8
+
+-- AssetJobRepository.getPersonTimesForAgent
+select
+  "asset_face"."personGroupId" as "personId",
+  "asset"."localDateTime"
+from
+  "asset"
+  inner join "asset_face" on "asset_face"."assetId" = "asset"."id"
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+where
+  "asset_face"."personGroupId" = any ($1::uuid[])
+  and "asset"."ownerId" = $2::uuid
+  and "asset"."deletedAt" is null
+  and "asset"."visibility" in ('archive', 'timeline')
+  and "asset"."localDateTime" >= $3
+  and "asset"."localDateTime" < $4
+order by
+  "asset"."localDateTime" desc
+limit
+  $5
+
+-- AssetJobRepository.getPeopleForAgent
+select
+  "person"."personGroupId" as "id",
+  "person"."name",
+  count(distinct "asset"."id") as "count"
+from
+  "person"
+  inner join "asset_face" on "asset_face"."personGroupId" = "person"."personGroupId"
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+  inner join "asset" on "asset"."id" = "asset_face"."assetId"
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+  and "asset"."ownerId" = any ($1::uuid[])
+where
+  "person"."ownerId" = $2::uuid
+  and "person"."isHidden" = $3
+  and "person"."name" != $4
+group by
+  "person"."ownerId",
+  "person"."personGroupId"
+order by
+  "count" desc,
+  "person"."name" asc
+limit
+  $5

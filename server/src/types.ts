@@ -413,6 +413,10 @@ export type JobItem =
   | { name: JobName.SessionCleanup; data?: IBaseJob }
   | { name: JobName.HlsSessionCleanup; data?: IBaseJob }
 
+  // Books
+  | { name: JobName.BookExport; data: IEntityJob }
+  | { name: JobName.BookExportHtml; data: IEntityJob }
+
   // Tags
   | { name: JobName.TagCleanup; data?: IBaseJob }
 

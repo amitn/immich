@@ -28,6 +28,8 @@ import {
   user_metadata_audit,
 } from 'src/schema/functions.js';
 import { ActivityTable } from 'src/schema/tables/activity.table.js';
+import { AgentMessageTable } from 'src/schema/tables/agent-message.table.js';
+import { AgentSessionTable } from 'src/schema/tables/agent-session.table.js';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table.js';
 import { AlbumAssetTable } from 'src/schema/tables/album-asset.table.js';
 import { AlbumAuditTable } from 'src/schema/tables/album-audit.table.js';
@@ -35,6 +37,7 @@ import { AlbumUserAuditTable } from 'src/schema/tables/album-user-audit.table.js
 import { AlbumUserTable } from 'src/schema/tables/album-user.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { ApiKeyTable } from 'src/schema/tables/api-key.table.js';
+import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
 import { AssetAuditTable } from 'src/schema/tables/asset-audit.table.js';
 import { AssetAudioTable, AssetKeyframeTable, AssetVideoTable } from 'src/schema/tables/asset-av.table.js';
 import { AssetEditAuditTable } from 'src/schema/tables/asset-edit-audit.table.js';
@@ -49,6 +52,9 @@ import { AssetMetadataTable } from 'src/schema/tables/asset-metadata.table.js';
 import { AssetOcrAuditTable } from 'src/schema/tables/asset-ocr-audit.table.js';
 import { AssetOcrTable } from 'src/schema/tables/asset-ocr.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
+import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
+import { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import { BookTable } from 'src/schema/tables/book.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
@@ -101,6 +107,8 @@ import { WorkflowTable } from 'src/schema/tables/workflow.table.js';
 export class ImmichDatabase {
   tables = [
     ActivityTable,
+    AgentSessionTable,
+    AgentMessageTable,
     AlbumAssetTable,
     AlbumAssetAuditTable,
     AlbumAuditTable,
@@ -108,6 +116,7 @@ export class ImmichDatabase {
     AlbumUserTable,
     AlbumTable,
     ApiKeyTable,
+    ArtJobTable,
     AssetAuditTable,
     AssetEditTable,
     AssetEditAuditTable,
@@ -121,6 +130,9 @@ export class ImmichDatabase {
     AssetTable,
     AssetFileTable,
     AssetExifTable,
+    BookTable,
+    BookPageTable,
+    BookPageAssetTable,
     ClusterGroupTable,
     ClusterGroupRequestTable,
     FaceSearchTable,
@@ -203,6 +215,9 @@ export interface DB {
 
   activity: ActivityTable;
 
+  agent_session: AgentSessionTable;
+  agent_message: AgentMessageTable;
+
   album: AlbumTable;
   album_audit: AlbumAuditTable;
   album_asset: AlbumAssetTable;
@@ -211,6 +226,8 @@ export interface DB {
   album_user_audit: AlbumUserAuditTable;
 
   api_key: ApiKeyTable;
+
+  art_job: ArtJobTable;
 
   asset: AssetTable;
   asset_audit: AssetAuditTable;
@@ -229,6 +246,10 @@ export interface DB {
   asset_video: AssetVideoTable;
   asset_keyframe: AssetKeyframeTable;
   ocr_search: OcrSearchTable;
+
+  book: BookTable;
+  book_page: BookPageTable;
+  book_page_asset: BookPageAssetTable;
 
   face_search: FaceSearchTable;
 

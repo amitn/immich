@@ -17,6 +17,7 @@ import {
 import { StorageFolder, SystemMetadataKey } from 'src/enum.js';
 import { UserStatsQueryResponse } from 'src/repositories/user.repository.js';
 import { BaseService } from 'src/services/base.service.js';
+import { isArtEnabled, isAssistantEnabled } from 'src/utils/agent/config.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import {
@@ -86,8 +87,19 @@ export class ServerService extends BaseService {
   }
 
   async getFeatures(): Promise<ServerFeaturesDto> {
-    const { reverseGeocoding, metadata, map, machineLearning, trash, oauth, passwordLogin, notifications, ffmpeg } =
-      await this.getConfig({ withCache: false });
+    const {
+      agent,
+      food,
+      reverseGeocoding,
+      metadata,
+      map,
+      machineLearning,
+      trash,
+      oauth,
+      passwordLogin,
+      notifications,
+      ffmpeg,
+    } = await this.getConfig({ withCache: false });
     const { configFile } = this.configRepository.getEnv();
 
     return {
@@ -107,6 +119,9 @@ export class ServerService extends BaseService {
       configFile: !!configFile,
       email: notifications.smtp.enabled,
       realtimeTranscoding: ffmpeg.realtime.enabled,
+      assistant: isAssistantEnabled(agent),
+      artisticStyles: isArtEnabled(agent),
+      restaurantLookup: isAssistantEnabled(agent) && food.openStreetMap.enabled,
     };
   }
 

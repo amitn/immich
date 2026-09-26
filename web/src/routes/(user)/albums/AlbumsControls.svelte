@@ -23,6 +23,8 @@
     groupOptionsMetadata,
     sortOptionsMetadata,
   } from '$lib/utils/album-utils';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
+  import { openAssistant } from '$lib/services/assistant.service';
   import { Button, IconButton, Text } from '@immich/ui';
   import {
     mdiArrowDownThin,
@@ -31,6 +33,7 @@
     mdiFolderArrowUpOutline,
     mdiFolderRemoveOutline,
     mdiFormatListBulletedSquare,
+    mdiCreationOutline,
     mdiPlusBoxOutline,
     mdiUnfoldLessHorizontal,
     mdiUnfoldMoreHorizontal,
@@ -137,6 +140,21 @@
 >
   <p class="hidden md:block">{$t('create_album')}</p>
 </Button>
+
+{#if featureFlagsManager.value.assistant}
+  <!-- Create Album with the assistant -->
+  <Button
+    leadingIcon={mdiCreationOutline}
+    onclick={() => openAssistant({ prompt: $t('album_create_prompt') })}
+    size="small"
+    variant="ghost"
+    color="secondary"
+    title={$t('album_create_with_assistant')}
+    aria-label={$t('album_create_with_assistant')}
+  >
+    <p class="hidden md:block">{$t('album_create_with_assistant')}</p>
+  </Button>
+{/if}
 
 <!-- Sort Albums -->
 <Dropdown

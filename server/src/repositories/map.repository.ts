@@ -5,7 +5,7 @@ import { InjectKysely } from 'nestjs-kysely';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import readLine from 'node:readline';
-import { citiesFile, reverseGeocodeMaxDistance } from 'src/constants.js';
+import { citiesFile, reverseGeocodeMaxDistance, serverVersion } from 'src/constants.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetVisibility, SystemMetadataKey } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
@@ -201,6 +201,27 @@ export class MapRepository {
     const city = null;
 
     return { country, state, city };
+  }
+
+  /**
+   * Runs an Overpass QL query against an Overpass API interpreter (OpenStreetMap) and returns its JSON response. Only
+   * the query is sent, with a generic User-Agent.
+   */
+  async queryOverpass(url: string, query: string, { timeoutMs = 15_000 }: { timeoutMs?: number } = {}) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+        'User-Agent': `immich-server/${serverVersion} (+https://immich.app)`,
+      },
+      body: new URLSearchParams({ data: query }).toString(),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`Overpass API responded with ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as unknown;
   }
 
   private async importNaturalEarthCountries() {

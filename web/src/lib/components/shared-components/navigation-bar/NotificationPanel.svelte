@@ -2,16 +2,21 @@
   import { goto } from '$app/navigation';
   import { focusTrap } from '$lib/actions/focus-trap';
   import NotificationItem from '$lib/components/shared-components/navigation-bar/NotificationItem.svelte';
-  import { OpenQueryParam } from '$lib/constants';
-  import { Route } from '$lib/route';
   import { notificationManager } from '$lib/stores/notification-manager.svelte';
   import { handleError } from '$lib/utils/handle-error';
-  import { NotificationType, type NotificationDto } from '@immich/sdk';
+  import { getNotificationRoute } from '$lib/utils/notification';
+  import { type NotificationDto } from '@immich/sdk';
   import { Button, Icon, Scrollable, Stack, Text, toastManager } from '@immich/ui';
   import { mdiBellOutline, mdiCheckAll } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { flip } from 'svelte/animate';
   import { fade } from 'svelte/transition';
+
+  type Props = {
+    onClose?: () => void;
+  };
+
+  const { onClose }: Props = $props();
 
   const noUnreadNotifications = $derived(notificationManager.notifications.length === 0);
 
@@ -33,33 +38,10 @@
   };
 
   const handleNotificationAction = async (notification: NotificationDto) => {
-    switch (notification.type) {
-      case NotificationType.AlbumInvite:
-      case NotificationType.AlbumUpdate: {
-        if (!notification.data) {
-          return;
-        }
-
-        if (typeof notification.data !== 'string') {
-          return;
-        }
-
-        const data = JSON.parse(notification.data);
-        if (data?.albumId) {
-          await goto(`/albums/${data.albumId}`);
-        }
-
-        break;
-      }
-
-      case NotificationType.ClusterGroupRequest: {
-        await goto(Route.userSettings({ isOpen: OpenQueryParam.SHARING }));
-        break;
-      }
-
-      default: {
-        break;
-      }
+    const route = getNotificationRoute(notification);
+    if (route) {
+      onClose?.();
+      await goto(route);
     }
   };
 

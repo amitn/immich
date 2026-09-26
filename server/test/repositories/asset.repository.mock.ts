@@ -56,5 +56,6 @@ export const newAssetRepositoryMock = (): Mocked<RepositoryInterface<AssetReposi
     getForMetadataExtractionTags: vitest.fn(),
     getForFaces: vitest.fn(),
     getForUpdateTags: vitest.fn(),
+    getIdsByAlbumId: vitest.fn().mockResolvedValue([]),
   };
 };

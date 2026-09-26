@@ -707,3 +707,17 @@ from
   "asset"
 where
   "asset"."id" = $1
+
+-- AssetRepository.getIdsByAlbumId
+select
+  "asset"."id"
+from
+  "asset"
+  inner join "album_asset" on "asset"."id" = "album_asset"."assetId"
+where
+  "album_asset"."albumId" = $1::uuid
+  and "asset"."deletedAt" is null
+order by
+  "asset"."fileCreatedAt" asc
+limit
+  $2

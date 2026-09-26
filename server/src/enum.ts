@@ -118,6 +118,14 @@ export enum Permission {
   ActivityDelete = 'activity.delete',
   ActivityStatistics = 'activity.statistics',
 
+  AgentSessionCreate = 'agentSession.create',
+  AgentSessionRead = 'agentSession.read',
+  AgentSessionUpdate = 'agentSession.update',
+  AgentSessionDelete = 'agentSession.delete',
+
+  ArtJobCreate = 'artJob.create',
+  ArtJobRead = 'artJob.read',
+
   ApiKeyCreate = 'apiKey.create',
   ApiKeyRead = 'apiKey.read',
   ApiKeyUpdate = 'apiKey.update',
@@ -169,6 +177,12 @@ export enum Permission {
   BackupDownload = 'backup.download',
   BackupUpload = 'backup.upload',
   BackupDelete = 'backup.delete',
+
+  BookCreate = 'book.create',
+  BookRead = 'book.read',
+  BookUpdate = 'book.update',
+  BookDelete = 'book.delete',
+  BookDownload = 'book.download',
 
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',
@@ -866,6 +880,9 @@ export enum JobName {
 
   AuditTableCleanup = 'AuditTableCleanup',
 
+  BookExport = 'BookExport',
+  BookExportHtml = 'BookExportHtml',
+
   DatabaseBackup = 'DatabaseBackup',
 
   FacialRecognitionQueueAll = 'FacialRecognitionQueueAll',
@@ -1216,11 +1233,14 @@ export enum ConfigVisibility {
 export enum ApiTag {
   Activities = 'Activities',
   Albums = 'Albums',
+  Assistant = 'Assistant',
   ApiKeys = 'API keys',
   Authentication = 'Authentication',
   AuthenticationAdmin = 'Authentication (admin)',
   Assets = 'Assets',
   AssetFiles = 'Asset files',
+  Books = 'Books',
+  Collections = 'Collections',
   ConfigUser = 'Config (user)',
   ConfigAdmin = 'Config (admin)',
   ConfigPublic = 'Config (public)',
@@ -1229,6 +1249,7 @@ export enum ApiTag {
   Download = 'Download',
   Duplicates = 'Duplicates',
   Faces = 'Faces',
+  Food = 'Food',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',
@@ -1295,3 +1316,69 @@ export enum SearchOrderField {
 }
 
 export const SearchOrderFieldSchema = z.enum(SearchOrderField).meta({ id: 'SearchOrderField' });
+
+export enum AgentSessionStatus {
+  Idle = 'idle',
+  Running = 'running',
+  Error = 'error',
+}
+
+export const AgentSessionStatusSchema = z
+  .enum(AgentSessionStatus)
+  .describe('Agent session status')
+  .meta({ id: 'AgentSessionStatus' });
+
+export enum AgentMessageRole {
+  User = 'user',
+  Agent = 'agent',
+}
+
+export const AgentMessageRoleSchema = z
+  .enum(AgentMessageRole)
+  .describe('Agent message author')
+  .meta({ id: 'AgentMessageRole' });
+
+export enum AgentMessageKind {
+  Text = 'text',
+  Thought = 'thought',
+  ToolCall = 'tool_call',
+  Permission = 'permission',
+  Plan = 'plan',
+  Error = 'error',
+}
+
+export const AgentMessageKindSchema = z
+  .enum(AgentMessageKind)
+  .describe('Agent message kind')
+  .meta({ id: 'AgentMessageKind' });
+
+export enum ArtJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+export enum BookExportStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const BookExportStatusSchema = z
+  .enum(BookExportStatus)
+  .describe('Book export status')
+  .meta({ id: 'BookExportStatus' });
+
+export enum BookExportFormat {
+  Pdf = 'pdf',
+  Html = 'html',
+}
+
+export const BookExportFormatSchema = z
+  .enum(BookExportFormat)
+  .describe('Book export format: a print-ready PDF or a single self-contained HTML file')
+  .meta({ id: 'BookExportFormat' });

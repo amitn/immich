@@ -148,11 +148,17 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.ApiKeys]: 'An api key can be used to programmatically access the Immich API.',
   [ApiTag.Assets]: 'An asset is an image or video that has been uploaded to Immich.',
   [ApiTag.AssetFiles]: 'An asset file is a file associated with an asset, including edited versions, thumbnails, etc.',
+  [ApiTag.Assistant]:
+    'The assistant is an AI agent, connected over the Agent Client Protocol (ACP), that can search, select, crop and organize assets on behalf of a user.',
   [ApiTag.Authentication]: 'Endpoints related to user authentication, including OAuth.',
   [ApiTag.AuthenticationAdmin]: 'Administrative endpoints related to authentication.',
+  [ApiTag.Books]:
+    'A book is a paginated photo book layout built from assets, which can be rendered and exported as a PDF.',
   [ApiTag.ClusterGroups]:
     'A cluster group is a set of users whose faces are clustered together, so that a person can be shared between them.',
   [ApiTag.ConfigUser]: 'The system configuration properties that are visible to logged in users.',
+  [ApiTag.Collections]:
+    'Collections are themed photos named by a pack (food is the first): photos of subjects, such as dishes, are matched with the entries read on a source photo, such as a menu, and saved as <Root>/<Place>/<Entry> tags; these endpoints list the packs, find the visits among assets, match their subjects with the entries and save the names.',
   [ApiTag.ConfigAdmin]: 'Endpoints to view and modify the full system configuration.',
   [ApiTag.ConfigPublic]: 'The system configuration properties that are visible to everyone.',
   [ApiTag.DatabaseBackups]: 'Manage backups of the Immich database.',
@@ -161,6 +167,8 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.Duplicates]: 'Endpoints for managing and identifying duplicate assets.',
   [ApiTag.Faces]:
     'A face is a detected human face within an asset, which can be associated with a person. Faces are normally detected via machine learning, but can also be created manually.',
+  [ApiTag.Food]:
+    'Food photos are organized by restaurant and dish with Food/<Restaurant>/<Dish> tags; these endpoints find the meals among assets, match their dishes with menu items and save the names.',
   [ApiTag.Integrity]: 'Endpoints for viewing and managing integrity reports.',
   [ApiTag.Jobs]:
     'Queues and background jobs are used for processing tasks asynchronously. Queues can be paused and resumed as needed.',

@@ -25,6 +25,8 @@
   import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
   import { Route } from '$lib/route';
   import { getAssetBulkActions } from '$lib/services/asset.service';
+  import { getAssistantBulkActions } from '$lib/services/assistant.service';
+  import { getCollectionBulkActions } from '$lib/services/collections.service';
   import { getStackBulkActions } from '$lib/services/stack.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import { type OnLink, type OnUnlink } from '$lib/utils/actions';
@@ -112,11 +114,14 @@
   <AssetSelectControlBar>
     {@const Actions = getAssetBulkActions($t)}
     {@const StackActions = getStackBulkActions($t)}
+    {@const AssistantActions = getAssistantBulkActions($t)}
+    {@const CollectionBulkActions = getCollectionBulkActions($t)}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
     <CreateSharedLink />
     <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
     <ActionButton action={Actions.AddToAlbum} />
+    <ActionButton action={AssistantActions.AskAssistant} />
 
     {#if assetMultiSelectManager.isAllUserOwned}
       <FavoriteAction
@@ -146,6 +151,9 @@
         {#if authManager.preferences.tags.enabled}
           <TagAction menuItem />
         {/if}
+        {#each CollectionBulkActions as action (action.title)}
+          <ActionMenuItem {action} />
+        {/each}
         <DeleteAssets
           menuItem
           onAssetDelete={(assetIds) => timelineManager.removeAssets(assetIds)}

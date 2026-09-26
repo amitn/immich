@@ -62,6 +62,18 @@ select
 from
   "created_tag"
 
+-- TagRepository.getAssetTagsByPrefix
+select
+  "tag_asset"."assetId",
+  "tag"."id" as "tagId",
+  "tag"."value"
+from
+  "tag_asset"
+  inner join "tag" on "tag"."id" = "tag_asset"."tagId"
+where
+  "tag_asset"."assetId" = any ($1::uuid[])
+  and "tag"."value" like $2
+
 -- TagRepository.getAll
 select
   "tag"."id",
@@ -166,3 +178,65 @@ on conflict do nothing
 returning
   *
 rollback
+
+-- TagRepository.getAssetCounts
+select
+  "tag_closure"."id_ancestor" as "id",
+  count(distinct "tag_asset"."assetId") as "count"
+from
+  "tag_closure"
+  inner join "tag_asset" on "tag_asset"."tagId" = "tag_closure"."id_descendant"
+  inner join "asset" on "asset"."id" = "tag_asset"."assetId"
+where
+  "tag_closure"."id_ancestor" in ($1)
+  and "asset"."deletedAt" is null
+group by
+  "tag_closure"."id_ancestor"
+
+-- TagRepository.getCollectionTags
+select
+  "asset"."id" as "assetId",
+  "tag"."value",
+  "asset"."localDateTime",
+  "asset_exif"."city",
+  "asset_exif"."country",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "person"."name"
+        from
+          "asset_face"
+          inner join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+          and "person"."ownerId" = $1::uuid
+          and "person"."isHidden" = $2
+          and "person"."name" != $3
+        where
+          "asset_face"."assetId" = "asset"."id"
+          and "asset_face"."deletedAt" is null
+          and "asset_face"."isVisible" is true
+      ) as agg
+  ) as "people"
+from
+  "asset"
+  inner join "tag_asset" on "tag_asset"."assetId" = "asset"."id"
+  inner join "tag" on "tag"."id" = "tag_asset"."tagId"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "tag"."userId" = $4::uuid
+  and (
+    "tag"."value" like $5
+    or "tag"."value" like $6
+  )
+  and "asset"."ownerId" = $7::uuid
+  and "asset"."deletedAt" is null
+  and "asset"."visibility" in ('archive', 'timeline')
+  and "asset"."localDateTime" >= $8
+  and "asset"."localDateTime" < $9
+order by
+  "asset"."localDateTime" desc,
+  "asset"."id" asc
+limit
+  $10

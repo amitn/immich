@@ -1,11 +1,15 @@
 <script lang="ts">
   import BottomInfo from '$lib/components/shared-components/side-bar/BottomInfo.svelte';
   import RecentAlbums from '$lib/components/shared-components/side-bar/RecentAlbums.svelte';
+  import RecentBooks from '$lib/components/shared-components/side-bar/RecentBooks.svelte';
+  import SidebarTags from '$lib/components/shared-components/side-bar/SidebarTags.svelte';
+  import OnEvents from '$lib/components/OnEvents.svelte';
+  import { sidebarTagsManager } from '$lib/managers/sidebar-tags-manager.svelte';
   import Sidebar from '$lib/components/sidebar/Sidebar.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { Route } from '$lib/route';
-  import { recentAlbumsDropdown } from '$lib/stores/preferences.store';
+  import { booksSidebarDropdown, recentAlbumsDropdown, tagsSidebarDropdown } from '$lib/stores/preferences.store';
   import { NavbarGroup, NavbarItem } from '@immich/ui';
   import {
     mdiAccount,
@@ -14,8 +18,12 @@
     mdiAccountOutline,
     mdiArchiveArrowDown,
     mdiArchiveArrowDownOutline,
+    mdiBookOpenPageVariant,
+    mdiBookOpenPageVariantOutline,
     mdiCards,
     mdiCardsOutline,
+    mdiCreation,
+    mdiCreationOutline,
     mdiFolderOutline,
     mdiHeart,
     mdiHeartOutline,
@@ -37,7 +45,15 @@
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import { fly } from 'svelte/transition';
+
+  $effect(() => {
+    void sidebarTagsManager.load();
+  });
+
+  const refreshTags = () => sidebarTagsManager.load({ force: true });
 </script>
+
+<OnEvents onTagCreate={refreshTags} onTagUpdate={refreshTags} onTagDelete={refreshTags} />
 
 <Sidebar ariaLabel={$t('primary')}>
   <NavbarItem title={$t('photos')} href={Route.photos()} icon={mdiImageMultipleOutline} activeIcon={mdiImageMultiple} />
@@ -69,6 +85,10 @@
     activeIcon={mdiAccountMultiple}
   />
 
+  {#if featureFlagsManager.value.assistant}
+    <NavbarItem title={$t('assistant')} href={Route.assistant()} icon={mdiCreationOutline} activeIcon={mdiCreation} />
+  {/if}
+
   <NavbarGroup title={$t('library')} size="tiny" />
 
   <NavbarItem title={$t('favorites')} href={Route.favorites()} icon={mdiHeartOutline} activeIcon={mdiHeart} />
@@ -86,8 +106,36 @@
     {/snippet}
   </NavbarItem>
 
-  {#if authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb}
-    <NavbarItem title={$t('tags')} href={Route.tags()} icon={{ icon: mdiTagMultipleOutline, flipped: true }} />
+  {#if featureFlagsManager.value.assistant}
+    <NavbarItem
+      title={$t('photo_books')}
+      href={Route.books()}
+      icon={mdiBookOpenPageVariantOutline}
+      activeIcon={mdiBookOpenPageVariant}
+      bind:expanded={$booksSidebarDropdown}
+    >
+      {#snippet items()}
+        <span in:fly={{ y: -20 }} class="hidden md:block">
+          <RecentBooks />
+        </span>
+      {/snippet}
+    </NavbarItem>
+  {/if}
+
+  <!-- shown whenever there are tags, e.g. the ones the assistant adds, even with the tags feature off -->
+  {#if (authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb) || sidebarTagsManager.hasTags}
+    <NavbarItem
+      title={$t('tags')}
+      href={Route.tags()}
+      icon={{ icon: mdiTagMultipleOutline, flipped: true }}
+      bind:expanded={$tagsSidebarDropdown}
+    >
+      {#snippet items()}
+        <span in:fly={{ y: -20 }} class="hidden md:block">
+          <SidebarTags />
+        </span>
+      {/snippet}
+    </NavbarItem>
   {/if}
 
   {#if authManager.preferences.recentlyAdded.sidebarWeb}

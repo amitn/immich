@@ -1,6 +1,8 @@
 import {
   AssetMediaSize,
   AssetTypeEnum,
+  BookExportFormat,
+  EnhanceStrength,
   MemoryType,
   finishOAuth,
   getAssetOriginalPath,
@@ -251,10 +253,34 @@ export const getAssetHlsSessionUrl = (id: string, sessionId: string) => {
   return createUrl(`/assets/${id}/video/stream/${sessionId}`, authManager.params);
 };
 
+/** JPEG rendering of a book page; `cacheKey` only busts the browser cache */
+export const getBookPageRenderUrl = ({
+  id,
+  pageId,
+  size = 1200,
+  cacheKey,
+}: {
+  id: string;
+  pageId: string;
+  size?: number;
+  cacheKey?: string;
+}) => createUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
+
+/** a JPEG of the photo before and after auto-enhance, side by side */
+export const getEnhancePreviewUrl = ({ id, strength }: { id: string; strength?: EnhanceStrength }) =>
+  createUrl(`/assets/${id}/enhance/preview.jpg`, { strength });
+
+export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
+  createUrl(format === BookExportFormat.Html ? `/books/${id}/html` : `/books/${id}/pdf`);
+
+/** The always-current web book preview, to be shown in a sandboxed frame; `cacheKey` makes the frame reload after edits */
+export const getBookPreviewUrl = ({ id, cacheKey }: { id: string; cacheKey?: string }) =>
+  createUrl(`/books/${id}/preview`, { v: cacheKey });
+
 export const getProfileImageUrl = (user: UserResponseDto) =>
   createUrl(getUserProfileImagePath(user.id), { updatedAt: user.profileChangedAt });
 
-export const getPeopleThumbnailUrl = (person: PersonResponseDto, updatedAt?: string) =>
+export const getPeopleThumbnailUrl = (person: Pick<PersonResponseDto, 'id' | 'updatedAt'>, updatedAt?: string) =>
   createUrl(getPeopleThumbnailPath(person.id), { updatedAt: updatedAt ?? person.updatedAt });
 
 export const copyToClipboard = async (secret: string | unknown) => {

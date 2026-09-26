@@ -1256,4 +1256,17 @@ export class AssetRepository {
       .where('asset.id', '=', id)
       .executeTakeFirstOrThrow();
   }
+
+  @GenerateSql({ params: [DummyValue.UUID, 100] })
+  getIdsByAlbumId(albumId: string, limit: number) {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('album_asset', 'asset.id', 'album_asset.assetId')
+      .select('asset.id')
+      .where('album_asset.albumId', '=', asUuid(albumId))
+      .where('asset.deletedAt', 'is', null)
+      .orderBy('asset.fileCreatedAt', 'asc')
+      .limit(limit)
+      .execute();
+  }
 }

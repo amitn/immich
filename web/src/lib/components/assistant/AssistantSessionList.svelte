@@ -1,0 +1,116 @@
+<script lang="ts">
+  import { locale } from '$lib/stores/preferences.store';
+  import { AgentSessionStatus, type AgentSessionResponseDto } from '@immich/sdk';
+  import { Button, Icon, IconButton, LoadingSpinner } from '@immich/ui';
+  import { mdiAlertCircleOutline, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
+  import { DateTime } from 'luxon';
+  import { onMount } from 'svelte';
+  import { t } from 'svelte-i18n';
+
+  type Props = {
+    sessions: AgentSessionResponseDto[];
+    activeId?: string;
+    onSelect: (session: AgentSessionResponseDto) => void;
+    onNew: () => void;
+    onDelete: (session: AgentSessionResponseDto) => void;
+    onDeleteAll?: () => void;
+  };
+
+  const { sessions, activeId, onSelect, onNew, onDelete, onDeleteAll }: Props = $props();
+
+  const TICK_MS = 30_000;
+
+  let now = $state(Date.now());
+
+  onMount(() => {
+    const timer = setInterval(() => (now = Date.now()), TICK_MS);
+    return () => clearInterval(timer);
+  });
+
+  /** e.g. "now" or "5 minutes ago", kept up to date */
+  const relative = (date: string) => {
+    const time = DateTime.fromISO(date);
+    // the server clock can be a little ahead
+    const base = DateTime.fromMillis(Math.max(now, time.toMillis()));
+    if (base.diff(time).as('minutes') < 1) {
+      try {
+        return new Intl.RelativeTimeFormat($locale, { numeric: 'auto' }).format(0, 'second');
+      } catch {
+        // unsupported locale
+      }
+    }
+    return time.toRelative({ base, locale: $locale }) ?? '';
+  };
+</script>
+
+<nav class="flex h-full min-h-0 flex-col" aria-label={$t('assistant_chats')}>
+  <div class="p-3">
+    <Button fullWidth size="small" shape="round" leadingIcon={mdiPlus} onclick={onNew}>
+      {$t('assistant_new_chat')}
+    </Button>
+  </div>
+
+  {#if sessions.length === 0}
+    <p class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{$t('assistant_no_chats')}</p>
+  {:else}
+    <ul class="flex min-h-0 flex-1 immich-scrollbar flex-col gap-0.5 overflow-y-auto px-2 pb-3">
+      {#each sessions as session (session.id)}
+        {@const active = session.id === activeId}
+        {@const title = session.title || $t('assistant_untitled_chat')}
+        <li
+          class="group flex items-center gap-1 rounded-xl pe-1 {active
+            ? 'bg-primary/10 text-primary'
+            : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"
+        >
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 flex-col items-start px-3 py-2 text-start"
+            aria-current={active ? 'true' : undefined}
+            onclick={() => onSelect(session)}
+          >
+            <span class="w-full truncate text-sm font-medium">{title}</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">{relative(session.updatedAt)}</span>
+          </button>
+          {#if session.status === AgentSessionStatus.Running}
+            <span class="shrink-0" title={$t('assistant_status_running')}>
+              <LoadingSpinner size="small" />
+              <span class="sr-only">{$t('assistant_status_running')}</span>
+            </span>
+          {:else if session.status === AgentSessionStatus.Error}
+            <span class="shrink-0" title={$t('assistant_status_error')}>
+              <Icon icon={mdiAlertCircleOutline} size="16" class="text-danger" aria-hidden />
+              <span class="sr-only">{$t('assistant_status_error')}</span>
+            </span>
+          {/if}
+          <IconButton
+            icon={mdiTrashCanOutline}
+            size="small"
+            variant="ghost"
+            color="secondary"
+            shape="round"
+            class="shrink-0 {active
+              ? ''
+              : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100'}"
+            aria-label={$t('assistant_delete_chat_named', { values: { title } })}
+            onclick={() => onDelete(session)}
+          />
+        </li>
+      {/each}
+    </ul>
+    {#if onDeleteAll && sessions.length > 1}
+      <div class="border-t border-gray-200 p-2 dark:border-gray-700">
+        <Button
+          fullWidth
+          size="small"
+          shape="round"
+          variant="ghost"
+          color="secondary"
+          leadingIcon={mdiTrashCanOutline}
+          onclick={onDeleteAll}
+        >
+          {$t('assistant_delete_all_chats')}
+        </Button>
+      </div>
+    {/if}
+  {/if}
+</nav>

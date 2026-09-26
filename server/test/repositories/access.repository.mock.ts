@@ -16,6 +16,18 @@ export const newAccessRepositoryMock = (): IAccessRepositoryMock => {
       checkCreateAccess: vitest.fn().mockResolvedValue(new Set()),
     },
 
+    agentSession: {
+      checkOwnerAccess: vitest.fn().mockResolvedValue(new Set()),
+    },
+
+    artJob: {
+      checkOwnerAccess: vitest.fn().mockResolvedValue(new Set()),
+    },
+
+    book: {
+      checkOwnerAccess: vitest.fn().mockResolvedValue(new Set()),
+    },
+
     clusterGroup: {
       checkOwnerAccess: vitest.fn().mockResolvedValue(new Set()),
       checkInviteAccess: vitest.fn().mockResolvedValue(new Set()),

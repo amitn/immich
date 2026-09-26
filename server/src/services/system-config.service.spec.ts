@@ -29,6 +29,25 @@ const partialConfig = {
 } satisfies DeepPartial<SystemConfig>;
 
 const updatedConfig = Object.freeze<SystemConfig>({
+  agent: {
+    enabled: false,
+    profiles: [
+      {
+        name: 'claude',
+        command: 'claude-agent-acp',
+        args: [],
+        env: [],
+        passEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_EXECUTABLE'],
+      },
+      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY', 'CODEX_PATH'] },
+    ],
+    chatProfile: 'claude',
+    artProfile: '',
+    maxConcurrentSessions: 3,
+    idleTimeoutMinutes: 15,
+    autoApproveWrites: false,
+    mcpUrl: '',
+  },
   job: {
     [QueueName.BackgroundTask]: { concurrency: 5 },
     [QueueName.SmartSearch]: { concurrency: 2 },
@@ -51,6 +70,18 @@ const updatedConfig = Object.freeze<SystemConfig>({
       enabled: true,
       cronExpression: '0 02 * * *',
       keepLastAmount: 14,
+    },
+  },
+  books: {
+    maps: {
+      stadiaApiKey: '',
+      defaultStyle: 'watercolor',
+    },
+  },
+  food: {
+    openStreetMap: {
+      enabled: false,
+      overpassUrl: 'https://overpass-api.de/api/interpreter',
     },
   },
   ffmpeg: {

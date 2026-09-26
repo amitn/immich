@@ -20,15 +20,19 @@ import { AuthGuard } from 'src/middleware/auth.guard.js';
 import { FileUploadInterceptor } from 'src/middleware/file-upload.interceptor.js';
 import { GlobalExceptionFilter } from 'src/middleware/global-exception.filter.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
@@ -234,6 +238,10 @@ export const automock = <T>(
 export type ServiceOverrides = {
   access: AccessRepository;
   activity: ActivityRepository;
+  agent: AgentRepository;
+  acp: AcpRepository;
+  artJob: ArtJobRepository;
+  book: BookRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -322,6 +330,10 @@ export const getMocks = () => {
     cron: automock(CronRepository, { args: [, loggerMock] }),
     crypto: newCryptoRepositoryMock(),
     activity: automock(ActivityRepository),
+    agent: automock(AgentRepository),
+    acp: automock(AcpRepository, { args: [loggerMock] }),
+    artJob: automock(ArtJobRepository),
+    book: automock(BookRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -395,6 +407,10 @@ export const newTestService = <T extends BaseService>(
     overrides.logger || (mocks.logger as As<LoggingRepository>),
     overrides.access || (mocks.access as IAccessRepository as AccessRepository),
     overrides.activity || (mocks.activity as As<ActivityRepository>),
+    overrides.agent || (mocks.agent as As<AgentRepository>),
+    overrides.acp || (mocks.acp as As<AcpRepository>),
+    overrides.artJob || (mocks.artJob as As<ArtJobRepository>),
+    overrides.book || (mocks.book as As<BookRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

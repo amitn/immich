@@ -1,0 +1,31 @@
+import { getBooks, type BookResponseDto } from '@immich/sdk';
+import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
+import { authenticate } from '$lib/utils/auth';
+import { getFormatter } from '$lib/utils/i18n';
+import type { PageLoad } from './$types';
+
+export const load = (async ({ url, parent }) => {
+  // feature flags are initialized by the root layout
+  await parent();
+  await authenticate(url);
+  const $t = await getFormatter();
+
+  const enabled = featureFlagsManager.value.assistant;
+
+  let books: BookResponseDto[] = [];
+  let loadError: unknown;
+  try {
+    books = await getBooks();
+  } catch (error) {
+    loadError = error;
+  }
+
+  return {
+    enabled,
+    books,
+    loadError,
+    meta: {
+      title: $t('photo_books'),
+    },
+  };
+}) satisfies PageLoad;

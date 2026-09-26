@@ -95,3 +95,8 @@
 1787148183729-ClusterGroups
 1787148183730-DeleteMismatchedMemoryAssets
 1789419229196-ConvertUserOAuthIdEmptyStringToNull
+1790361230576-AiAssistant
+1790362400000-AgentSessionAutoApprove
+1790363000000-BookHtmlExport
+1790400000000-BookPageMap
+1790401000000-BookExportTracking

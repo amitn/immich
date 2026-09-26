@@ -1,18 +1,26 @@
 import { ActivityService } from 'src/services/activity.service.js';
+import { AgentToolService } from 'src/services/agent-tool.service.js';
+import { AgentService } from 'src/services/agent.service.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { ApiKeyService } from 'src/services/api-key.service.js';
 import { ApiService } from 'src/services/api.service.js';
+import { ArtService } from 'src/services/art.service.js';
 import { AssetFileService } from 'src/services/asset-file.service.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { AuthAdminService } from 'src/services/auth-admin.service.js';
 import { AuthService } from 'src/services/auth.service.js';
+import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
 import { DatabaseService } from 'src/services/database.service.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
+import { EnhanceService } from 'src/services/enhance.service.js';
+import { FoodService } from 'src/services/food.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
 import { JobService } from 'src/services/job.service.js';
@@ -55,7 +63,11 @@ import { WorkflowService } from 'src/services/workflow.service.js';
 export const services = [
   ApiKeyService,
   ActivityService,
+  AgentService,
+  AgentToolService,
   AlbumService,
+  ArtService,
+  BookService,
   ApiService,
   AssetFileService,
   AssetMediaService,
@@ -63,10 +75,14 @@ export const services = [
   AuthService,
   AuthAdminService,
   CliService,
+  CollectionService,
   DatabaseBackupService,
   DatabaseService,
+  DerivedAssetService,
   DownloadService,
   DuplicateService,
+  EnhanceService,
+  FoodService,
   IntegrityService,
   HlsService,
   JobService,

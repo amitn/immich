@@ -32,6 +32,8 @@ import {
   VideoContainer,
   VideoContainerSchema,
 } from 'src/enum.js';
+import { bookMapStyles } from 'src/utils/book/map-styles.js';
+import { DEFAULT_OVERPASS_URL } from 'src/utils/collections/overpass.js';
 
 const { Admin, User, Public } = ConfigVisibility;
 
@@ -147,8 +149,41 @@ const AdminConfigSmtpSchema = z
   })
   .meta({ id: 'AdminConfigSmtpDto' });
 
+const AdminConfigAgentProfileSchema = z
+  .object({
+    name: z
+      .string()
+      .regex(/^[a-z0-9_-]+$/, { error: 'Profile name may only contain lowercase letters, numbers, - and _' })
+      .describe('Unique profile name'),
+    command: z.string().min(1).describe('Executable that speaks the Agent Client Protocol over stdio'),
+    args: z.array(z.string()).describe('Command line arguments'),
+    env: z
+      .array(z.object({ name: z.string().min(1), value: z.string() }).meta({ id: 'AdminConfigAgentEnvDto' }))
+      .describe('Environment variables passed to the agent process'),
+    passEnv: z
+      .array(z.string().min(1))
+      .describe('Names of server environment variables forwarded to the agent process (e.g. API keys)'),
+  })
+  .describe('An ACP agent that can be started by the assistant')
+  .meta({ id: 'AdminConfigAgentProfileDto' });
+
 const AdminConfigSchemaWithVisibility = z
   .object({
+    agent: z
+      .object({
+        enabled: configBool.describe('Enabled'),
+        profiles: z.array(AdminConfigAgentProfileSchema).describe('Available agent profiles'),
+        chatProfile: z.string().describe('Profile used for assistant chat sessions'),
+        artProfile: z.string().describe('Profile used for artistic transforms (empty to disable)'),
+        maxConcurrentSessions: z.int().min(1).max(100).describe('Maximum number of running agent processes'),
+        idleTimeoutMinutes: z.int().min(1).max(1440).describe('Stop an idle agent process after this many minutes'),
+        autoApproveWrites: configBool.describe('Allow the agent to modify the library without asking for approval'),
+        mcpUrl: emptyOrUrl('MCP URL must be an empty string or a valid URL').describe(
+          'URL the agent uses to reach the Immich MCP endpoint (empty for http://127.0.0.1:<port>/api/agent/mcp)',
+        ),
+      })
+      .describe('AI assistant (Agent Client Protocol) config')
+      .meta({ id: 'AdminConfigAgentDto' }),
     backup: z
       .object({
         database: z
@@ -160,7 +195,35 @@ const AdminConfigSchemaWithVisibility = z
           .meta({ id: 'AdminConfigDatabaseBackupDto' }),
       })
       .meta({ id: 'AdminConfigBackupsDto' }),
+    books: z
+      .object({
+        maps: z
+          .object({
+            stadiaApiKey: z
+              .string()
+              .describe(
+                'Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only)',
+              ),
+            defaultStyle: z.enum(bookMapStyles).describe('Map style used when a book asks for the automatic style'),
+          })
+          .meta({ id: 'AdminConfigBookMapsDto' }),
+      })
+      .describe('Photo book config')
+      .meta({ id: 'AdminConfigBooksDto' }),
     ffmpeg: AdminConfigFFmpegSchema,
+    food: z
+      .object({
+        openStreetMap: z
+          .object({
+            enabled: configBool.describe(
+              'Let the assistant look up restaurants near the location of a meal on OpenStreetMap (sends the location to the Overpass API)',
+            ),
+            overpassUrl: z.url().describe('URL of the Overpass API interpreter'),
+          })
+          .meta({ id: 'AdminConfigFoodOpenStreetMapDto' }),
+      })
+      .describe('Food photos config')
+      .meta({ id: 'AdminConfigFoodDto' }),
     integrityChecks: z
       .object({
         missingFiles: AdminConfigIntegrityJobSchema,
@@ -544,11 +607,42 @@ export function mapPublicConfig(config: SystemConfig): PublicConfigDto {
 }
 
 export const defaults = Object.freeze<SystemConfig>({
+  agent: {
+    enabled: false,
+    profiles: [
+      {
+        name: 'claude',
+        command: 'claude-agent-acp',
+        args: [],
+        env: [],
+        passEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_EXECUTABLE'],
+      },
+      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY', 'CODEX_PATH'] },
+    ],
+    chatProfile: 'claude',
+    artProfile: '',
+    maxConcurrentSessions: 3,
+    idleTimeoutMinutes: 15,
+    autoApproveWrites: false,
+    mcpUrl: '',
+  },
   backup: {
     database: {
       enabled: true,
       cronExpression: CronExpression.EVERY_DAY_AT_2AM,
       keepLastAmount: 14,
+    },
+  },
+  books: {
+    maps: {
+      stadiaApiKey: '',
+      defaultStyle: 'watercolor',
+    },
+  },
+  food: {
+    openStreetMap: {
+      enabled: false,
+      overpassUrl: DEFAULT_OVERPASS_URL,
     },
   },
   ffmpeg: {
