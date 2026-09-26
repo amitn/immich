@@ -11,7 +11,7 @@ export enum AssetAction {
   RATING = 'rating',
 }
 
-export type SharedLinkTab = 'all' | 'album' | 'individual';
+export type SharedLinkTab = 'all' | 'album' | 'individual' | 'book';
 
 export enum ProjectionType {
   EQUIRECTANGULAR = 'EQUIRECTANGULAR',

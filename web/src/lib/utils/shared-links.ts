@@ -43,6 +43,21 @@ export const loadSharedLink = async ({
     const assetId = sharedLink.album?.albumThumbnailAssetId || sharedLink.assets[0]?.id;
     const assetPath = assetId ? getAssetMediaUrl({ id: assetId }) : '/feature-panel.png';
 
+    if (sharedLink.book) {
+      const { book } = sharedLink;
+      return {
+        ...common,
+        sharedLink,
+        asset,
+        meta: {
+          title: book.title,
+          description:
+            sharedLink.description || book.subtitle || $t('book_page_count', { values: { count: book.pageCount } }),
+          imageUrl: '/feature-panel.png',
+        },
+      };
+    }
+
     return {
       ...common,
       sharedLink,

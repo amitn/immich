@@ -16,6 +16,7 @@
   import { BookEditorManager } from '$lib/managers/book-editor-manager.svelte';
   import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
+  import SharedLinkCreateModal from '$lib/modals/SharedLinkCreateModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
   import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
@@ -64,6 +65,7 @@
     mdiFilePdfBox,
     mdiLanguageHtml5,
     mdiPencilOutline,
+    mdiShareVariantOutline,
     mdiTrashCanOutline,
   } from '@mdi/js';
   import { DateTime } from 'luxon';
@@ -316,6 +318,17 @@
 
   const handlePreview = () => modalManager.show(BookPreviewModal, { book: { ...book, pageCount: pages.length } });
 
+  // a public link to the web book; the PDF can be downloaded through it once it was exported
+  const handleShare = () =>
+    modalManager.show(SharedLinkCreateModal, {
+      book: {
+        id: book.id,
+        hasPdf:
+          getBookExportStatus(book, BookExportFormat.Pdf) === BookExportStatus.Completed ||
+          !!getBookExportedAt(book, BookExportFormat.Pdf),
+      },
+    });
+
   const handleSwitchBook = (other: BookResponseDto) => {
     if (other.id !== book.id) {
       void goto(Route.viewBook(other));
@@ -547,6 +560,16 @@
         </div>
       {/if}
       {#if pages.length > 0}
+        <Button
+          variant="ghost"
+          size="small"
+          color="secondary"
+          leadingIcon={mdiShareVariantOutline}
+          onclick={handleShare}
+        >
+          <span class="hidden sm:inline">{$t('share')}</span>
+          <span class="sr-only sm:hidden">{$t('share')}</span>
+        </Button>
         <ButtonContextMenu
           icon={mdiExportVariant}
           title={$t('export')}
