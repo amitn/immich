@@ -31,8 +31,14 @@ describe('collection packs', () => {
   });
 
   it('should take the book presets and themes of the packs', () => {
-    expect(bookStylePresetIds).toEqual(['classic', 'soft', 'bold', 'food']);
-    expect(bookStyleThemes).toEqual(['plain', 'food']);
+    expect(bookStylePresetIds).toEqual([
+      'classic',
+      'soft',
+      'bold',
+      ...BUILT_IN_COLLECTION_PACKS.map(({ book }) => book.preset.id),
+    ]);
+    expect(bookStylePresetIds.slice(0, 4)).toEqual(['classic', 'soft', 'bold', 'food']);
+    expect(bookStyleThemes.slice(0, 2)).toEqual(['plain', 'food']);
     expect(isCollectionTheme('food')).toBe(true);
     expect(isPrintedTheme('food')).toBe(true);
     expect(isPrintedTheme('plain')).toBe(false);
@@ -97,7 +103,11 @@ describe('a second pack in books', () => {
   };
 
   it('should read its tags next to the food tags', () => {
-    expect(getCollectionTagPrefixes()).toEqual(['Food/', 'Labels/']);
+    expect(getCollectionTagPrefixes()).toEqual([
+      ...BUILT_IN_COLLECTION_PACKS.map(({ tagRoot }) => `${tagRoot}/`),
+      'Labels/',
+    ]);
+    expect(getCollectionTagPrefixes()[0]).toBe('Food/');
     expect(getCollectionTag([getEntryTag(labels, 'Orto Botanico', 'Rosa canina')])).toEqual({
       pack: 'labels',
       place: 'Orto Botanico',
@@ -165,6 +175,9 @@ describe('a second pack in books', () => {
   });
 
   it('should list the pack among the packs while it is registered', () => {
-    expect(getCollectionPacks().map(({ id }) => id)).toEqual(['food', 'labels']);
+    expect(getCollectionPacks().map(({ id }) => id)).toEqual([
+      ...BUILT_IN_COLLECTION_PACKS.map(({ id }) => id),
+      'labels',
+    ]);
   });
 });

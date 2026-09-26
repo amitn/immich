@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { BookMap, BookStyleSchema } from 'src/dtos/book.dto.js';
+import { BookMap, BookStyleSchema, bookStylePresetIds } from 'src/dtos/book.dto.js';
 import {
   ArtJobStatus,
   AssetFileType,
@@ -231,7 +231,9 @@ describe(BookService.name, () => {
   describe('getStylePresets', () => {
     it('should list the presets with valid styles', () => {
       const presets = sut.getStylePresets();
-      expect(presets.map(({ id }) => id)).toEqual(['classic', 'soft', 'bold', 'food']);
+      // the presets of the collection packs follow the built-in ones
+      expect(presets.map(({ id }) => id)).toEqual([...bookStylePresetIds]);
+      expect(presets.slice(0, 4).map(({ id }) => id)).toEqual(['classic', 'soft', 'bold', 'food']);
       expect(presets[0].style).toEqual(
         expect.objectContaining({ marginMm: 12, background: '#ffffff', fontFamily: 'serif' }),
       );

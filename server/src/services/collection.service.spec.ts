@@ -4,7 +4,11 @@ import { AssetService } from 'src/services/asset.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { TagService } from 'src/services/tag.service.js';
 import { CollectionKind, getPromptList } from 'src/utils/collections/classify.js';
-import { registerCollectionPack, unregisterCollectionPack } from 'src/utils/collections/registry.js';
+import {
+  BUILT_IN_COLLECTION_PACKS,
+  registerCollectionPack,
+  unregisterCollectionPack,
+} from 'src/utils/collections/registry.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { labelsPack } from 'test/fixtures/collections/labels.pack.js';
 import { newUuid } from 'test/small.factory.js';
@@ -84,7 +88,7 @@ describe(CollectionService.name, () => {
   describe('packs', () => {
     it('should list the packs, food first', () => {
       const packs = sut.getPacks();
-      expect(packs.map(({ id }) => id)).toEqual(['food', 'labels']);
+      expect(packs.map(({ id }) => id)).toEqual([...BUILT_IN_COLLECTION_PACKS.map(({ id }) => id), 'labels']);
       expect(packs[0]).toEqual({
         id: 'food',
         title: 'Food',
@@ -95,12 +99,12 @@ describe(CollectionService.name, () => {
         bookStylePreset: 'food',
         placeLookup: true,
       });
-      expect(packs[1]).toMatchObject({ id: 'labels', tagRoot: 'Labels', placeLookup: false });
+      expect(packs.at(-1)).toMatchObject({ id: 'labels', tagRoot: 'Labels', placeLookup: false });
     });
 
     it('should reject an unknown pack', async () => {
-      await expect(sut.findVisits(auth, 'museum', { albumId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
-      expect(() => sut.requirePack('museum')).toThrow('Unknown collection pack "museum". Packs: food, labels');
+      await expect(sut.findVisits(auth, 'unknown', { albumId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
+      expect(() => sut.requirePack('unknown')).toThrow(/^Unknown collection pack "unknown"\. Packs: food, .*labels$/);
     });
   });
 

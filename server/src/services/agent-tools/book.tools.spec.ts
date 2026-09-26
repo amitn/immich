@@ -1,3 +1,4 @@
+import { bookStylePresetIds } from 'src/dtos/book.dto.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { AgentTool, AgentToolContext } from 'src/utils/agent/tools.js';
@@ -706,7 +707,9 @@ describe(BookAgentTools.name, () => {
 
     it('should list the style presets with the layouts', async () => {
       const result = JSON.parse(text(await call('list_layouts', {})));
-      expect(result.stylePresets.map(({ id }: { id: string }) => id)).toEqual(['classic', 'soft', 'bold', 'food']);
+      const ids = result.stylePresets.map(({ id }: { id: string }) => id);
+      expect(ids).toEqual([...bookStylePresetIds]);
+      expect(ids.slice(0, 4)).toEqual(['classic', 'soft', 'bold', 'food']);
     });
   });
 });

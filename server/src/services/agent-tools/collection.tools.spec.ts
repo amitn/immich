@@ -3,7 +3,11 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CollectionService, SourceReading } from 'src/services/collection.service.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
-import { registerCollectionPack, unregisterCollectionPack } from 'src/utils/collections/registry.js';
+import {
+  BUILT_IN_COLLECTION_PACKS,
+  registerCollectionPack,
+  unregisterCollectionPack,
+} from 'src/utils/collections/registry.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { labelsPack } from 'test/fixtures/collections/labels.pack.js';
 import { newUuid } from 'test/small.factory.js';
@@ -78,10 +82,11 @@ describe(CollectionAgentTools.name, () => {
     registerCollectionPack(labelsPack);
     try {
       const find = sut.getTools().find(({ name }) => name === 'find_visits')!;
-      expect(find.input.shape.pack.options).toEqual(['food', 'labels']);
+      expect(find.input.shape.pack.options).toEqual([...BUILT_IN_COLLECTION_PACKS.map(({ id }) => id), 'labels']);
       expect(find.input.shape.pack.description).toContain('labels (botanical garden walks');
       const lookup = sut.getTools().find(({ name }) => name === 'lookup_place')!;
-      expect(lookup.description).toContain('(food)');
+      expect(lookup.description).toMatch(/ \(food(, [\da-z-]+)*\);/);
+      expect(lookup.description).not.toContain('labels');
 
       const findVisits = vi.spyOn(CollectionService.prototype, 'findVisits').mockResolvedValue({
         pack: 'labels',
