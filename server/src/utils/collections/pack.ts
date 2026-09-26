@@ -1,6 +1,6 @@
 import type { BookStyle } from 'src/dtos/book.dto.js';
 import type { ClassifyRules, CollectionPrompts } from 'src/utils/collections/classify.js';
-import type { MatchOptions } from 'src/utils/collections/match.js';
+import type { MatchOptions, SubjectAssigner } from 'src/utils/collections/match.js';
 import type { OsmFilter } from 'src/utils/collections/overpass.js';
 import type { PlaceNameRules } from 'src/utils/collections/place.js';
 import type { SourceEntry, SourceParser } from 'src/utils/collections/source.js';
@@ -69,6 +69,11 @@ export type CollectionPack = {
     options?: Partial<MatchOptions>;
     /** CLIP texts of subjects that are usually not on the source; the best of them is "off the list" */
     offListPrompts: string[];
+    /**
+     * assigns the subjects to the entries the pack's own way instead of by CLIP alone (`matchSubjects`), e.g. by time
+     * for the legs of a trip; it also gets the text read on the subject photos and when the source photos were taken
+     */
+    assign?: SubjectAssigner;
   };
 
   /** the description a subject photo gets when it has none, e.g. "Caponata · Trattoria da Nino" */

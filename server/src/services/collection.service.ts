@@ -29,7 +29,7 @@ import {
   getPromptList,
   summarizeText,
 } from 'src/utils/collections/classify.js';
-import { EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
+import { DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -361,13 +361,15 @@ export class CollectionService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
-    const { matches, ordered } = matchSubjects(
-      photos,
-      entryEmbeddings.length === entries.length
-        ? entryEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
-        : [],
-      { ...pack.match.options, baselines },
-    );
+    const { matches, ordered } = pack.match.assign
+      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines)
+      : matchSubjects(
+          photos,
+          entryEmbeddings.length === entries.length
+            ? entryEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
+            : [],
+          { ...pack.match.options, baselines },
+        );
 
     return {
       entries,
@@ -384,6 +386,46 @@ export class CollectionService extends BaseService {
       noEmbedding,
       warnings: unique(warnings),
     };
+  }
+
+  /**
+   * The pack's own assignment of the subjects to the entries (e.g. by time, for the legs of a trip), with the text read
+   * on the subject photos and the capture times of the source photos; photos without an embedding take part too
+   */
+  private async assignSubjects(
+    pack: CollectionPack,
+    rows: Array<{ id: string; localDateTime: Date }>,
+    embeddings: Map<string, Float32Array>,
+    entries: CollectionEntryResponse[],
+    courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
+    entryEmbeddings: Float32Array[],
+    baselines: Float32Array[],
+  ) {
+    const ocr = new Map<string, string[]>();
+    for (const chunk of chunks(rows.map(({ id }) => id))) {
+      for (const { assetId, text } of await this.ocrRepository.getByAssetIds(chunk)) {
+        ocr.set(assetId, [...(ocr.get(assetId) ?? []), text]);
+      }
+    }
+    const sourceIds = unique(entries.flatMap(({ sourceId }) => (sourceId ? [sourceId] : [])));
+    const sources = sourceIds.length > 0 ? await this.assetRepository.getByIds(sourceIds) : [];
+    const sourceTimes = new Map(sources.map((source) => [source.id, source.localDateTime.getTime()]));
+    return pack.match.assign!(
+      rows.map((row) => ({
+        id: row.id,
+        time: row.localDateTime.getTime(),
+        embedding: embeddings.get(row.id) ?? new Float32Array(0),
+        ...(ocr.has(row.id) && { text: redactText(pack, ocr.get(row.id)!.join('\n')) }),
+      })),
+      entries.map((entry, index) => ({
+        name: entry.name,
+        ...(entry.description && { description: entry.description }),
+        ...courses[index],
+        ...(entryEmbeddings.length === entries.length && { embedding: entryEmbeddings[index] }),
+        ...(entry.sourceId && sourceTimes.has(entry.sourceId) && { sourceTime: sourceTimes.get(entry.sourceId) }),
+      })),
+      { ...DEFAULT_MATCH_OPTIONS, ...pack.match.options, baselines, suggestions: 3 },
+    );
   }
 
   /** Named places of the pack (e.g. restaurants) near a visit on OpenStreetMap, when the admin enabled the lookup */
@@ -746,6 +788,8 @@ export class CollectionService extends BaseService {
     if (parsed.items.length < (pack.source.minEntries ?? 3)) {
       warnings.push(messages.fewEntries);
     }
+    // what the parser could not read, or found ambiguous
+    warnings.push(...(parsed.warnings ?? []));
     return {
       ...parsed,
       assetId: id,
@@ -774,6 +818,7 @@ export class CollectionService extends BaseService {
       })),
       ...(parsed.title !== undefined && { title: redact(parsed.title) }),
       sections: parsed.sections.map((section) => redact(section)),
+      ...(parsed.warnings && { warnings: parsed.warnings.map((warning) => redact(warning)) }),
     };
   }
 

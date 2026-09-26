@@ -29,6 +29,8 @@ export type ParsedSource = {
   columns: number;
   /** text lines read from the photo */
   lines: number;
+  /** what the parser could not read or found ambiguous, e.g. a date printed vertically */
+  warnings?: string[];
 };
 
 export type SourceParseOptions = { minScore?: number; aspectRatio?: number };
