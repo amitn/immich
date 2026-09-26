@@ -191,7 +191,7 @@
   onDestroy(() => stopTimers());
 </script>
 
-<Modal title={$t('artistic_style')} icon={mdiPaletteOutline} {onClose} size="large">
+<Modal title={$t('artistic_style_title')} icon={mdiPaletteOutline} {onClose} size="large">
   <ModalBody>
     {#if phase === 'select'}
       <div class="flex flex-col gap-4">

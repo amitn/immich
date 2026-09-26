@@ -48,6 +48,13 @@ describe('ArtisticStyleModal component', () => {
     });
   });
 
+  it('should title the modal without the menu ellipsis', async () => {
+    render(ArtisticStyleModal, { props: { asset, onClose } });
+
+    expect(await screen.findByText('artistic_style_title')).toBeInTheDocument();
+    expect(screen.queryByText('artistic_style')).not.toBeInTheDocument();
+  });
+
   it('should create a job with the selected style', async () => {
     sdkMock.createArtJob.mockResolvedValue(job());
 
