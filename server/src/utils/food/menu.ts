@@ -710,3 +710,32 @@ const getTitle = (lines: TextLine[], bodyHeight: number) => {
     .toSorted((a, b) => b.line.height - a.line.height || a.line.top - b.line.top);
   return candidates[0]?.text;
 };
+
+/**
+ * Which OCR to read a menu from: the tiled full-resolution reading, unless it somehow reads fewer items than the
+ * OCR stored for the photo.
+ */
+export const chooseMenuOcr = (
+  stored: OcrBoxInput[],
+  detailed: OcrBoxInput[],
+  options: { aspectRatio?: number } = {},
+): 'tiles' | 'stored' =>
+  parseMenu(detailed, options).items.length >= parseMenu(stored, options).items.length ? 'tiles' : 'stored';
+
+/** the items of the menus of a meal, in menu order, without the items another page (or photo) already listed */
+export const mergeMenuItems = <T extends { items: MenuItem[] }>(readings: Array<T & { assetId: string }>) => {
+  const seen = new Set<string>();
+  const items: Array<{ menuId: string; item: MenuItem }> = [];
+  for (const reading of readings) {
+    for (const item of reading.items) {
+      const key = stripAccents(item.name)
+        .toLowerCase()
+        .replaceAll(/[^\p{L}\d]/gu, '');
+      if (!seen.has(key)) {
+        seen.add(key);
+        items.push({ menuId: reading.assetId, item });
+      }
+    }
+  }
+  return items;
+};

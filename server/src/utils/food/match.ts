@@ -64,6 +64,21 @@ export type DishMatch = {
   suggestions: MatchSuggestion[];
 };
 
+/** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
+export const OFF_MENU_PROMPTS = [
+  'a photo of food',
+  'a photo of a bread basket with butter',
+  'a photo of a cup of coffee',
+  'a photo of a small amuse-bouche',
+  'a photo of chocolates and petits fours',
+];
+
+/** the CLIP text of a menu item */
+export const itemPrompt = (item: { name: string; description?: string }) => {
+  const text = item.description ? `${item.name}: ${item.description}` : item.name;
+  return `a photo of ${text.length > 200 ? text.slice(0, 200) : text}`;
+};
+
 const dot = (a: Float32Array, b: Float32Array) => 1 - cosineDistance(a, b);
 
 /**
