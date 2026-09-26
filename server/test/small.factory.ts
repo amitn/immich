@@ -60,6 +60,7 @@ const authSharedLinkFactory = (sharedLink: Partial<AuthSharedLink> = {}) => {
     userId = newUuid(),
     showExif = true,
     albumId = null,
+    bookId = null,
     allowUpload = false,
     allowDownload = true,
     password = null,
@@ -68,6 +69,7 @@ const authSharedLinkFactory = (sharedLink: Partial<AuthSharedLink> = {}) => {
   return {
     id,
     albumId,
+    bookId,
     expiresAt,
     userId,
     showExif,
