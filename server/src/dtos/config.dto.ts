@@ -33,7 +33,7 @@ import {
   VideoContainerSchema,
 } from 'src/enum.js';
 import { bookMapStyles } from 'src/utils/book/map-styles.js';
-import { DEFAULT_OVERPASS_URL } from 'src/utils/food/overpass.js';
+import { DEFAULT_OVERPASS_URL } from 'src/utils/collections/overpass.js';
 
 const { Admin, User, Public } = ConfigVisibility;
 

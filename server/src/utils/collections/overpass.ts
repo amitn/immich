@@ -2,17 +2,8 @@ import { haversineKm } from 'src/utils/agent/events.js';
 
 export const DEFAULT_OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 
-/** OpenStreetMap amenities where people eat or drink */
-export const FOOD_AMENITIES = [
-  'restaurant',
-  'cafe',
-  'bar',
-  'pub',
-  'fast_food',
-  'ice_cream',
-  'food_court',
-  'biergarten',
-] as const;
+/** OpenStreetMap features with one of `values` for the tag `key`, e.g. amenity=restaurant or tourism=museum */
+export type OsmFilter = { key: string; values: readonly string[] };
 
 export const DEFAULT_LOOKUP_RADIUS = 75;
 export const MAX_LOOKUP_RADIUS = 300;
@@ -22,8 +13,12 @@ type Point = { latitude: number; longitude: number };
 
 const coordinate = (value: number) => value.toFixed(6);
 
-/** an Overpass QL query for named food amenities (nodes, ways and relations) within `radius` meters of a point */
-export const buildOverpassQuery = ({ latitude, longitude }: Point, radius = DEFAULT_LOOKUP_RADIUS) => {
+/** an Overpass QL query for the named features (nodes, ways and relations) of `filters` within `radius` meters */
+export const buildOverpassQuery = (
+  { latitude, longitude }: Point,
+  filters: readonly OsmFilter[],
+  radius = DEFAULT_LOOKUP_RADIUS,
+) => {
   if (
     !Number.isFinite(latitude) ||
     !Number.isFinite(longitude) ||
@@ -32,18 +27,23 @@ export const buildOverpassQuery = ({ latitude, longitude }: Point, radius = DEFA
   ) {
     throw new Error('Invalid coordinates');
   }
+  if (filters.length === 0) {
+    throw new Error('Nothing to look up');
+  }
   const meters = Math.round(Math.max(1, Math.min(MAX_LOOKUP_RADIUS, radius)));
+  const around = `nwr(around:${meters},${coordinate(latitude)},${coordinate(longitude)})`;
+  const statements = filters.map(({ key, values }) => `${around}["${key}"~"^(${values.join('|')})$"]["name"];`);
   return (
     `[out:json][timeout:10];` +
-    `nwr(around:${meters},${coordinate(latitude)},${coordinate(longitude)})` +
-    `["amenity"~"^(${FOOD_AMENITIES.join('|')})$"]["name"];` +
+    (statements.length === 1 ? statements[0] : `(${statements.join('')});`) +
     `out center tags ${MAX_RESULTS};`
   );
 };
 
 export type NearbyPlace = {
   name: string;
-  amenity: string;
+  /** the value of the filter's tag, e.g. restaurant or museum */
+  type: string;
   cuisine?: string;
   /** meters from the point that was looked up */
   distance: number;
@@ -62,8 +62,8 @@ type OverpassElement = {
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
-/** the named places of an Overpass JSON response, closest first; one entry per name */
-export const parseOverpassPlaces = (response: unknown, origin: Point): NearbyPlace[] => {
+/** the named places of an Overpass JSON response for `filters`, closest first; one entry per name */
+export const parseOverpassPlaces = (response: unknown, origin: Point, filters: readonly OsmFilter[]): NearbyPlace[] => {
   const elements = (response as { elements?: unknown })?.elements;
   if (!Array.isArray(elements)) {
     return [];
@@ -78,9 +78,10 @@ export const parseOverpassPlaces = (response: unknown, origin: Point): NearbyPla
     if (!name || !isNumber(latitude) || !isNumber(longitude)) {
       continue;
     }
+    const type = filters.map(({ key }) => tags[key]).find((value) => typeof value === 'string');
     places.push({
       name,
-      amenity: typeof tags.amenity === 'string' ? tags.amenity : 'restaurant',
+      type: typeof type === 'string' ? type : (filters[0]?.values[0] ?? 'place'),
       ...(typeof tags.cuisine === 'string' && { cuisine: tags.cuisine.replaceAll(';', ', ') }),
       distance: Math.round(haversineKm(origin, { latitude, longitude }) * 1000),
       osm: `${String(element.type)}/${String(element.id)}`,

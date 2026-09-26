@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { alignCourses, assignMax, groupDishPhotos, matchCourses, matchDishes } from 'src/utils/food/match.js';
+import {
+  alignCourses,
+  assignMax,
+  getSubjectMatches,
+  groupSubjectPhotos,
+  matchSubjects,
+} from 'src/utils/collections/match.js';
 
 const vector = (...values: number[]) => {
   const norm = Math.hypot(...values);
@@ -38,9 +44,9 @@ describe('assignMax', () => {
   });
 });
 
-describe('matchDishes', () => {
+describe('getSubjectMatches', () => {
   it('should match photos to items and group photos of the same dish', () => {
-    const matches = matchDishes(
+    const matches = getSubjectMatches(
       [
         { id: 'carbonara-1', time: minutes(0), embedding: vector(0.9, 0.05, 0, 0.3) },
         { id: 'vongole', time: minutes(10), embedding: vector(0.05, 0.9, 0, 0.3) },
@@ -61,7 +67,7 @@ describe('matchDishes', () => {
   });
 
   it('should give different dishes different items and mark the second choice unsure', () => {
-    const matches = matchDishes(
+    const matches = getSubjectMatches(
       [
         { id: 'a', time: minutes(0), embedding: vector(0.9, 0.3, 0, 0) },
         { id: 'b', time: minutes(40), embedding: vector(0.64, 0.63, 0, 0.3) },
@@ -77,14 +83,17 @@ describe('matchDishes', () => {
   });
 
   it('should mark a photo that looks like two items unsure', () => {
-    const [match] = matchDishes([{ id: 'a', time: 0, embedding: vector(0.7, 0.7, 0, 0.2) }], [carbonara, vongole]);
+    const [match] = getSubjectMatches(
+      [{ id: 'a', time: 0, embedding: vector(0.7, 0.7, 0, 0.2) }],
+      [carbonara, vongole],
+    );
     expect(match.unsure).toBe(true);
     expect(match.score).toBeLessThan(0.6);
   });
 
   it('should leave a dish that is not on the menu unmatched, against a generic dish', () => {
     const baseline = vector(0.3, 0.3, 0.3, 1);
-    const matches = matchDishes(
+    const matches = getSubjectMatches(
       [
         { id: 'a', time: minutes(0), embedding: vector(0.9, 0.1, 0, 0) },
         { id: 'b', time: minutes(40), embedding: vector(0.2, 0.1, 0.9, 0.3) },
@@ -99,7 +108,7 @@ describe('matchDishes', () => {
   });
 
   it('should let two plates of the same dish share it', () => {
-    const matches = matchDishes(
+    const matches = getSubjectMatches(
       [
         { id: 'a', time: minutes(0), embedding: vector(0.9, 0.1, 0, 0.3) },
         { id: 'b', time: minutes(40), embedding: vector(0.85, 0.05, 0.1, 0.1) },
@@ -120,7 +129,7 @@ describe('matchDishes', () => {
     const desserts = { embedding: vector(0, 0, 1, 0, 0) };
     const baselines = [vector(0.2, 0.2, 0.2, 1, 0.3)];
 
-    const matches = matchDishes(
+    const matches = getSubjectMatches(
       [
         { id: 'gougeres', time: minutes(0), embedding: vector(0.1, 0.05, 0.05, 0.9, 0.4) },
         { id: 'oysters', time: minutes(5), embedding: vector(0.9, 0.05, 0, 0.1, 0.4) },
@@ -141,12 +150,12 @@ describe('matchDishes', () => {
       { ids: ['chocolate-cake'], item: 2 },
       { ids: ['cappuccino'], item: undefined },
     ]);
-    expect(matches[0].offMenu).toBeGreaterThan(0.5);
+    expect(matches[0].offList).toBeGreaterThan(0.5);
     expect(matches[0].unsure).toBe(true);
   });
 
   it('should return the groups without suggestions when there are no items', () => {
-    const matches = matchDishes([{ id: 'a', time: 0, embedding: vector(1, 0, 0, 0) }], []);
+    const matches = getSubjectMatches([{ id: 'a', time: 0, embedding: vector(1, 0, 0, 0) }], []);
     expect(matches).toEqual([{ ids: ['a'], score: 0, unsure: true, suggestions: [] }]);
   });
 });
@@ -158,11 +167,11 @@ const axis = (size: number, index: number, weight = 1, noise: number[] = []) =>
 /** a plated dish on a white tablecloth, leaning a little towards one side */
 const plate = (lean: number) => vector(1, lean, 0.2);
 
-describe('groupDishPhotos', () => {
-  const options = { sameDishDistance: 0.03, sameDishMinutes: 5 };
+describe('groupSubjectPhotos', () => {
+  const options = { sameSubjectDistance: 0.03, sameSubjectMinutes: 5 };
 
   it('should group a burst of near-identical photos', () => {
-    const groups = groupDishPhotos(
+    const groups = groupSubjectPhotos(
       [
         { id: 'a', time: 0, embedding: vector(1, 0.1, 0.05) },
         { id: 'b', time: 20_000, embedding: vector(1, 0.12, 0.06) },
@@ -175,7 +184,7 @@ describe('groupDishPhotos', () => {
 
   it('should keep courses that look alike apart', () => {
     // plated courses on white tablecloths: 0.95 alike, 12 minutes apart
-    const groups = groupDishPhotos(
+    const groups = groupSubjectPhotos(
       [
         { id: 'trout', time: 0, embedding: plate(0.3) },
         { id: 'crab', time: minutes(12), embedding: plate(0.6) },
@@ -186,7 +195,7 @@ describe('groupDishPhotos', () => {
     expect(groups).toEqual([[0], [1], [2]]);
     // and the same photo taken again much later is another plate
     expect(
-      groupDishPhotos(
+      groupSubjectPhotos(
         [
           { id: 'a', time: 0, embedding: plate(0.3) },
           { id: 'b', time: minutes(20), embedding: plate(0.3) },
@@ -244,7 +253,7 @@ describe('alignCourses', () => {
   });
 });
 
-describe('matchCourses', () => {
+describe('matchSubjects', () => {
   // a tasting menu of six courses, and a generic "not on the menu" text; CLIP tells the courses apart only a little
   const size = 8;
   const courses = Array.from({ length: 6 }, (_, index) => ({ embedding: axis(size, index), course: index }));
@@ -262,7 +271,7 @@ describe('matchCourses', () => {
   ];
 
   it('should follow the order of the courses of a tasting menu', () => {
-    const { matches, ordered } = matchCourses(photos, courses, { baselines });
+    const { matches, ordered } = matchSubjects(photos, courses, { baselines });
     expect(ordered).toBe(true);
     expect(matches.map(({ ids, item }) => [ids[0], item])).toEqual([
       ['amuse', undefined],
@@ -277,7 +286,7 @@ describe('matchCourses', () => {
 
   it('should not follow the order of a menu with prices', () => {
     const priced = courses.map((course) => ({ ...course, priced: true }));
-    expect(matchCourses(photos, priced, { baselines }).ordered).toBe(false);
+    expect(matchSubjects(photos, priced, { baselines }).ordered).toBe(false);
   });
 
   it('should not follow the order of a long list of items without prices', () => {
@@ -288,7 +297,7 @@ describe('matchCourses', () => {
       time: minutes(position * 10),
       embedding: axis(24, index, 0.6, { 23: 0.7 } as unknown as number[]),
     }));
-    const { matches, ordered } = matchCourses(dishes, list);
+    const { matches, ordered } = matchSubjects(dishes, list);
     expect(ordered).toBe(false);
     expect(matches.map(({ item }) => item)).toEqual([0, 3, 7, 12]);
   });
@@ -298,8 +307,8 @@ describe('matchCourses', () => {
     const shuffled = photos.map((photo, index) =>
       index > 0 && index < 7 ? { ...photo, time: minutes(10 + times[index - 1] * 15) } : photo,
     );
-    expect(matchCourses(shuffled, courses, { baselines }).ordered).toBe(false);
-    expect(matchCourses(shuffled, courses, { baselines, order: 'none' }).ordered).toBe(false);
+    expect(matchSubjects(shuffled, courses, { baselines }).ordered).toBe(false);
+    expect(matchSubjects(shuffled, courses, { baselines, order: 'none' }).ordered).toBe(false);
   });
 
   it('should not let a text that CLIP likes for every photo win every dish', () => {
@@ -313,8 +322,10 @@ describe('matchCourses', () => {
       time: minutes(index * 20),
       embedding: axis(5, index, 0.5, [0, 0, 0, 0, 0.87]),
     }));
-    expect(matchDishes(dishes, items, { order: 'none' }).map(({ item }) => item)).toEqual([0, 1, 2, 3]);
+    expect(getSubjectMatches(dishes, items, { order: 'none' }).map(({ item }) => item)).toEqual([0, 1, 2, 3]);
     // measured on their own, caviar wins a dish
-    expect(matchDishes(dishes, items, { order: 'none', centerDishes: 10 }).map(({ item }) => item)).toContain(4);
+    expect(getSubjectMatches(dishes, items, { order: 'none', centerSubjects: 10 }).map(({ item }) => item)).toContain(
+      4,
+    );
   });
 });

@@ -1,4 +1,4 @@
-import { TextBox, TextLine, groupLines, isPrice, toTextLine, verticalOverlap } from 'src/utils/food/ocr.js';
+import { TextBox, TextLine, groupLines, isPrice, toTextLine, verticalOverlap } from 'src/utils/collections/ocr.js';
 
 /** a column of a page: its lines top to bottom */
 export type Column = { left: number; right: number; lines: TextLine[] };

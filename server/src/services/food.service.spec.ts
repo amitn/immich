@@ -3,20 +3,21 @@ import { AssetFileType, AssetType } from 'src/enum.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { FoodService } from 'src/services/food.service.js';
 import { TagService } from 'src/services/tag.service.js';
-import { FOOD_PROMPT_LIST, FoodKind } from 'src/utils/food/classify.js';
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
+import { CollectionKind } from 'src/utils/collections/classify.js';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
+import { FOOD_PROMPT_LIST } from 'src/utils/collections/packs/food/classify.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 /** CLIP similarities with the classification prompts, every prompt of a kind at the given value */
-const similarities = (values: Partial<Record<FoodKind, number>>) =>
+const similarities = (values: Partial<Record<CollectionKind, number>>) =>
   FOOD_PROMPT_LIST.map(({ kind }) => values[kind] ?? 0.15);
 
-const dish = similarities({ dish: 0.3, other: 0.2 });
-const person = similarities({ dish: 0.18, other: 0.3 });
+const dish = similarities({ subject: 0.3, other: 0.2 });
+const person = similarities({ subject: 0.18, other: 0.3 });
 const storefront = similarities({ sign: 0.28, other: 0.22 });
-const menuLook = similarities({ menu: 0.27, dish: 0.22, other: 0.2 });
+const menuLook = similarities({ source: 0.27, subject: 0.22, other: 0.2 });
 
 const box = (text: string, left: number, top: number, height = 0.022) => {
   const right = left + text.length * height * 0.45;

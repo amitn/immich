@@ -1,37 +1,23 @@
-import { findColumns, splitAtPrices } from 'src/utils/food/layout.js';
-import { OcrBoxInput, TextLine, deskewBoxes, isPrice, median, parsePrice, toTextBoxes } from 'src/utils/food/ocr.js';
-import { editDistance } from 'src/utils/food/tiles.js';
+import { findColumns, splitAtPrices } from 'src/utils/collections/layout.js';
+import {
+  OcrBoxInput,
+  TextLine,
+  deskewBoxes,
+  isPrice,
+  median,
+  parsePrice,
+  toTextBoxes,
+} from 'src/utils/collections/ocr.js';
+import { ParsedSource, SourceEntry, SourceParseOptions } from 'src/utils/collections/source.js';
+import { stripAccents } from 'src/utils/collections/text.js';
 
-export type MenuItem = {
-  /** the name as printed, in the language of the menu */
-  name: string;
-  description?: string;
-  /** the price as printed, e.g. "12,50 €" or "8 / 12" */
-  price?: string;
-  /** the (first) amount of the price, e.g. 12.5 */
-  priceValue?: number;
-  /** the heading the item is listed under, e.g. "Primi piatti" */
-  section?: string;
-  /** 0-based column of the page, left to right */
-  column: number;
-  /** where the item is on the photo: [left, top, right, bottom], normalized 0..1 */
-  box: [number, number, number, number];
-};
+/** an item of a menu: its name as printed in the language of the menu, its description, price and section */
+export type MenuItem = SourceEntry;
 
-export type ParsedMenu = {
-  items: MenuItem[];
-  /** the largest text at the top of the page, often the name of the restaurant */
-  title?: string;
-  sections: string[];
-  columns: number;
-  /** text lines read from the photo */
-  lines: number;
-};
+export type ParsedMenu = ParsedSource;
 
 /** a line at most this much smaller than the item names is a description */
 const SMALLER = 0.85;
-
-const stripAccents = (text: string) => text.normalize('NFD').replaceAll(/\p{Diacritic}/gu, '');
 
 const normalizeWords = (text: string) =>
   stripAccents(text)
@@ -714,10 +700,7 @@ const normalizeName = (name: string) => normalizeWords(name).replaceAll(' ', '')
  * description. Names are kept in the language of the menu. A tilted page is levelled first (see `deskewBoxes`; pass
  * the `aspectRatio` of the photo for an exact angle).
  */
-export const parseMenu = (
-  ocr: OcrBoxInput[],
-  options: { minScore?: number; aspectRatio?: number } = {},
-): ParsedMenu => {
+export const parseMenu = (ocr: OcrBoxInput[], options: SourceParseOptions = {}): ParsedMenu => {
   const boxes = toTextBoxes(deskewBoxes(ocr, options.aspectRatio), options.minScore).flatMap((box) =>
     splitAtPrices(box),
   );
@@ -789,64 +772,4 @@ const getTitle = (lines: TextLine[], bodyHeight: number) => {
     .filter(({ text }) => /\p{L}{3}/u.test(text) && !isSectionHeading(text) && !isPageFurniture(text))
     .toSorted((a, b) => b.line.height - a.line.height || a.line.top - b.line.top);
   return candidates[0]?.text;
-};
-
-const readText = (boxes: OcrBoxInput[]) =>
-  toTextBoxes(boxes).reduce((sum, box) => sum + box.text.replaceAll(/[^\p{L}\d]/gu, '').length, 0);
-
-/**
- * Which OCR to read a menu from: the tiled full-resolution reading, unless it somehow reads much less text than the
- * OCR stored for the photo.
- */
-export const chooseMenuOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
-  readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
-
-const itemKey = (name: string) =>
-  stripAccents(name)
-    .toLowerCase()
-    .replaceAll(/[^\p{L}\d]/gu, '');
-
-/** the same name, give or take a few letters OCR read differently */
-const isSameKey = (a: string, b: string) =>
-  a === b || (Math.min(a.length, b.length) >= 8 && editDistance(a, b) <= 0.15 * Math.max(a.length, b.length));
-
-export type MergedMenuItem = {
-  menuId: string;
-  item: MenuItem;
-  /** the place of the item in the longest column of the menu, the courses in the order they are served */
-  course?: number;
-};
-
-/**
- * The items of the menus of a meal, without the items another page (or photo) of it already listed, in menu order.
- * The longest column of any page is the sequence of courses (of a tasting menu): its items, and the items of other
- * photos that name them again, get their place in it.
- */
-export const mergeMenuItems = <T extends { items: MenuItem[] }>(
-  readings: Array<T & { assetId: string }>,
-): MergedMenuItem[] => {
-  let courses: string[] = [];
-  for (const reading of readings) {
-    const columns = Map.groupBy(reading.items, (item) => item.column);
-    for (const column of columns.values()) {
-      if (column.length > courses.length) {
-        courses = column.map((item) => itemKey(item.name));
-      }
-    }
-  }
-
-  const seen: string[] = [];
-  const items: MergedMenuItem[] = [];
-  for (const reading of readings) {
-    for (const item of reading.items) {
-      const key = itemKey(item.name);
-      if (seen.some((other) => isSameKey(other, key))) {
-        continue;
-      }
-      seen.push(key);
-      const course = courses.findIndex((other) => isSameKey(other, key));
-      items.push({ menuId: reading.assetId, item, ...(course !== -1 && { course }) });
-    }
-  }
-  return items;
 };

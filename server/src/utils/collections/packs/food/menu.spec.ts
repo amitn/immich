@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
-  chooseMenuOcr,
   cleanItemText,
   isDate,
   isMenuTitle,
   isPageFurniture,
   isSectionHeading,
-  mergeMenuItems,
   parseMenu,
   splitPrice,
-} from 'src/utils/food/menu.js';
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
+} from 'src/utils/collections/packs/food/menu.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
 const box = (text: string, left: number, top: number, height = 0.022, width?: number): OcrBoxInput => {
@@ -504,31 +502,6 @@ describe('parseMenu', () => {
       ...courses.slice(0, 2),
       "BBQ'd milk 'dumpling' Marron and Magpie goose",
       courses[2],
-    ]);
-  });
-});
-
-describe('chooseMenuOcr', () => {
-  it('should prefer the tiled reading unless it read much less text', () => {
-    const stored = [box('Spaghetti alle vongole', 0.1, 0.1), box('Caponata', 0.1, 0.2)];
-    const tiles = [box('Spaghetti alle vongole', 0.1, 0.1), box('Caponata siciliana', 0.1, 0.2)];
-    expect(chooseMenuOcr(stored, tiles)).toBe('tiles');
-    expect(chooseMenuOcr(stored, tiles.slice(1))).toBe('stored');
-  });
-});
-
-const item = (name: string) => ({ name, column: 0, box: [0, 0, 1, 1] as [number, number, number, number] });
-
-describe('mergeMenuItems', () => {
-  it('should list the items of the pages of a menu once, in order', () => {
-    const merged = mergeMenuItems([
-      { assetId: 'a', items: [item('Oysters and Pearls'), item('Salad')] },
-      { assetId: 'b', items: [item('"OYSTERS AND PEARLS"'), item('Salad'), item('Lamb')] },
-    ]);
-    expect(merged.map(({ menuId, item }) => [menuId, item.name])).toEqual([
-      ['a', 'Oysters and Pearls'],
-      ['a', 'Salad'],
-      ['b', 'Lamb'],
     ]);
   });
 });

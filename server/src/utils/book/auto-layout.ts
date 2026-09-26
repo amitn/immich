@@ -1,15 +1,16 @@
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
-import type { FoodTag } from 'src/utils/food/tags.js';
 import { cosineDistance } from 'src/utils/agent/clustering.js';
 import { EventSplitOptions, getAdaptiveEventOptions, isShortSpan, splitEvents } from 'src/utils/agent/events.js';
 import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.js';
 import {
-  getDishName,
-  getRestaurantVisits,
+  BookCollectionTag,
+  getEntryCaption,
+  getPlaceVisits,
   getRunsBetweenVisits,
-  isDishPhoto,
-  isMenuPhoto,
-} from 'src/utils/book/food.js';
+  isCollectionTheme,
+  isEntryPhoto,
+  isSourcePhoto,
+} from 'src/utils/book/collections.js';
 import {
   BookLayout,
   LayoutRect,
@@ -59,9 +60,12 @@ export type AutoLayoutPhoto = {
   people?: AutoLayoutPerson[];
   /** L2-normalized CLIP embedding, to keep similar photos off neighbouring pages */
   embedding?: Float32Array | null;
-  /** the dish or the menu of a restaurant, from the `Food/<Restaurant>/<Dish>` tags (see `src/utils/food/tags.ts`) */
-  food?: FoodTag | null;
-  /** lines of text read in the photo (OCR); of several menu photos, the one that reads best gets the menu page */
+  /**
+   * the entry or the source of a place of a collection, e.g. the dish or the menu of a restaurant, from the
+   * `<Root>/<Place>/<Entry>` tags such as `Food/<Restaurant>/<Dish>` (see `src/utils/collections/tags.ts`)
+   */
+  collection?: BookCollectionTag | null;
+  /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
 };
 
@@ -86,13 +90,17 @@ export type AutoLayoutOptions = {
   maxArtworkShare?: number;
   /** artworks shown next to their original on the same page, default 2 */
   maxStackPairs?: number;
-  /** factual captions drafted for the pages, default dish in a food book, otherwise place */
+  /**
+   * factual captions drafted for the pages, default dish in a collection book (every entry, e.g. a dish, captioned as
+   * its pack formats it), otherwise place
+   */
   captions?: AutoLayoutCaptions;
   /**
-   * a food book: one chapter per restaurant visit opened by its menu, dishes on layouts that leave room for their
-   * names; default when the style is food or photos have food tags
+   * a collection book, e.g. a food book: one chapter per visit of a place (a restaurant) opened by its source page (the
+   * menu), entries (dishes) on layouts that leave room for their names; default when the style has the theme of a
+   * pack (e.g. food) or photos have the tags of a pack
    */
-  food?: boolean;
+  collection?: boolean;
   /** people spread over the sections; default: the people who appear most often (see `getMainPeople`) */
   mainPersonIds?: string[];
   /** photos of every main person in each section they appear in, default 1 */
@@ -118,8 +126,10 @@ export type AutoLayoutSection = {
   dates: string;
   photoIds: string[];
   located: boolean;
-  /** the restaurant of a chapter that is a restaurant visit */
-  restaurant?: string;
+  /** the place of a chapter that is a visit of a collection, e.g. a restaurant */
+  place?: string;
+  /** the id of the pack of that visit, e.g. food */
+  pack?: string;
 };
 
 export type AutoLayoutDropReason = 'duplicate' | 'stack' | 'artwork' | 'resolution' | 'budget';
@@ -170,9 +180,10 @@ const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
 const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide']);
-const MENU_LAYOUTS = ['menu', 'menu-wide'];
-/** the dishes of a menu page are listed one per line up to this many */
-const MENU_LIST_MAX = 7;
+/** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
+const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
+/** the entries of a source page are listed one per line up to this many */
+const SOURCE_LIST_MAX = 7;
 const OPENER_LAYOUTS = new Set(['cover', 'text', 'map', 'map-photo', ...TITLE_LAYOUTS]);
 /** the most dishes on one page, so that each gets room for its name */
 const MAX_DISHES_PER_PAGE = 4;
@@ -232,11 +243,13 @@ export const getImportance = (photo: AutoLayoutPhoto, hero = false, mainPeople?:
   (mainPeople && photo.people?.some(({ id }) => mainPeople.has(id)) ? MAIN_PERSON_BONUS : 0) +
   (hero ? 1 : 0);
 
-export const getTargetPageCount = (photoCount: number, food?: { dishes: number; menus: number }) =>
+export const getTargetPageCount = (photoCount: number, collection?: { entries: number; sources: number }) =>
   clamp(
     Math.round(
-      food
-        ? (photoCount - food.dishes - food.menus) / PHOTOS_PER_PAGE + food.dishes / DISHES_PER_PAGE + food.menus
+      collection
+        ? (photoCount - collection.entries - collection.sources) / PHOTOS_PER_PAGE +
+            collection.entries / DISHES_PER_PAGE +
+            collection.sources
         : photoCount / PHOTOS_PER_PAGE,
     ),
     MIN_AUTO_PAGES,
@@ -400,7 +413,7 @@ export const getSectionTitle = (photos: AutoLayoutPhoto[], earlier: ReadonlySet<
   return formatDateRange(Math.min(...times), Math.max(...times));
 };
 
-/** the place of a restaurant visit: its most frequent city, or else its country */
+/** the place of a visit (e.g. to a restaurant): its most frequent city, or else its country */
 const getVisitPlace = (photos: AutoLayoutPhoto[]) =>
   getPlaces(photos)[0] ?? countValues(photos.map((photo) => photo.country))[0]?.[0];
 
@@ -408,14 +421,14 @@ const getVisitPlace = (photos: AutoLayoutPhoto[]) =>
  * The title of a chapter that is a restaurant visit: the restaurant, then its place and date, e.g.
  * "Trattoria da Nino · Taormina, 23 June 2009"; `withTime` adds the time of the first photo, for two visits on one day
  */
-export const getVisitTitle = (restaurant: string, photos: AutoLayoutPhoto[], withTime = false) => {
+export const getVisitTitle = (place: string, photos: AutoLayoutPhoto[], withTime = false) => {
   const times = photos.map((photo) => photo.takenAt);
   if (times.length === 0) {
-    return restaurant;
+    return place;
   }
   const start = Math.min(...times);
   const date = `${formatDateRange(start, Math.max(...times))}${withTime ? `, ${formatTime(start)}` : ''}`;
-  return `${restaurant} · ${[getVisitPlace(photos), date].filter(Boolean).join(', ')}`;
+  return `${place} · ${[getVisitPlace(photos), date].filter(Boolean).join(', ')}`;
 };
 
 /**
@@ -445,8 +458,8 @@ export const getFactualCaption = (
       return [place, time].filter(Boolean).join(' · ');
     }
     case 'dish': {
-      // the dishes are named below their photos, so the page names the place of the other photos
-      const others = photos.filter((photo) => !isDishPhoto(photo));
+      // the entries (dishes) are named below their photos, so the page names the place of the other photos
+      const others = photos.filter((photo) => !isEntryPhoto(photo));
       const otherPlace = formatPlaces(getPlaces(others)) || undefined;
       return otherPlace && isNew(otherPlace) ? otherPlace : undefined;
     }
@@ -694,12 +707,17 @@ class LayoutPlanner {
     private size: PageSize,
     private style: BookStyle,
     layouts: readonly BookLayout[],
-    /** food books also use the layouts made for dishes */
-    food = false,
+    /** collection books (e.g. food books) also use the layouts made for entries (dishes) */
+    collection = false,
   ) {
     this.contentLayouts = new Map();
     for (const layout of layouts) {
-      if (OPENER_LAYOUTS.has(layout.id) || layout.slots.length === 0 || layout.map || (layout.food && !food)) {
+      if (
+        OPENER_LAYOUTS.has(layout.id) ||
+        layout.slots.length === 0 ||
+        layout.map ||
+        (layout.collection && !collection)
+      ) {
         continue;
       }
       const list = this.contentLayouts.get(layout.slots.length) ?? [];
@@ -802,14 +820,14 @@ class LayoutPlanner {
     const photos = pair ?? units;
     // dishes get room for their names: at most four on a page, preferably on the layouts made for them, which are
     // only for dishes
-    const dishes = pair ? 0 : photos.filter((photo) => isDishPhoto(photo)).length;
+    const dishes = pair ? 0 : photos.filter((photo) => isEntryPhoto(photo)).length;
     if (dishes > 0 && photos.length > MAX_DISHES_PER_PAGE) {
       return null;
     }
-    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter((layout) => !layout.food || dishes > 0);
+    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter((layout) => !layout.collection || dishes > 0);
     const dishPenalty = (layout: BookLayout) =>
       dishes > 0
-        ? (layout.food ? UNNAMED_DISH_PENALTY * (photos.length - dishes) : DISH_PLAIN_PENALTY * dishes) +
+        ? (layout.collection ? UNNAMED_DISH_PENALTY * (photos.length - dishes) : DISH_PLAIN_PENALTY * dishes) +
           (photos.length >= 4 ? DISH_DENSE_PENALTY : 0)
         : 0;
     const sharedHero = !pair && photos.length > 1 && photos.some((photo) => photo.hero);
@@ -1004,7 +1022,7 @@ export const getIdealAreas = (photos: Candidate[], pages: number) => {
 
 /** the fewest pages for the photos: six per page (four with dishes), and a page of its own for every pair */
 const getMinimumPages = (units: Candidate[]) => {
-  const perPage = units.some((unit) => isDishPhoto(unit)) ? MAX_DISHES_PER_PAGE : 6;
+  const perPage = units.some((unit) => isEntryPhoto(unit)) ? MAX_DISHES_PER_PAGE : 6;
   let pages = 0;
   let run = 0;
   for (const unit of units) {
@@ -1052,18 +1070,19 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const layouts = options.layouts ?? bookLayouts;
   const seen = new Set<string>();
   const unique = input.filter((photo) => !seen.has(photo.id) && !!seen.add(photo.id));
-  const foodBook = options.food ?? (options.style.theme === 'food' || unique.some((photo) => photo.food));
-  const planner = new LayoutPlanner(options.size, options.style, layouts, foodBook);
+  const collectionBook =
+    options.collection ?? (isCollectionTheme(options.style.theme) || unique.some((photo) => photo.collection));
+  const planner = new LayoutPlanner(options.size, options.style, layouts, collectionBook);
   const heroes = new Set(options.heroIds);
   const includeMaps = options.includeMaps ?? true;
   const mapStyle = options.mapStyle ?? 'sketch';
   const withCover = options.cover ?? true;
-  const captions = options.captions ?? (foodBook ? 'dish' : 'place');
+  const captions = options.captions ?? (collectionBook ? 'dish' : 'place');
   const layoutIds = new Set(layouts.map((layout) => layout.id));
   const hasLayout = (id: string) => layoutIds.has(id);
-  /** the name of the dish below its photo */
+  /** the name of the entry (dish) below its photo */
   const dishCaption = (photo: AutoLayoutPhoto) => {
-    const dish = captions === 'dish' ? getDishName(photo) : undefined;
+    const dish = captions === 'dish' ? getEntryCaption(photo) : undefined;
     return dish ? { caption: dish } : {};
   };
   const mainPersonIds =
@@ -1112,14 +1131,21 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const stacks = Map.groupBy(printable, (photo) => photo.stackId ?? photo.id)
     .values()
     .toArray();
-  // a food book has a page per menu, and more room for the dishes
-  const foodCounts = foodBook
+  // a collection book has a page per source (menu), and more room for the entries (dishes)
+  const collectionCounts = collectionBook
     ? {
-        dishes: stacks.filter((stack) => stack.some((photo) => isDishPhoto(photo))).length,
-        menus: new Set(printable.filter((photo) => isMenuPhoto(photo)).map((photo) => photo.food!.restaurant)).size,
+        entries: stacks.filter((stack) => stack.some((photo) => isEntryPhoto(photo))).length,
+        sources: new Set(
+          printable
+            .filter((photo) => isSourcePhoto(photo))
+            .map((photo) => `${photo.collection!.pack}\n${photo.collection!.place}`),
+        ).size,
       }
     : undefined;
-  const target = Math.max(1, Math.round(options.targetPageCount ?? getTargetPageCount(stacks.length, foodCounts)));
+  const target = Math.max(
+    1,
+    Math.round(options.targetPageCount ?? getTargetPageCount(stacks.length, collectionCounts)),
+  );
   const artworkBudget = Math.round(target * clamp(options.maxArtworkShare ?? DEFAULT_MAX_ARTWORK_SHARE, 0, 1));
   const units = resolveStacks(
     printable,
@@ -1151,7 +1177,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const pickFor = (candidates: Candidate[], layout: BookLayout, top = 3) => {
     const shape = planner.getShapes(layout)[0];
     const ranked = candidates
-      .filter((photo) => !photo.artwork && !photo.pair && !isMenuPhoto(photo) && planner.isSharpEnough(photo, shape))
+      .filter((photo) => !photo.artwork && !photo.pair && !isSourcePhoto(photo) && planner.isSharpEnough(photo, shape))
       .toSorted(byImportance);
     return ranked.slice(0, top).find((photo) => fitsSlot(photo, layout)) ?? ranked[0];
   };
@@ -1199,13 +1225,14 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // sections; a short book gets more, smaller chapters
   const shortBook = isShortSpan(photos.map((photo) => ({ time: photo.takenAt })));
   const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
-  // a food book has a chapter for every restaurant visit, and the photos between them are split by event as usual
-  let sections: Array<{ photos: Candidate[]; restaurant?: string }>;
-  const { visits, others } = foodBook ? getRestaurantVisits(kept) : { visits: [], others: kept };
+  // a collection book has a chapter for every visit of a place (a restaurant), and the photos between them are split
+  // by event as usual
+  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string } }>;
+  const { visits, others } = collectionBook ? getPlaceVisits(kept) : { visits: [], others: kept };
   if (visits.length > 0) {
     const otherSections = Math.max(1, maxSections - visits.length);
     sections = [
-      ...visits.map((visit) => ({ photos: visit.photos, restaurant: visit.restaurant })),
+      ...visits.map((visit) => ({ photos: visit.photos, visit: { pack: visit.pack, place: visit.place } })),
       ...getRunsBetweenVisits(others, visits).flatMap((run) =>
         mergeEvents(
           getEvents(run, options.events),
@@ -1230,14 +1257,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     dates: string;
     opener: 'map' | 'map-photo' | 'section-opener' | 'dish-opener' | null;
     openerPhoto?: Candidate;
-    restaurant?: string;
-    /** the menu of a restaurant visit, on a page of its own after the opener (or as the opener) */
+    /** the place of a visit of a collection (a restaurant) and its pack */
+    visit?: { pack: string; place: string };
+    /** the source (menu) of the visit, on a page of its own after the opener (or as the opener) */
     menu?: { photo: Candidate; layout: BookLayout };
   };
 
-  /** the menu layout that keeps most of the photo and prints it sharp enough */
+  /** the source page layout that keeps most of the photo and prints it sharp enough */
   const getMenuLayout = (photo: Candidate) =>
-    MENU_LAYOUTS.map((id) => layouts.find((layout) => layout.id === id))
+    SOURCE_LAYOUTS.map((id) => layouts.find((layout) => layout.id === id))
       .filter((layout): layout is BookLayout => !!layout && planner.isSharpEnough(photo, planner.getShapes(layout)[0]))
       .toSorted(
         (a, b) =>
@@ -1245,17 +1273,17 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
           planner.getCrop(photo, planner.getShapes(a)[0].aspect).kept,
       )[0];
 
-  const sectionPlans: SectionPlan[] = sections.map(({ photos: units, restaurant }) => {
+  const sectionPlans: SectionPlan[] = sections.map(({ photos: units, visit }) => {
     let section = units;
     const ids = new Set(section.flatMap((unit) => membersOf(unit).map((photo) => photo.id)));
     const all = photos.filter((photo) => ids.has(photo.id));
 
-    // one menu page per visit; the other photos of the menu are left out
+    // one source (menu) page per visit; the other photos of the source are left out
     let menu: SectionPlan['menu'];
-    if (restaurant) {
+    if (visit) {
       const byLegibility = (a: Candidate, b: Candidate) =>
         (b.textLines ?? 0) - (a.textLines ?? 0) || byImportance(a, b);
-      for (const photo of section.filter((unit) => !unit.pair && isMenuPhoto(unit)).toSorted(byLegibility)) {
+      for (const photo of section.filter((unit) => !unit.pair && isSourcePhoto(unit)).toSorted(byLegibility)) {
         const layout = menu ? undefined : getMenuLayout(photo);
         if (layout) {
           menu = { photo, layout };
@@ -1272,8 +1300,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     let opener: SectionPlan['opener'] = null;
     if (includeMaps && located && hasLayout('map')) {
       opener = !menu && section.length >= 5 && hasLayout('map-photo') ? 'map-photo' : 'map';
-    } else if (restaurant) {
-      // the menu page opens the chapter; without a menu, a dish does
+    } else if (visit) {
+      // the source (menu) page opens the chapter; without one, an entry (a dish) does
       opener = menu ? null : hasLayout('dish-opener') ? 'dish-opener' : 'section-opener';
     } else if (sections.length > 1 && section.length >= 4 && hasLayout('section-opener')) {
       opener = 'section-opener';
@@ -1282,10 +1310,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     return {
       photos: section,
       all,
-      title: restaurant ? getVisitTitle(restaurant, all) : getSectionTitle(section),
+      title: visit ? getVisitTitle(visit.place, all) : getSectionTitle(section),
       dates: singleDay ? `${dates} · ${formatTime(units[0].takenAt)}` : dates,
       opener,
-      restaurant,
+      visit,
       menu,
     };
   });
@@ -1312,11 +1340,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   for (const section of sectionPlans) {
     const layout = section.opener === 'map' ? undefined : layouts.find((item) => item.id === section.opener);
-    // a restaurant visit is opened by a dish, even its only one
+    // a visit (to a restaurant) is opened by an entry (a dish), even its only one
     const candidates =
-      section.opener === 'dish-opener' ? section.photos.filter((photo) => isDishPhoto(photo)) : section.photos;
+      section.opener === 'dish-opener' ? section.photos.filter((photo) => isEntryPhoto(photo)) : section.photos;
     const openerPhoto =
-      layout && section.photos.length > (section.restaurant ? 0 : 1) ? pickFor(candidates, layout) : undefined;
+      layout && section.photos.length > (section.visit ? 0 : 1) ? pickFor(candidates, layout) : undefined;
     const sectionOpener = layouts.find((item) => item.id === 'section-opener');
     if (openerPhoto) {
       section.openerPhoto = openerPhoto;
@@ -1418,7 +1446,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
           slots: [],
           sectionTitle: section.title,
           ...openerCaption(section.dates),
-          map: newMap({ title: section.restaurant ?? section.title }),
+          map: newMap({ title: section.visit?.place ?? section.title }),
           section: index,
         });
         break;
@@ -1494,10 +1522,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     !!page.map || TITLE_LAYOUTS.has(page.layout) || isMapLayout(page.layout);
   const isOpener = (page: AutoLayoutPage) => page.section !== undefined && opensChapter(page);
 
-  // a restaurant visit is titled after the photos placed in it; two visits of one restaurant on one day get the time
+  // a visit is titled after the photos placed in it; two visits of one place on one day get the time
   const visitPhotos = new Map<number, Candidate[]>();
   for (const [index, section] of sectionPlans.entries()) {
-    if (!section.restaurant) {
+    if (!section.visit) {
       continue;
     }
 
@@ -1506,17 +1534,18 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   }
   const visitTitles = new Map<number, { title: string; place?: string; detail: string }>();
   for (const [index, placed] of visitPhotos) {
-    const restaurant = sectionPlans[index].restaurant!;
+    const { pack, place } = sectionPlans[index].visit!;
     const sameDay = [...visitPhotos].some(
       ([other, otherPhotos]) =>
         other !== index &&
-        sectionPlans[other].restaurant!.toLowerCase() === restaurant.toLowerCase() &&
-        getVisitTitle(restaurant, otherPhotos) === getVisitTitle(restaurant, placed),
+        sectionPlans[other].visit!.pack === pack &&
+        sectionPlans[other].visit!.place.toLowerCase() === place.toLowerCase() &&
+        getVisitTitle(place, otherPhotos) === getVisitTitle(place, placed),
     );
-    const title = getVisitTitle(restaurant, placed, sameDay);
-    visitTitles.set(index, { title, place: getVisitPlace(placed), detail: title.slice(restaurant.length + 3) });
+    const title = getVisitTitle(place, placed, sameDay);
+    visitTitles.set(index, { title, place: getVisitPlace(placed), detail: title.slice(place.length + 3) });
   }
-  /** the dishes of a visit in the order they are shown, e.g. for its menu page */
+  /** the entries (dishes) of a visit in the order they are shown, e.g. for its source (menu) page */
   const getDishes = (section: number) => [
     ...new Set(
       pages
@@ -1538,19 +1567,20 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
     const visit = page.section === undefined ? undefined : visitTitles.get(page.section);
     if (visit && isOpener(page)) {
-      // the map is titled with the restaurant and captioned with the place and date; the menu lists the dishes
+      // the map is titled with the place (restaurant) and captioned with the city and date; the source lists the
+      // entries (the menu page lists the dishes)
       page.sectionTitle = visit.title;
       delete page.caption;
       if (page.map) {
-        page.map = { ...page.map, title: sectionPlans[page.section!].restaurant! };
+        page.map = { ...page.map, title: sectionPlans[page.section!].visit!.place };
         if (page.layout === 'map') {
           Object.assign(page, openerCaption(visit.detail));
         }
       }
-      const dishes = MENU_LAYOUTS.includes(page.layout) && captions === 'dish' ? getDishes(page.section!) : [];
+      const dishes = SOURCE_LAYOUTS.includes(page.layout) && captions === 'dish' ? getDishes(page.section!) : [];
       if (dishes.length > 0) {
         // a short list beside a menu, or a run of names below a wide one or when there are many
-        page.caption = dishes.join(page.layout === 'menu' && dishes.length <= MENU_LIST_MAX ? '\n' : ' · ');
+        page.caption = dishes.join(page.layout === 'menu' && dishes.length <= SOURCE_LIST_MAX ? '\n' : ' · ');
       }
       for (const place of getPlaces(visitPhotos.get(page.section!) ?? [])) {
         visited.add(place);
@@ -1635,7 +1665,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         dates: section.dates,
         photoIds: section.all.map((photo) => photo.id),
         located: section.all.some((photo) => photo.located),
-        ...(section.restaurant && { restaurant: section.restaurant }),
+        ...(section.visit && { place: section.visit.place, pack: section.visit.pack }),
       };
     }),
     usedIds: photos.filter((photo) => used.has(photo.id)).map((photo) => photo.id),

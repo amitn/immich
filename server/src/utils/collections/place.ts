@@ -1,26 +1,43 @@
-import { hasRestaurantWord } from 'src/utils/food/classify.js';
-import { cleanItemText, isPageFurniture, isSectionHeading, parseMenu, splitPrice } from 'src/utils/food/menu.js';
-import { OcrBoxInput, TextLine, groupLines, toTextBoxes } from 'src/utils/food/ocr.js';
+import { OcrBoxInput, TextLine, groupLines, toTextBoxes } from 'src/utils/collections/ocr.js';
+import { editDistance } from 'src/utils/collections/text.js';
 
-export type RestaurantSource = 'sign' | 'menu' | 'receipt';
+/** the photos a place name is read on: its signs, its sources (e.g. a menu) and its receipts (or tickets) */
+export type PlaceSource = 'sign' | 'source' | 'receipt';
 
-export type RestaurantPhoto = {
+export type PlacePhoto = {
   assetId: string;
-  kind: RestaurantSource;
+  kind: PlaceSource;
   ocr: OcrBoxInput[];
 };
 
-export type RestaurantCandidate = {
+export type PlaceCandidate = {
   name: string;
   /** 0..1 */
   confidence: number;
-  source: RestaurantSource;
+  source: PlaceSource;
   /** the photos the name was read on */
   assetIds: string[];
 };
 
-/** a candidate needs at least this score to be the name of the restaurant */
-export const MIN_RESTAURANT_SCORE = 0.55;
+/**
+ * What a pack knows about the names of its places (restaurants, museums, wineries...): the words that name a kind of
+ * place, the text printed on signs and sources that never names one, and how to read a line of its sources.
+ */
+export type PlaceNameRules = {
+  /** words that name a kind of place ("Trattoria", "Museum"), without the global flag */
+  words: RegExp;
+  /** labels, associations and slogans printed on signs and sources that don't name the place */
+  blocked: RegExp;
+  /** the text of a line without what the pack's sources print around names, e.g. prices and allergen codes */
+  cleanLine?: (text: string) => string;
+  /** text that can't be a name, e.g. a section heading or an address */
+  isNotName?: (text: string) => boolean;
+  /** the title of a source photo, which is often the name of the place */
+  title?: (ocr: OcrBoxInput[]) => string | undefined;
+};
+
+/** a candidate needs at least this score to be the name of the place */
+export const MIN_PLACE_SCORE = 0.55;
 
 const LEGAL_SUFFIX =
   /[\s,.-]+(?:s\.?\s?r\.?\s?l\.?s?|s\.?\s?n\.?\s?c\.?|s\.?\s?a\.?\s?s\.?|s\.?\s?p\.?\s?a\.?|s\.?\s?l\.?|s\.?\s?a\.?|sarl|sas|gmbh|ltd\.?|llc|inc\.?|& c\.?)\s*$/i;
@@ -76,9 +93,9 @@ export const toTitleCase = (text: string) => {
   );
 };
 
-/** the name of a place as printed on a line, without legal suffixes and prices; undefined when it can't be a name */
-export const cleanRestaurantName = (text: string) => {
-  const cleaned = cleanItemText(splitPrice(text).text)
+/** the name of a place as printed on a line, without legal suffixes; undefined when it can't be a name */
+export const cleanPlaceName = (text: string, rules: PlaceNameRules) => {
+  const cleaned = (rules.cleanLine ? rules.cleanLine(text) : text.trim())
     .replace(LEGAL_SUFFIX, '')
     .replace(/^(?:benvenuti|welcome|bienvenue|bienvenidos)\s+(?:alla|al|da|to|at|au|a la|en)?\s*/i, '')
     .replaceAll(/["“”«»]/g, '')
@@ -88,27 +105,10 @@ export const cleanRestaurantName = (text: string) => {
   if (letters < 3 || words > 6 || cleaned.length > 40 || letters < 0.6 * cleaned.replaceAll(/\s/g, '').length) {
     return;
   }
-  if (isSectionHeading(cleaned) || isPageFurniture(cleaned) || NOT_A_NAME.test(cleaned)) {
+  if (rules.isNotName?.(cleaned) || rules.blocked.test(cleaned)) {
     return;
   }
   return toTitleCase(cleaned);
-};
-
-/** labels, associations and slogans that are printed on signs and menus but don't name the place */
-const NOT_A_NAME =
-  /relais\s*&?\s*ch[aâ]teaux|grandes tables|michelin|tripadvisor|zagat|gault\s*&?\s*millau|certificate of excellence|travell?ers'? choice|slow food|^(?:open|opened|welcome|entrance|entrata|ingresso|exit|uscita|push|pull|spingere|tirare|visa|mastercard|american express|no smoking|vietato fumare|since \d{4}|dal \d{4}|est\.? \d{4}|thank you|grazie|merci|gracias)$/i;
-
-/** edit distance of two strings, for names that OCR read with a letter or two missing */
-export const editDistance = (a: string, b: string) => {
-  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const current = [i];
-    for (let j = 1; j <= b.length; j++) {
-      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    previous = current;
-  }
-  return previous[b.length];
 };
 
 /** "therenchaundry" is "thefrenchlaundry" with two letters dropped */
@@ -117,8 +117,8 @@ const isSimilarName = (a: string, b: string) =>
   (Math.min(a.length, b.length) >= 5 &&
     editDistance(a, b) <= Math.max(1, Math.floor(0.2 * Math.max(a.length, b.length))));
 
-const KIND_WEIGHT: Record<RestaurantSource, number> = { sign: 1, menu: 0.85, receipt: 0.9 };
-const SOURCE_ORDER: RestaurantSource[] = ['sign', 'menu', 'receipt'];
+const KIND_WEIGHT: Record<PlaceSource, number> = { sign: 1, source: 0.85, receipt: 0.9 };
+const SOURCE_ORDER: PlaceSource[] = ['sign', 'source', 'receipt'];
 
 const normalize = (name: string, keepSpaces = false) =>
   name
@@ -128,9 +128,9 @@ const normalize = (name: string, keepSpaces = false) =>
     .replaceAll(keepSpaces ? /[^\p{L}\d\s]/gu : /[^\p{L}\d]/gu, '');
 
 /** "Pizzeria" alone names a kind of place, not a place */
-const isRestaurantWordOnly = (name: string) => !name.includes(' ') && hasRestaurantWord(name);
+const isPlaceWordOnly = (name: string, rules: PlaceNameRules) => !name.includes(' ') && rules.words.test(name);
 
-type Scored = { name: string; score: number; source: RestaurantSource; assetId: string };
+type Scored = { name: string; score: number; source: PlaceSource; assetId: string };
 
 /**
  * Whether a name reads like letters OCR made up: a run of five consonants ("MZSDGUICAT", from a sign seen at an
@@ -141,14 +141,14 @@ export const isGarbled = (name: string) =>
     .split(/\s+/)
     .some((word) => /[^aeiouy\d\s]{5}/.test(word) || (word.length >= 4 && !/[aeiouy]/.test(word)));
 
-/** a name read on a single photo, none of whose words is on the other photos of the meal, counts this much */
+/** a name read on a single photo, none of whose words is on the other photos of the visit, counts this much */
 const UNSUPPORTED = 0.85;
 
 /** the words of a text that can tell a name apart: "Katz's Delicatessen" → katzs */
-const words = (text: string) =>
+const distinctWords = (text: string, rules: PlaceNameRules) =>
   normalize(text.replaceAll(/[^\p{L}\d]+/gu, ' ').replaceAll(/\s+/g, ' '), true)
     .split(' ')
-    .filter((word) => word.length >= 4 && !hasRestaurantWord(word));
+    .filter((word) => word.length >= 4 && !rules.words.test(word));
 
 /** OCR is less sure of made-up readings: a line read with less confidence than this counts for less */
 const SURE_TEXT = 0.9;
@@ -158,15 +158,16 @@ const textConfidence = (line: TextLine) => {
   return score >= SURE_TEXT ? 1 : 0.6 + 0.4 * Math.max(0, (score - 0.8) / (SURE_TEXT - 0.8));
 };
 
-const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
+const scorePhoto = (photo: PlacePhoto, rules: PlaceNameRules): Scored[] => {
   const lines = groupLines(toTextBoxes(photo.ocr));
   if (lines.length === 0) {
     return [];
   }
-  const names = lines.map((line) => cleanRestaurantName(line.text));
+  const clean = (text: string) => cleanPlaceName(text, rules);
+  const names = lines.map((line) => clean(line.text));
   // the largest text that can be a name: labels such as "Relais & Châteaux" don't count
   const largest = Math.max(0, ...lines.filter((_, index) => names[index]).map((line) => line.height));
-  const title = photo.kind === 'menu' ? parseMenu(photo.ocr).title : undefined;
+  const title = photo.kind === 'source' ? rules.title?.(photo.ocr) : undefined;
 
   const results: Scored[] = [];
   for (const [index, line] of lines.entries()) {
@@ -177,16 +178,16 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
     // "OSTERIA" over "da Carlo", or "KATZ'S" over "DELICATESSEN" on a sign
     const next = lines[index + 1];
     const previous = lines[index - 1];
-    if (isRestaurantWordOnly(name)) {
+    if (isPlaceWordOnly(name, rules)) {
       if (next && next.top - line.bottom < 1.5 * line.height) {
-        name = cleanRestaurantName(`${toTitleCase(line.text)} ${toTitleCase(next.text)}`) ?? name;
+        name = clean(`${toTitleCase(line.text)} ${toTitleCase(next.text)}`) ?? name;
       } else if (previous && line.top - previous.bottom < 1.5 * previous.height) {
-        name = cleanRestaurantName(`${toTitleCase(previous.text)} ${toTitleCase(line.text)}`) ?? name;
+        name = clean(`${toTitleCase(previous.text)} ${toTitleCase(line.text)}`) ?? name;
       }
     }
     let score = 0.35 * (line.height / largest);
-    if (hasRestaurantWord(name)) {
-      score += isRestaurantWordOnly(name) ? 0.1 : 0.45;
+    if (rules.words.test(name)) {
+      score += isPlaceWordOnly(name, rules) ? 0.1 : 0.45;
     }
     if (line.height === largest) {
       score += 0.1;
@@ -199,7 +200,7 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
       // the first line of a receipt is the business
       score += 0.25;
     } else if (photo.kind !== 'sign' && (line.top < 0.2 || index < 2)) {
-      // the name heads a menu page
+      // the name heads a source page
       score += 0.15;
     }
     if (title && normalize(title) === normalize(name)) {
@@ -212,19 +213,19 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
 };
 
 /**
- * Candidates for the name of a restaurant from the text on its signs, menus and receipts: large text, text at the top
- * of a menu or a receipt, words such as "Ristorante", "Trattoria" or "Café", and names read on more than one photo
- * score higher. Best first; only candidates with a score of at least `MIN_RESTAURANT_SCORE` are returned.
+ * Candidates for the name of a place from the text on its signs, sources and receipts: large text, text at the top
+ * of a source or a receipt, words that name a kind of place ("Ristorante", "Museum"), and names read on more than
+ * one photo score higher. Best first; only candidates with a score of at least `MIN_PLACE_SCORE` are returned.
  */
-export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): RestaurantCandidate[] => {
+export const findPlaceNames = (photos: PlacePhoto[], rules: PlaceNameRules, limit = 3): PlaceCandidate[] => {
   const byName = new Map<
     string,
-    { names: Map<string, number>; best: Map<string, number>; sources: Set<RestaurantSource>; assetIds: Set<string> }
+    { names: Map<string, number>; best: Map<string, number>; sources: Set<PlaceSource>; assetIds: Set<string> }
   >();
   for (const photo of photos) {
     // one score per name and photo: the best line
     const perPhoto = new Map<string, Scored>();
-    for (const scored of scorePhoto(photo)) {
+    for (const scored of scorePhoto(photo, rules)) {
       const key = normalize(scored.name);
       if ((perPhoto.get(key)?.score ?? -1) < scored.score) {
         perPhoto.set(key, scored);
@@ -259,17 +260,17 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
     }
   }
 
-  // the words on each photo: a name read once, whose words no other photo of the meal has, may be made up
+  // the words on each photo: a name read once, whose words no other photo of the visit has, may be made up
   const photoWords = photos.map(({ assetId, ocr }) => ({
     assetId,
-    words: new Set(ocr.flatMap(({ text }) => words(text))),
+    words: new Set(ocr.flatMap(({ text }) => distinctWords(text, rules))),
   }));
   const isSupported = (name: string, assetIds: Set<string>) => {
     const others = photoWords.filter(({ assetId, words }) => !assetIds.has(assetId) && words.size > 0);
     return (
       assetIds.size > 1 ||
       others.length === 0 ||
-      words(name).some((word) => others.some(({ words }) => words.has(word)))
+      distinctWords(name, rules).some((word) => others.some(({ words }) => words.has(word)))
     );
   };
 
@@ -281,7 +282,7 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
         .toArray()
         .toSorted((a, b) => b - a);
       const name = [...entry.names].toSorted((a, b) => b[1] - a[1] || (a[0] === a[0].toUpperCase() ? 1 : -1))[0][0];
-      // repeated on other photos: a menu page header, the sign and the receipt agree
+      // repeated on other photos: a source page header, the sign and the receipt agree
       const score =
         (scores[0] + 0.2 * Math.min(2, scores.length - 1)) * (isSupported(name, entry.assetIds) ? 1 : UNSUPPORTED);
       const source = SOURCE_ORDER.find((kind) => entry.sources.has(kind))!;
@@ -290,7 +291,7 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
     .toArray();
 
   return candidates
-    .filter(({ score }) => score >= MIN_RESTAURANT_SCORE)
+    .filter(({ score }) => score >= MIN_PLACE_SCORE)
     .toSorted((a, b) => b.score - a.score || a.name.localeCompare(b.name))
     .slice(0, limit)
     .map(({ name, score, source, assetIds }) => ({

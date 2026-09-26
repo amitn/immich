@@ -15,10 +15,11 @@ import {
   isRightPage,
   isSinglePhotoPage,
 } from 'src/utils/book/auto-layout.js';
-import { getDishName, isMenuPhoto } from 'src/utils/book/food.js';
+import { getEntryName, getPhotoPack, isSourcePhoto } from 'src/utils/book/collections.js';
 import { PageSize, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { isMapStyleFallback } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI } from 'src/utils/book/render.js';
+import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 export type BookReviewSeverity = (typeof bookReviewSeverities)[number];
 
@@ -37,7 +38,7 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'food'>> & {
+  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection'>> & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
     gain?: number;
   };
@@ -99,12 +100,19 @@ const formatPages = (pages: number[]) =>
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
+/** "a dish", "an artwork" */
+const article = (noun: string) => (/^[aeiou]/i.test(noun) ? `an ${noun}` : `a ${noun}`);
+
+/** a place of a pack, the same whatever its case */
+const sourceKey = (pack: string, place: string) => `${pack}\n${place.toLowerCase()}`;
+
 const order = (severity: BookReviewSeverity) => bookReviewSeverities.indexOf(severity);
 
 /**
  * A checklist of what to fix in a book, most severe first: stacks shown twice, low print resolution, empty slots,
  * too much or back-to-back artwork, long runs of single photos, similar photos on neighbouring pages, maps whose
- * style falls back, main people with few photos, dishes without their names, restaurants without their menu page,
+ * style falls back, main people with few photos, entries (dishes) without their names, places (restaurants) without
+ * their source page (the menu),
  * repeated layouts, pages without captions and photos that an improved copy would clearly help; with the best
  * unused photos and the weakest placed ones.
  */
@@ -392,64 +400,77 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     });
   }
 
-  // food books: dishes shown without their names, and restaurants whose menu is left out
-  const dishPages = new Map<string, Set<number>>();
-  const unnamed: Array<{ page: number; assetId: string; dish: string }> = [];
+  // collection books (e.g. food books): entries (dishes) shown without their names, and places (restaurants) whose
+  // source (menu) is left out, for the packs that check them
+  const entryPages = new Map<string, { pack: string; place: string; pages: Set<number> }>();
+  const unnamed = new Map<string, Array<{ page: number; assetId: string; entry: string }>>();
   for (const [index, page] of pages.entries()) {
     if (page.layout === 'cover') {
       continue;
     }
     for (const asset of placements[index]) {
-      const dish = getDishName(photos.get(asset.assetId) ?? {});
-      if (!dish) {
+      const photo = photos.get(asset.assetId);
+      const entry = photo && getEntryName(photo);
+      const pack = photo && getPhotoPack(photo);
+      if (!photo || !entry || !pack) {
         continue;
       }
-      const restaurant = photos.get(asset.assetId)!.food!.restaurant;
-      dishPages.set(restaurant, (dishPages.get(restaurant) ?? new Set()).add(index + 1));
-      if (!asset.caption?.trim()) {
-        unnamed.push({ page: index + 1, assetId: asset.assetId, dish });
+      const place = photo.collection!.place;
+      const key = `${pack.id}\n${place}`;
+      const visit = entryPages.get(key) ?? { pack: pack.id, place, pages: new Set() };
+      visit.pages.add(index + 1);
+      entryPages.set(key, visit);
+      if (pack.book.review.unnamedEntries && !asset.caption?.trim()) {
+        unnamed.set(pack.id, [...(unnamed.get(pack.id) ?? []), { page: index + 1, assetId: asset.assetId, entry }]);
       }
     }
   }
-  if (unnamed.length > 0) {
-    const numbers = [...new Set(unnamed.map(({ page }) => page))];
+  for (const [packId, missing] of unnamed) {
+    const { subject, subjects } = getCollectionPack(packId)!.names;
+    const numbers = [...new Set(missing.map(({ page }) => page))];
     add({
       severity: 'low',
       type: 'missing-dish-name',
       message:
-        `${formatPages(numbers)} show ${unnamed.length === 1 ? 'a dish' : `${unnamed.length} dishes`} without ` +
-        `${unnamed.length === 1 ? 'its name' : 'their names'} (e.g. ${unnamed[0].dish}); set the slot captions to the ` +
-        'dish names from their tags, or lay the book out again with captions "dish"',
+        `${formatPages(numbers)} show ${missing.length === 1 ? article(subject) : `${missing.length} ${subjects}`} ` +
+        `without ${missing.length === 1 ? 'its name' : 'their names'} (e.g. ${missing[0].entry}); set the slot ` +
+        `captions to the ${subject} names from their tags, or lay the book out again with captions "dish"`,
       pages: numbers,
-      assetIds: unnamed.map(({ assetId }) => assetId),
+      assetIds: missing.map(({ assetId }) => assetId),
     });
   }
-  const placedMenus = new Set(
+  const placedSources = new Set(
     [...placedIds].flatMap((id) => {
       const photo = photos.get(id);
-      return photo && isMenuPhoto(photo) ? [photo.food!.restaurant.toLowerCase()] : [];
+      return photo && isSourcePhoto(photo) ? [sourceKey(photo.collection!.pack, photo.collection!.place)] : [];
     }),
   );
-  for (const [restaurant, onPages] of dishPages) {
-    if (placedMenus.has(restaurant.toLowerCase())) {
+  for (const { pack: packId, place, pages: onPages } of entryPages.values()) {
+    const pack = getCollectionPack(packId)!;
+    if (!pack.book.review.missingSourcePage || placedSources.has(sourceKey(packId, place))) {
       continue;
     }
-    const menus = input.photos
-      .filter((photo) => isMenuPhoto(photo) && photo.food!.restaurant.toLowerCase() === restaurant.toLowerCase())
+    const sources = input.photos
+      .filter(
+        (photo) =>
+          isSourcePhoto(photo) &&
+          sourceKey(photo.collection!.pack, photo.collection!.place) === sourceKey(packId, place),
+      )
       .toSorted((a, b) => b.score - a.score || a.takenAt - b.takenAt);
-    if (menus.length === 0) {
+    if (sources.length === 0) {
       continue;
     }
+    const { subjects, source } = pack.names;
     const numbers = [...onPages].toSorted((a, b) => a - b);
     add({
       severity: 'medium',
       type: 'missing-menu-page',
       message:
-        `${formatPages(numbers)} show dishes from ${restaurant}, but not its menu, which is in the album; add a ` +
-        `page with the menu layout (menu-wide for a landscape photo) before page ${numbers[0]} and place the menu ` +
-        'photo in it',
+        `${formatPages(numbers)} show ${subjects} from ${place}, but not its ${source}, which is in the album; add a ` +
+        `page with the menu layout (menu-wide for a landscape photo) before page ${numbers[0]} and place the ` +
+        `${source} photo in it`,
       pages: numbers,
-      assetIds: menus.slice(0, 3).map(({ id }) => id),
+      assetIds: sources.slice(0, 3).map(({ id }) => id),
     });
   }
 

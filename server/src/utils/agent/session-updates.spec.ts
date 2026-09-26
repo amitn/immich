@@ -238,6 +238,49 @@ describe('food tool refs', () => {
   });
 });
 
+describe('collection tool refs', () => {
+  it('should find the photos of the visits of find_visits', () => {
+    const result = {
+      pack: 'food',
+      count: 40,
+      visits: [
+        {
+          index: 0,
+          place: { name: 'Trattoria da Nino', source: 'sign', confidence: 0.8 },
+          subjectIds: [id1],
+          sourceIds: [id2],
+          signIds: [id3],
+          receiptIds: [id4],
+          saved: [{ assetId: id1, tag: 'Trattoria da Nino/Carbonara' }],
+        },
+      ],
+    };
+    expect(refsOf('find_visits', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
+  });
+
+  it('should find the source of read_source from its input and result', () => {
+    expect(
+      extractToolCallRefs('read_source', { input: { pack: 'food', id: id1 }, output: [{ id: id1, entries: [] }] }),
+    ).toEqual({ ...none, assetIds: [id1] });
+  });
+
+  it('should find the subjects of match_subjects and the named photos of save_entries', () => {
+    expect(
+      refsOf('match_subjects', {
+        entries: [{ i: 0, name: 'Carbonara' }],
+        subjects: [{ assetIds: [id1, id2], match: 'Carbonara', i: 0, suggestions: [{ i: 0, name: 'Carbonara' }] }],
+        sheet: { 1: id1 },
+      }),
+    ).toEqual({ ...none, assetIds: [id1, id2] });
+    expect(
+      extractToolCallRefs('save_entries', {
+        input: { pack: 'food', place: 'Nino', photos: [{ id: id3, entry: 'Carbonara' }] },
+        output: [{ place: 'Nino', photos: [{ id: id3, tag: 'Food/Nino/Carbonara' }] }],
+      }),
+    ).toEqual({ ...none, assetIds: [id3] });
+  });
+});
+
 describe('extractRefs', () => {
   it('should find asset, album and book ids', () => {
     expect(

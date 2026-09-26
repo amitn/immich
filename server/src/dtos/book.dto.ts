@@ -6,6 +6,7 @@ import type { BookTable } from 'src/schema/tables/book.table.js';
 import { BookExportFormat, BookExportFormatSchema, BookExportStatusSchema } from 'src/enum.js';
 import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
 import { bookMapStyles } from 'src/utils/book/map-styles.js';
+import { BUILT_IN_COLLECTION_PACKS } from 'src/utils/collections/registry.js';
 import { isoDatetimeToDate } from 'src/validation.js';
 
 export const NormalizedRectSchema = z
@@ -32,15 +33,18 @@ const fontFamily = z
   .max(100)
   .regex(/^[\w\s,'-]+$/, { error: 'Font family contains invalid characters' });
 
-export const bookStyleThemes = ['plain', 'food'] as const;
+/** the themes of the collection packs' books (see `src/utils/collections/pack.ts`), e.g. food */
+const packThemes = BUILT_IN_COLLECTION_PACKS.flatMap((pack) => (pack.book.theme ? [pack.book.theme] : []));
 
-export type BookStyleTheme = (typeof bookStyleThemes)[number];
+export const bookStyleThemes: readonly [string, ...string[]] = ['plain', ...packThemes.map(({ id }) => id)];
+
+/** plain, or the theme of a collection pack, e.g. food */
+export type BookStyleTheme = string;
 
 export const BookStyleThemeSchema = z
   .enum(bookStyleThemes)
   .describe(
-    'Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and ' +
-      'the names of the dishes set below the photos)',
+    `Typography and ornaments: plain, or ${packThemes.map(({ id, summary }) => `${id} (${summary})`).join(', or ')}`,
   )
   .meta({ id: 'BookStyleTheme' });
 
@@ -86,17 +90,31 @@ export const resolveBookStyle = (style?: Partial<BookStyle> | null): Required<Bo
   ...Object.fromEntries(Object.entries(style ?? {}).filter(([, value]) => value !== undefined && value !== null)),
 });
 
-export const bookStylePresetIds = ['classic', 'soft', 'bold', 'food'] as const;
+/** the presets of the collection packs' books (see `src/utils/collections/pack.ts`), e.g. food */
+const packPresets = BUILT_IN_COLLECTION_PACKS.map((pack) => pack.book.preset);
 
-export type BookStylePreset = (typeof bookStylePresetIds)[number];
+export const bookStylePresetIds: readonly [string, ...string[]] = [
+  'classic',
+  'soft',
+  'bold',
+  ...packPresets.map(({ id }) => id),
+];
+
+/** classic, soft, bold, or the preset of a collection pack, e.g. food */
+export type BookStylePreset = string;
+
+const presetSummaries = [
+  'classic (white, 12 mm margins, serif)',
+  'soft (warm cream, muted brown text, 18 mm margins, serif)',
+  'bold (small margins, tight gutters, sans-serif; suits full-bleed photos)',
+  ...packPresets.map(({ id, summary }) => `${id} (${summary})`),
+];
 
 export const BookStylePresetSchema = z
   .enum(bookStylePresetIds)
   .describe(
-    'Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, ' +
-      'serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos) or food (a printed menu: ' +
-      'warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one ' +
-      'chapter per restaurant visit). The style options override its values',
+    `Style preset: ${presetSummaries.slice(0, -1).join(', ')} or ${presetSummaries.at(-1)}. The style options ` +
+      'override its values',
   )
   .meta({ id: 'BookStylePreset' });
 
@@ -139,23 +157,7 @@ export const bookStylePresets: Record<
       accentColor: '#111111',
     },
   },
-  food: {
-    name: 'Food',
-    description:
-      'A printed menu: warm off-white paper, deep ink and terracotta, small-caps serif headings, thin rules and ' +
-      'ornaments, and the name of every dish below its photo',
-    style: {
-      marginMm: 18,
-      gutterMm: 6,
-      background: '#f6f0e4',
-      textColor: '#2a2420',
-      fontFamily: 'FreeSerif, serif',
-      titleSizePt: 30,
-      captionSizePt: 10.5,
-      theme: 'food',
-      accentColor: '#8c3b2a',
-    },
-  },
+  ...Object.fromEntries(packPresets.map(({ id, name, description, style }) => [id, { name, description, style }])),
 };
 
 export const BookStyleUpdateSchema = BookStyleSchema.partial()
@@ -653,7 +655,7 @@ export const mapBookLayout = (layout: BookLayout): BookLayoutResponseDto => ({
   description: layout.description,
   orientation: layout.orientation,
   fullBleed: !!layout.fullBleed,
-  food: !!layout.food,
+  food: !!layout.collection,
   slots: layout.slots.map(({ x, y, width, height }) => ({ x, y, width, height })),
   textAreas: layout.text.map(({ kind, slot, x, y, width, height }) => ({
     kind,

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { FoodAgentTools } from 'src/services/agent-tools/food.tools.js';
-import { FoodService, MenuReading } from 'src/services/food.service.js';
+import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
+import { CollectionService, SourceReading } from 'src/services/collection.service.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { newUuid } from 'test/small.factory.js';
@@ -13,7 +13,7 @@ const parse = (result: AgentToolResult) => {
   return JSON.parse((result.content[0] as { text: string }).text);
 };
 
-const reading = (items: MenuReading['items']): MenuReading => ({
+const reading = (items: SourceReading['items']): SourceReading => ({
   assetId: 'menu',
   items,
   title: 'Trattoria da Nino',
@@ -21,15 +21,15 @@ const reading = (items: MenuReading['items']): MenuReading => ({
   columns: 1,
   lines: 5,
   ocr: 'tiles',
-  restaurant: [{ name: 'Trattoria da Nino', source: 'menu', confidence: 0.8, assetIds: ['menu'] }],
+  place: [{ name: 'Trattoria da Nino', source: 'source', confidence: 0.8, assetIds: ['menu'] }],
   warnings: [],
   previewPath: '/p.jpeg',
   width: 4000,
   height: 3000,
 });
 
-describe(FoodAgentTools.name, () => {
-  let sut: FoodAgentTools;
+describe(CollectionAgentTools.name, () => {
+  let sut: CollectionAgentTools;
   let mocks: ServiceMocks;
   let auth: AuthDto;
 
@@ -42,7 +42,7 @@ describe(FoodAgentTools.name, () => {
   };
 
   beforeEach(() => {
-    ({ sut, mocks } = newTestService(FoodAgentTools));
+    ({ sut, mocks } = newTestService(CollectionAgentTools));
     auth = AuthFactory.create();
   });
 
@@ -50,27 +50,37 @@ describe(FoodAgentTools.name, () => {
     vi.restoreAllMocks();
   });
 
-  it('should expose the food tools, with approval for the lookup and the names', () => {
+  it('should expose the collection tools, with approval for the lookup and the names', () => {
     expect(sut.getTools().map(({ name, mutating }) => ({ name, mutating }))).toEqual([
-      { name: 'find_meals', mutating: false },
-      { name: 'read_menu', mutating: false },
-      { name: 'match_dishes', mutating: false },
-      { name: 'lookup_restaurant', mutating: true },
-      { name: 'set_dish_names', mutating: true },
+      { name: 'find_visits', mutating: false },
+      { name: 'read_source', mutating: false },
+      { name: 'match_subjects', mutating: false },
+      { name: 'lookup_place', mutating: true },
+      { name: 'save_entries', mutating: true },
     ]);
-    const lookup = sut.getTools().find(({ name }) => name === 'lookup_restaurant')!;
+    const lookup = sut.getTools().find(({ name }) => name === 'lookup_place')!;
     expect(lookup.description).toMatch(/ask the user before/);
     expect(lookup.description).toMatch(/public service/);
   });
 
-  describe('find_meals', () => {
-    it('should return compact meals', async () => {
+  it('should take the pack of every call, and describe the packs', () => {
+    for (const tool of sut.getTools()) {
+      expect(() => tool.input.parse({})).toThrow();
+      expect(tool.input.shape.pack.description).toMatch(/^Collection pack: food \(restaurant meals/);
+    }
+    const find = sut.getTools().find(({ name }) => name === 'find_visits')!;
+    expect(() => find.input.parse({ pack: 'unknown', albumId: newUuid() })).toThrow();
+  });
+
+  describe('find_visits', () => {
+    it('should return compact visits', async () => {
       const [dish, menu] = [newUuid(), newUuid()];
-      const findMeals = vi.spyOn(FoodService.prototype, 'findMeals').mockResolvedValue({
+      const findVisits = vi.spyOn(CollectionService.prototype, 'findVisits').mockResolvedValue({
+        pack: 'food',
         count: 10,
         truncated: false,
-        foodPhotos: 2,
-        meals: [
+        photos: 2,
+        visits: [
           {
             index: 0,
             start: '2024-06-12T20:00:00',
@@ -78,67 +88,70 @@ describe(FoodAgentTools.name, () => {
             day: '2024-06-12',
             type: 'Dinner',
             city: 'Taormina',
-            dishIds: [dish],
-            menuIds: [menu],
+            subjectIds: [dish],
+            sourceIds: [menu],
             signIds: [],
             receiptIds: [],
-            restaurant: { name: 'Trattoria da Nino', source: 'menu', confidence: 0.7, assetIds: [menu] },
+            place: { name: 'Trattoria da Nino', source: 'source', confidence: 0.7, assetIds: [menu] },
             candidates: [],
-            saved: [],
+            saved: [{ assetId: menu, place: 'Trattoria da Nino', source: true }],
           },
         ],
         warnings: [],
       });
 
-      const result = parse(await call('find_meals', { albumId: newUuid() }));
+      const result = parse(await call('find_visits', { pack: 'food', albumId: newUuid() }));
 
-      expect(findMeals).toHaveBeenCalledWith(auth, expect.objectContaining({ albumId: expect.any(String) }));
+      expect(findVisits).toHaveBeenCalledWith(auth, 'food', expect.objectContaining({ albumId: expect.any(String) }));
       expect(result).toEqual({
+        pack: 'food',
         count: 10,
-        foodPhotos: 2,
-        meals: [
+        photos: 2,
+        visits: [
           {
             index: 0,
             start: '2024-06-12T20:00:00',
             end: '2024-06-12T21:00:00',
             type: 'Dinner',
             city: 'Taormina',
-            restaurant: { name: 'Trattoria da Nino', source: 'menu', confidence: 0.7 },
-            dishIds: [dish],
-            menuIds: [menu],
+            place: { name: 'Trattoria da Nino', source: 'source', confidence: 0.7 },
+            subjectIds: [dish],
+            sourceIds: [menu],
+            saved: [{ assetId: menu, tag: 'Trattoria da Nino/Menu' }],
           },
         ],
       });
     });
 
     it('should turn client errors into tool errors', async () => {
-      vi.spyOn(FoodService.prototype, 'findMeals').mockRejectedValue(new BadRequestException('Give an album'));
-      const result = await call('find_meals', {});
+      vi.spyOn(CollectionService.prototype, 'findVisits').mockRejectedValue(new BadRequestException('Give an album'));
+      const result = await call('find_visits', { pack: 'food' });
       expect(result).toEqual({ content: [{ type: 'text', text: 'Give an album' }], isError: true });
     });
   });
 
-  describe('read_menu', () => {
-    it('should return the items and the menu image', async () => {
+  describe('read_source', () => {
+    it('should return the entries and the source image', async () => {
       const id = newUuid();
-      vi.spyOn(FoodService.prototype, 'readMenu').mockResolvedValue(
+      const readSource = vi.spyOn(CollectionService.prototype, 'readSource').mockResolvedValue(
         reading([
           { name: 'Carbonara', price: '12,00', section: 'PRIMI', column: 0, box: [0, 0, 1, 1] },
           { name: 'Norma', column: 0, box: [0, 0, 1, 1] },
           { name: 'Cannolo', column: 0, box: [0, 0, 1, 1] },
         ]),
       );
-      const images = vi.spyOn(FoodService.prototype, 'getMenuImages').mockResolvedValue([Buffer.from('menu')]);
+      const images = vi.spyOn(CollectionService.prototype, 'getSourceImages').mockResolvedValue([Buffer.from('menu')]);
 
-      const result = await call('read_menu', { id });
+      const result = await call('read_source', { pack: 'food', id });
 
+      expect(readSource).toHaveBeenCalledWith(auth, 'food', id);
       expect(images).toHaveBeenCalledWith(auth, id, { zoom: false });
       expect(parse(result)).toEqual({
         id,
         title: 'Trattoria da Nino',
-        restaurant: [{ name: 'Trattoria da Nino', confidence: 0.8 }],
+        place: [{ name: 'Trattoria da Nino', confidence: 0.8 }],
         sections: ['PRIMI'],
-        items: [
+        entries: [
           { i: 0, name: 'Carbonara', price: '12,00', section: 'PRIMI' },
           { i: 1, name: 'Norma' },
           { i: 2, name: 'Cannolo' },
@@ -152,36 +165,36 @@ describe(FoodAgentTools.name, () => {
       });
     });
 
-    it('should zoom in when few items were read', async () => {
+    it('should zoom in when few entries were read', async () => {
       const id = newUuid();
-      vi.spyOn(FoodService.prototype, 'readMenu').mockResolvedValue(reading([]));
+      vi.spyOn(CollectionService.prototype, 'readSource').mockResolvedValue(reading([]));
       const images = vi
-        .spyOn(FoodService.prototype, 'getMenuImages')
+        .spyOn(CollectionService.prototype, 'getSourceImages')
         .mockResolvedValue([Buffer.from('whole'), Buffer.from('top'), Buffer.from('bottom')]);
 
-      const result = await call('read_menu', { id });
+      const result = await call('read_source', { pack: 'food', id });
 
       expect(images).toHaveBeenCalledWith(auth, id, { zoom: true });
       expect(result.content.filter(({ type }) => type === 'image')).toHaveLength(3);
     });
   });
 
-  describe('match_dishes', () => {
+  describe('match_subjects', () => {
     it('should return the suggestions and a captioned contact sheet', async () => {
       const [carbonara, bread] = [newUuid(), newUuid()];
-      vi.spyOn(FoodService.prototype, 'matchMeal').mockResolvedValue({
-        items: [{ index: 0, name: 'Carbonara', price: '12,00' }],
-        dishes: [
+      const matchVisit = vi.spyOn(CollectionService.prototype, 'matchVisit').mockResolvedValue({
+        entries: [{ index: 0, name: 'Carbonara', price: '12,00' }],
+        subjects: [
           {
             assetIds: [carbonara],
             index: 0,
             name: 'Carbonara',
             score: 0.9,
             unsure: false,
-            offMenu: 0.05,
+            offList: 0.05,
             suggestions: [{ index: 0, name: 'Carbonara', score: 0.9 }],
           },
-          { assetIds: [bread], score: 0, unsure: true, offMenu: 0.8, suggestions: [] },
+          { assetIds: [bread], score: 0, unsure: true, offList: 0.8, suggestions: [] },
         ],
         noEmbedding: [],
         warnings: [],
@@ -192,11 +205,19 @@ describe(FoodAgentTools.name, () => {
       ] as never);
       mocks.media.createContactSheet.mockResolvedValue(Buffer.from('sheet'));
 
-      const result = await call('match_dishes', { dishIds: [carbonara, bread], items: [{ name: 'Carbonara' }] });
+      const result = await call('match_subjects', {
+        pack: 'food',
+        subjectIds: [carbonara, bread],
+        entries: [{ name: 'Carbonara' }],
+      });
 
+      expect(matchVisit).toHaveBeenCalledWith(auth, 'food', {
+        subjectIds: [carbonara, bread],
+        entries: [{ name: 'Carbonara' }],
+      });
       expect(parse(result)).toEqual({
-        items: [{ i: 0, name: 'Carbonara', price: '12,00' }],
-        dishes: [
+        entries: [{ i: 0, name: 'Carbonara', price: '12,00' }],
+        subjects: [
           {
             assetIds: [carbonara],
             match: 'Carbonara',
@@ -204,7 +225,7 @@ describe(FoodAgentTools.name, () => {
             score: 0.9,
             suggestions: [{ i: 0, name: 'Carbonara', score: 0.9 }],
           },
-          { assetIds: [bread], match: null, score: 0, unsure: true, offMenu: 0.8, suggestions: [] },
+          { assetIds: [bread], match: null, score: 0, unsure: true, offList: 0.8, suggestions: [] },
         ],
         sheet: { 1: carbonara, 2: bread },
       });
@@ -219,36 +240,36 @@ describe(FoodAgentTools.name, () => {
     });
   });
 
-  describe('lookup_restaurant', () => {
+  describe('lookup_place', () => {
     it('should say when the lookup is disabled', async () => {
-      const result = parse(await call('lookup_restaurant', { latitude: 37.85, longitude: 15.28 }));
+      const result = parse(await call('lookup_place', { pack: 'food', latitude: 37.85, longitude: 15.28 }));
       expect(result).toEqual({ enabled: false, message: expect.stringContaining('Ask the user') });
     });
 
     it('should list the places nearby', async () => {
-      vi.spyOn(FoodService.prototype, 'lookupRestaurants').mockResolvedValue({
+      vi.spyOn(CollectionService.prototype, 'lookupPlaces').mockResolvedValue({
         enabled: true,
         latitude: 37.85,
         longitude: 15.28,
         radius: 75,
-        places: [{ name: 'Trattoria da Nino', amenity: 'restaurant', distance: 14, osm: 'node/1' }],
+        places: [{ name: 'Trattoria da Nino', type: 'restaurant', distance: 14, osm: 'node/1' }],
       });
 
-      const result = parse(await call('lookup_restaurant', { assetIds: [newUuid()] }));
+      const result = parse(await call('lookup_place', { pack: 'food', assetIds: [newUuid()] }));
 
       expect(result).toEqual({
         location: [37.85, 15.28],
         radius: 75,
-        places: [{ name: 'Trattoria da Nino', amenity: 'restaurant', distance: 14 }],
+        places: [{ name: 'Trattoria da Nino', type: 'restaurant', distance: 14 }],
       });
     });
   });
 
-  describe('set_dish_names', () => {
+  describe('save_entries', () => {
     it('should report the named photos and the failures', async () => {
       const [dish, other] = [newUuid(), newUuid()];
-      const setDishNames = vi.spyOn(FoodService.prototype, 'setDishNames').mockResolvedValue({
-        restaurant: 'Nino',
+      const saveEntries = vi.spyOn(CollectionService.prototype, 'saveEntries').mockResolvedValue({
+        place: 'Nino',
         results: [
           { id: dish, success: true, tag: 'Food/Nino/Carbonara', description: 'Carbonara · Nino' },
           { id: other, success: false, error: 'no_permission' },
@@ -256,24 +277,25 @@ describe(FoodAgentTools.name, () => {
       });
 
       const result = parse(
-        await call('set_dish_names', {
-          restaurant: 'Nino',
+        await call('save_entries', {
+          pack: 'food',
+          place: 'Nino',
           photos: [
-            { id: dish, dish: 'Carbonara' },
-            { id: other, menu: true },
+            { id: dish, entry: 'Carbonara' },
+            { id: other, source: true },
           ],
         }),
       );
 
-      expect(setDishNames).toHaveBeenCalledWith(auth, {
-        restaurant: 'Nino',
+      expect(saveEntries).toHaveBeenCalledWith(auth, 'food', {
+        place: 'Nino',
         photos: [
-          { id: dish, dish: 'Carbonara' },
-          { id: other, menu: true },
+          { id: dish, entry: 'Carbonara' },
+          { id: other, source: true },
         ],
       });
       expect(result).toEqual({
-        restaurant: 'Nino',
+        place: 'Nino',
         photos: [{ id: dish, tag: 'Food/Nino/Carbonara', description: 'Carbonara · Nino' }],
         failed: [{ id: other, error: 'no_permission' }],
       });

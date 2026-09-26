@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import { getDefaultFallbackName } from 'src/utils/collections/pack.js';
+import { foodPack, getMealType } from 'src/utils/collections/packs/food/pack.js';
 import {
-  DEFAULT_MEAL_OPTIONS,
-  FoodPhoto,
-  getFallbackMealNames,
-  getMealType,
-  groupMeals,
-  summarizeMeal,
-} from 'src/utils/food/meals.js';
+  DEFAULT_VISIT_OPTIONS,
+  VisitPhoto,
+  getFallbackVisitNames,
+  groupVisits,
+  summarizeVisit,
+} from 'src/utils/collections/visits.js';
 
 const at = (iso: string) => new Date(`${iso}Z`).getTime();
 const photo = (
   id: string,
   iso: string,
-  kind: FoodPhoto['kind'] = 'dish',
-  extra: Partial<FoodPhoto> = {},
-): FoodPhoto => ({
+  kind: VisitPhoto['kind'] = 'subject',
+  extra: Partial<VisitPhoto> = {},
+): VisitPhoto => ({
   id,
   time: at(iso),
   kind,
@@ -26,20 +27,20 @@ const nino = { latitude: 37.8526, longitude: 15.2869, city: 'Taormina', country:
 const ninoNearby = { latitude: 37.8531, longitude: 15.2874, city: 'Taormina', country: 'Italy' };
 const bar = { latitude: 37.8505, longitude: 15.2905, city: 'Taormina', country: 'Italy' };
 
-describe('groupMeals', () => {
+describe('groupVisits', () => {
   it('should keep a meal together', () => {
-    const meals = groupMeals([
+    const meals = groupVisits([
       photo('sign', '2024-06-12T20:02:00', 'sign', nino),
-      photo('menu', '2024-06-12T20:10:00', 'menu', nino),
-      photo('starter', '2024-06-12T20:35:00', 'dish', ninoNearby),
-      photo('main', '2024-06-12T21:10:00', 'dish'),
-      photo('dessert', '2024-06-12T21:50:00', 'dish', nino),
+      photo('menu', '2024-06-12T20:10:00', 'source', nino),
+      photo('starter', '2024-06-12T20:35:00', 'subject', ninoNearby),
+      photo('main', '2024-06-12T21:10:00', 'subject'),
+      photo('dessert', '2024-06-12T21:50:00', 'subject', nino),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['sign', 'menu', 'starter', 'main', 'dessert']]);
   });
 
   it('should split meals on a gap', () => {
-    const meals = groupMeals([
+    const meals = groupVisits([
       photo('lunch', '2024-06-12T13:00:00'),
       photo('coffee', '2024-06-12T13:40:00'),
       photo('gelato', '2024-06-12T14:40:00'),
@@ -54,39 +55,39 @@ describe('groupMeals', () => {
         `2024-06-12T${String(12 + Math.floor((i * 30) / 60)).padStart(2, '0')}:${String((i * 30) % 60).padStart(2, '0')}:00`,
       ),
     );
-    expect(groupMeals(photos).map((meal) => meal.length)).toEqual([8]);
-    expect(groupMeals(photos, { maxSpanMinutes: 180 }).map((meal) => meal.length)).toEqual([7, 1]);
+    expect(groupVisits(photos).map((meal) => meal.length)).toEqual([8]);
+    expect(groupVisits(photos, { maxSpanMinutes: 180 }).map((meal) => meal.length)).toEqual([7, 1]);
   });
 
   it('should split meals at different places', () => {
-    const meals = groupMeals([
-      photo('a', '2024-06-12T20:00:00', 'dish', nino),
-      photo('b', '2024-06-12T20:20:00', 'dish', bar),
+    const meals = groupVisits([
+      photo('a', '2024-06-12T20:00:00', 'subject', nino),
+      photo('b', '2024-06-12T20:20:00', 'subject', bar),
     ]);
     expect(meals).toHaveLength(2);
   });
 
   it('should drop visits without a dish or a menu', () => {
-    const meals = groupMeals([
+    const meals = groupVisits([
       photo('storefront', '2024-06-12T10:00:00', 'sign', nino),
-      photo('dish', '2024-06-12T20:00:00', 'dish', nino),
+      photo('dish', '2024-06-12T20:00:00', 'subject', nino),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dish']]);
   });
 
   it('should attach a menu photographed after the meal and keep a menu on its own', () => {
-    const meals = groupMeals([
+    const meals = groupVisits([
       photo('dessert', '2024-06-12T14:01:00'),
-      photo('signed-menu', '2024-06-12T16:08:00', 'menu'),
-      photo('other-menu', '2024-06-13T12:00:00', 'menu'),
+      photo('signed-menu', '2024-06-12T16:08:00', 'source'),
+      photo('other-menu', '2024-06-13T12:00:00', 'source'),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dessert', 'signed-menu'], ['other-menu']]);
   });
 
   it('should not attach a sign at another place', () => {
-    const meals = groupMeals([
+    const meals = groupVisits([
       photo('sign', '2024-06-12T19:00:00', 'sign', bar),
-      photo('dish', '2024-06-12T20:00:00', 'dish', nino),
+      photo('dish', '2024-06-12T20:00:00', 'subject', nino),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dish']]);
   });
@@ -97,7 +98,7 @@ describe('groupMeals', () => {
     const frenchLaundry = [
       photo('fl-outside', '2014-01-11T11:28:22', 'sign'),
       photo('fl-relais', '2014-01-11T11:30:11', 'sign'),
-      photo('fl-menu', '2014-01-11T11:43:00', 'menu'),
+      photo('fl-menu', '2014-01-11T11:43:00', 'source'),
       ...[
         '11:52:10',
         '11:52:55',
@@ -112,7 +113,7 @@ describe('groupMeals', () => {
         '13:46:16',
         '14:01:40',
       ].map((time, i) => photo(`fl-dish-${i}`, `2014-01-11T${time}`)),
-      photo('fl-signed-menu', '2014-01-11T16:08:21', 'menu'),
+      photo('fl-signed-menu', '2014-01-11T16:08:21', 'source'),
     ];
     const noma = [
       photo('noma-front', '2016-03-23T17:19:46', 'sign'),
@@ -134,26 +135,29 @@ describe('groupMeals', () => {
         '20:01:39',
         '20:17:28',
       ].map((time, i) => photo(`noma-dish-${i}`, `2016-03-23T${time}`)),
-      photo('noma-menu', '2016-03-23T20:51:08', 'menu'),
+      photo('noma-menu', '2016-03-23T20:51:08', 'source'),
     ];
     const katz = [
       photo('katz-outside', '2013-06-15T08:42:57', 'sign'),
-      photo('katz-menu', '2013-06-15T08:53:24', 'menu'),
+      photo('katz-menu', '2013-06-15T08:53:24', 'source'),
       ...['08:55:32', '09:02:38', '09:03:35', '09:07:13', '09:14:03'].map((time, i) =>
         photo(`katz-dish-${i}`, `2013-06-15T${time}`),
       ),
     ];
 
-    const meals = groupMeals([...noma, ...frenchLaundry, ...katz]);
+    const meals = groupVisits([...noma, ...frenchLaundry, ...katz]);
 
     expect(meals.map((meal) => meal.length)).toEqual([katz.length, frenchLaundry.length, noma.length]);
-    expect(summarizeMeal(meals[1]).menuIds).toEqual(['fl-menu', 'fl-signed-menu']);
-    expect(summarizeMeal(meals[2])).toMatchObject({ signIds: ['noma-front', 'noma-sign'], menuIds: ['noma-menu'] });
+    expect(summarizeVisit(meals[1], getMealType).sourceIds).toEqual(['fl-menu', 'fl-signed-menu']);
+    expect(summarizeVisit(meals[2], getMealType)).toMatchObject({
+      signIds: ['noma-front', 'noma-sign'],
+      sourceIds: ['noma-menu'],
+    });
   });
 
   it('should accept other options', () => {
-    const meals = groupMeals([photo('a', '2024-06-12T20:00:00'), photo('b', '2024-06-12T20:20:00')], {
-      ...DEFAULT_MEAL_OPTIONS,
+    const meals = groupVisits([photo('a', '2024-06-12T20:00:00'), photo('b', '2024-06-12T20:20:00')], {
+      ...DEFAULT_VISIT_OPTIONS,
       maxGapMinutes: 10,
     });
     expect(meals).toHaveLength(2);
@@ -172,14 +176,17 @@ describe('getMealType', () => {
   });
 });
 
-describe('summarizeMeal', () => {
+describe('summarizeVisit', () => {
   it('should summarize a meal', () => {
-    const summary = summarizeMeal([
-      photo('menu', '2024-06-12T19:55:00', 'menu', nino),
-      photo('receipt', '2024-06-12T22:00:00', 'receipt'),
-      photo('pasta', '2024-06-12T20:30:00', 'dish', nino),
-      photo('sign', '2024-06-12T19:50:00', 'sign'),
-    ]);
+    const summary = summarizeVisit(
+      [
+        photo('menu', '2024-06-12T19:55:00', 'source', nino),
+        photo('receipt', '2024-06-12T22:00:00', 'receipt'),
+        photo('pasta', '2024-06-12T20:30:00', 'subject', nino),
+        photo('sign', '2024-06-12T19:50:00', 'sign'),
+      ],
+      getMealType,
+    );
     expect(summary).toEqual({
       start: '2024-06-12T19:50:00',
       end: '2024-06-12T22:00:00',
@@ -188,33 +195,48 @@ describe('summarizeMeal', () => {
       city: 'Taormina',
       country: 'Italy',
       gps: [37.8526, 15.2869],
-      dishIds: ['pasta'],
-      menuIds: ['menu'],
+      subjectIds: ['pasta'],
+      sourceIds: ['menu'],
       signIds: ['sign'],
       receiptIds: ['receipt'],
     });
   });
 
   it('should leave out the place when it is unknown', () => {
-    const summary = summarizeMeal([photo('pasta', '2024-06-12T13:00:00')]);
+    const summary = summarizeVisit([photo('pasta', '2024-06-12T13:00:00')], getMealType);
     expect(summary.city).toBeUndefined();
     expect(summary.gps).toBeUndefined();
     expect(summary.type).toBe('Lunch');
   });
 });
 
-describe('getFallbackMealNames', () => {
+describe('getFallbackVisitNames', () => {
+  it('should name visits of a pack without kinds of visits by the visit and the city', () => {
+    expect(
+      getFallbackVisitNames(
+        [
+          { city: 'Florence', day: '2024-06-12', start: '2024-06-12T10:00:00' },
+          { day: '2024-06-13', start: '2024-06-13T10:00:00' },
+        ],
+        getDefaultFallbackName({ visit: 'museum visit' }),
+      ),
+    ).toEqual(['Museum visit in Florence', 'Museum visit on 2024-06-13']);
+  });
+
   it('should name meals by type and city, adding the day and time when needed', () => {
     expect(
-      getFallbackMealNames([
-        { type: 'Dinner', city: 'Taormina', day: '2024-06-12', start: '2024-06-12T20:00:00' },
-        { type: 'Lunch', city: 'Taormina', day: '2024-06-12', start: '2024-06-12T13:00:00' },
-        { type: 'Dinner', city: 'Taormina', day: '2024-06-13', start: '2024-06-13T20:00:00' },
-        { type: 'Dinner', city: 'Catania', day: '2024-06-14', start: '2024-06-14T19:00:00' },
-        { type: 'Lunch', day: '2024-06-15', start: '2024-06-15T12:00:00' },
-        { type: 'Dinner', city: 'Catania', day: '2024-06-15', start: '2024-06-15T19:00:00' },
-        { type: 'Dinner', city: 'Catania', day: '2024-06-15', start: '2024-06-15T22:30:00' },
-      ]),
+      getFallbackVisitNames(
+        [
+          { type: 'Dinner', city: 'Taormina', day: '2024-06-12', start: '2024-06-12T20:00:00' },
+          { type: 'Lunch', city: 'Taormina', day: '2024-06-12', start: '2024-06-12T13:00:00' },
+          { type: 'Dinner', city: 'Taormina', day: '2024-06-13', start: '2024-06-13T20:00:00' },
+          { type: 'Dinner', city: 'Catania', day: '2024-06-14', start: '2024-06-14T19:00:00' },
+          { type: 'Lunch', day: '2024-06-15', start: '2024-06-15T12:00:00' },
+          { type: 'Dinner', city: 'Catania', day: '2024-06-15', start: '2024-06-15T19:00:00' },
+          { type: 'Dinner', city: 'Catania', day: '2024-06-15', start: '2024-06-15T22:30:00' },
+        ],
+        foodPack.place.fallbackName,
+      ),
     ).toEqual([
       'Dinner in Taormina, 2024-06-12',
       'Lunch in Taormina',

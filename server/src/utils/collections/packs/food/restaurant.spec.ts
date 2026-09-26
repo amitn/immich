@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
-import { cleanRestaurantName, findRestaurantNames, isGarbled, toTitleCase } from 'src/utils/food/restaurant.js';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
+import { cleanRestaurantName, findRestaurantNames } from 'src/utils/collections/packs/food/restaurant.js';
+import { isGarbled, toTitleCase } from 'src/utils/collections/place.js';
 
 const box = (text: string, left: number, top: number, height = 0.022): OcrBoxInput => {
   const right = left + text.length * height * 0.45;
@@ -64,7 +65,7 @@ describe('cleanRestaurantName', () => {
 const readSign = (text: string, textScore = 0.97) =>
   findRestaurantNames([
     { assetId: 'sign', kind: 'sign', ocr: [{ ...box(text, 0.2, 0.3, 0.1), textScore }] },
-    { assetId: 'menu', kind: 'menu', ocr: [box('Spaghetti alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+    { assetId: 'menu', kind: 'source', ocr: [box('Spaghetti alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
   ])[0]?.confidence ?? 0;
 
 describe('isGarbled', () => {
@@ -79,8 +80,8 @@ describe('isGarbled', () => {
 
 describe('findRestaurantNames', () => {
   it('should read the title of a menu', () => {
-    const [best] = findRestaurantNames([{ assetId: 'menu', kind: 'menu', ocr: menu }]);
-    expect(best).toMatchObject({ name: 'Trattoria da Nino', source: 'menu', assetIds: ['menu'] });
+    const [best] = findRestaurantNames([{ assetId: 'menu', kind: 'source', ocr: menu }]);
+    expect(best).toMatchObject({ name: 'Trattoria da Nino', source: 'source', assetIds: ['menu'] });
     expect(best.confidence).toBeGreaterThan(0.5);
   });
 
@@ -96,7 +97,7 @@ describe('findRestaurantNames', () => {
 
   it('should prefer a name repeated on several photos', () => {
     const candidates = findRestaurantNames([
-      { assetId: 'menu', kind: 'menu', ocr: menu },
+      { assetId: 'menu', kind: 'source', ocr: menu },
       { assetId: 'receipt', kind: 'receipt', ocr: [box('TRATTORIA DA NINO', 0.2, 0.04, 0.03), ...receipt.slice(3)] },
     ]);
     expect(candidates[0]).toMatchObject({ name: 'Trattoria da Nino', assetIds: ['menu', 'receipt'] });
@@ -127,7 +128,7 @@ describe('findRestaurantNames', () => {
         },
         {
           assetId: 'menu',
-          kind: 'menu',
+          kind: 'source',
           ocr: [box('THE FRENCH LAUNDRY', 0.2, 0.05, 0.05), box('CHEF’S TASTING MENU', 0.25, 0.12, 0.03)],
         },
       ]);
@@ -146,17 +147,17 @@ describe('findRestaurantNames', () => {
     const sign = { assetId: 'sign', kind: 'sign' as const, ocr: [box('Trattoria Savoia', 0.2, 0.3, 0.1)] };
     const supported = findRestaurantNames([
       sign,
-      { assetId: 'menu', kind: 'menu', ocr: [box('Pasta Savoia', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+      { assetId: 'menu', kind: 'source', ocr: [box('Pasta Savoia', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
     ])[0];
     const alone = findRestaurantNames([
       sign,
-      { assetId: 'menu', kind: 'menu', ocr: [box('Pasta alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+      { assetId: 'menu', kind: 'source', ocr: [box('Pasta alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
     ])[0];
     expect(supported.confidence).toBeGreaterThan(alone.confidence);
   });
 
   it('should find nothing in text that names no place', () => {
-    expect(findRestaurantNames([{ assetId: 'menu', kind: 'menu', ocr: menu.slice(2) }])).toEqual([]);
+    expect(findRestaurantNames([{ assetId: 'menu', kind: 'source', ocr: menu.slice(2) }])).toEqual([]);
     expect(findRestaurantNames([])).toEqual([]);
   });
 });

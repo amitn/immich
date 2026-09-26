@@ -1,20 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FOOD_PROMPT_LIST,
-  FoodKind,
+  CollectionKind,
   OcrSummary,
-  classifyFood,
   getClipKindScores,
-  getOcrMenuScore,
   getOcrReceiptScore,
   getOcrSignScore,
+  getOcrSourceScore,
   softmax,
-  summarizeOcr,
-} from 'src/utils/food/classify.js';
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
+} from 'src/utils/collections/classify.js';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
+import {
+  FOOD_PROMPT_LIST,
+  classifyFood,
+  summarizeFoodText as summarizeOcr,
+} from 'src/utils/collections/packs/food/classify.js';
 
 /** CLIP similarities with every prompt of a kind set to the given value (default 0.15) */
-const similarities = (values: Partial<Record<FoodKind, number>>) =>
+const similarities = (values: Partial<Record<CollectionKind, number>>) =>
   FOOD_PROMPT_LIST.map(({ kind }) => values[kind] ?? 0.15);
 
 const box = (text: string, left: number, top: number, height = 0.022): OcrBoxInput => {
@@ -23,7 +25,7 @@ const box = (text: string, left: number, top: number, height = 0.022): OcrBoxInp
   return { x1: left, y1: top, x2: right, y2: top, x3: right, y3: bottom, x4: left, y4: bottom, text, textScore: 0.9 };
 };
 
-const noText: OcrSummary = { lines: 0, prices: 0, items: 0, receiptWords: 0, restaurantWord: false, largestText: 0 };
+const noText: OcrSummary = { lines: 0, prices: 0, items: 0, receiptWords: 0, placeWord: false, largestText: 0 };
 
 const menuBoxes = [
   box('ANTIPASTI', 0.1, 0.1, 0.03),
@@ -63,9 +65,9 @@ describe('softmax', () => {
 describe('getClipKindScores', () => {
   it('should use the best prompt of each kind', () => {
     const values = similarities({ other: 0.2 });
-    values[FOOD_PROMPT_LIST.findIndex(({ kind }) => kind === 'dish') + 1] = 0.3;
-    const scores = getClipKindScores(values);
-    expect(scores.dish).toBeGreaterThan(0.99);
+    values[FOOD_PROMPT_LIST.findIndex(({ kind }) => kind === 'subject') + 1] = 0.3;
+    const scores = getClipKindScores(values, FOOD_PROMPT_LIST);
+    expect(scores.subject).toBeGreaterThan(0.99);
   });
 });
 
@@ -81,54 +83,54 @@ describe('summarizeOcr', () => {
   it('should find receipt words and restaurant words', () => {
     const summary = summarizeOcr(receiptBoxes);
     expect(summary.receiptWords).toBeGreaterThanOrEqual(3);
-    expect(summary.restaurantWord).toBe(true);
+    expect(summary.placeWord).toBe(true);
   });
 });
 
 describe('ocr scores', () => {
   it('should score menus, receipts and signs', () => {
-    expect(getOcrMenuScore(summarizeOcr(menuBoxes))).toBeGreaterThan(0.6);
+    expect(getOcrSourceScore(summarizeOcr(menuBoxes))).toBeGreaterThan(0.6);
     expect(getOcrReceiptScore(summarizeOcr(receiptBoxes))).toBeGreaterThan(0.7);
     expect(getOcrSignScore(summarizeOcr([box('Trattoria da Nino', 0.2, 0.3, 0.08)]))).toBeGreaterThan(0.7);
   });
 
   it('should not see a menu in a little text', () => {
-    expect(getOcrMenuScore({ ...noText, lines: 2, prices: 1 })).toBe(0);
+    expect(getOcrSourceScore({ ...noText, lines: 2, prices: 1 })).toBe(0);
     expect(getOcrReceiptScore({ ...noText, prices: 5 })).toBe(0);
-    expect(getOcrSignScore({ ...noText, lines: 20, restaurantWord: true, largestText: 0.1 })).toBe(0);
+    expect(getOcrSignScore({ ...noText, lines: 20, placeWord: true, largestText: 0.1 })).toBe(0);
   });
 });
 
 describe('classifyFood', () => {
   it('should find a dish', () => {
-    const result = classifyFood({ similarities: similarities({ dish: 0.3, other: 0.22 }), ocr: noText });
-    expect(result.kind).toBe('dish');
+    const result = classifyFood({ similarities: similarities({ subject: 0.3, other: 0.22 }), ocr: noText });
+    expect(result.kind).toBe('subject');
     expect(result.confidence).toBeGreaterThan(0.9);
   });
 
   it('should leave other photos alone', () => {
-    const result = classifyFood({ similarities: similarities({ dish: 0.2, other: 0.29 }) });
+    const result = classifyFood({ similarities: similarities({ subject: 0.2, other: 0.29 }) });
     expect(result.kind).toBe('other');
   });
 
   it('should find a menu from CLIP and the text', () => {
     const result = classifyFood({
-      similarities: similarities({ menu: 0.24, dish: 0.25, other: 0.23 }),
+      similarities: similarities({ source: 0.24, subject: 0.25, other: 0.23 }),
       ocr: summarizeOcr(menuBoxes),
     });
-    expect(result.kind).toBe('menu');
+    expect(result.kind).toBe('source');
   });
 
   it('should find a menu from the text alone', () => {
-    expect(classifyFood({ ocr: summarizeOcr(menuBoxes) }).kind).toBe('menu');
+    expect(classifyFood({ ocr: summarizeOcr(menuBoxes) }).kind).toBe('source');
   });
 
   it('should not take a plate with a lot of text on the table for a dish', () => {
     const result = classifyFood({
-      similarities: similarities({ dish: 0.27, menu: 0.25, other: 0.2 }),
+      similarities: similarities({ subject: 0.27, source: 0.25, other: 0.2 }),
       ocr: summarizeOcr(menuBoxes),
     });
-    expect(result.kind).toBe('menu');
+    expect(result.kind).toBe('source');
   });
 
   it('should not take the printed placemat under a plate for a menu', () => {
@@ -140,14 +142,17 @@ describe('classifyFood', () => {
       box('THAT’S ALL!', 0.55, 0.9, 0.03),
       box('SINCE 1888', 0.4, 0.95, 0.02),
     ]);
-    const result = classifyFood({ similarities: similarities({ dish: 0.29, menu: 0.24, other: 0.2 }), ocr: placemat });
-    expect(result.kind).toBe('dish');
-    expect(result.scores.menu).toBeLessThan(0.5);
+    const result = classifyFood({
+      similarities: similarities({ subject: 0.29, source: 0.24, other: 0.2 }),
+      ocr: placemat,
+    });
+    expect(result.kind).toBe('subject');
+    expect(result.scores.source).toBeLessThan(0.5);
   });
 
   it('should find a receipt rather than a menu', () => {
     const result = classifyFood({
-      similarities: similarities({ menu: 0.26, receipt: 0.25, other: 0.2 }),
+      similarities: similarities({ source: 0.26, receipt: 0.25, other: 0.2 }),
       ocr: summarizeOcr(receiptBoxes),
     });
     expect(result.kind).toBe('receipt');

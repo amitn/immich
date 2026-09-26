@@ -43,7 +43,7 @@ describe('book layouts', () => {
   });
 
   it('should include the food layouts, with a caption area for every photo of a dish layout', () => {
-    const food = bookLayouts.filter((layout) => layout.food).map((layout) => layout.id);
+    const food = bookLayouts.filter((layout) => layout.collection).map((layout) => layout.id);
     expect(food).toEqual([
       'menu',
       'menu-wide',

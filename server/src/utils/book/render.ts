@@ -1,5 +1,6 @@
 import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
+import { isPrintedTheme } from 'src/utils/book/collections.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   BookLayout,
@@ -615,7 +616,8 @@ export const planPage = (
 
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
-  const food = style.theme === 'food';
+  // the printed look of a pack's theme, e.g. food: a page of a menu
+  const food = isPrintedTheme(style.theme);
   const pageBackground = page.background ?? style.background;
   // a food page set on dark paper (e.g. charcoal) keeps its text readable
   const ink = food ? getReadableColor(style.textColor, pageBackground) : style.textColor;
@@ -680,7 +682,7 @@ export const planPage = (
             text: page.caption,
             fontPx: (layout.slots.length === 0 ? captionPx * 1.3 : captionPx) * (food ? 1.1 : 1),
             // e.g. the dishes on a menu page follow its heading
-            ...(food && { italic: true, balance: true, ...(layout.food && { valign: 'top' as const }) }),
+            ...(food && { italic: true, balance: true, ...(layout.collection && { valign: 'top' as const }) }),
           });
         }
         break;

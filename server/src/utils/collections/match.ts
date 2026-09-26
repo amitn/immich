@@ -1,7 +1,14 @@
 import { UnionFind, cosineDistance } from 'src/utils/agent/clustering.js';
-import { softmax } from 'src/utils/food/classify.js';
+import { softmax } from 'src/utils/collections/classify.js';
 
-export type DishPhoto = {
+/*
+ * Matching the subject photos of a visit with the entries of its source. The matcher was made for food and speaks
+ * its language: a dish is a subject photo (or a group of photos of one subject), an item an entry, the menu the
+ * source, and a course the place of an entry in the order of the source, which subjects may follow (the courses of a
+ * tasting menu, the rooms of an exhibition). "Not on the menu" is off the list: a subject that is no entry.
+ */
+
+export type SubjectPhoto = {
   id: string;
   /** capture time in ms */
   time: number;
@@ -9,7 +16,7 @@ export type DishPhoto = {
   embedding: Float32Array;
 };
 
-export type DishCandidate = {
+export type EntryCandidate = {
   /** L2-normalized CLIP text embedding of the item's name (and description) */
   embedding: Float32Array;
   /**
@@ -23,9 +30,9 @@ export type DishCandidate = {
 
 export type MatchOptions = {
   /** photos at most this cosine distance apart show the same dish (a burst, or another shot of the plate)... */
-  sameDishDistance: number;
+  sameSubjectDistance: number;
   /** ...when taken within this many minutes of each other */
-  sameDishMinutes: number;
+  sameSubjectMinutes: number;
   /** a match below this probability is left out (the suggestions remain) */
   minScore: number;
   /** a match at or above this probability, and ahead of the runner-up by `margin`, is sure */
@@ -35,18 +42,18 @@ export type MatchOptions = {
   sharePenalty: number;
   /**
    * CLIP likes some texts for every photo of a meal (a long description, a word like "caviar"): at a meal of at least
-   * `centerDishes` dishes, each item's similarity is measured against its average over the meal's dishes, pooled with
+   * `centerSubjects` dishes, each item's similarity is measured against its average over the meal's dishes, pooled with
    * `pooling` dishes at the average of all items (a meal of a few dishes can't tell a text CLIP likes from a dish)
    */
   pooling: number;
-  centerDishes: number;
+  centerSubjects: number;
   /** added to the similarity of the best "not on the menu" text */
-  offMenuBias: number;
+  offListBias: number;
   /**
-   * whether dishes follow the order of the courses: 'menu' always, 'none' never, 'auto' for menus with few prices
+   * whether dishes follow the order of the courses: 'source' always, 'none' never, 'auto' for menus with few prices
    * where the order fits the photos better than most shuffled orders
    */
-  order: 'auto' | 'menu' | 'none';
+  order: 'auto' | 'source' | 'none';
   /** with 'auto', at most this fraction of shuffled orders of the courses may fit the photos as well as the menu order */
   orderEvidence: number;
   /** the log-probability cost of each course between two matched dishes that no photo shows */
@@ -69,17 +76,17 @@ export type MatchOptions = {
   temperature: number;
 };
 
-/** calibrated on real meals, see `src/utils/food/benchmark.spec.ts` */
+/** calibrated on real meals, see `src/utils/collections/packs/food/benchmark.spec.ts` */
 export const DEFAULT_MATCH_OPTIONS: MatchOptions = {
-  sameDishDistance: 0.03,
-  sameDishMinutes: 5,
+  sameSubjectDistance: 0.03,
+  sameSubjectMinutes: 5,
   minScore: 0.05,
   sureScore: 0.5,
   margin: 0.2,
   sharePenalty: Math.log(8),
   pooling: 3,
-  centerDishes: 4,
-  offMenuBias: 0,
+  centerSubjects: 4,
+  offListBias: 0,
   order: 'auto',
   orderEvidence: 0.15,
   skipPenalty: 0,
@@ -99,7 +106,7 @@ export type MatchSuggestion = {
   similarity: number;
 };
 
-export type DishMatch = {
+export type SubjectMatch = {
   /** photos of the same dish, in time order */
   ids: string[];
   /** the item assigned to the dish, when any clears `minScore` */
@@ -110,29 +117,14 @@ export type DishMatch = {
   /** the item is also matched to another dish */
   shared?: boolean;
   /** probability that the dish is not on the menu (with baselines) */
-  offMenu?: number;
+  offList?: number;
   suggestions: MatchSuggestion[];
 };
 
 export type MatchResult = {
-  matches: DishMatch[];
+  matches: SubjectMatch[];
   /** the dishes were matched in the order of the courses of the menu */
   ordered: boolean;
-};
-
-/** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
-export const OFF_MENU_PROMPTS = [
-  'a photo of food',
-  'a photo of a bread basket with butter',
-  'a photo of a cup of coffee',
-  'a photo of a small amuse-bouche',
-  'a photo of chocolates and petits fours',
-];
-
-/** the CLIP text of a menu item */
-export const itemPrompt = (item: { name: string; description?: string }) => {
-  const text = item.description ? `${item.name}: ${item.description}` : item.name;
-  return `a photo of ${text.length > 200 ? text.slice(0, 200) : text}`;
 };
 
 const dot = (a: Float32Array, b: Float32Array) => 1 - cosineDistance(a, b);
@@ -233,18 +225,18 @@ const average = (members: number[], value: (index: number) => number) => {
  * minutes. Plated courses of a tasting menu look alike to CLIP (white plates on white tablecloths), so anything less
  * alike, or further apart in time, is another dish.
  */
-export const groupDishPhotos = (
-  photos: DishPhoto[],
-  options: Pick<MatchOptions, 'sameDishDistance' | 'sameDishMinutes'>,
+export const groupSubjectPhotos = (
+  photos: SubjectPhoto[],
+  options: Pick<MatchOptions, 'sameSubjectDistance' | 'sameSubjectMinutes'>,
 ) => {
   const order = photos.map((_, index) => index).toSorted((a, b) => photos[a].time - photos[b].time);
   const unionFind = new UnionFind(photos.length);
   for (const [position, i] of order.entries()) {
     for (const j of order.slice(position + 1)) {
-      if (photos[j].time - photos[i].time > options.sameDishMinutes * 60_000) {
+      if (photos[j].time - photos[i].time > options.sameSubjectMinutes * 60_000) {
         break;
       }
-      if (cosineDistance(photos[i].embedding, photos[j].embedding) <= options.sameDishDistance) {
+      if (cosineDistance(photos[i].embedding, photos[j].embedding) <= options.sameSubjectDistance) {
         unionFind.union(i, j);
       }
     }
@@ -484,9 +476,9 @@ export const getOrderRank = (
  * its favourite item with another group at a cost of `sharePenalty` (two plates of the same dish). Weak matches, and
  * matches that are not a group's favourite, are marked unsure; every group keeps its top suggestions.
  */
-export const matchCourses = (
-  photos: DishPhoto[],
-  items: DishCandidate[],
+export const matchSubjects = (
+  photos: SubjectPhoto[],
+  items: EntryCandidate[],
   options: Partial<MatchOptions> & {
     suggestions?: number;
     /** text embeddings of dishes that are usually not on menus, e.g. "a photo of food", "a photo of bread" */
@@ -496,7 +488,7 @@ export const matchCourses = (
   const settings = { ...DEFAULT_MATCH_OPTIONS, ...options };
   const baselines = options.baselines ?? [];
   const suggestions = options.suggestions ?? 3;
-  const groups = groupDishPhotos(photos, settings);
+  const groups = groupSubjectPhotos(photos, settings);
 
   const similarities = groups.map((members) =>
     items.map((item) => average(members, (member) => dot(photos[member].embedding, item.embedding))),
@@ -507,7 +499,7 @@ export const matchCourses = (
 
   // each text against its average over the meal, pooled with the average of all texts
   const center = (rows: number[][]) => {
-    if (rows.length < settings.centerDishes) {
+    if (rows.length < settings.centerSubjects) {
       return rows;
     }
     const all = rows.flat();
@@ -523,7 +515,7 @@ export const matchCourses = (
   const hasOff = baselines.length > 0;
   const probabilities = groups.map((_, group) =>
     softmax(
-      hasOff ? [...centered[group], Math.max(...centeredBaselines[group]) + settings.offMenuBias] : centered[group],
+      hasOff ? [...centered[group], Math.max(...centeredBaselines[group]) + settings.offListBias] : centered[group],
       settings.temperature,
     ),
   );
@@ -556,7 +548,7 @@ export const matchCourses = (
     // few prices, and about as many courses as dishes (not a long list to choose from)
     const tasting = priced < 0.3 * courses.length && courses.length <= 2 * groups.length + 3;
     if (
-      settings.order === 'menu' ||
+      settings.order === 'source' ||
       (tasting && getOrderRank(logs, courses, aside, alignOptions, candidate.total) <= settings.orderEvidence)
     ) {
       alignment = candidate;
@@ -581,8 +573,9 @@ export const matchCourses = (
   };
 };
 
-/** the matches of `matchCourses` */
-export const matchDishes = (...args: Parameters<typeof matchCourses>): DishMatch[] => matchCourses(...args).matches;
+/** the matches of `matchSubjects` */
+export const getSubjectMatches = (...args: Parameters<typeof matchSubjects>): SubjectMatch[] =>
+  matchSubjects(...args).matches;
 
 const toSuggestions = (scores: number[], similarities: number[], count: number) =>
   scores
@@ -593,13 +586,13 @@ const toSuggestions = (scores: number[], similarities: number[], count: number) 
 
 const toAlignedMatches = (
   groups: number[][],
-  photos: DishPhoto[],
+  photos: SubjectPhoto[],
   similarities: number[][],
   { choices, marginals, offMarginals }: Alignment,
   settings: MatchOptions,
   suggestions: number,
   hasOff: boolean,
-): DishMatch[] =>
+): SubjectMatch[] =>
   groups.map((members, group) => {
     const scores = marginals[group];
     const choice = choices[group];
@@ -612,22 +605,22 @@ const toAlignedMatches = (
       ...(matched && { item: choice.item }),
       score: round(score),
       unsure: !sure,
-      ...(hasOff && { offMenu: round(offMarginals[group]) }),
+      ...(hasOff && { offList: round(offMarginals[group]) }),
       suggestions: toSuggestions(scores, similarities[group], suggestions),
     };
   });
 
 const toAssignedMatches = (
   groups: number[][],
-  photos: DishPhoto[],
-  items: DishCandidate[],
+  photos: SubjectPhoto[],
+  items: EntryCandidate[],
   similarities: number[][],
   probabilities: number[][],
   logs: number[][],
   settings: MatchOptions,
   suggestions: number,
   hasOff: boolean,
-): DishMatch[] => {
+): SubjectMatch[] => {
   // log probabilities make the assignment prefer confident matches over many lukewarm ones; the extra columns of
   // each group are "share my favourite item" and "not on the menu"
   const matrix = logs.map((row, index) => {
@@ -664,7 +657,7 @@ const toAssignedMatches = (
       ...(matched && { item: assigned }),
       score: round(matched ? score : 0),
       unsure: !sure,
-      ...(hasOff && { offMenu: round(offScore) }),
+      ...(hasOff && { offList: round(offScore) }),
       suggestions: toSuggestions(row, similarities[index], suggestions),
     };
   });

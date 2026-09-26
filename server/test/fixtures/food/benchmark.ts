@@ -1,16 +1,18 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
-import { DishMatch, MatchOptions, OFF_MENU_PROMPTS, itemPrompt, matchCourses } from 'src/utils/food/match.js';
-import { MenuItem, chooseMenuOcr, mergeMenuItems, parseMenu } from 'src/utils/food/menu.js';
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
-import { RestaurantPhoto, findRestaurantNames } from 'src/utils/food/restaurant.js';
-import { OcrPass, mergeOcrPasses } from 'src/utils/food/tiles.js';
+import { MatchOptions, SubjectMatch, matchSubjects } from 'src/utils/collections/match.js';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
+import { foodPack } from 'src/utils/collections/packs/food/pack.js';
+import { PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
+import { SourceEntry, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import { OcrPass, mergeOcrPasses } from 'src/utils/collections/tiles.js';
 
 /**
  * A benchmark of the food utilities on real meals (CC BY photos of three restaurant visits): the stored and the tiled
  * full-resolution OCR of their menus, the CLIP embeddings of their dish photos and the CLIP text embeddings of the menu
- * items, captured by `capture-benchmark.mjs`. The menus are read, the dishes matched as `FoodService.matchMeal` does,
- * and the result is scored against what each photo shows (see `src/utils/food/benchmark.spec.ts`).
+ * items, captured by `capture-benchmark.mjs`. The menus are read, the dishes matched as `CollectionService.matchVisit`
+ * does with the food pack, and the result is scored against what each photo shows (see
+ * `src/utils/collections/packs/food/benchmark.spec.ts`).
  *
  * `benchmark.json.gz` is derived from photos by City Foodsters (https://www.flickr.com/people/89060048@N03), CC BY 2.0
  * (https://creativecommons.org/licenses/by/2.0), via Wikimedia Commons: The French Laundry (2014-01-11), Katz's
@@ -112,7 +114,7 @@ export const isSameItem = (expected: string, read: string) => {
 
 export type VisitResult = {
   key: string;
-  items: MenuItem[];
+  items: SourceEntry[];
   recovered: number;
   expectedItems: number;
   dishes: number;
@@ -130,16 +132,16 @@ export type VisitResult = {
   missing: string[];
 };
 
-/** the items of the menus of a visit, as `FoodService.matchMeal` reads them */
+/** the items of the menus of a visit, as `CollectionService.matchVisit` reads them with the food pack */
 export const readMenus = (visit: Visit) => {
   const menus = visit.photos.filter((photo) => photo.kind === 'menu');
   const readings = menus.map((photo, index) => {
     const aspectRatio = photo.width! / photo.height!;
     const detailed = mergeOcrPasses(photo.width!, photo.height!, photo.passes ?? []);
-    const boxes = chooseMenuOcr(photo.ocr ?? [], detailed) === 'tiles' ? detailed : photo.ocr!;
-    return { ...parseMenu(boxes, { aspectRatio }), assetId: `menu-${index}` };
+    const boxes = chooseSourceOcr(photo.ocr ?? [], detailed) === 'tiles' ? detailed : photo.ocr!;
+    return { ...foodPack.source.parse(boxes, { aspectRatio }), assetId: `menu-${index}` };
   });
-  return mergeMenuItems(readings);
+  return mergeSourceEntries(readings);
 };
 
 const runVisit = (visit: Visit, texts: Map<string, Float32Array>, options: Partial<MatchOptions> = {}): VisitResult => {
@@ -157,19 +159,19 @@ const runVisit = (visit: Visit, texts: Map<string, Float32Array>, options: Parti
     return embedding ?? new Float32Array(512);
   };
   const candidates = merged.map(({ item, course }) => ({
-    embedding: embed(itemPrompt(item)),
+    embedding: embed(foodPack.source.prompt(item)),
     course,
     priced: item.price !== undefined,
   }));
-  const baselines = OFF_MENU_PROMPTS.map((text) => embed(text));
+  const baselines = foodPack.match.offListPrompts.map((text) => embed(text));
 
   const dishes = visit.photos.flatMap((photo, index) =>
     photo.kind === 'dish'
       ? [{ index, photo, id: String(index), time: photo.time, embedding: decode(photo.embedding!) }]
       : [],
   );
-  const { matches, ordered } = matchCourses(dishes, candidates, { baselines, ...options });
-  const byPhoto = new Map<string, DishMatch>();
+  const { matches, ordered } = matchSubjects(dishes, candidates, { ...foodPack.match.options, baselines, ...options });
+  const byPhoto = new Map<string, SubjectMatch>();
   for (const match of matches) {
     for (const id of match.ids) {
       byPhoto.set(id, match);
@@ -213,14 +215,16 @@ const runVisit = (visit: Visit, texts: Map<string, Float32Array>, options: Parti
       result.unsureRight++;
     }
     result.lines.push(
-      `${good ? 'OK ' : 'BAD'} #${id.padStart(2)} group=${match.ids.join(',').padEnd(8)} expected=${String(expected).slice(0, 38).padEnd(38)} got=${String(name).slice(0, 38).padEnd(38)} score=${match.score.toFixed(2)} off=${match.offMenu?.toFixed(2)} ${match.unsure ? 'unsure' : 'sure'}`,
+      `${good ? 'OK ' : 'BAD'} #${id.padStart(2)} group=${match.ids.join(',').padEnd(8)} expected=${String(expected).slice(0, 38).padEnd(38)} got=${String(name).slice(0, 38).padEnd(38)} score=${match.score.toFixed(2)} off=${match.offList?.toFixed(2)} ${match.unsure ? 'unsure' : 'sure'}`,
     );
   }
 
-  const restaurantPhotos: RestaurantPhoto[] = visit.photos.flatMap((photo, index) =>
-    photo.kind === 'dish' ? [] : [{ assetId: String(index), kind: photo.kind, ocr: photo.ocr ?? [] }],
+  const restaurantPhotos: PlacePhoto[] = visit.photos.flatMap((photo, index) =>
+    photo.kind === 'dish'
+      ? []
+      : [{ assetId: String(index), kind: photo.kind === 'menu' ? 'source' : photo.kind, ocr: photo.ocr ?? [] }],
   );
-  const [restaurant] = findRestaurantNames(restaurantPhotos);
+  const [restaurant] = findPlaceNames(restaurantPhotos, foodPack.place);
   if (restaurant) {
     result.restaurant = { name: restaurant.name, confidence: restaurant.confidence };
   }

@@ -1,4 +1,5 @@
-import { OcrBoxInput } from 'src/utils/food/ocr.js';
+import { OcrBoxInput } from 'src/utils/collections/ocr.js';
+import { editDistance } from 'src/utils/collections/text.js';
 
 /** a rectangle of a photo in pixels */
 export type PixelRect = { x: number; y: number; width: number; height: number };
@@ -81,19 +82,6 @@ const isDuplicate = (a: Candidate, b: Candidate) => {
   const overlap = intersection(a, b);
   const smaller = Math.min(area(a), area(b));
   return smaller > 0 && overlap / smaller > 0.5;
-};
-
-/** edit distance of two strings */
-export const editDistance = (a: string, b: string) => {
-  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const current = [i];
-    for (let j = 1; j <= b.length; j++) {
-      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    }
-    previous = current;
-  }
-  return previous[b.length];
 };
 
 /**

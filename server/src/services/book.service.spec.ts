@@ -1207,7 +1207,7 @@ describe(BookService.name, () => {
 
         expect(mocks.tag.getAssetTagValues).toHaveBeenCalledWith(auth.user.id, expect.any(Array), 'Food/');
         expect(result.plan.sections).toContainEqual(
-          expect.objectContaining({ restaurant: 'Da Enzo', title: 'Da Enzo · Rome, 1 June 2024' }),
+          expect.objectContaining({ place: 'Da Enzo', pack: 'food', title: 'Da Enzo · Rome, 1 June 2024' }),
         );
         const pages = plannedPages();
         const menuPage = pages.find((page) => page.layout.startsWith('menu'))!;

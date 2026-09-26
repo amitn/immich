@@ -157,6 +157,8 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.ClusterGroups]:
     'A cluster group is a set of users whose faces are clustered together, so that a person can be shared between them.',
   [ApiTag.ConfigUser]: 'The system configuration properties that are visible to logged in users.',
+  [ApiTag.Collections]:
+    'Collections are themed photos named by a pack (food is the first): photos of subjects, such as dishes, are matched with the entries read on a source photo, such as a menu, and saved as <Root>/<Place>/<Entry> tags; these endpoints list the packs, find the visits among assets, match their subjects with the entries and save the names.',
   [ApiTag.ConfigAdmin]: 'Endpoints to view and modify the full system configuration.',
   [ApiTag.ConfigPublic]: 'The system configuration properties that are visible to everyone.',
   [ApiTag.DatabaseBackups]: 'Manage backups of the Immich database.',

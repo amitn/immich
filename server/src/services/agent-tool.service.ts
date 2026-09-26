@@ -5,9 +5,9 @@ import { serverVersion } from 'src/constants.js';
 import { AlbumAgentTools } from 'src/services/agent-tools/album.tools.js';
 import { ArtAgentTools } from 'src/services/agent-tools/art.tools.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
+import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
 import { EnhanceAgentTools } from 'src/services/agent-tools/enhance.tools.js';
-import { FoodAgentTools } from 'src/services/agent-tools/food.tools.js';
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
 import { BaseService } from 'src/services/base.service.js';
 import { IMMICH_MCP_SERVER_NAME } from 'src/utils/agent/instructions.js';
@@ -61,7 +61,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(BookAgentTools, this),
         BaseService.create(ArtAgentTools, this),
         BaseService.create(EnhanceAgentTools, this),
-        BaseService.create(FoodAgentTools, this),
+        BaseService.create(CollectionAgentTools, this),
       ];
 
       this.tools = new Map();

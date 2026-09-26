@@ -9,14 +9,21 @@ import {
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
 import {
+  BookCollectionTag,
   VISIT_GAP_MS,
-  getFoodTag,
-  getRestaurantVisits,
+  getCollectionTag,
+  getPlaceVisits,
   getRunsBetweenVisits,
-  shareFoodTagsInStacks,
-} from 'src/utils/book/food.js';
+  shareCollectionTagsInStacks,
+} from 'src/utils/book/collections.js';
 import { getLayout } from 'src/utils/book/layouts.js';
-import { FoodTag, getDishTag, getMenuTag } from 'src/utils/food/tags.js';
+import { getCollectionTagRules } from 'src/utils/collections/pack.js';
+import { foodPack } from 'src/utils/collections/packs/food/pack.js';
+import { getEntryTag, getSourceTag } from 'src/utils/collections/tags.js';
+
+const rules = getCollectionTagRules(foodPack);
+const getDishTag = (restaurant: string, dish: string) => getEntryTag(rules, restaurant, dish);
+const getMenuTag = (restaurant: string) => getSourceTag(rules, restaurant);
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -41,10 +48,16 @@ const photo = (dto: Partial<AutoLayoutPhoto> = {}): AutoLayoutPhoto => {
 };
 
 const dish = (restaurant: string, name: string, dto: Partial<AutoLayoutPhoto> = {}) =>
-  photo({ food: { restaurant, kind: 'dish', dish: name }, ...dto });
+  photo({ collection: { pack: 'food', place: restaurant, kind: 'entry', entry: name }, ...dto });
 
 const menu = (restaurant: string, dto: Partial<AutoLayoutPhoto> = {}) =>
-  photo({ width: 2000, height: 2700, food: { restaurant, kind: 'menu' }, score: 0.3, ...dto });
+  photo({
+    width: 2000,
+    height: 2700,
+    collection: { pack: 'food', place: restaurant, kind: 'source' },
+    score: 0.3,
+    ...dto,
+  });
 
 const nino = 'Trattoria da Nino';
 const etna = 'Osteria Etna';
@@ -68,38 +81,39 @@ beforeEach(() => {
 
 describe('food tags', () => {
   it('should read the food tag of a photo, a dish before a menu', () => {
-    expect(getFoodTag(['Trips/Sicily', getMenuTag(nino), getDishTag(nino, 'Caponata')])).toEqual({
-      restaurant: nino,
-      kind: 'dish',
-      dish: 'Caponata',
+    expect(getCollectionTag(['Trips/Sicily', getMenuTag(nino), getDishTag(nino, 'Caponata')])).toEqual({
+      pack: 'food',
+      place: nino,
+      kind: 'entry',
+      entry: 'Caponata',
     });
-    expect(getFoodTag([getMenuTag(nino)])).toEqual({ restaurant: nino, kind: 'menu' });
-    expect(getFoodTag(['Food', 'Food/Nino', 'Places/Taormina'])).toBeUndefined();
+    expect(getCollectionTag([getMenuTag(nino)])).toEqual({ pack: 'food', place: nino, kind: 'source' });
+    expect(getCollectionTag(['Food', 'Food/Nino', 'Places/Taormina'])).toBeUndefined();
   });
 
   it('should give the copies of a dish its tag', () => {
-    const tag: FoodTag = { restaurant: nino, kind: 'dish', dish: 'Caponata' };
-    const [original, copy, other] = shareFoodTagsInStacks([
-      photo({ stackId: 'stack', food: tag }),
+    const tag: BookCollectionTag = { pack: 'food', place: nino, kind: 'entry', entry: 'Caponata' };
+    const [original, copy, other] = shareCollectionTagsInStacks([
+      photo({ stackId: 'stack', collection: tag }),
       photo({ stackId: 'stack', kind: 'improved' }),
       photo({ stackId: 'other' }),
     ]);
-    expect(original.food).toEqual(tag);
-    expect(copy.food).toEqual(tag);
-    expect(other.food).toBeUndefined();
+    expect(original.collection).toEqual(tag);
+    expect(copy.collection).toEqual(tag);
+    expect(other.collection).toBeUndefined();
   });
 });
 
-describe('getRestaurantVisits', () => {
+describe('getPlaceVisits', () => {
   it('should group the photos by restaurant, then by time', () => {
     const lunch = dinner(nino, start, ['Arancini']);
     const street = photo({ takenAt: start + 3 * HOUR });
     const etnaDinner = dinner(etna, start + 5 * HOUR, ['Pasta alla Norma']);
     const nextDay = dinner(nino, start + DAY, ['Caponata']);
 
-    const { visits, others } = getRestaurantVisits([...nextDay, street, ...etnaDinner, ...lunch]);
+    const { visits, others } = getPlaceVisits([...nextDay, street, ...etnaDinner, ...lunch]);
 
-    expect(visits.map(({ restaurant, photos }) => [restaurant, photos.map(({ id }) => id)])).toEqual([
+    expect(visits.map(({ place, photos }) => [place, photos.map(({ id }) => id)])).toEqual([
       [nino, lunch.map(({ id }) => id)],
       [etna, etnaDinner.map(({ id }) => id)],
       [nino, nextDay.map(({ id }) => id)],
@@ -112,7 +126,7 @@ describe('getRestaurantVisits', () => {
       dish(nino, 'Caponata', { takenAt: start }),
       dish(nino, 'Cannoli', { takenAt: start + VISIT_GAP_MS + 1 }),
     ];
-    expect(getRestaurantVisits(photos).visits).toHaveLength(2);
+    expect(getPlaceVisits(photos).visits).toHaveLength(2);
   });
 
   it('should add the untagged photos taken during a visit, and name it the way it is tagged most often', () => {
@@ -127,10 +141,10 @@ describe('getRestaurantVisits', () => {
       before,
     ];
 
-    const { visits, others } = getRestaurantVisits(photos);
+    const { visits, others } = getPlaceVisits(photos);
 
     expect(visits).toHaveLength(1);
-    expect(visits[0].restaurant).toBe(nino);
+    expect(visits[0].place).toBe(nino);
     expect(visits[0].photos).toContain(table);
     expect(others).toEqual([before]);
   });
@@ -139,7 +153,7 @@ describe('getRestaurantVisits', () => {
     const before = photo({ takenAt: start - HOUR });
     const between = photo({ takenAt: start + 3 * HOUR });
     const after = photo({ takenAt: start + DAY + 3 * HOUR });
-    const { visits } = getRestaurantVisits([
+    const { visits } = getPlaceVisits([
       ...dinner(nino, start, ['Caponata']),
       ...dinner(etna, start + DAY, ['Cannoli']),
     ]);
@@ -181,13 +195,13 @@ const trip = () => [
 describe('planAutoLayout in a food book', () => {
   it('should make one chapter per restaurant visit, titled with the restaurant, the place and the date', () => {
     const result = plan(trip());
-    const restaurants = result.sections.filter((section) => section.restaurant);
+    const restaurants = result.sections.filter((section) => section.place);
 
-    expect(restaurants.map(({ title, restaurant }) => [restaurant, title])).toEqual([
-      [nino, 'Trattoria da Nino · Taormina, 23 June 2009'],
-      [etna, 'Osteria Etna · Catania, 24 June 2009'],
+    expect(restaurants.map(({ title, place, pack }) => [place, pack, title])).toEqual([
+      [nino, 'food', 'Trattoria da Nino · Taormina, 23 June 2009'],
+      [etna, 'food', 'Osteria Etna · Catania, 24 June 2009'],
     ]);
-    expect(result.sections.some((section) => !section.restaurant)).toBe(true);
+    expect(result.sections.some((section) => !section.place)).toBe(true);
     for (const page of result.pages) {
       if (page.section === undefined) {
         continue;
@@ -200,7 +214,7 @@ describe('planAutoLayout in a food book', () => {
 
   it('should open a restaurant chapter with its menu, legible and hardly cropped', () => {
     const result = plan(trip());
-    const index = result.sections.findIndex((section) => section.restaurant === nino);
+    const index = result.sections.findIndex((section) => section.place === nino);
     const [opener] = chapterOf(result, index);
 
     expect(['menu', 'menu-wide']).toContain(opener.layout);
@@ -214,7 +228,7 @@ describe('planAutoLayout in a food book', () => {
   it('should put the menu page right after the map of a chapter with GPS', () => {
     const photos = trip().map((item) => ({ ...item, lat: 37.85, lon: 15.28 }));
     const result = plan(photos, { includeMaps: true, targetPageCount: 16 });
-    const index = result.sections.findIndex((section) => section.restaurant === nino);
+    const index = result.sections.findIndex((section) => section.place === nino);
     const [map, menuPage] = chapterOf(result, index);
 
     expect(map.layout).toBe('map');
@@ -228,8 +242,8 @@ describe('planAutoLayout in a food book', () => {
     const result = plan(photos);
     const dishes = new Map(
       photos
-        .filter((item) => item.food?.kind === 'dish')
-        .map((item) => [item.id, item.food?.kind === 'dish' ? item.food.dish : '']),
+        .filter((item) => item.collection?.kind === 'entry')
+        .map((item) => [item.id, item.collection?.kind === 'entry' ? item.collection.entry : '']),
     );
 
     for (const slot of slotsOf(result)) {
@@ -255,7 +269,7 @@ describe('planAutoLayout in a food book', () => {
     for (const page of dishPages) {
       expect(page.slots.length).toBeLessThanOrEqual(4);
     }
-    expect(dishPages.filter((page) => getLayout(page.layout)?.food).length).toBeGreaterThanOrEqual(
+    expect(dishPages.filter((page) => getLayout(page.layout)?.collection).length).toBeGreaterThanOrEqual(
       dishPages.length / 2,
     );
   });
@@ -268,7 +282,7 @@ describe('planAutoLayout in a food book', () => {
     const result = plan(photos);
     const [opener] = chapterOf(
       result,
-      result.sections.findIndex((section) => section.restaurant),
+      result.sections.findIndex((section) => section.place),
     );
 
     expect(opener.layout).toBe('dish-opener');
@@ -307,7 +321,7 @@ describe('planAutoLayout in a food book', () => {
       ...dinner(nino, start, ['Caponata']),
     ];
     const titles = plan(photos)
-      .sections.filter((section) => section.restaurant)
+      .sections.filter((section) => section.place)
       .map(({ title }) => title);
 
     expect(titles).toHaveLength(2);
@@ -322,7 +336,7 @@ describe('planAutoLayout in a food book', () => {
 
   it('should lay out tagged photos as a food book in any style', () => {
     const result = plan(trip(), { style: defaultBookStyle });
-    expect(result.sections.filter((section) => section.restaurant)).toHaveLength(2);
+    expect(result.sections.filter((section) => section.place)).toHaveLength(2);
     expect(slotsOf(result).some((slot) => slot.caption)).toBe(true);
   });
 
@@ -330,18 +344,18 @@ describe('planAutoLayout in a food book', () => {
     const photos = Array.from({ length: 12 }, (_, i) => photo({ takenAt: start + i * 10 * MINUTE }));
     for (const options of [{}, { style: defaultBookStyle }]) {
       const result = plan(photos, options);
-      expect(result.pages.every((page) => !getLayout(page.layout)?.food)).toBe(true);
-      expect(result.sections.every((section) => !section.restaurant)).toBe(true);
+      expect(result.pages.every((page) => !getLayout(page.layout)?.collection)).toBe(true);
+      expect(result.sections.every((section) => !section.place)).toBe(true);
     }
   });
 
   it('should give a food book more pages', () => {
-    expect(getTargetPageCount(30, { dishes: 20, menus: 2 })).toBeGreaterThan(getTargetPageCount(30));
+    expect(getTargetPageCount(30, { entries: 20, sources: 2 })).toBeGreaterThan(getTargetPageCount(30));
     const photos = dinner(
       nino,
       start,
       Array.from({ length: 14 }, (_, i) => `Course ${i + 1}`),
     );
-    expect(plan(photos).pages.length).toBeGreaterThan(plan(photos, { food: false }).pages.length);
+    expect(plan(photos).pages.length).toBeGreaterThan(plan(photos, { collection: false }).pages.length);
   });
 });

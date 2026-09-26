@@ -7,9 +7,18 @@ const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const MAX_REFS = 500;
 /**
  * keys of asset ids besides `*AssetId(s)` and `*PhotoId(s)`: `ids` (select_best, cluster_similar), `sampleIds`, and
- * the photos of a meal (find_meals, match_dishes)
+ * the photos of a visit of a collection (find_visits, match_subjects; and find_meals, match_dishes before them)
  */
-const ASSET_ID_KEYS = new Set(['ids', 'sampleids', 'dishids', 'menuids', 'signids', 'receiptids']);
+const ASSET_ID_KEYS = new Set([
+  'ids',
+  'sampleids',
+  'subjectids',
+  'sourceids',
+  'dishids',
+  'menuids',
+  'signids',
+  'receiptids',
+]);
 /** lists of photos, so the `id` of their items is an asset id (search_photos `items`, improve_photos `improved`...) */
 const ASSET_LIST_KEYS = new Set([
   'assets',
@@ -39,6 +48,7 @@ const TOP_LEVEL_ID: Record<string, RefKind> = {
   straighten_photo: 'assetIds',
   enhance_photo: 'assetIds',
   suggest_enhancement: 'assetIds',
+  read_source: 'assetIds',
   read_menu: 'assetIds',
 };
 
@@ -49,6 +59,8 @@ const INPUT_REF_TOOLS = new Set([
   'remove_from_album',
   'suggest_enhancement',
   'stylize_photo',
+  'read_source',
+  'save_entries',
   'read_menu',
   'set_dish_names',
 ]);

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Captures the inputs of the food matching benchmark (`src/utils/food/benchmark.spec.ts`) from a running Immich
+// Captures the inputs of the food matching benchmark (`src/utils/collections/packs/food/benchmark.spec.ts`) from a running Immich
 // instance, read-only: the stored OCR of the menus and signs (GET /assets/:id/ocr), the tiled full-resolution OCR of
 // the menus (machine learning OCR on crops of the originals, as `FoodService.getDetailedOcr` reads them), the CLIP
 // image embeddings of the dish photos (SELECT from smart_search), and CLIP text embeddings (machine learning).
@@ -93,7 +93,7 @@ const ocr = async (image, maxResolution) => {
   };
 };
 
-/** the tiles of FoodService.getDetailedOcr (see getOcrTiles in src/utils/food/tiles.ts) */
+/** the tiles of CollectionService.getDetailedOcr (see getOcrTiles in src/utils/collections/tiles.ts) */
 const getTiles = (width, height, tileSize, overlap) => {
   const columns = Math.max(1, Math.round(width / tileSize));
   const rows = Math.max(1, Math.round(height / tileSize));

@@ -41,15 +41,19 @@ beforeEach(() => {
 
 const nino = 'Trattoria da Nino';
 const dish = (name: string, restaurant = nino) =>
-  photo({ embedding: embedding(counter % 8), food: { restaurant, kind: 'dish', dish: name } });
-const menu = (restaurant = nino) => photo({ embedding: embedding(7), food: { restaurant, kind: 'menu' } });
+  photo({
+    embedding: embedding(counter % 8),
+    collection: { pack: 'food', place: restaurant, kind: 'entry', entry: name },
+  });
+const menu = (restaurant = nino) =>
+  photo({ embedding: embedding(7), collection: { pack: 'food', place: restaurant, kind: 'source' } });
 const named = (layout: string, photos: BookReviewPhoto[]): BookReviewPage => ({
   layout,
   assets: photos.map((item, slot) => ({
     slot,
     assetId: item.id,
     crop: null,
-    caption: item.food?.kind === 'dish' ? item.food.dish : null,
+    caption: item.collection?.kind === 'entry' ? item.collection.entry : null,
   })),
 });
 

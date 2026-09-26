@@ -13,6 +13,7 @@ import { AuthService } from 'src/services/auth.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
 import { DatabaseService } from 'src/services/database.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
@@ -74,6 +75,7 @@ export const services = [
   AuthService,
   AuthAdminService,
   CliService,
+  CollectionService,
   DatabaseBackupService,
   DatabaseService,
   DerivedAssetService,

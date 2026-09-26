@@ -1,43 +1,42 @@
 import { haversineKm, sortByTime, toLocalDay, toLocalIso } from 'src/utils/agent/events.js';
-import { FoodKind } from 'src/utils/food/classify.js';
+import { CollectionPhotoKind } from 'src/utils/collections/classify.js';
 
-export type FoodPhoto = {
+export type VisitPhoto = {
   id: string;
   /** local wall-clock time in ms, i.e. `localDateTime.getTime()` */
   time: number;
-  kind: Exclude<FoodKind, 'other'>;
+  kind: CollectionPhotoKind;
   latitude?: number | null;
   longitude?: number | null;
   city?: string | null;
   country?: string | null;
 };
 
-export type MealOptions = {
-  /** a longer gap between food photos starts a new meal */
+export type VisitOptions = {
+  /** a longer gap between the photos of a collection starts a new visit */
   maxGapMinutes: number;
-  /** a meal lasts at most this long (a tasting menu can take four hours) */
+  /** a visit lasts at most this long (a tasting menu can take four hours) */
   maxSpanMinutes: number;
-  /** a photo further than this from the meal's place starts a new meal */
+  /** a photo further than this from the visit's place starts a new visit */
   maxDistanceMeters: number;
   /**
-   * menus, signs and receipts photographed apart from any dish (the storefront on the way in, the menu signed by the
-   * chef after the meal) join the closest meal within this many minutes
+   * sources, signs and receipts photographed apart from any subject (the storefront on the way in, the menu signed by
+   * the chef after the meal) join the closest visit within this many minutes
    */
   attachMinutes: number;
 };
 
-export const DEFAULT_MEAL_OPTIONS: MealOptions = {
+/** the grouping of food photos into meals, which suits most visits to one place */
+export const DEFAULT_VISIT_OPTIONS: VisitOptions = {
   maxGapMinutes: 45,
   maxSpanMinutes: 300,
   maxDistanceMeters: 150,
   attachMinutes: 180,
 };
 
-export type MealType = 'Breakfast' | 'Lunch' | 'Dinner';
-
 type Located = { latitude: number; longitude: number };
 
-const isLocated = (photo: FoodPhoto): photo is FoodPhoto & Located =>
+const isLocated = (photo: VisitPhoto): photo is VisitPhoto & Located =>
   typeof photo.latitude === 'number' &&
   typeof photo.longitude === 'number' &&
   Number.isFinite(photo.latitude) &&
@@ -52,62 +51,62 @@ const centroid = (points: Located[]): Located | undefined =>
         longitude: points.reduce((sum, point) => sum + point.longitude, 0) / points.length,
       };
 
-const hasDish = (photos: FoodPhoto[]) => photos.some((photo) => photo.kind === 'dish');
+const hasSubject = (photos: VisitPhoto[]) => photos.some((photo) => photo.kind === 'subject');
 
-const locatedOf = (photos: FoodPhoto[]) => photos.filter((photo) => isLocated(photo)) as Located[];
+const locatedOf = (photos: VisitPhoto[]) => photos.filter((photo) => isLocated(photo)) as Located[];
 
 /** minutes between two groups of photos, each ordered by time */
-const minutesApart = (a: FoodPhoto[], b: FoodPhoto[]) =>
+const minutesApart = (a: VisitPhoto[], b: VisitPhoto[]) =>
   Math.max(0, b[0].time - a.at(-1)!.time, a[0].time - b.at(-1)!.time) / 60_000;
 
 /** whether two groups can be the same place: yes unless both are located and too far apart */
-const isSamePlace = (a: FoodPhoto[], b: FoodPhoto[], maxDistanceMeters: number) => {
+const isSamePlace = (a: VisitPhoto[], b: VisitPhoto[], maxDistanceMeters: number) => {
   const placeA = centroid(locatedOf(a));
   const placeB = centroid(locatedOf(b));
   return !placeA || !placeB || haversineKm(placeA, placeB) * 1000 <= maxDistanceMeters;
 };
 
 /**
- * Groups food photos (dishes, menus, signs and receipts) into restaurant visits: photos taken at most
+ * Groups the photos of a collection (subjects, sources, signs and receipts) into visits: photos taken at most
  * `maxGapMinutes` apart, within `maxSpanMinutes` of the first one and, when both are located, within
- * `maxDistanceMeters` of the place of the meal so far. Menus, signs and receipts photographed apart from any dish
- * join the closest meal at the same place within `attachMinutes`; a menu on its own is a meal too, while a lone
- * storefront or receipt is dropped. Ordered by time, as is each meal.
+ * `maxDistanceMeters` of the place of the visit so far. Sources, signs and receipts photographed apart from any
+ * subject join the closest visit at the same place within `attachMinutes`; a source on its own is a visit too, while
+ * a lone sign or receipt is dropped. Ordered by time, as is each visit.
  */
-export const groupMeals = <T extends FoodPhoto>(
+export const groupVisits = <T extends VisitPhoto>(
   photos: T[],
-  options: Partial<MealOptions> = DEFAULT_MEAL_OPTIONS,
+  options: Partial<VisitOptions> = DEFAULT_VISIT_OPTIONS,
 ): T[][] => {
-  const settings = { ...DEFAULT_MEAL_OPTIONS, ...options };
+  const settings = { ...DEFAULT_VISIT_OPTIONS, ...options };
   const groups = splitVisits(photos, settings);
 
-  // attach the groups without dishes to the closest meal with dishes
-  const meals = groups.filter((group) => hasDish(group));
+  // attach the groups without subjects to the closest visit with subjects
+  const visits = groups.filter((group) => hasSubject(group));
   const others: T[][] = [];
   for (const group of groups) {
-    if (hasDish(group)) {
+    if (hasSubject(group)) {
       continue;
     }
-    const closest = meals
-      .map((meal) => ({ meal, minutes: minutesApart(meal, group) }))
+    const closest = visits
+      .map((visit) => ({ visit, minutes: minutesApart(visit, group) }))
       .filter(
-        ({ meal, minutes }) =>
-          minutes <= settings.attachMinutes && isSamePlace(meal, group, settings.maxDistanceMeters),
+        ({ visit, minutes }) =>
+          minutes <= settings.attachMinutes && isSamePlace(visit, group, settings.maxDistanceMeters),
       )
       .toSorted((a, b) => a.minutes - b.minutes)[0];
     if (closest) {
-      closest.meal.push(...group);
-    } else if (group.some((photo) => photo.kind === 'menu')) {
+      closest.visit.push(...group);
+    } else if (group.some((photo) => photo.kind === 'source')) {
       others.push(group);
     }
   }
 
-  return [...meals, ...others]
-    .map((meal) => sortByTime(meal))
+  return [...visits, ...others]
+    .map((visit) => sortByTime(visit))
     .toSorted((a, b) => a[0].time - b[0].time || a[0].id.localeCompare(b[0].id));
 };
 
-const splitVisits = <T extends FoodPhoto>(photos: T[], options: MealOptions): T[][] => {
+const splitVisits = <T extends VisitPhoto>(photos: T[], options: VisitOptions): T[][] => {
   const groups: T[][] = [];
   let current: T[] = [];
   let located: Located[] = [];
@@ -144,18 +143,6 @@ const splitVisits = <T extends FoodPhoto>(photos: T[], options: MealOptions): T[
   return groups;
 };
 
-/** breakfast before 11:00, lunch until 16:00, dinner after (local time) */
-export const getMealType = (time: number): MealType => {
-  const hour = new Date(time).getUTCHours();
-  if (hour >= 4 && hour < 11) {
-    return 'Breakfast';
-  }
-  if (hour >= 11 && hour < 16) {
-    return 'Lunch';
-  }
-  return 'Dinner';
-};
-
 const mostCommon = (values: Array<string | null | undefined>) => {
   const counts = new Map<string, number>();
   for (const value of values) {
@@ -166,61 +153,65 @@ const mostCommon = (values: Array<string | null | undefined>) => {
   return [...counts].toSorted((a, b) => b[1] - a[1])[0]?.[0];
 };
 
-export type MealSummary = {
+export type VisitSummary = {
   start: string;
   end: string;
   day: string;
-  type: MealType;
+  /** the kind of visit by its time, from the pack (e.g. Lunch or Dinner), when it has kinds */
+  type?: string;
   city?: string;
   country?: string;
-  /** [latitude, longitude] of the meal, the average of its located photos */
+  /** [latitude, longitude] of the visit, the average of its located photos */
   gps?: [number, number];
-  dishIds: string[];
-  menuIds: string[];
+  subjectIds: string[];
+  sourceIds: string[];
   signIds: string[];
   receiptIds: string[];
 };
 
 const round = (value: number, digits: number) => Math.round(value * 10 ** digits) / 10 ** digits;
 
-export const summarizeMeal = (photos: FoodPhoto[]): MealSummary => {
+/** a visit; `getType` names the kind of visit from the time of its first subject (or photo) */
+export const summarizeVisit = (photos: VisitPhoto[], getType?: (time: number) => string): VisitSummary => {
   const sorted = sortByTime(photos);
   const first = sorted[0];
   const last = sorted.at(-1)!;
   const place = centroid(sorted.filter((photo) => isLocated(photo)) as Located[]);
   const city = mostCommon(sorted.map((photo) => photo.city));
   const country = mostCommon(sorted.map((photo) => photo.country));
-  const ids = (kind: FoodPhoto['kind']) => sorted.filter((photo) => photo.kind === kind).map(({ id }) => id);
+  const ids = (kind: VisitPhoto['kind']) => sorted.filter((photo) => photo.kind === kind).map(({ id }) => id);
 
   return {
     start: toLocalIso(first.time),
     end: toLocalIso(last.time),
     day: toLocalDay(first.time),
-    // the dishes tell when the meal was eaten better than a sign photographed on the way in
-    type: getMealType((sorted.find((photo) => photo.kind === 'dish') ?? first).time),
+    // the subjects tell when the visit happened better than a sign photographed on the way in
+    ...(getType && { type: getType((sorted.find((photo) => photo.kind === 'subject') ?? first).time) }),
     ...(city && { city }),
     ...(country && { country }),
     ...(place && { gps: [round(place.latitude, 5), round(place.longitude, 5)] as [number, number] }),
-    dishIds: ids('dish'),
-    menuIds: ids('menu'),
+    subjectIds: ids('subject'),
+    sourceIds: ids('source'),
     signIds: ids('sign'),
     receiptIds: ids('receipt'),
   };
 };
 
-/**
- * Names for meals whose restaurant is unknown, e.g. "Dinner in Taormina"; the day is added when the name would repeat
- * ("Dinner in Taormina, 2024-06-12"), and the time when a day has two such meals.
- */
 const count = (names: string[], name: string) => names.filter((candidate) => candidate === name).length;
 
-export const getFallbackMealNames = (meals: Array<Pick<MealSummary, 'type' | 'city' | 'day' | 'start'>>) => {
-  const base = meals.map(({ type, city, day }) => (city ? `${type} in ${city}` : `${type} on ${day}`));
+export type FallbackVisit = Pick<VisitSummary, 'type' | 'city' | 'day' | 'start'>;
+
+/**
+ * Names for visits whose place is unknown, from `getName` (e.g. "Dinner in Taormina"); the day is added when the name
+ * would repeat ("Dinner in Taormina, 2024-06-12"), and the time when a day has two such visits.
+ */
+export const getFallbackVisitNames = (visits: FallbackVisit[], getName: (visit: FallbackVisit) => string) => {
+  const base = visits.map((visit) => getName(visit));
 
   const withDay = base.map((name, index) =>
-    count(base, name) > 1 && meals[index].city ? `${name}, ${meals[index].day}` : name,
+    count(base, name) > 1 && visits[index].city ? `${name}, ${visits[index].day}` : name,
   );
   return withDay.map((name, index) =>
-    count(withDay, name) > 1 ? `${name} ${meals[index].start.slice(11, 16)}` : name,
+    count(withDay, name) > 1 ? `${name} ${visits[index].start.slice(11, 16)}` : name,
   );
 };

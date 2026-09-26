@@ -83,7 +83,7 @@ import {
   getPhotoKind,
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
-import { getFoodTag, shareFoodTagsInStacks } from 'src/utils/book/food.js';
+import { getCollectionTag, getCollectionTagPrefixes, shareCollectionTagsInStacks } from 'src/utils/book/collections.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -136,7 +136,6 @@ import {
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
-import { FOOD_TAG_ROOT } from 'src/utils/food/tags.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
 
@@ -523,13 +522,14 @@ export class BookService extends BaseService {
   async addPage(auth: AuthDto, id: string, dto: BookPageCreateDto): Promise<BookPageResponseDto> {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
-    this.requireLayout(dto.layout);
+    // an alias (e.g. source-page) is stored as the layout it names
+    const layout = this.requireLayout(dto.layout).id;
     await this.requireMapAccess(auth, dto.map);
 
     const page = await this.bookRepository.addPage(
       id,
       {
-        layout: dto.layout,
+        layout,
         sectionTitle: dto.sectionTitle ?? null,
         caption: dto.caption ?? null,
         background: dto.background ?? null,
@@ -548,8 +548,12 @@ export class BookService extends BaseService {
     await this.requireMapAccess(auth, dto.map);
 
     let slotCount: number | undefined;
-    if (dto.layout !== undefined && dto.layout !== current.layout) {
-      slotCount = this.requireLayout(dto.layout).slots.length;
+    let layout = dto.layout;
+    if (layout !== undefined && layout !== current.layout) {
+      // an alias (e.g. source-page) is stored as the layout it names
+      const definition = this.requireLayout(layout);
+      layout = definition.id;
+      slotCount = layout === current.layout ? undefined : definition.slots.length;
     }
 
     const page = await findOrFail(
@@ -558,7 +562,7 @@ export class BookService extends BaseService {
           id,
           pageId,
           {
-            layout: dto.layout,
+            layout,
             sectionTitle: dto.sectionTitle,
             caption: dto.caption,
             background: dto.background,
@@ -1600,17 +1604,20 @@ export class BookService extends BaseService {
     }
 
     const ids = rows.map((row) => row.id);
-    const [renderAssets, embeddings, stackInfo, foodTags, { machineLearning }] = await Promise.all([
+    const [renderAssets, embeddings, stackInfo, collectionTags, { machineLearning }] = await Promise.all([
       this.bookRepository.getAssetsForRender(ids),
       this.searchRepository.getEmbeddings(ids),
       this.bookRepository.getStackInfo(ids),
-      // dishes and menus, tagged Food/<Restaurant>/<Dish> and Food/<Restaurant>/Menu
-      this.tagRepository.getAssetTagValues(auth.user.id, ids, `${FOOD_TAG_ROOT}/`),
+      // the entries and sources of the collections, e.g. dishes and menus tagged Food/<Restaurant>/<Dish> and
+      // Food/<Restaurant>/Menu
+      Promise.all(
+        getCollectionTagPrefixes().map((prefix) => this.tagRepository.getAssetTagValues(auth.user.id, ids, prefix)),
+      ),
       this.getConfig({ withCache: true }),
     ]);
 
     const assets = new Map(renderAssets.map((asset) => [asset.id, asset]));
-    const tagValues = Map.groupBy(foodTags, ({ assetId }) => assetId);
+    const tagValues = Map.groupBy(collectionTags.flat(), ({ assetId }) => assetId);
     const stacks = new Map(stackInfo.map((info) => [info.id, info]));
     const vectors = new Map(embeddings.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
     const clusters = clusterSimilar(
@@ -1659,11 +1666,11 @@ export class BookService extends BaseService {
         kind: getPhotoKind(stacks.get(row.id) ?? {}),
         people: getPeople(row),
         embedding: vectors.get(row.id) ?? null,
-        food: getFoodTag((tagValues.get(row.id) ?? []).map(({ value }) => value)) ?? null,
+        collection: getCollectionTag((tagValues.get(row.id) ?? []).map(({ value }) => value)) ?? null,
       };
     });
-    // the menu photo that reads best gets the menu page
-    const menuIds = photos.filter((photo) => photo.food?.kind === 'menu').map((photo) => photo.id);
+    // the source (menu) photo that reads best gets the source page
+    const menuIds = photos.filter((photo) => photo.collection?.kind === 'source').map((photo) => photo.id);
     if (menuIds.length > 1) {
       const lines = Map.groupBy(await this.ocrRepository.getByAssetIds(menuIds), ({ assetId }) => assetId);
       for (const photo of photos) {
@@ -1672,7 +1679,7 @@ export class BookService extends BaseService {
     }
 
     // a copy of a dish (e.g. an improved one) is still that dish
-    return shareFoodTagsInStacks(photos);
+    return shareCollectionTagsInStacks(photos);
   }
 
   /**

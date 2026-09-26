@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findColumns, splitAtPrices, splitLine } from 'src/utils/food/layout.js';
-import { OcrBoxInput, groupLines, toTextBox, toTextBoxes } from 'src/utils/food/ocr.js';
+import { findColumns, splitAtPrices, splitLine } from 'src/utils/collections/layout.js';
+import { OcrBoxInput, groupLines, toTextBox, toTextBoxes } from 'src/utils/collections/ocr.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
 const box = (text: string, left: number, top: number, height = 0.02, width?: number): OcrBoxInput => {

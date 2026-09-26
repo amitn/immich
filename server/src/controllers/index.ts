@@ -12,6 +12,7 @@ import { AuthAdminController } from 'src/controllers/auth-admin.controller.js';
 import { AuthController } from 'src/controllers/auth.controller.js';
 import { BookController } from 'src/controllers/book.controller.js';
 import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
+import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
 import { ConfigUserController } from 'src/controllers/config-user.controller.js';
@@ -67,6 +68,7 @@ export const controllers = [
   AuthAdminController,
   ClusterGroupController,
   ConfigUserController,
+  CollectionController,
   ConfigAdminController,
   ConfigPublicController,
   DatabaseBackupController,

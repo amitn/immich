@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OcrOutput, getOcrTiles, mergeOcrPasses, stitchText } from 'src/utils/food/tiles.js';
+import { OcrOutput, getOcrTiles, mergeOcrPasses, stitchText } from 'src/utils/collections/tiles.js';
 
 /** an OCR output with axis-aligned boxes given as [text, left, top, right, bottom] normalized to the pass */
 const output = (...boxes: Array<[string, number, number, number, number]>): OcrOutput => ({

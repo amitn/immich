@@ -27,8 +27,11 @@ export type BookLayout = {
   fullBleed?: boolean;
   /** area of the page map, normalized like the slots */
   map?: LayoutRect;
-  /** made for food books: menu pages and dishes with their names; the automatic layout uses it only there */
-  food?: boolean;
+  /**
+   * made for collection books (e.g. food books): source pages (the menu) and entries (dishes) with their names; the
+   * automatic layout uses it only there
+   */
+  collection?: boolean;
 };
 
 export type PageSize = { pageWidthMm: number; pageHeightMm: number };
@@ -211,42 +214,44 @@ export const bookLayouts: readonly BookLayout[] = [
     id: 'menu',
     name: 'Menu',
     description:
-      'Opens a restaurant chapter with its menu: a large portrait photo of the menu (slot 1), kept whole enough to ' +
-      'read, with the section title and the caption (e.g. the dishes that follow) beside it.',
+      'Opens a restaurant chapter with its menu (or the chapter of any visit with its printed page: a wall label, a ' +
+      'recipe card): a large portrait photo of the page (slot 1), kept whole enough to read, with the section title ' +
+      'and the caption (e.g. the dishes that follow) beside it. Alias: source-page.',
     slots: [{ x: 0, y: 0.07, width: 0.64, height: 0.86 }],
     text: [
       { kind: 'sectionTitle', x: 0.67, y: 0.07, width: 0.33, height: 0.4, align: 'center' },
       { kind: 'caption', x: 0.67, y: 0.49, width: 0.33, height: 0.44, align: 'center' },
     ],
     orientation: 'portrait',
-    food: true,
+    collection: true,
   },
   {
     id: 'menu-wide',
     name: 'Menu (wide)',
     description:
-      'Opens a restaurant chapter with a landscape photo of its menu (slot 1, e.g. a blackboard) between the section ' +
-      'title and the caption.',
+      'Opens a restaurant chapter with a landscape photo of its menu (slot 1, e.g. a blackboard; or of the printed ' +
+      'page of any visit) between the section title and the caption. Alias: source-page-wide.',
     slots: [{ x: 0.05, y: 0.22, width: 0.9, height: 0.62 }],
     text: [
       { kind: 'sectionTitle', x: 0, y: 0, width: 1, height: 0.2, align: 'center' },
       { kind: 'caption', x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' },
     ],
     orientation: 'landscape',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-opener',
     name: 'Dish opener',
     description:
-      'Opens a restaurant chapter that has no menu photo: the section title, one dish (slot 1) and its name below it.',
+      'Opens a restaurant chapter that has no menu photo (or any visit without its printed page): the section ' +
+      'title, one dish or entry (slot 1) and its name below it. Alias: entry-opener.',
     slots: [{ x: 0, y: 0.2, width: 1, height: 0.66 }],
     text: [
       { kind: 'sectionTitle', x: 0, y: 0, width: 1, height: 0.2, align: 'center' },
       { kind: 'slotCaption', slot: 0, x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' },
     ],
     orientation: 'landscape',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish',
@@ -255,7 +260,7 @@ export const bookLayouts: readonly BookLayout[] = [
     slots: [{ x: 0, y: 0, width: 1, height: 0.8 }],
     text: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.8, width: 1, height: 0.2, align: 'center' }],
     orientation: 'landscape',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-portrait',
@@ -264,7 +269,7 @@ export const bookLayouts: readonly BookLayout[] = [
     slots: [{ x: 0, y: 0.04, width: 0.64, height: 0.92 }],
     text: [{ kind: 'slotCaption', slot: 0, x: 0.67, y: 0.36, width: 0.33, height: 0.28, align: 'left' }],
     orientation: 'portrait',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-pair',
@@ -279,7 +284,7 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 1, x: 0.5, y: 0.7, width: 0.5, height: 0.15, align: 'center' },
     ],
     orientation: 'any',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-pair-stacked',
@@ -296,7 +301,7 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 1, x: 0, y: 0.64, width: 0.32, height: 0.22, align: 'right' },
     ],
     orientation: 'landscape',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-list',
@@ -315,7 +320,7 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 2, x: 0.56, y: 2 * third + 0.04, width: 0.44, height: third - 0.08, align: 'left' },
     ],
     orientation: 'landscape',
-    food: true,
+    collection: true,
   },
   {
     id: 'dish-trio',
@@ -332,7 +337,7 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 2, x: 2 * third, y: 0.61, width: third, height: 0.17, align: 'center' },
     ],
     orientation: 'any',
-    food: true,
+    collection: true,
   },
 ];
 
@@ -340,7 +345,18 @@ const layoutMap = new Map(bookLayouts.map((layout) => [layout.id, layout]));
 
 export const layoutIds = bookLayouts.map((layout) => layout.id);
 
-export const getLayout = (id: string): BookLayout | undefined => layoutMap.get(id);
+/**
+ * Other names of layouts, for the collections of any pack: the menu layouts show any printed source page (a wall
+ * label, a recipe card), and the dish opener any entry. Books store the layouts under their own ids, never these.
+ */
+export const LAYOUT_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['source-page', 'menu'],
+  ['source-page-wide', 'menu-wide'],
+  ['entry-opener', 'dish-opener'],
+]);
+
+/** the layout of an id or an alias; its `id` is the one to store */
+export const getLayout = (id: string): BookLayout | undefined => layoutMap.get(LAYOUT_ALIASES.get(id) ?? id);
 
 export const mmToPx = (mm: number, dpi: number) => (mm * dpi) / 25.4;
 

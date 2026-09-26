@@ -1240,6 +1240,7 @@ export enum ApiTag {
   Assets = 'Assets',
   AssetFiles = 'Asset files',
   Books = 'Books',
+  Collections = 'Collections',
   ConfigUser = 'Config (user)',
   ConfigAdmin = 'Config (admin)',
   ConfigPublic = 'Config (public)',
