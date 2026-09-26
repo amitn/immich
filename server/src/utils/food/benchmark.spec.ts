@@ -121,7 +121,7 @@ const runVisit = (visit: Visit, texts: Map<string, Float32Array>): VisitResult =
   const readings = menus.map((photo, index) => {
     const aspectRatio = photo.width! / photo.height!;
     const detailed = mergeOcrPasses(photo.width!, photo.height!, photo.passes ?? []);
-    const boxes = chooseMenuOcr(photo.ocr ?? [], detailed, { aspectRatio }) === 'tiles' ? detailed : photo.ocr!;
+    const boxes = chooseMenuOcr(photo.ocr ?? [], detailed) === 'tiles' ? detailed : photo.ocr!;
     return { ...parseMenu(boxes, { aspectRatio }), assetId: `menu-${index}` };
   });
   const items = mergeMenuItems(readings).map(({ item }) => item);

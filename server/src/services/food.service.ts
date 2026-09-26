@@ -631,7 +631,7 @@ export class FoodService extends BaseService {
     if (highResolution && isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
       try {
         const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
-        if (chooseMenuOcr(stored, detailed, { aspectRatio }) === 'tiles') {
+        if (chooseMenuOcr(stored, detailed) === 'tiles') {
           boxes = detailed;
           source = 'tiles';
         }
