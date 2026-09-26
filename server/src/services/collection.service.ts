@@ -420,6 +420,18 @@ export class CollectionService extends BaseService {
           { ...pack.match.options, baselines },
         );
 
+    if (pack.match.reportUnmatched && matches.length > 0 && entryEmbeddings.length === entries.length) {
+      // an entry is matched, or another entry of its source is (a case of objects under one label, one photographed)
+      const matched = new Set(matches.flatMap(({ item }) => (item === undefined ? [] : [item])));
+      const sources = new Set([...matched].flatMap((index) => entries[index].sourceId ?? []));
+      const unmatched = entries
+        .filter(({ index, sourceId }) => !matched.has(index) && !(sourceId && sources.has(sourceId)))
+        .map(({ name }) => name);
+      if (unmatched.length > 0) {
+        warnings.push(messages.unmatchedEntries(unmatched));
+      }
+    }
+
     return {
       entries,
       ...(ordered && { ordered }),

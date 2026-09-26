@@ -313,6 +313,18 @@ Photograph your boarding passes and tickets on a trip, and Immich matches the ph
 Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields: the tools that show it photos, contact sheets and book pages leave the documents out or blur them, whether they are tagged as tickets or only read as one. Ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
 :::
 
+## Museum & gallery visits
+
+Immich can also find your museum visits: the photos of artworks (paintings, sculptures, objects), the wall labels you photographed next to them, and the museum's signs and tickets. Open an album or select photos and choose **Name the artworks…**. It works like [naming dishes](#name-the-dishes), with the same local models:
+
+- **Reading the labels.** Each wall label is read at full resolution for the title, the artist (with _attributed to_, _workshop of_ and the like), the date (_1544_, _circa 1760_, _14th century_, _XVe siècle_), the medium (_Oil on panel_, _Huile sur toile_) and the inventory number. A label printed in two languages gives one artwork in English, keeping the original title; an explanatory panel gives its title, not its paragraphs; the label of a case gives each of its objects (_A_, _B_, _C_…).
+- **Pairing the artworks.** A label is usually photographed a few seconds after its artwork, sometimes before it. Each artwork is paired with the label photographed next to it, which the smart search then confirms or corrects. Details of one painting share its label, an artwork without a label is marked **No label** for you to name, and labels that no artwork matched are reported.
+- **The museum.** The name is read on a sign, a label or a ticket; otherwise it's made up from the town, such as _Museum visit in Florence_. With the [OpenStreetMap lookup](#restaurant-names) turned on, the assistant can look up the museums and galleries nearby, after asking you.
+
+Saving tags each artwork `Art/<Museum>/<Title — Artist, Date, Medium>` (the parts that aren't known are left out) and each label `Art/<Museum>/Label`, and gives an artwork without a description one such as _Virgin and Child · Nicolau Chanterene, 1535-1540 · Museu de Évora_.
+
+The **Gallery** style (_Like an exhibition catalogue: white pages, every artwork shown whole with a museum-label caption and its catalogue number_) makes a chapter per museum visit, opened by the museum's name and the date. Artworks are never cropped: each slot fits its photo. Every artwork is captioned like a museum label (its number in the book, the title in italics, then the artist, the date and the medium), and the label photos stay out of the book, as the captions say what they say. The review reports artworks without their caption and artworks that are cropped.
+
 ## Tags
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:

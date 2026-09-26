@@ -1,4 +1,4 @@
-import type { BookStyle } from 'src/dtos/book.dto.js';
+import type { BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
 import type { ClassifyRules, CollectionPrompts } from 'src/utils/collections/classify.js';
 import type { MatchOptions, SubjectAssigner } from 'src/utils/collections/match.js';
 import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
@@ -71,6 +71,11 @@ export type CollectionPack = {
     /** CLIP texts of subjects that are usually not on the source; the best of them is "off the list" */
     offListPrompts: string[];
     /**
+     * whether entries that no subject matched are worth a warning, e.g. a wall label read next to no artwork (the
+     * items of a menu that nobody ordered are not)
+     */
+    reportUnmatched?: boolean;
+    /**
      * assigns the subjects to the entries the pack's own way instead of by CLIP alone (`matchSubjects`), e.g. by time
      * for the legs of a trip; it also gets the text read on the subject photos and when the source photos were taken
      */
@@ -87,6 +92,8 @@ export type CollectionPack = {
     theme?: CollectionBookTheme;
     /** the caption of an entry photo in a book, e.g. the name of the dish */
     caption: (entry: string, place: string) => string;
+    /** the entries are numbered through the book, like the works of an exhibition catalogue */
+    numbered?: boolean;
     /** the checks `review_book` runs on books with the pack's photos */
     review: {
       unnamedEntries: boolean;
@@ -113,17 +120,24 @@ export type CollectionPack = {
     chapterTitle?: (entry: string, place: string) => string;
     /**
      * the source's page typeset from its text, read from the photo's OCR (at full resolution, redacted) when the book
-     * is laid out; without it, the page shows the photo and lists the entries of the chapter
+     * is laid out; without it, the page shows the photo and lists the entries of the chapter; false: the sources get no
+     * page, and are left out of the automatic layout, as the captions of the entries say what they say (the wall
+     * labels of a museum)
      */
-    sourcePage?: {
-      /**
-       * the layout the text is set on: one with a slot sets it beside the photo (the recipe layout: the card, then
-       * its ingredients and steps), one without puts it in place of the photo, which books then never print (the
-       * ticket-stub layout: the redacted fields of a boarding pass)
-       */
-      layout: string;
-      read: (ocr: OcrBoxInput[], context: { aspectRatio?: number; place: string }) => CollectionSourcePage | undefined;
-    };
+    sourcePage?:
+      | false
+      | {
+          /**
+           * the layout the text is set on: one with a slot sets it beside the photo (the recipe layout: the card, then
+           * its ingredients and steps), one without puts it in place of the photo, which books then never print (the
+           * ticket-stub layout: the redacted fields of a boarding pass)
+           */
+          layout: string;
+          read: (
+            ocr: OcrBoxInput[],
+            context: { aspectRatio?: number; place: string },
+          ) => CollectionSourcePage | undefined;
+        };
   };
 
   agent: {
@@ -168,22 +182,29 @@ export type CollectionReviewInput = {
     layout: string;
     sectionTitle?: string | null;
     caption?: string | null;
-    assets: Array<{ assetId: string }>;
+    /** the photos of the page, in their slots (zero-based), with their crops and captions */
+    assets: Array<{ assetId: string; slot?: number; crop?: NormalizedRect | null; caption?: string | null }>;
   }>;
   photos: Array<{
     id: string;
     takenAt: number;
+    /** the size of the photo as displayed, 0 when unknown */
+    width?: number;
+    height?: number;
     collection?: { pack: string; place: string; kind: 'entry' | 'source'; entry?: string } | null;
     sourcePage?: CollectionSourcePage | null;
   }>;
   /** the chapters of the pack's places in the book */
   chapters: CollectionChapter[];
+  /** the page size and style of the book, e.g. to tell how a slot crops a photo */
+  size?: { pageWidthMm: number; pageHeightMm: number };
+  style?: BookStyle;
 };
 
 /** an issue of a pack's own book check, of one of the kinds `review_book` reports */
 export type CollectionReviewIssue = {
   severity: 'high' | 'medium' | 'low';
-  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name';
+  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name' | 'could-look-better';
   message: string;
   /** one-based page numbers */
   pages: number[];
@@ -222,8 +243,11 @@ export type CollectionBookTheme = {
   id: string;
   /** for the list of themes in the API */
   summary: string;
-  /** how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments) */
-  look: 'printed';
+  /**
+   * how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments); gallery
+   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions)
+   */
+  look: 'printed' | 'gallery';
 };
 
 export type CollectionMessages = {
@@ -249,6 +273,8 @@ export type CollectionMessages = {
   noLocation: string;
   /** the lookup is disabled by the admin */
   lookupDisabled: string;
+  /** entries that no subject matched, for packs that report them */
+  unmatchedEntries: (entries: string[]) => string;
 };
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
@@ -264,7 +290,7 @@ const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 
 /** the engine's messages in the words of a pack */
 export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'messages'>): CollectionMessages => {
-  const { subjects, source, sources, place, entries } = pack.names;
+  const { subject, subjects, source, sources, place, entry, entries } = pack.names;
   return {
     smartSearchDisabled: `Smart search is disabled: ${subjects} cannot be recognized, only ${sources} by their text`,
     ocrDisabled: `OCR is disabled: ${sources} are recognized by their look only`,
@@ -280,6 +306,13 @@ export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'mess
     lookupDisabled:
       'The OpenStreetMap lookup is disabled in the server settings (Food > OpenStreetMap). Ask the user for the ' +
       `name of the ${place} instead.`,
+    unmatchedEntries: (names) =>
+      `${names.length === 1 ? `1 ${entry}` : `${names.length} ${entries}`} matched no ${subject} (${names
+        .slice(0, 5)
+        .join(
+          '; ',
+        )}${names.length > 5 ? '; …' : ''}): check whether ${/^[aeiou]/i.test(subject) ? 'an' : 'a'} ${subject} photo is missing, or matched to ` +
+      `another ${entry}`,
     ...pack.messages,
   };
 };

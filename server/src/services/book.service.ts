@@ -1739,8 +1739,9 @@ export class BookService extends BaseService {
       await mapLimit(typeset, 2, async (photo) => {
         const { pack, place } = photo.collection!;
         const page = await collections.getSourcePage(pack, photo.id, place);
-        if (page) {
-          photo.sourcePage = { ...page, layout: getPhotoPack(photo)!.book.sourcePage!.layout };
+        const rules = getPhotoPack(photo)?.book.sourcePage;
+        if (page && rules) {
+          photo.sourcePage = { ...page, layout: rules.layout };
         }
       });
     }

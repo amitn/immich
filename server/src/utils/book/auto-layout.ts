@@ -8,9 +8,12 @@ import {
   getPhotoPack,
   getPlaceVisits,
   getRunsBetweenVisits,
+  hasSourcePages,
   isCollectionTheme,
   isEntryPhoto,
+  isGalleryTheme,
   isSourcePhoto,
+  numberEntryCaptions,
 } from 'src/utils/book/collections.js';
 import {
   BookLayout,
@@ -23,7 +26,7 @@ import {
   isMapLayout,
 } from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
-import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
+import { FULL_CROP, MIN_PRINT_DPI, SmartCrop, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
 import { CollectionSourcePage } from 'src/utils/collections/pack.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
 
@@ -706,8 +709,19 @@ export const getPersonMinimums = <
   return keep;
 };
 
+/**
+ * A photo shown whole in a slot, as the gallery look draws it (see `getContainedRect`): nothing is cropped, and what the
+ * photo keeps of the slot is the share it fills, so that the layouts that fit the photos best leave the least space
+ */
+const getContainedCrop = (photo: AutoLayoutPhoto, aspect: number): SmartCrop => {
+  const ratio = photo.width > 0 && photo.height > 0 ? photo.width / photo.height / aspect : 1;
+  return { crop: { ...FULL_CROP }, feasible: true, kept: Math.min(ratio, 1 / ratio), droppedFaces: 0 };
+};
+
 class LayoutPlanner {
   private crops = new Map<string, ReturnType<typeof getSmartCrop>>();
+  /** the gallery look never crops a photo */
+  private readonly contain: boolean;
   private shapes = new Map<string, SlotShape[]>();
   readonly contentLayouts: Map<number, BookLayout[]>;
   readonly layoutList: BookLayout[] = [];
@@ -720,13 +734,16 @@ class LayoutPlanner {
     /** collection books (e.g. food books) also use the layouts made for entries (dishes) */
     collection = false,
   ) {
+    this.contain = isGalleryTheme(style.theme);
     this.contentLayouts = new Map();
     for (const layout of layouts) {
       if (
         OPENER_LAYOUTS.has(layout.id) ||
         layout.slots.length === 0 ||
         layout.map ||
-        (layout.collection && !collection)
+        (layout.collection && !collection) ||
+        // a photo shown whole doesn't run to the edges of the page
+        (layout.fullBleed && this.contain)
       ) {
         continue;
       }
@@ -755,7 +772,7 @@ class LayoutPlanner {
     const key = `${photo.id}:${aspect.toFixed(4)}`;
     let crop = this.crops.get(key);
     if (!crop) {
-      crop = getSmartCrop(photo, photo.faces, aspect);
+      crop = this.contain ? getContainedCrop(photo, aspect) : getSmartCrop(photo, photo.faces, aspect);
       this.crops.set(key, crop);
     }
     return crop;
@@ -1159,14 +1176,18 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         entries: stacks.filter((stack) => stack.some((photo) => isEntryPhoto(photo))).length,
         sources: new Set(
           printable
-            .filter((photo) => isSourcePhoto(photo))
+            .filter((photo) => isSourcePhoto(photo) && hasSourcePages(photo.collection!.pack))
             .map((photo) => `${photo.collection!.pack}\n${photo.collection!.place}`),
         ).size,
       }
     : undefined;
+  // the sources that stay out of the book (the wall labels of a museum) take no room in it
+  const hiddenSources = stacks.filter((stack) =>
+    stack.every((photo) => isSourcePhoto(photo) && !hasSourcePages(photo.collection!.pack)),
+  ).length;
   const target = Math.max(
     1,
-    Math.round(options.targetPageCount ?? getTargetPageCount(stacks.length, collectionCounts)),
+    Math.round(options.targetPageCount ?? getTargetPageCount(stacks.length - hiddenSources, collectionCounts)),
   );
   const artworkBudget = Math.round(target * clamp(options.maxArtworkShare ?? DEFAULT_MAX_ARTWORK_SHARE, 0, 1));
   const units = resolveStacks(
@@ -1324,7 +1345,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
     // one source (menu) page per visit; the other photos of the source are left out
     let menu: SectionPlan['menu'];
-    if (visit) {
+    if (visit && !hasSourcePages(visit.pack)) {
+      // the entries' captions say what the source says (the wall labels of a museum): it stays out of the book
+      for (const unit of section) {
+        if (!unit.pair && isSourcePhoto(unit)) {
+          drop(unit, 'duplicate');
+        }
+      }
+      section = section.filter((unit) => unit.pair || !isSourcePhoto(unit));
+    } else if (visit) {
       const byLegibility = (a: Candidate, b: Candidate) =>
         (b.textLines ?? 0) - (a.textLines ?? 0) || byImportance(a, b);
       for (const photo of section.filter((unit) => !unit.pair && isSourcePhoto(unit)).toSorted(byLegibility)) {
@@ -1704,6 +1733,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     page.caption = caption;
     previousCaption = caption;
   }
+
+  // the entries of the packs that number them, like the works of a catalogue
+  numberEntryCaptions(pages, new Map(photos.map((photo) => [photo.id, photo])));
 
   if (options.closing && hasLayout('text')) {
     pages.push({

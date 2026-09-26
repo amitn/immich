@@ -524,7 +524,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       .filter((chapter) => chapter.pack === packId)
       .map(({ pack: _, ...chapter }) => chapter)
       .toArray();
-    for (const issue of check?.({ pages, photos: input.photos, chapters: own }) ?? []) {
+    for (const issue of check?.({ pages, photos: input.photos, chapters: own, size, style }) ?? []) {
       add(issue);
     }
   }
