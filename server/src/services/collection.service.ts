@@ -569,7 +569,7 @@ export class CollectionService extends BaseService {
     warnings: string[],
   ): Promise<SourceReading[]> {
     const { machineLearning } = await this.getConfig({ withCache: true });
-    if (!readings.some((reading) => reading.alternatives?.length) || !isSmartSearchEnabled(machineLearning)) {
+    if (readings.every((reading) => !reading.alternatives?.length) || !isSmartSearchEnabled(machineLearning)) {
       return readings;
     }
     const stored = await this.searchRepository.getEmbeddings(subjectIds);
