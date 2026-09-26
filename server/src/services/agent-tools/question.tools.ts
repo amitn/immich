@@ -90,9 +90,10 @@ export class QuestionAgentTools extends BaseService {
           '(all optional, combined): pack; place, entry and text (fuzzy: accents, case and plurals ignored, "noma" ' +
           'finds "Noma Australia"; give several alternatives for synonyms; text matches the place or the entry, a ' +
           'matching place counts whole, e.g. a recipe "Quiche Lorraine"); from/to; people (on any photo taken ' +
-          'during the visit); city/country (EXIF). Returns {total: {visits, places, entries, photos}, first and ' +
-          'last: {pack, place, date, entries, photoIds}, visits: [{pack, place, date, endDate, type, city, ' +
-          'country, people, entries: [{name, photoIds, n}], moreEntries, sources}], moreVisits, notes}, newest ' +
+          'during the visit); city/country (EXIF). Returns {total: {visits, places, entries, photos}, last (and ' +
+          'first, when there were several): {pack, place, date, entries, photoIds}, visits: [{pack, place, date, ' +
+          'endDate, type, city, country, people, entries: [{name, photoIds, n}], moreEntries, sources}], ' +
+          'moreVisits, notes}, newest ' +
           'first; detail="places" returns places: [{pack, place, visits, dates, city, entries, photoIds}] instead. ' +
           'Show the photoIds to the user. Source photos (menus, wall labels) are listed as sourcePhotoIds only with ' +
           'includeSources, and travel documents never.',

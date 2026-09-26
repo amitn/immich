@@ -112,6 +112,8 @@ describe(queryCollectionVisits.name, () => {
     const result = queryCollectionVisits(photos(), { place: ['french laundry'] });
     expect(result.total).toEqual({ visits: 1, places: 1, entries: 12, photos: 12 });
     expect(result.visits).toHaveLength(1);
+    expect(result.last).toMatchObject({ place: 'The French Laundry', date: '2014-01-11' });
+    expect(result).not.toHaveProperty('first');
     const [visit] = result.visits!;
     expect(visit).toMatchObject({ pack: 'food', place: 'The French Laundry', date: '2014-01-11', type: 'Lunch' });
     expect(visit.entries.map(({ name }) => name)).toEqual([

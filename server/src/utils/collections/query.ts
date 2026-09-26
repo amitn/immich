@@ -413,15 +413,18 @@ export const queryCollectionVisits = (
     photos: visits.reduce((sum, visit) => sum + visit.entries.length, 0),
   };
 
+  // the first time is left out when there was only one
+  const occurrences = {
+    ...(visits.length > 1 && { first: describeOccurrence(visits[0], settings.photosPerEntry) }),
+    ...(visits.length > 0 && { last: describeOccurrence(visits.at(-1)!, settings.photosPerEntry) }),
+  };
+
   if (options.detail === 'places') {
     const all = compactPlaces(visits, { order, photosPerEntry: settings.photosPerEntry });
     return {
       total,
       ...(packs.length > 0 && { packs }),
-      ...(visits.length > 0 && {
-        first: describeOccurrence(visits[0], settings.photosPerEntry),
-        last: describeOccurrence(visits.at(-1)!, settings.photosPerEntry),
-      }),
+      ...occurrences,
       places: all.slice(0, limit),
       ...(all.length > limit && { morePlaces: all.length - limit }),
     };
@@ -430,10 +433,7 @@ export const queryCollectionVisits = (
   return {
     total,
     ...(packs.length > 0 && { packs }),
-    ...(visits.length > 0 && {
-      first: describeOccurrence(visits[0], settings.photosPerEntry),
-      last: describeOccurrence(visits.at(-1)!, settings.photosPerEntry),
-    }),
+    ...occurrences,
     visits: sorted.slice(0, limit).map((visit) => compactVisit(visit, settings)),
     ...(sorted.length > limit && { moreVisits: sorted.length - limit }),
   };
