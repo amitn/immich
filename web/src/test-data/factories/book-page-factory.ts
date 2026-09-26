@@ -1,4 +1,9 @@
-import type { BookLayoutResponseDto, BookPageResponseDto, BookSlotResponseDto } from '@immich/sdk';
+import {
+  Orientation,
+  type BookLayoutResponseDto,
+  type BookPageResponseDto,
+  type BookSlotResponseDto,
+} from '@immich/sdk';
 
 type SlotInput = Partial<BookSlotResponseDto> & { assetId: string | null };
 
@@ -25,17 +30,17 @@ export const bookLayoutFactory = (
   id: string,
   slots: BookLayoutResponseDto['slots'],
   layout: Partial<BookLayoutResponseDto> = {},
-) =>
-  ({
-    id,
-    name: id,
-    description: `The ${id} layout`,
-    orientation: 'any',
-    fullBleed: false,
-    slots,
-    textAreas: [],
-    ...layout,
-  }) as BookLayoutResponseDto;
+): BookLayoutResponseDto => ({
+  id,
+  name: id,
+  description: `The ${id} layout`,
+  orientation: Orientation.Any,
+  fullBleed: false,
+  food: false,
+  slots,
+  textAreas: [],
+  ...layout,
+});
 
 export const bookLayouts = {
   single: bookLayoutFactory('single', [{ x: 0, y: 0, width: 1, height: 1 }]),

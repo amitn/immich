@@ -189,6 +189,7 @@ describe('book page', () => {
           name: 'Single',
           description: 'One photo',
           fullBleed: false,
+          food: false,
           orientation: Orientation.Any,
           slots: [{ x: 0, y: 0, width: 1, height: 1 }],
           textAreas: [],

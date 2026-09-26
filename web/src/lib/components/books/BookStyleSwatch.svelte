@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getBookStyleAccent, getBookStyleTheme } from '$lib/utils/book-style';
-  import type { BookStyle } from '@immich/sdk';
+  import { BookStyleTheme, type BookStyle } from '@immich/sdk';
 
   type Props = {
     /** Unknown while the presets load: a neutral page is shown */
@@ -17,7 +17,7 @@
   const margin = $derived(style ? Math.max(1, ((style.marginMm * 1.5) / pageWidthMm) * size) : size * 0.1);
   const gutter = $derived(style ? Math.max(1, ((style.gutterMm * 1.5) / pageWidthMm) * size) : size * 0.04);
   // the food theme draws its pages like a printed menu: a hairline frame, a rule under the photos and small caps
-  const food = $derived(getBookStyleTheme(style) === 'food');
+  const food = $derived(getBookStyleTheme(style) === BookStyleTheme.Food);
   const accent = $derived(getBookStyleAccent(style));
 </script>
 
