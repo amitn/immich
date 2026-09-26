@@ -235,7 +235,7 @@ export class SharedLinkRepository {
   async update(entity: Updateable<SharedLinkTable> & { id: string; assetIds?: string[] }) {
     const { id } = await this.db
       .updateTable('shared_link')
-      .set(omit(entity, 'assets', 'album', 'assetIds'))
+      .set(omit(entity, 'assets', 'album', 'book', 'assetIds'))
       .where('shared_link.id', '=', entity.id)
       .returningAll()
       .executeTakeFirstOrThrow();
