@@ -53,6 +53,81 @@ const readText = (boxes: OcrBoxInput[]) =>
 export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
   readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
 
+/**
+ * The OCR of a photo whose every word counts (a bottle label): the tiled full-resolution reading, with the words of
+ * the stored OCR that it missed (the stored OCR runs on the whole preview, and sometimes reads a large script word
+ * that the tiles cut). A stored box whose center is in a tiled box with some of the same letters was read by the
+ * tiles too.
+ */
+export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): OcrBoxInput[] => {
+  const tiled = toTextBoxes(detailed);
+  const missed = stored.filter((box) => {
+    const [read] = toTextBoxes([box]);
+    if (!read) {
+      return false;
+    }
+    const x = (read.left + read.right) / 2;
+    const y = (read.top + read.bottom) / 2;
+    return tiled.every(
+      (other) =>
+        !(
+          x >= other.left &&
+          x <= other.right &&
+          y >= other.top - 0.25 * other.height &&
+          y <= other.bottom + 0.25 * other.height &&
+          isSameText(read.text, other.text)
+        ),
+    );
+  });
+  return [...detailed, ...missed];
+};
+
+const letterPairs = (text: string) => new Set(Array.from({ length: text.length - 1 }, (_, i) => text.slice(i, i + 2)));
+
+/** the same text read twice, give or take the letters OCR read differently: one holds the other, or most pairs */
+const isSameText = (a: string, b: string) => {
+  const [x, y] = [entryKey(a), entryKey(b)];
+  if (x.includes(y) || y.includes(x)) {
+    return true;
+  }
+  const [p, q] = [letterPairs(x), letterPairs(y)];
+  const shared = p
+    .values()
+    .filter((pair) => q.has(pair))
+    .toArray().length;
+  return p.size > 0 && q.size > 0 && (2 * shared) / (p.size + q.size) >= 0.3;
+};
+
+/** a part of a photo, normalized 0..1 */
+export type FocusRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * The part of a photo to zoom on to read its entries: where they were read (e.g. the text of a bottle's label), with
+ * room around it (a label is larger than the text OCR read on it), at least `min` of the photo on each side; undefined
+ * when nothing was read, or the entries have no place on the photo.
+ */
+export const getEntriesFocus = (items: Array<Pick<SourceEntry, 'box'>>, { pad = 0.4, min = 0.3 } = {}) => {
+  const boxes = items
+    .map(({ box }) => box)
+    .filter(([left, top, right, bottom]) => right - left < 1 || bottom - top < 1);
+  if (boxes.length === 0) {
+    return;
+  }
+  const left = Math.min(...boxes.map((box) => box[0]));
+  const top = Math.min(...boxes.map((box) => box[1]));
+  const right = Math.max(...boxes.map((box) => box[2]));
+  const bottom = Math.max(...boxes.map((box) => box[3]));
+  const side = (from: number, to: number) => {
+    const size = Math.min(1, Math.max(min, (to - from) * (1 + 2 * pad)));
+    const start = Math.min(Math.max(0, (from + to) / 2 - size / 2), 1 - size);
+    return [start, size] as const;
+  };
+  const [x, width] = side(left, right);
+  const [y, height] = side(top, bottom);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  return { x: round(x), y: round(y), width: round(width), height: round(height) } satisfies FocusRect;
+};
+
 /** the CLIP text of the title of a reading, compared with the subject photos */
 export const getTitlePrompt = (title: string) => `a photo of ${title}`;
 

@@ -1,6 +1,12 @@
-import { CollectionPack, CollectionSourcePage, getCollectionTagRules } from 'src/utils/collections/pack.js';
+import {
+  CollectionCaptionContext,
+  CollectionPack,
+  CollectionSourcePage,
+  getCollectionTagRules,
+} from 'src/utils/collections/pack.js';
 import { getCollectionPack, getCollectionPackByTagRoot, getCollectionPacks } from 'src/utils/collections/registry.js';
 import { CollectionTag, getTagPrefix, parseCollectionTag } from 'src/utils/collections/tags.js';
+import { LINKED_PLACE_MINUTES } from 'src/utils/collections/visits.js';
 
 /**
  * The photos of collections in books: a photo tagged `<Root>/<Place>/<Entry>` (or `<Root>/<Place>/<SourceLeaf>`) by
@@ -51,15 +57,26 @@ export const isSourcePhoto = (photo: Pick<CollectionPhoto, 'collection'>) => pho
 export const getEntryName = (photo: Pick<CollectionPhoto, 'collection'>) =>
   photo.collection?.kind === 'entry' ? photo.collection.entry : undefined;
 
-/** the caption of an entry photo, as its pack formats it (e.g. the name of the dish) */
-export const getEntryCaption = (photo: Pick<CollectionPhoto, 'collection'>) => {
+/**
+ * the caption of an entry photo, as its pack formats it (e.g. the name of the dish), on a page of `context.layout`
+ * (e.g. the fiche of a wine on a tasting-note page)
+ */
+export const getEntryCaption = (photo: Pick<CollectionPhoto, 'collection'>, context?: CollectionCaptionContext) => {
   const tag = photo.collection;
   if (tag?.kind !== 'entry' || !namesEntries(tag)) {
     return;
   }
   const pack = getCollectionPack(tag.pack);
-  return pack ? pack.book.caption(tag.entry, tag.place) : tag.entry;
+  return pack ? pack.book.caption(tag.entry, tag.place, context) : tag.entry;
 };
+
+/** the layouts made for the entries of the pack of a photo (see `CollectionPack.book.entryLayouts`) */
+export const getEntryLayouts = (photo: Pick<CollectionPhoto, 'collection'>): readonly string[] =>
+  photo.collection?.kind === 'entry' ? (getCollectionPack(photo.collection.pack)?.book.entryLayouts ?? []) : [];
+
+/** the layouts some pack made for its entries, which the automatic layout uses for no other photos */
+export const getReservedEntryLayouts = () =>
+  new Set(getCollectionPacks().flatMap((pack) => pack.book.entryLayouts ?? []));
 
 /** the pack of a photo's collection tag */
 export const getPhotoPack = (photo: Pick<CollectionPhoto, 'collection'>): CollectionPack | undefined =>
@@ -131,11 +148,11 @@ export const getPlaceVisits = <T extends CollectionPhoto>(photos: T[]): { visits
     (photo) => placeKey(photo.collection!),
   );
 
-  const visits: PlaceVisit<T>[] = [];
+  const placeVisits: PlaceVisit<T>[] = [];
   for (const group of tagged.values()) {
     const pack = group[0].collection!.pack;
     if (getCollectionPack(pack)?.book.chapters === 'entry') {
-      visits.push(...getEntryVisits(group));
+      placeVisits.push(...getEntryVisits(group));
       continue;
     }
     const hours = getCollectionPack(pack)?.book.visitGapHours;
@@ -146,13 +163,14 @@ export const getPlaceVisits = <T extends CollectionPhoto>(photos: T[]): { visits
     let current: T[] = [];
     for (const photo of group) {
       if (current.length > 0 && photo.takenAt - current.at(-1)!.takenAt > gap) {
-        visits.push({ pack, place, photos: current, start: current[0].takenAt, end: current.at(-1)!.takenAt });
+        placeVisits.push({ pack, place, photos: current, start: current[0].takenAt, end: current.at(-1)!.takenAt });
         current = [];
       }
       current.push(photo);
     }
-    visits.push({ pack, place, photos: current, start: current[0].takenAt, end: current.at(-1)!.takenAt });
+    placeVisits.push({ pack, place, photos: current, start: current[0].takenAt, end: current.at(-1)!.takenAt });
   }
+  const visits = joinLinkedVisits(placeVisits);
 
   const others: T[] = [];
   for (const photo of ordered) {
@@ -177,6 +195,35 @@ export const getPlaceVisits = <T extends CollectionPhoto>(photos: T[]): { visits
     visit.photos.sort(byTime);
   }
   return { visits: visits.toSorted((a, b) => a.start - b.start || a.place.localeCompare(b.place)), others };
+};
+
+/**
+ * A visit of a pack linked to another (see `CollectionPack.place.linkedPacks`), e.g. the wines of a dinner, joins that
+ * pack's visit of the same place at the same time (the meal): its photos are laid out in the meal's chapter
+ */
+const joinLinkedVisits = <T extends CollectionPhoto>(visits: PlaceVisit<T>[]): PlaceVisit<T>[] => {
+  const margin = LINKED_PLACE_MINUTES * 60_000;
+  const joined = new Set<PlaceVisit<T>>();
+  for (const visit of visits) {
+    const linked = getCollectionPack(visit.pack)?.place.linkedPacks ?? [];
+    const host = visits.find(
+      (other) =>
+        other !== visit &&
+        !joined.has(other) &&
+        linked.includes(other.pack) &&
+        other.place.trim().toLowerCase() === visit.place.trim().toLowerCase() &&
+        visit.start <= other.end + margin &&
+        other.start <= visit.end + margin,
+    );
+    if (!host) {
+      continue;
+    }
+    host.photos.push(...visit.photos);
+    host.start = Math.min(host.start, visit.start);
+    host.end = Math.max(host.end, visit.end);
+    joined.add(visit);
+  }
+  return visits.filter((visit) => !joined.has(visit));
 };
 
 /** "sougia" and "soutia": a letter off, or the same first five letters */

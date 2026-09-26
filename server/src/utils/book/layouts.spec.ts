@@ -56,6 +56,10 @@ describe('book layouts', () => {
       'dish-pair-stacked',
       'dish-list',
       'dish-trio',
+      // the tasting notes of the wine pack
+      'tasting-note',
+      'tasting-note-wide',
+      'tasting-notes',
     ]);
     for (const layout of bookLayouts) {
       const captions = layout.text.filter((area) => area.kind === 'slotCaption');

@@ -5,8 +5,10 @@ import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.j
 import {
   BookCollectionTag,
   getEntryCaption,
+  getEntryLayouts,
   getPhotoPack,
   getPlaceVisits,
+  getReservedEntryLayouts,
   getRunsBetweenVisits,
   hasSourcePages,
   isCollectionTheme,
@@ -72,6 +74,8 @@ export type AutoLayoutPhoto = {
    * `<Root>/<Place>/<Entry>` tags such as `Food/<Restaurant>/<Dish>` (see `src/utils/collections/tags.ts`)
    */
   collection?: BookCollectionTag | null;
+  /** the description of the photo, e.g. the note a user wrote about a wine (see `CollectionCaptionContext`) */
+  description?: string | null;
   /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
   /**
@@ -206,6 +210,8 @@ const DISH_PLAIN_PENALTY = 0.4;
 const DISH_DENSE_PENALTY = 0.6;
 /** a photo without a dish name (e.g. the bread) on a layout made for dishes, whose caption stays empty */
 const UNNAMED_DISH_PENALTY = 0.3;
+/** entries on the layouts made for other entries than the ones their pack made for them (dishes, for wines) */
+const OTHER_ENTRY_LAYOUT_PENALTY = 1.5;
 /** a food book gives its dishes more room: a page per this many dishes */
 export const DISHES_PER_PAGE = 1.6;
 
@@ -726,6 +732,8 @@ class LayoutPlanner {
   readonly contentLayouts: Map<number, BookLayout[]>;
   readonly layoutList: BookLayout[] = [];
   readonly layoutIndex = new Map<string, number>();
+  /** the layouts packs made for their entries (e.g. tasting notes), used for no other photos */
+  private reserved = getReservedEntryLayouts();
 
   constructor(
     private size: PageSize,
@@ -851,11 +859,19 @@ class LayoutPlanner {
     if (dishes > 0 && photos.length > MAX_DISHES_PER_PAGE) {
       return null;
     }
-    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter((layout) => !layout.collection || dishes > 0);
+    // the layouts the packs of all the photos made for their entries (the tasting notes of wines): only for them, and
+    // preferred for them
+    const own = pair
+      ? []
+      : getEntryLayouts(photos[0]).filter((id) => photos.every((photo) => getEntryLayouts(photo).includes(id)));
+    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter(
+      (layout) => (!layout.collection || dishes > 0) && (!this.reserved.has(layout.id) || own.includes(layout.id)),
+    );
     const dishPenalty = (layout: BookLayout) =>
       dishes > 0
         ? (layout.collection ? UNNAMED_DISH_PENALTY * (photos.length - dishes) : DISH_PLAIN_PENALTY * dishes) +
-          (photos.length >= 4 ? DISH_DENSE_PENALTY : 0)
+          (photos.length >= 4 ? DISH_DENSE_PENALTY : 0) +
+          (own.length > 0 && !own.includes(layout.id) ? OTHER_ENTRY_LAYOUT_PENALTY : 0)
         : 0;
     const sharedHero = !pair && photos.length > 1 && photos.some((photo) => photo.hero);
     if (sharedHero && strict) {
@@ -1113,9 +1129,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const captions = options.captions ?? (collectionBook ? 'dish' : 'place');
   const layoutIds = new Set(layouts.map((layout) => layout.id));
   const hasLayout = (id: string) => layoutIds.has(id);
-  /** the name of the entry (dish) below its photo */
-  const dishCaption = (photo: AutoLayoutPhoto) => {
-    const dish = captions === 'dish' ? getEntryCaption(photo) : undefined;
+  /** the name of the entry (dish) below its photo, as its pack sets it on the layout (e.g. a wine's fiche) */
+  const dishCaption = (photo: AutoLayoutPhoto, layout: BookLayout) => {
+    const dish =
+      captions === 'dish' ? getEntryCaption(photo, { layout: layout.id, description: photo.description }) : undefined;
     return dish ? { caption: dish } : {};
   };
   const mainPersonIds =
@@ -1208,7 +1225,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     return {
       assetId: photo.id,
       crop: planner.getCrop(photo, aspect).crop,
-      ...(layout.id !== 'cover' && dishCaption(photo)),
+      ...(layout.id !== 'cover' && dishCaption(photo, layout)),
     };
   };
 
@@ -1586,7 +1603,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         layout: choice.layout.id,
         slots: choice.order.map((photo, i) => {
           used.add(photo.id);
-          return { assetId: photo.id, crop: choice.crops[i], ...dishCaption(photo) };
+          return { assetId: photo.id, crop: choice.crops[i], ...dishCaption(photo, choice.layout) };
         }),
         section: index,
       };

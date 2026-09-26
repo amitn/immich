@@ -49,6 +49,12 @@ export type CollectionPack = {
     prompt: (entry: Pick<SourceEntry, 'name' | 'description'>) => string;
     /** fewer entries than this read on a source is worth a warning, default 3 */
     minEntries?: number;
+    /**
+     * the source is printed on the subjects themselves, e.g. the label of a bottle: match_subjects reads every subject
+     * photo at full resolution for the pack's `match.assign` (see `AssignPhoto.ocr`), a visit needs no other source,
+     * and the images of read_source and match_subjects zoom on where the entries are read (the label)
+     */
+    onSubjects?: boolean;
   };
 
   place: PlaceNameRules & {
@@ -56,6 +62,12 @@ export type CollectionPack = {
     fallbackName: (visit: FallbackVisit) => string;
     /** the OpenStreetMap features of the pack's places, for the lookup the admin may enable; none: never looked up */
     lookup?: { filters: OsmFilter[] };
+    /**
+     * packs whose places a visit shares when their photos were taken at the same time, e.g. wine: the restaurant of
+     * a Food meal. find_visits names such a visit after the other pack's tags, and books lay it out in the other
+     * pack's chapter of that place (the wines of the meal among its dishes)
+     */
+    linkedPacks?: string[];
   };
 
   visits: {
@@ -90,8 +102,11 @@ export type CollectionPack = {
     preset: CollectionBookPreset;
     /** a theme of its own; the preset's style names it */
     theme?: CollectionBookTheme;
-    /** the caption of an entry photo in a book, e.g. the name of the dish */
-    caption: (entry: string, place: string) => string;
+    /**
+     * the caption of an entry photo in a book, e.g. the name of the dish; `context` is the layout of its page and the
+     * photo's description, e.g. for the fields and the note of a wine on a tasting-note page
+     */
+    caption: (entry: string, place: string, context?: CollectionCaptionContext) => string;
     /** the entries are numbered through the book, like the works of an exhibition catalogue */
     numbered?: boolean;
     /** the checks `review_book` runs on books with the pack's photos */
@@ -116,6 +131,11 @@ export type CollectionPack = {
      * photos because the chapter names the entry (the legs of a trip)
      */
     namedEntries?: boolean;
+    /**
+     * layouts made for the pack's entry pages (e.g. the tasting notes of wines), which the automatic layout uses only
+     * for them, and prefers for them to the layouts made for dishes
+     */
+    entryLayouts?: string[];
     /** the title of the chapter of an entry, e.g. "Bus Chania → Sougia · 4 Oct 2016 · Crete, October 2016" */
     chapterTitle?: (entry: string, place: string) => string;
     /**
@@ -161,6 +181,9 @@ export type CollectionPack = {
     sourceImages?: boolean;
   };
 };
+
+/** where a caption is set: the layout of its page, and the description of its photo */
+export type CollectionCaptionContext = { layout?: string; description?: string | null };
 
 /** the page of a source typeset from its text: its text, and the entry it is for (e.g. the leg of a ticket) */
 export type CollectionSourcePage = { text: string; entry?: string };

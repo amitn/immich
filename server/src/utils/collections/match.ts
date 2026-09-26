@@ -1,3 +1,4 @@
+import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import { UnionFind, cosineDistance } from 'src/utils/agent/clustering.js';
 import { softmax } from 'src/utils/collections/classify.js';
 
@@ -652,7 +653,14 @@ export const applySequencePrior = (
   });
 };
 /** a subject photo for a pack's own assignment: the text read on it (OCR) too */
-export type AssignPhoto = SubjectPhoto & { text?: string };
+export type AssignPhoto = SubjectPhoto & {
+  text?: string;
+  /**
+   * the OCR boxes of the photo, for a pack whose subjects carry their source (`source.onSubjects`, e.g. the label of
+   * a bottle): read at full resolution, with the words only the stored OCR has
+   */
+  ocr?: OcrBoxInput[];
+};
 
 /** an entry for a pack's own assignment: its name and description as read, and when its source photo was taken */
 export type AssignEntry = Omit<EntryCandidate, 'embedding'> & {
@@ -669,10 +677,18 @@ export type AssignOptions = MatchOptions & {
 };
 
 /**
+ * The assignment of a pack's own: the matches, and the entries it read on the subjects themselves (e.g. the label of
+ * each bottle), which come after the given ones (the matches' `item` counts on from them)
+ */
+export type AssignResult = MatchResult & {
+  entries?: Array<{ name: string; description?: string; sourceId?: string }>;
+};
+
+/**
  * A pack's own way of assigning the subjects of a visit to its entries, in place of `matchSubjects` (which matches
  * them by what CLIP sees), e.g. by time for the legs of a trip. Photos without an embedding have an empty one.
  */
-export type SubjectAssigner = (photos: AssignPhoto[], entries: AssignEntry[], options: AssignOptions) => MatchResult;
+export type SubjectAssigner = (photos: AssignPhoto[], entries: AssignEntry[], options: AssignOptions) => AssignResult;
 
 /** the matches of `matchSubjects` */
 export const getSubjectMatches = (...args: Parameters<typeof matchSubjects>): SubjectMatch[] =>

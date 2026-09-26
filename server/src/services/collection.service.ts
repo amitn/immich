@@ -30,7 +30,7 @@ import {
   scoreText,
   summarizeText,
 } from 'src/utils/collections/classify.js';
-import { DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
+import { AssignResult, DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -48,9 +48,12 @@ import {
 import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
 import {
+  FocusRect,
   ParsedSource,
   chooseReading,
   chooseSourceOcr,
+  combineSourceOcr,
+  getEntriesFocus,
   getTitlePrompt,
   mergeSourceEntries,
 } from 'src/utils/collections/source.js';
@@ -62,7 +65,15 @@ import {
   parseCollectionTag,
 } from 'src/utils/collections/tags.js';
 import { DEFAULT_TILE_OVERLAP, OcrPass, PixelRect, getOcrTiles, mergeOcrPasses } from 'src/utils/collections/tiles.js';
-import { VisitOptions, getFallbackVisitNames, groupVisits, summarizeVisit } from 'src/utils/collections/visits.js';
+import {
+  LINKED_PLACE_MINUTES,
+  LinkedPlacePhoto,
+  VisitOptions,
+  findLinkedPlace,
+  getFallbackVisitNames,
+  groupVisits,
+  summarizeVisit,
+} from 'src/utils/collections/visits.js';
 import { decodeOriginal } from 'src/utils/image-decode.js';
 import { isOcrEnabled, isSmartSearchEnabled } from 'src/utils/misc.js';
 import { upsertTags } from 'src/utils/tag.js';
@@ -223,6 +234,8 @@ export class CollectionService extends BaseService {
       pack,
       groups.flat().map(({ id }) => id),
     );
+    // the places other packs named at the same time, e.g. the restaurant of a Food meal the wines were poured at
+    const linked = await this.getLinkedPlaces(auth, pack, groups);
 
     const visits = groups.map((group, index) => {
       const summary = summarizeVisit(group, pack.visits.type);
@@ -235,7 +248,7 @@ export class CollectionService extends BaseService {
       );
       const candidates = this.redactPlaces(pack, findPlaceNames(photos, pack.place));
       const tagged = this.getTaggedPlace(visitSaved);
-      return { index, summary, saved: visitSaved, candidates, place: tagged ?? candidates[0] };
+      return { index, summary, saved: visitSaved, candidates, place: tagged ?? linked[index] ?? candidates[0] };
     });
 
     const unnamed = visits.filter(({ place }) => !place);
@@ -318,9 +331,14 @@ export class CollectionService extends BaseService {
 
   /**
    * Images of a source photo for a reader: the preview, and with `zoom` the original cut in two (or four) overlapping
-   * parts at a readable resolution, for small print.
+   * parts at a readable resolution, for small print, or with `focus` the part of the original where its entries are
+   * (a bottle's label, see `getEntriesFocus`).
    */
-  async getSourceImages(auth: AuthDto, id: string, { zoom = false }: { zoom?: boolean } = {}): Promise<Buffer[]> {
+  async getSourceImages(
+    auth: AuthDto,
+    id: string,
+    { zoom = false, focus }: { zoom?: boolean; focus?: FocusRect } = {},
+  ): Promise<Buffer[]> {
     await this.requireAccess({ auth, permission: Permission.AssetRead, ids: [id] });
     const asset = await this.assetRepository.getById(id, { exifInfo: true, files: true });
     if (!asset || asset.deletedAt) {
@@ -342,7 +360,9 @@ export class CollectionService extends BaseService {
       image,
     );
     const { width, height } = decoded.info;
-    const parts = getOcrTiles(width, height, { tileSize: Math.max(width, height) / 2, overlap: 0.08 });
+    const parts = focus
+      ? [{ x: focus.x * width, y: focus.y * height, width: focus.width * width, height: focus.height * height }]
+      : getOcrTiles(width, height, { tileSize: Math.max(width, height) / 2, overlap: 0.08 });
     if (parts.length === 0) {
       return images;
     }
@@ -350,6 +370,45 @@ export class CollectionService extends BaseService {
       ...(await this.mediaRepository.getJpegCrops(decoded, parts, { maxSize: SOURCE_IMAGE_SIZE, quality: 85 })),
     );
     return images;
+  }
+
+  /**
+   * The crops of where the entries are read on each photo, e.g. the label of each bottle of a pack whose subjects
+   * carry their source, for a contact sheet the assistant can read; photos where nothing was read have none. The
+   * readings are cached, so this reads again what `matchVisit` read.
+   */
+  async getEntryCrops(auth: AuthDto, packId: string, ids: string[], maxSize = 720): Promise<Map<string, Buffer>> {
+    const pack = this.requirePack(packId);
+    await this.requireAccess({ auth, permission: Permission.AssetRead, ids });
+    const { image } = await this.getConfig({ withCache: true });
+    const crops = new Map<string, Buffer>();
+    await mapLimit(unique(ids), 2, async (id) => {
+      try {
+        const reading = await this.getSourceReading(pack, id, true);
+        const focus = getEntriesFocus(reading.items);
+        const asset = focus ? await this.assetRepository.getById(id, { exifInfo: true }) : undefined;
+        if (!focus || !asset || asset.type !== AssetType.Image || !asset.exifInfo) {
+          return;
+        }
+        const decoded = await decodeOriginal(
+          this.mediaRepository,
+          { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
+          image,
+        );
+        const { width, height } = decoded.info;
+        const rect = {
+          x: focus.x * width,
+          y: focus.y * height,
+          width: focus.width * width,
+          height: focus.height * height,
+        };
+        const [crop] = await this.mediaRepository.getJpegCrops(decoded, [rect], { maxSize, quality: 85 });
+        crops.set(id, crop);
+      } catch (error) {
+        this.logger.warn(`Unable to crop the ${pack.names.entry} of ${id}: ${error}`);
+      }
+    });
+    return crops;
   }
 
   async matchVisit(auth: AuthDto, packId: string, dto: CollectionMatchDto): Promise<CollectionMatchResponseDto> {
@@ -386,7 +445,8 @@ export class CollectionService extends BaseService {
       }));
       courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
     }
-    if (entries.length === 0) {
+    // a pack whose subjects carry their source (a bottle's label) needs no other
+    if (entries.length === 0 && (sourceIds.length > 0 || !pack.source.onSubjects)) {
       warnings.push(sourceIds.length > 0 ? messages.noEntriesRead : messages.noSource);
     }
 
@@ -410,7 +470,11 @@ export class CollectionService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
-    const { matches, ordered } = pack.match.assign
+    const {
+      matches,
+      ordered,
+      entries: added = [],
+    }: AssignResult = pack.match.assign
       ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines)
       : matchSubjects(
           photos,
@@ -419,6 +483,19 @@ export class CollectionService extends BaseService {
             : [],
           { ...pack.match.options, baselines },
         );
+    // the entries the pack read on the subjects themselves, e.g. the label of each bottle
+    for (const entry of added) {
+      const description = entry.description ? redactText(pack, entry.description) : undefined;
+      entries.push({
+        index: entries.length,
+        name: redactText(pack, entry.name),
+        ...(description && { description }),
+        ...(entry.sourceId && { sourceId: entry.sourceId }),
+      });
+    }
+    if (pack.source.onSubjects && entries.length === 0 && matches.length > 0) {
+      warnings.push(messages.noSource);
+    }
 
     if (pack.match.reportUnmatched && matches.length > 0 && entryEmbeddings.length === entries.length) {
       // an entry is matched, or another entry of its source is (a case of objects under one label, one photographed)
@@ -462,12 +539,23 @@ export class CollectionService extends BaseService {
     entryEmbeddings: Float32Array[],
     baselines: Float32Array[],
   ) {
-    const ocr = new Map<string, string[]>();
+    const ocr = new Map<string, OcrBoxInput[]>();
     for (const chunk of chunks(rows.map(({ id }) => id))) {
-      for (const { assetId, text } of await this.ocrRepository.getByAssetIds(chunk)) {
-        ocr.set(assetId, [...(ocr.get(assetId) ?? []), text]);
+      for (const { assetId, ...box } of await this.ocrRepository.getByAssetIds(chunk)) {
+        ocr.set(assetId, [...(ocr.get(assetId) ?? []), box]);
       }
     }
+    // the subjects that carry their source (a bottle's label) are read at full resolution, with the words only the
+    // stored OCR has
+    const boxes = pack.source.onSubjects
+      ? new Map(
+          await mapLimit(
+            rows,
+            2,
+            async ({ id }) => [id, await this.getSubjectOcr(pack, id, ocr.get(id) ?? [])] as const,
+          ),
+        )
+      : undefined;
     const sourceIds = unique(entries.flatMap(({ sourceId }) => (sourceId ? [sourceId] : [])));
     const sources = sourceIds.length > 0 ? await this.assetRepository.getByIds(sourceIds) : [];
     const sourceTimes = new Map(sources.map((source) => [source.id, source.localDateTime.getTime()]));
@@ -476,7 +564,16 @@ export class CollectionService extends BaseService {
         id: row.id,
         time: row.localDateTime.getTime(),
         embedding: embeddings.get(row.id) ?? new Float32Array(0),
-        ...(ocr.has(row.id) && { text: redactText(pack, ocr.get(row.id)!.join('\n')) }),
+        ...(ocr.has(row.id) && {
+          text: redactText(
+            pack,
+            ocr
+              .get(row.id)!
+              .map(({ text }) => text)
+              .join('\n'),
+          ),
+        }),
+        ...(boxes?.has(row.id) && { ocr: boxes.get(row.id)! }),
       })),
       entries.map((entry, index) => ({
         name: entry.name,
@@ -487,6 +584,29 @@ export class CollectionService extends BaseService {
       })),
       { ...DEFAULT_MATCH_OPTIONS, ...pack.match.options, baselines, suggestions: 3 },
     );
+  }
+
+  /**
+   * The OCR of a subject photo that carries its source (a bottle's label): the tiled full-resolution reading with the
+   * words of the stored OCR it missed (see `combineSourceOcr`), cached like the sources; the stored OCR when OCR is
+   * disabled, the photo is not an image, or the reading fails
+   */
+  private async getSubjectOcr(pack: CollectionPack, id: string, stored: OcrBoxInput[]): Promise<OcrBoxInput[]> {
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (!isOcrEnabled(machineLearning)) {
+      return stored;
+    }
+    const asset = await this.assetRepository.getById(id, { exifInfo: true });
+    const exifInfo = asset?.exifInfo;
+    if (!asset || asset.deletedAt || asset.type !== AssetType.Image || !exifInfo) {
+      return stored;
+    }
+    try {
+      return combineSourceOcr(stored, await this.getDetailedOcr({ ...asset, exifInfo }));
+    } catch (error) {
+      this.logger.warn(`Unable to read ${pack.names.subject} ${id} at full resolution: ${error}`);
+      return stored;
+    }
   }
 
   /** Named places of the pack (e.g. restaurants) near a visit on OpenStreetMap, when the admin enabled the lookup */
@@ -753,6 +873,69 @@ export class CollectionService extends BaseService {
       : candidates;
   }
 
+  /**
+   * The place each visit takes from the tags of the pack's linked packs (see `CollectionPack.place.linkedPacks`): the
+   * place of most of their photos taken during the visit, e.g. the restaurant of the Food meal the wines were poured
+   * at, as a tag (the name is already the user's); undefined for a visit without any
+   */
+  private async getLinkedPlaces(
+    auth: AuthDto,
+    pack: CollectionPack,
+    groups: Array<Array<{ id: string; time: number }>>,
+  ): Promise<Array<CollectionPlaceCandidate | undefined>> {
+    const others = (pack.place.linkedPacks ?? []).flatMap((id) => getCollectionPack(id) ?? []);
+    if (others.length === 0 || groups.length === 0) {
+      return [];
+    }
+    // local times are within a day of the times the photos are searched by
+    const day = 24 * 60 * 60 * 1000;
+    const margin = day + LINKED_PLACE_MINUTES * 60_000;
+    const ranges: Array<{ from: number; to: number }> = [];
+    for (const group of groups.toSorted((a, b) => a[0].time - b[0].time)) {
+      const from = group[0].time - margin;
+      const to = group.at(-1)!.time + margin;
+      const last = ranges.at(-1);
+      if (last && from <= last.to) {
+        last.to = Math.max(last.to, to);
+      } else {
+        ranges.push({ from, to });
+      }
+    }
+    const pages = await mapLimit(ranges, 2, ({ from, to }) =>
+      this.assetJobRepository.getForAgentEvents({
+        userIds: [auth.user.id],
+        viewingUserId: auth.user.id,
+        takenAfter: new Date(from),
+        takenBefore: new Date(to),
+        limit: COLLECTION_LIMITS.candidates,
+      }),
+    );
+    const times = new Map(pages.flat().map((row) => [row.id, row.localDateTime.getTime()]));
+    const photos: LinkedPlacePhoto[] = [];
+    for (const other of others) {
+      const rules = getCollectionTagRules(other);
+      for (const chunk of chunks(times.keys().toArray())) {
+        for (const { assetId, value } of await this.tagRepository.getAssetTagsByPrefix(chunk, getTagPrefix(rules))) {
+          const tag = parseCollectionTag(rules, value);
+          if (tag) {
+            photos.push({ id: assetId, time: times.get(assetId)!, place: tag.place });
+          }
+        }
+      }
+    }
+    return groups.map((group) => {
+      const place = findLinkedPlace({ start: group[0].time, end: group.at(-1)!.time }, photos);
+      return place
+        ? {
+            name: redactText(pack, getTagPlaceName(getCollectionTagRules(pack), place.name)),
+            source: 'tag',
+            confidence: 0.9,
+            assetIds: place.assetIds.slice(0, 20),
+          }
+        : undefined;
+    });
+  }
+
   private getTaggedPlace(saved: CollectionSavedEntry[]): CollectionPlaceCandidate | undefined {
     const counts = new Map<string, string[]>();
     for (const { place, assetId } of saved) {
@@ -928,7 +1111,11 @@ export class CollectionService extends BaseService {
     if (highResolution && isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
       try {
         const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
-        if (chooseSourceOcr(stored, detailed) === 'tiles') {
+        if (pack.source.onSubjects) {
+          // a label: every word counts, the ones only the stored OCR read too
+          boxes = combineSourceOcr(stored, detailed);
+          source = 'tiles';
+        } else if (chooseSourceOcr(stored, detailed) === 'tiles') {
           boxes = detailed;
           source = 'tiles';
         }

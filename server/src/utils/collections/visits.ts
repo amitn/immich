@@ -215,3 +215,26 @@ export const getFallbackVisitNames = (visits: FallbackVisit[], getName: (visit: 
     count(withDay, name) > 1 ? `${name} ${visits[index].start.slice(11, 16)}` : name,
   );
 };
+
+/** a photo that another pack named, e.g. a dish of a Food meal: when it was taken (local ms) and its place */
+export type LinkedPlacePhoto = { id: string; time: number; place: string };
+
+/** photos of another pack this many minutes before or after a visit are of the same occasion */
+export const LINKED_PLACE_MINUTES = 60;
+
+/**
+ * The place another pack named at the time of a visit, e.g. the restaurant of the Food meal the drinks of a tasting
+ * were poured at: the place of most of the other pack's photos taken during the visit (or up to `marginMinutes`
+ * before or after it), with those photos; undefined when there are none.
+ */
+export const findLinkedPlace = (
+  visit: { start: number; end: number },
+  photos: LinkedPlacePhoto[],
+  marginMinutes = LINKED_PLACE_MINUTES,
+) => {
+  const margin = marginMinutes * 60_000;
+  const during = photos.filter(({ time }) => time >= visit.start - margin && time <= visit.end + margin);
+  const byPlace = Map.groupBy(during, ({ place }) => place);
+  const [best] = [...byPlace].toSorted((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  return best ? { name: best[0], assetIds: best[1].map(({ id }) => id) } : undefined;
+};
