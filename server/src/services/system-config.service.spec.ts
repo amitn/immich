@@ -78,6 +78,12 @@ const updatedConfig = Object.freeze<SystemConfig>({
       defaultStyle: 'watercolor',
     },
   },
+  food: {
+    openStreetMap: {
+      enabled: false,
+      overpassUrl: 'https://overpass-api.de/api/interpreter',
+    },
+  },
   ffmpeg: {
     crf: 30,
     threads: 0,
