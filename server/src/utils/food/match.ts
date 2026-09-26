@@ -1,5 +1,5 @@
 import { UnionFind, cosineDistance } from 'src/utils/agent/clustering.js';
-import { CLIP_TEMPERATURE, softmax } from 'src/utils/food/classify.js';
+import { softmax } from 'src/utils/food/classify.js';
 
 export type DishPhoto = {
   id: string;
@@ -12,14 +12,19 @@ export type DishPhoto = {
 export type DishCandidate = {
   /** L2-normalized CLIP text embedding of the item's name (and description) */
   embedding: Float32Array;
+  /**
+   * the place of the item among the courses of the menu, in the order they are served (the order they are printed
+   * in); items outside that sequence, such as the drinks of a pairing printed in a column of their own, have none
+   */
+  course?: number;
+  /** the item has a price on the menu */
+  priced?: boolean;
 };
 
 export type MatchOptions = {
-  /** photos at most this cosine distance apart show the same dish */
+  /** photos at most this cosine distance apart show the same dish (a burst, or another shot of the plate)... */
   sameDishDistance: number;
-  /** looser distance for photos that also agree on their best item */
-  sameItemDistance: number;
-  /** photos of one dish are taken within this many minutes */
+  /** ...when taken within this many minutes of each other */
   sameDishMinutes: number;
   /** a match below this probability is left out (the suggestions remain) */
   minScore: number;
@@ -28,22 +33,67 @@ export type MatchOptions = {
   margin: number;
   /** the log-probability cost of giving a dish the same item as another dish instead of an item of its own */
   sharePenalty: number;
+  /**
+   * CLIP likes some texts for every photo of a meal (a long description, a word like "caviar"): at a meal of at least
+   * `centerDishes` dishes, each item's similarity is measured against its average over the meal's dishes, pooled with
+   * `pooling` dishes at the average of all items (a meal of a few dishes can't tell a text CLIP likes from a dish)
+   */
+  pooling: number;
+  centerDishes: number;
+  /** added to the similarity of the best "not on the menu" text */
+  offMenuBias: number;
+  /**
+   * whether dishes follow the order of the courses: 'menu' always, 'none' never, 'auto' for menus with few prices
+   * where the order fits the photos better than most shuffled orders
+   */
+  order: 'auto' | 'menu' | 'none';
+  /** with 'auto', at most this fraction of shuffled orders of the courses may fit the photos as well as the menu order */
+  orderEvidence: number;
+  /** the log-probability cost of each course between two matched dishes that no photo shows */
+  skipPenalty: number;
+  /** the log-probability cost of matching an item outside the courses (a drink of the pairing) out of order */
+  asidePenalty: number;
+  /**
+   * the courses of a tasting menu come at a roughly even pace: a dish photographed a fraction of the way through the
+   * meal is about that fraction of the way through the courses; each unit of the difference beyond `paceTolerance`
+   * costs this much log probability
+   */
+  pacePenalty: number;
+  paceTolerance: number;
+  /** the log-probability cost of a dish not on the menu, at a tasting menu where most dishes are courses */
+  offPenalty: number;
+  /**
+   * the logit scale of the probabilities of a dish over the items: below CLIP's own, as the differences between
+   * menu items are smaller than between the labels CLIP was made for
+   */
+  temperature: number;
 };
 
+/** calibrated on real meals, see `src/utils/food/benchmark.spec.ts` */
 export const DEFAULT_MATCH_OPTIONS: MatchOptions = {
-  sameDishDistance: 0.08,
-  sameItemDistance: 0.16,
-  sameDishMinutes: 30,
+  sameDishDistance: 0.03,
+  sameDishMinutes: 5,
   minScore: 0.05,
   sureScore: 0.5,
   margin: 0.2,
   sharePenalty: Math.log(8),
+  pooling: 3,
+  centerDishes: 4,
+  offMenuBias: 0,
+  order: 'auto',
+  orderEvidence: 0.1,
+  skipPenalty: 0,
+  asidePenalty: 2,
+  pacePenalty: 10,
+  paceTolerance: 0.2,
+  offPenalty: 0.5,
+  temperature: 70,
 };
 
 export type MatchSuggestion = {
   /** index of the candidate item */
   item: number;
-  /** probability among the items, 0..1 */
+  /** probability that the dish is this item, 0..1 */
   score: number;
   /** cosine similarity of the photo and the item's text */
   similarity: number;
@@ -62,6 +112,12 @@ export type DishMatch = {
   /** probability that the dish is not on the menu (with baselines) */
   offMenu?: number;
   suggestions: MatchSuggestion[];
+};
+
+export type MatchResult = {
+  matches: DishMatch[];
+  /** the dishes were matched in the order of the courses of the menu */
+  ordered: boolean;
 };
 
 /** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
@@ -164,8 +220,6 @@ export const assignMax = (scores: number[][]): number[] => {
   return result;
 };
 
-const argmax = (values: number[]) => values.indexOf(Math.max(...values));
-
 const average = (members: number[], value: (index: number) => number) => {
   let sum = 0;
   for (const member of members) {
@@ -174,21 +228,23 @@ const average = (members: number[], value: (index: number) => number) => {
   return sum / members.length;
 };
 
-/** groups photos of the same dish: near-duplicates, or similar photos that agree on their best item */
-export const groupDishPhotos = (photos: DishPhoto[], similarities: number[][], options: MatchOptions) => {
+/**
+ * Groups photos of the same dish: near-identical photos (a burst, or the plate shot again) taken within a few
+ * minutes. Plated courses of a tasting menu look alike to CLIP (white plates on white tablecloths), so anything less
+ * alike, or further apart in time, is another dish.
+ */
+export const groupDishPhotos = (
+  photos: DishPhoto[],
+  options: Pick<MatchOptions, 'sameDishDistance' | 'sameDishMinutes'>,
+) => {
   const order = photos.map((_, index) => index).toSorted((a, b) => photos[a].time - photos[b].time);
-  const best = similarities.map((row) => (row.length > 0 ? argmax(row) : -1));
   const unionFind = new UnionFind(photos.length);
   for (const [position, i] of order.entries()) {
     for (const j of order.slice(position + 1)) {
       if (photos[j].time - photos[i].time > options.sameDishMinutes * 60_000) {
         break;
       }
-      const distance = cosineDistance(photos[i].embedding, photos[j].embedding);
-      if (
-        distance <= options.sameDishDistance ||
-        (distance <= options.sameItemDistance && best[i] === best[j] && best[i] >= 0)
-      ) {
+      if (cosineDistance(photos[i].embedding, photos[j].embedding) <= options.sameDishDistance) {
         unionFind.union(i, j);
       }
     }
@@ -204,17 +260,227 @@ export const groupDishPhotos = (photos: DishPhoto[], similarities: number[][], o
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
+const logSumExp = (values: number[]) => {
+  const max = Math.max(...values);
+  if (max === -Infinity) {
+    return -Infinity;
+  }
+  let sum = 0;
+  for (const value of values) {
+    sum += Math.exp(value - max);
+  }
+  return max + Math.log(sum);
+};
+
+/** what a dish is: a course, an item aside from the courses, the course of the dish before, or not on the menu */
+type Choice = { kind: 'course' | 'aside' | 'share' | 'off'; item: number };
+
+export type Alignment = {
+  /** the log probability of the best alignment */
+  total: number;
+  choices: Choice[];
+  /** the probability of each dish being each item, over all alignments */
+  marginals: number[][];
+  /** the probability of each dish not being on the menu */
+  offMarginals: number[];
+};
+
+type Step = { to: number; weight: number; choice: Choice };
+
+export type AlignOptions = Pick<
+  MatchOptions,
+  'sharePenalty' | 'skipPenalty' | 'asidePenalty' | 'pacePenalty' | 'paceTolerance' | 'offPenalty'
+> & {
+  /** how far through the meal each dish was photographed, 0..1 */
+  pace?: number[];
+};
+
+/**
+ * Aligns dishes (in time order) with courses (in menu order): each dish takes a later course than the dish before
+ * it, the same course (another plate of it) at `sharePenalty`, an item outside the courses at `asidePenalty`, or none
+ * (not on the menu); each course that no photo shows between two dishes costs `skipPenalty`. `logs` are the log
+ * probabilities of each dish over the items, with a last column for "not on the menu". Returns the best alignment
+ * (Viterbi) and, with `marginals`, the probability of each dish being each item over all alignments
+ * (forward-backward).
+ */
+export const alignCourses = (
+  logs: number[][],
+  courses: number[],
+  aside: number[],
+  settings: AlignOptions,
+  marginals = true,
+): Alignment => {
+  const { sharePenalty, skipPenalty, asidePenalty, pacePenalty, paceTolerance, offPenalty, pace } = settings;
+  const dishes = logs.length;
+  // a state is the number of courses served so far (the last one taken)
+  const states = courses.length + 1;
+  const offPace = (dish: number, course: number) =>
+    pace && pacePenalty > 0 && courses.length > 1
+      ? pacePenalty * Math.max(0, Math.abs(pace[dish] - (course - 1) / (courses.length - 1)) - paceTolerance)
+      : 0;
+  const steps = (dish: number, state: number): Step[] => {
+    const row = logs[dish];
+    const result: Step[] = [{ to: state, weight: row.at(-1)! - offPenalty, choice: { kind: 'off', item: -1 } }];
+    for (let next = state + 1; next < states; next++) {
+      const item = courses[next - 1];
+      const skipped = state === 0 ? 0 : next - state - 1;
+      result.push({
+        to: next,
+        weight: row[item] - skipPenalty * skipped - offPace(dish, next),
+        choice: { kind: 'course', item },
+      });
+    }
+    if (state > 0) {
+      const item = courses[state - 1];
+      result.push({
+        to: state,
+        weight: row[item] - sharePenalty - offPace(dish, state),
+        choice: { kind: 'share', item },
+      });
+    }
+    for (const item of aside) {
+      result.push({ to: state, weight: row[item] - asidePenalty, choice: { kind: 'aside', item } });
+    }
+    return result;
+  };
+  const start = Array.from({ length: states }, (_, state) => (state === 0 ? 0 : -Infinity));
+
+  // Viterbi
+  let best = start;
+  const back: Array<Array<{ from: number; choice: Choice } | undefined>> = [];
+  for (let dish = 0; dish < dishes; dish++) {
+    const next = Array.from({ length: states }, () => -Infinity);
+    const from: Array<{ from: number; choice: Choice } | undefined> = Array.from({ length: states });
+    for (let state = 0; state < states; state++) {
+      if (best[state] === -Infinity) {
+        continue;
+      }
+      for (const { to, weight, choice } of steps(dish, state)) {
+        if (best[state] + weight > next[to]) {
+          next[to] = best[state] + weight;
+          from[to] = { from: state, choice };
+        }
+      }
+    }
+    best = next;
+    back.push(from);
+  }
+  let state = best.indexOf(Math.max(...best));
+  const total = best[state];
+  const choices: Choice[] = [];
+  for (let dish = dishes - 1; dish >= 0; dish--) {
+    const step = back[dish][state]!;
+    choices.unshift(step.choice);
+    state = step.from;
+  }
+  if (!marginals) {
+    return { total, choices, marginals: [], offMarginals: [] };
+  }
+
+  // forward-backward
+  const forward: number[][] = [start];
+  for (let dish = 0; dish < dishes; dish++) {
+    const terms: number[][] = Array.from({ length: states }, () => []);
+    for (let state = 0; state < states; state++) {
+      if (forward[dish][state] !== -Infinity) {
+        for (const { to, weight } of steps(dish, state)) {
+          terms[to].push(forward[dish][state] + weight);
+        }
+      }
+    }
+    forward.push(terms.map((values) => logSumExp(values)));
+  }
+  const backward: number[][] = Array.from({ length: dishes + 1 });
+  backward[dishes] = Array.from({ length: states }, () => 0);
+  for (let dish = dishes - 1; dish >= 0; dish--) {
+    backward[dish] = Array.from({ length: states }, (_, state) =>
+      logSumExp(steps(dish, state).map(({ to, weight }) => weight + backward[dish + 1][to])),
+    );
+  }
+  const logZ = logSumExp(forward[dishes]);
+  const items = Math.max(0, (logs[0]?.length ?? 1) - 1);
+  const result: Alignment = { total, choices, marginals: [], offMarginals: [] };
+  for (let dish = 0; dish < dishes; dish++) {
+    const byItem: number[][] = Array.from({ length: items }, () => []);
+    const byOff: number[] = [];
+    for (let state = 0; state < states; state++) {
+      if (forward[dish][state] === -Infinity) {
+        continue;
+      }
+      for (const { to, weight, choice } of steps(dish, state)) {
+        const value = forward[dish][state] + weight + backward[dish + 1][to] - logZ;
+        if (choice.kind === 'off') {
+          byOff.push(value);
+        } else {
+          byItem[choice.item].push(value);
+        }
+      }
+    }
+    result.marginals.push(byItem.map((values) => Math.exp(logSumExp(values))));
+    result.offMarginals.push(Math.exp(logSumExp(byOff)));
+  }
+  return result;
+};
+
+/** a fixed sequence of pseudo-random numbers, so that the same meal always gets the same answer */
+const random = (seed: number) => {
+  let value = seed;
+  return () => {
+    value = (value * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return value / 2_147_483_648;
+  };
+};
+
+const shuffle = <T>(values: T[], next: () => number) => {
+  const result = [...values];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+};
+
+/** shuffled orders of the courses the menu order is compared with */
+const SHUFFLES = 40;
+
+/**
+ * The fraction of shuffled orders of the courses that fit the photos at least as well as the menu order (the order of
+ * an à la carte menu tells nothing about the order of the photos, that of a tasting menu does).
+ */
+export const getOrderRank = (
+  logs: number[][],
+  courses: number[],
+  aside: number[],
+  settings: AlignOptions,
+  total = alignCourses(logs, courses, aside, settings, false).total,
+) => {
+  const next = random(courses.length * 7919 + logs.length);
+  let beaten = 0;
+  for (let i = 0; i < SHUFFLES; i++) {
+    if (alignCourses(logs, shuffle(courses, next), aside, settings, false).total >= total) {
+      beaten++;
+    }
+  }
+  return beaten / SHUFFLES;
+};
+
 /**
  * Matches the dish photos of a meal with the items of its menu. The CLIP image embedding of each photo is compared
- * with the CLIP text embedding of each item and turned into probabilities (a softmax at CLIP's temperature); with
- * `baselines` (generic "food", "bread", "coffee"... texts) the best of them takes part as "not on the menu". Photos of
- * the same dish are grouped and share one item. The groups then get different items in a one-to-one assignment that
- * maximizes the total log probability, except that a group may share its favourite item with another group at a
- * cost of `sharePenalty` (two plates of the same dish, one "assortment of desserts" course). A group whose favourite
- * is "not on the menu", or whose match is below `minScore`, gets no item. Weak matches, and matches that are not a
- * group's favourite, are marked unsure; every group keeps its top suggestions.
+ * with the CLIP text embedding of each item, as a difference from the item's average similarity over the meal's
+ * dishes (CLIP likes some texts for every photo); with `baselines` (generic "food", "bread", "coffee"... texts) the
+ * best of them takes part as "not on the menu", measured the same way. Photos of the same dish (near-identical,
+ * minutes apart) are grouped and share one item; each group gets probabilities over the items and "not on the menu"
+ * (a softmax at CLIP's temperature).
+ *
+ * At a tasting menu (items with `course` numbers and few prices) dishes are photographed in the order of the
+ * courses: the groups, in time order, are aligned with the courses, skipping courses no photo shows and dishes that
+ * are not on the menu (amuse-bouches, bread, coffee, petits fours), when that order fits the photos better than most
+ * shuffled orders. The score of each match is then its probability over all alignments. Otherwise the groups get
+ * different items in a one-to-one assignment that maximizes the total log probability, except that a group may share
+ * its favourite item with another group at a cost of `sharePenalty` (two plates of the same dish). Weak matches, and
+ * matches that are not a group's favourite, are marked unsure; every group keeps its top suggestions.
  */
-export const matchDishes = (
+export const matchCourses = (
   photos: DishPhoto[],
   items: DishCandidate[],
   options: Partial<MatchOptions> & {
@@ -222,72 +488,79 @@ export const matchDishes = (
     /** text embeddings of dishes that are usually not on menus, e.g. "a photo of food", "a photo of bread" */
     baselines?: Float32Array[];
   } = {},
-): DishMatch[] => {
+): MatchResult => {
   const settings = { ...DEFAULT_MATCH_OPTIONS, ...options };
   const baselines = options.baselines ?? [];
-  const similarities = photos.map((photo) => items.map((item) => dot(photo.embedding, item.embedding)));
-  const groups = groupDishPhotos(photos, similarities, settings);
+  const suggestions = options.suggestions ?? 3;
+  const groups = groupDishPhotos(photos, settings);
 
-  const groupSimilarities = groups.map((members) =>
-    items.map((_, item) => average(members, (index) => similarities[index][item])),
+  const similarities = groups.map((members) =>
+    items.map((item) => average(members, (member) => dot(photos[member].embedding, item.embedding))),
   );
-  const noneSimilarities = groups.map((members) =>
-    baselines.length === 0
-      ? undefined
-      : Math.max(...baselines.map((baseline) => average(members, (member) => dot(photos[member].embedding, baseline)))),
+  const baselineSimilarities = groups.map((members) =>
+    baselines.map((baseline) => average(members, (member) => dot(photos[member].embedding, baseline))),
   );
-  const probabilities = groups.map((_, index) => {
-    const row = groupSimilarities[index];
-    const none = noneSimilarities[index];
-    return none === undefined ? softmax(row, CLIP_TEMPERATURE) : softmax([...row, none], CLIP_TEMPERATURE);
-  });
 
-  // log probabilities make the assignment prefer confident matches over many lukewarm ones; the extra column of each
-  // group is "share my favourite item"
-  const logs = probabilities.map((row) => row.slice(0, items.length).map((value) => Math.log(Math.max(value, 1e-9))));
-  const matrix = logs.map((row, index) => [
-    ...row,
-    ...groups.map((_, other) =>
-      other === index && row.length > 0 ? Math.max(...row) - settings.sharePenalty : -Infinity,
-    ),
-  ]);
-  const finite = matrix.map((row) => row.map((value) => (Number.isFinite(value) ? value : -1e6)));
-  const assignment = items.length > 0 ? assignMax(finite) : groups.map(() => -1);
-
-  const matches = groups.map((members, index) => {
-    const row = probabilities[index].slice(0, items.length);
-    const noneScore = noneSimilarities[index] === undefined ? 0 : probabilities[index][items.length];
-    const ranked = row
-      .map((score, item) => ({ item, score, similarity: groupSimilarities[index][item] }))
-      .toSorted((a, b) => b.score - a.score);
-    const favourite = ranked[0];
-
-    let assigned = assignment[index];
-    const shared = assigned >= items.length;
-    if (shared) {
-      assigned = favourite.item;
+  // each text against its average over the meal, pooled with the average of all texts
+  const center = (rows: number[][]) => {
+    if (rows.length < settings.centerDishes) {
+      return rows;
     }
-    const score = assigned >= 0 ? row[assigned] : 0;
-    const offMenu = noneScore > (favourite?.score ?? 0);
-    const matched = assigned >= 0 && score >= settings.minScore && !offMenu;
-    const runnerUp = Math.max(noneScore, ranked.find(({ item }) => item !== assigned)?.score ?? 0);
-    const sure =
-      matched && favourite?.item === assigned && score >= settings.sureScore && score - runnerUp >= settings.margin;
+    const all = rows.flat();
+    const grand = all.length > 0 ? all.reduce((sum, value) => sum + value, 0) / all.length : 0;
+    const means = (rows[0] ?? []).map(
+      (_, column) =>
+        (rows.reduce((sum, row) => sum + row[column], 0) + settings.pooling * grand) / (rows.length + settings.pooling),
+    );
+    return rows.map((row) => row.map((value, column) => value - means[column]));
+  };
+  const centered = center(similarities);
+  const centeredBaselines = center(baselineSimilarities);
+  const hasOff = baselines.length > 0;
+  const probabilities = groups.map((_, group) =>
+    softmax(
+      hasOff ? [...centered[group], Math.max(...centeredBaselines[group]) + settings.offMenuBias] : centered[group],
+      settings.temperature,
+    ),
+  );
+  const logs = probabilities.map((row) => [
+    ...row.slice(0, items.length).map((value) => Math.log(Math.max(value, 1e-12))),
+    hasOff ? Math.log(Math.max(row[items.length], 1e-12)) : -Infinity,
+  ]);
 
-    const match: DishMatch = {
-      ids: members.map((member) => photos[member].id),
-      ...(matched && { item: assigned }),
-      score: round(matched ? score : 0),
-      unsure: !sure,
-      ...(noneSimilarities[index] !== undefined && { offMenu: round(noneScore) }),
-      suggestions: ranked.slice(0, options.suggestions ?? 3).map((suggestion) => ({
-        item: suggestion.item,
-        score: round(suggestion.score),
-        similarity: round(suggestion.similarity),
-      })),
-    };
-    return match;
-  });
+  // the courses in menu order, and the items aside from them
+  const courses = items
+    .map((item, index) => ({ course: item.course, index }))
+    .filter(({ course }) => course !== undefined)
+    .toSorted((a, b) => a.course! - b.course!)
+    .map(({ index }) => index);
+  const aside = items.map((_, index) => index).filter((index) => items[index].course === undefined);
+  const priced = courses.filter((index) => items[index].priced).length;
+
+  // how far through the meal each group was photographed
+  const times = groups.map((members) => photos[members[0]].time);
+  const first = Math.min(...times);
+  const span = Math.max(...times) - first;
+  const alignOptions: AlignOptions = {
+    ...settings,
+    pace: times.map((time) => (span > 0 ? (time - first) / span : 0)),
+  };
+
+  let alignment: Alignment | undefined;
+  if (settings.order !== 'none' && courses.length >= 2 && groups.length >= 2) {
+    const candidate = alignCourses(logs, courses, aside, alignOptions);
+    const tasting = priced < 0.3 * courses.length;
+    if (
+      settings.order === 'menu' ||
+      (tasting && getOrderRank(logs, courses, aside, alignOptions, candidate.total) <= settings.orderEvidence)
+    ) {
+      alignment = candidate;
+    }
+  }
+
+  const matches = alignment
+    ? toAlignedMatches(groups, photos, similarities, alignment, settings, suggestions, hasOff)
+    : toAssignedMatches(groups, photos, items, similarities, probabilities, logs, settings, suggestions, hasOff);
 
   const counts = new Map<number, number>();
   for (const { item } of matches) {
@@ -295,7 +568,99 @@ export const matchDishes = (
       counts.set(item, (counts.get(item) ?? 0) + 1);
     }
   }
-  return matches.map((match) =>
-    match.item !== undefined && counts.get(match.item)! > 1 ? { ...match, shared: true } : match,
-  );
+  return {
+    matches: matches.map((match) =>
+      match.item !== undefined && counts.get(match.item)! > 1 ? { ...match, shared: true } : match,
+    ),
+    ordered: alignment !== undefined,
+  };
+};
+
+/** the matches of `matchCourses` */
+export const matchDishes = (...args: Parameters<typeof matchCourses>): DishMatch[] => matchCourses(...args).matches;
+
+const toSuggestions = (scores: number[], similarities: number[], count: number) =>
+  scores
+    .map((score, item) => ({ item, score, similarity: similarities[item] }))
+    .toSorted((a, b) => b.score - a.score)
+    .slice(0, count)
+    .map(({ item, score, similarity }) => ({ item, score: round(score), similarity: round(similarity) }));
+
+const toAlignedMatches = (
+  groups: number[][],
+  photos: DishPhoto[],
+  similarities: number[][],
+  { choices, marginals, offMarginals }: Alignment,
+  settings: MatchOptions,
+  suggestions: number,
+  hasOff: boolean,
+): DishMatch[] =>
+  groups.map((members, group) => {
+    const scores = marginals[group];
+    const choice = choices[group];
+    const matched = choice.kind !== 'off' && scores[choice.item] >= settings.minScore;
+    const score = matched ? scores[choice.item] : 0;
+    const runnerUp = Math.max(offMarginals[group], ...scores.filter((_, item) => item !== choice.item));
+    const sure = matched && score >= settings.sureScore && score - runnerUp >= settings.margin;
+    return {
+      ids: members.map((member) => photos[member].id),
+      ...(matched && { item: choice.item }),
+      score: round(score),
+      unsure: !sure,
+      ...(hasOff && { offMenu: round(offMarginals[group]) }),
+      suggestions: toSuggestions(scores, similarities[group], suggestions),
+    };
+  });
+
+const toAssignedMatches = (
+  groups: number[][],
+  photos: DishPhoto[],
+  items: DishCandidate[],
+  similarities: number[][],
+  probabilities: number[][],
+  logs: number[][],
+  settings: MatchOptions,
+  suggestions: number,
+  hasOff: boolean,
+): DishMatch[] => {
+  // log probabilities make the assignment prefer confident matches over many lukewarm ones; the extra columns of
+  // each group are "share my favourite item" and "not on the menu"
+  const matrix = logs.map((row, index) => {
+    const itemLogs = row.slice(0, items.length);
+    const favourite = itemLogs.length > 0 ? Math.max(...itemLogs) : -Infinity;
+    return [
+      ...itemLogs,
+      ...groups.map((_, other) => (other === index ? favourite - settings.sharePenalty : -Infinity)),
+      ...groups.map((_, other) => (other === index ? row[items.length] : -Infinity)),
+    ];
+  });
+  const finite = matrix.map((row) => row.map((value) => (Number.isFinite(value) ? value : -1e6)));
+  const assignment = items.length > 0 ? assignMax(finite) : groups.map(() => -1);
+
+  return groups.map((members, index) => {
+    const row = probabilities[index].slice(0, items.length);
+    const offScore = hasOff ? probabilities[index][items.length] : 0;
+    const favourite = row.length > 0 ? row.indexOf(Math.max(...row)) : -1;
+
+    let assigned = assignment[index];
+    if (assigned >= items.length + groups.length) {
+      assigned = -1;
+    } else if (assigned >= items.length) {
+      assigned = favourite;
+    }
+    const score = assigned >= 0 ? row[assigned] : 0;
+    const matched = assigned >= 0 && score >= settings.minScore;
+    const runnerUp = Math.max(offScore, ...row.filter((_, item) => item !== assigned));
+    const sure =
+      matched && favourite === assigned && score >= settings.sureScore && score - runnerUp >= settings.margin;
+
+    return {
+      ids: members.map((member) => photos[member].id),
+      ...(matched && { item: assigned }),
+      score: round(matched ? score : 0),
+      unsure: !sure,
+      ...(hasOff && { offMenu: round(offScore) }),
+      suggestions: toSuggestions(row, similarities[index], suggestions),
+    };
+  });
 };

@@ -21,7 +21,7 @@ import { TagService } from 'src/services/tag.service.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import { FOOD_PROMPT_LIST, FoodClassification, classifyFood, summarizeOcr } from 'src/utils/food/classify.js';
-import { MatchOptions, OFF_MENU_PROMPTS, itemPrompt, matchDishes } from 'src/utils/food/match.js';
+import { DishCandidate, OFF_MENU_PROMPTS, itemPrompt, matchCourses } from 'src/utils/food/match.js';
 import { MealOptions, getFallbackMealNames, groupMeals, summarizeMeal } from 'src/utils/food/meals.js';
 import { ParsedMenu, chooseMenuOcr, mergeMenuItems, parseMenu } from 'src/utils/food/menu.js';
 import { OcrBoxInput } from 'src/utils/food/ocr.js';
@@ -237,18 +237,23 @@ export class FoodService extends BaseService {
 
     const warnings: string[] = [];
     let items: FoodMenuItemResponse[];
+    // where each item is among the courses of the menu (the order they are served in), and whether it has a price
+    let courses: Array<Pick<DishCandidate, 'course' | 'priced'>>;
     if (dto.items && dto.items.length > 0) {
       items = dto.items.map(({ name, description }, index) => ({
         index,
         name: name.trim(),
         ...(description?.trim() && { description: description.trim() }),
       }));
+      // items passed in are in the order they were read; the matcher only follows it when the photos do
+      courses = items.map((_, index) => ({ course: index }));
     } else {
       const readings = await mapLimit(menuIds, 2, (id) => this.getMenuReading(id, true));
       for (const reading of readings) {
         warnings.push(...reading.warnings);
       }
-      items = mergeMenuItems(readings).map(({ menuId, item }, index) => ({
+      const merged = mergeMenuItems(readings);
+      items = merged.map(({ menuId, item }, index) => ({
         index,
         name: item.name,
         ...(item.description && { description: item.description }),
@@ -256,6 +261,7 @@ export class FoodService extends BaseService {
         ...(item.section && { section: item.section }),
         menuId,
       }));
+      courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
     }
     if (items.length === 0) {
       warnings.push(
@@ -285,14 +291,17 @@ export class FoodService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
-    const matches = matchDishes(
+    const { matches, ordered } = matchCourses(
       photos,
-      itemEmbeddings.length === items.length ? itemEmbeddings.map((embedding) => ({ embedding })) : [],
-      { baselines } satisfies Partial<MatchOptions> & { baselines: Float32Array[] },
+      itemEmbeddings.length === items.length
+        ? itemEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
+        : [],
+      { baselines },
     );
 
     return {
       items,
+      ...(ordered && { ordered }),
       dishes: matches.map((match) => ({
         assetIds: match.ids,
         ...(match.item !== undefined && { index: match.item, name: items[match.item].name }),
