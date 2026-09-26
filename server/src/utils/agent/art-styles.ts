@@ -6,19 +6,25 @@ export type ArtStyle = {
   prompt: string;
   /** whether the style renders a handwritten caption into the image */
   usesCaption: boolean;
+  /**
+   * the agent only paints the artwork, and Immich places the untouched photo above it: image generation redraws a
+   * photo instead of keeping it, so it can't be trusted with the photographic half of a split
+   */
+  photoAbove?: boolean;
 };
 
 const WATERCOLOR_EDITORIAL_SPLIT =
-  'Create a refined editorial travel-art composition based on the reference photograph. The image is divided vertically into two parts: the upper section is a realistic cinematic travel photograph, while the lower section transforms the exact same scene into a delicate hand-painted watercolor illustration. Upper section: authentic candid travel photography, natural daylight, soft shadows, subtle film grain, realistic textures, sophisticated European atmosphere, documentary-style composition, people naturally walking through the scene, beautiful architectural details, slightly muted elegant colors, high-end travel magazine photography. Lower section: a minimalist handmade watercolor painting of the exact same scene, preserving the recognizable composition, architecture, people, poses, perspective and major visual elements from the photograph. Loose translucent watercolor washes, delicate ink details, visible paper texture, soft edges, imperfect brushwork, subtle pigment bleeding, airy negative space, understated pastel tones, artistic but realistic. Leave generous warm ivory/off-white textured paper space surrounding the watercolor illustration. Add a small elegant handwritten caption near the bottom reading "{caption}", with a thin minimalist horizontal line underneath. Overall aesthetic: luxury travel journal, fine-art watercolor postcard, contemporary editorial design, nostalgic.';
+  'Create the lower half of a refined editorial travel-art composition: the exact same scene as the reference photograph, transformed into a minimalist handmade watercolor painting. The original photograph will be placed directly above your image, so do not include the photograph or any photographic section, and do not add people or objects that are not in the photograph. Preserve the recognizable composition, architecture, people, poses, perspective and major visual elements from the photograph. Loose translucent watercolor washes, delicate ink details, visible paper texture, soft edges, imperfect brushwork, subtle pigment bleeding, airy negative space, understated pastel tones, artistic but realistic. The warm ivory/off-white textured paper fills the whole image, with generous space surrounding the watercolor illustration on every side. Add a small elegant handwritten caption near the bottom reading "{caption}", with a thin minimalist horizontal line underneath. Overall aesthetic: luxury travel journal, fine-art watercolor postcard, contemporary editorial design, nostalgic.';
 
 export const artStyles: ArtStyle[] = [
   {
     id: 'watercolor-editorial-split',
     name: 'Editorial watercolor split',
     description:
-      'Top half: the photo as cinematic travel photography. Bottom half: the same scene as a delicate watercolor on ivory paper, with a handwritten caption.',
+      'Top: your photo, untouched. Bottom: the same scene as a delicate watercolor on ivory paper, with a handwritten caption.',
     prompt: WATERCOLOR_EDITORIAL_SPLIT,
     usesCaption: true,
+    photoAbove: true,
   },
   {
     id: 'watercolor',

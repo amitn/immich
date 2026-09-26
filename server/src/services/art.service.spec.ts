@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { AcpAgent, AcpClientHandlers, AcpPermissionRequest } from 'src/repositories/acp.repository.js';
-import { ArtJobStatus, AssetType, NotificationLevel, NotificationType } from 'src/enum.js';
+import { ArtJobStatus, AssetType, Colorspace, NotificationLevel, NotificationType } from 'src/enum.js';
 import {
   ArtService,
   decideArtPermission,
@@ -303,6 +303,43 @@ describe(ArtService.name, () => {
         expect.any(String),
         { buffer: PNG, extension: '.png' },
         expect.objectContaining({ description: expect.not.stringContaining('upscaled') }),
+      );
+    });
+
+    it('should place the untouched photo above the artwork of split styles', async () => {
+      const derive = vi
+        .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
+        .mockResolvedValue({ id: 'new-asset', duplicate: false });
+      const photo = { data: Buffer.from('pixels'), info: { width: 4000, height: 3000, channels: 3 } };
+      mocks.media.decodeImage.mockResolvedValue(photo as never);
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+
+      const job = newJob({ style: 'watercolor-editorial-split' });
+      await start(job);
+      mocks.asset.getById.mockResolvedValue({
+        id: job.sourceAssetId,
+        type: AssetType.Image,
+        originalPath: '/data/original.jpg',
+        originalFileName: 'IMG.jpg',
+        exifInfo: { orientation: null, profileDescription: 'sRGB', colorspace: 'sRGB', bitsPerSample: 8 },
+      } as never);
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+
+      expect(mocks.media.decodeImage).toHaveBeenCalledWith(
+        '/data/original.jpg',
+        expect.objectContaining({ colorspace: Colorspace.Srgb, size: 3000 }),
+      );
+      expect(mocks.media.stackPhotoAboveArtwork).toHaveBeenCalledWith(
+        expect.objectContaining({ data: photo.data }),
+        PNG,
+        { maxLongEdge: 3000 },
+      );
+      expect(mocks.media.upscaleImage).not.toHaveBeenCalled();
+      expect(derive).toHaveBeenCalledWith(
+        auth,
+        job.sourceAssetId,
+        { buffer: Buffer.from('stacked'), extension: '.jpg' },
+        expect.objectContaining({ suffix: 'watercolor-editorial-split' }),
       );
     });
 

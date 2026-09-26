@@ -15,6 +15,7 @@ import {
   ArtJobStatus,
   AssetFileType,
   AssetType,
+  Colorspace,
   ImmichWorker,
   NotificationLevel,
   NotificationType,
@@ -25,6 +26,7 @@ import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.service.js';
 import { artStyles, buildArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
+import { decodeOriginal } from 'src/utils/image-decode.js';
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const OUTPUT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -175,11 +177,15 @@ export class ArtService extends BaseService {
         throw new Error('The art agent produced an invalid image');
       }
 
-      // generated images are often too small to fill a printed page; painterly styles take upscaling well
+      const style = job.style ? getArtStyle(job.style) : undefined;
       let output = image;
       let upscaled = '';
       const size = getArtUpscaleSize(width, height);
-      if (size) {
+      if (style?.photoAbove) {
+        // the photo sets the size, and the artwork below it is scaled to its width
+        output = { buffer: await this.stackBelowPhoto(job.sourceAssetId, image.buffer), extension: '.jpg' };
+      } else if (size) {
+        // generated images are often too small to fill a printed page; painterly styles take upscaling well
         output = { ...image, buffer: await this.mediaRepository.upscaleImage(image.buffer, size, image.extension) };
         upscaled = `, upscaled from ${width}×${height} to ${size.width}×${size.height}`;
         this.logger.log(
@@ -187,7 +193,6 @@ export class ArtService extends BaseService {
         );
       }
 
-      const style = job.style ? getArtStyle(job.style) : undefined;
       const derivedAssetService = BaseService.create(DerivedAssetService, this);
       const { id } = await derivedAssetService.createDerivedAsset(auth, job.sourceAssetId, output, {
         description: `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}${upscaled}`,
@@ -255,6 +260,23 @@ export class ArtService extends BaseService {
     const { width, height } = await this.mediaRepository.getImageMetadata(buffer);
     await this.storageRepository.createFile(join(workdir, 'source.jpg'), buffer);
     return { buffer, width, height };
+  }
+
+  /** the untouched photo above the generated artwork, decoded from the original rather than the smaller preview */
+  private async stackBelowPhoto(assetId: string, artwork: Buffer) {
+    const asset = await this.assetRepository.getById(assetId, { exifInfo: true });
+    if (!asset?.exifInfo) {
+      throw new Error('The metadata of the photo has not been extracted yet');
+    }
+
+    const { image } = await this.getConfig({ withCache: true });
+    const photo = await decodeOriginal(
+      this.mediaRepository,
+      { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
+      { ...image, colorspace: Colorspace.Srgb },
+      { size: ART_MAX_LONG_EDGE },
+    );
+    return this.mediaRepository.stackPhotoAboveArtwork(photo, artwork, { maxLongEdge: ART_MAX_LONG_EDGE });
   }
 
   private async readOutputFile(workdir: string): Promise<GeneratedImage | undefined> {

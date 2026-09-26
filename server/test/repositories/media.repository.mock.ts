@@ -40,5 +40,6 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     createContactSheet: vitest.fn(),
     analyzeImage: vitest.fn(),
     upscaleImage: vitest.fn(),
+    stackPhotoAboveArtwork: vitest.fn().mockResolvedValue(Buffer.from('stacked')),
   };
 };

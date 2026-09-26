@@ -949,6 +949,48 @@ export class MediaRepository {
     }
   }
 
+  /**
+   * Stacks a photo above an artwork of the same width into one JPEG (e.g. the editorial watercolor split). The photo
+   * is never enlarged, and the result is at most `maxLongEdge` pixels on its long edge.
+   */
+  async stackPhotoAboveArtwork(
+    photo: Bitmap,
+    artwork: Buffer,
+    { maxLongEdge = 3000, quality = 92 }: { maxLongEdge?: number; quality?: number } = {},
+  ): Promise<Buffer> {
+    const art = await sharp(artwork, { failOn: 'none' }).metadata();
+    if (!art.width || !art.height) {
+      throw new Error('The artwork is not a valid image');
+    }
+
+    const photoRatio = photo.info.height / photo.info.width;
+    const artRatio = art.height / art.width;
+    const width = Math.max(
+      1,
+      Math.floor(Math.min(photo.info.width, maxLongEdge, maxLongEdge / (photoRatio + artRatio))),
+    );
+    const top = Math.round(width * photoRatio);
+    const bottom = Math.round(width * artRatio);
+    const paper = '#f7f3ea';
+
+    const [above, below] = await Promise.all([
+      this.raw(photo).resize(width, top, { kernel: 'lanczos3', fit: 'fill' }).removeAlpha().png().toBuffer(),
+      sharp(artwork, { failOn: 'none' })
+        .resize(width, bottom, { kernel: 'lanczos3', fit: 'fill' })
+        .flatten({ background: paper })
+        .png()
+        .toBuffer(),
+    ]);
+
+    return sharp({ create: { width, height: top + bottom, channels: 3, background: paper } })
+      .composite([
+        { input: above, left: 0, top: 0 },
+        { input: below, left: 0, top },
+      ])
+      .jpeg({ quality, chromaSubsampling: '4:4:4' })
+      .toBuffer();
+  }
+
   private configureFfmpegCall(input: string, output: string | Writable, options: TranscodeCommand) {
     const ffmpegCall = ffmpeg(input, { niceness: 10 })
       .inputOptions(options.inputOptions)
