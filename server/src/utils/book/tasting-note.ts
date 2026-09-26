@@ -174,8 +174,8 @@ export const getTastingNoteBlocks = (
     const decorations: PageDecoration[] = [];
     let y = top;
     const labelWidth = Math.min(width * 0.36, fontPx * 7);
+    decorations.push(rule(left, y, width));
     if (note.rows.length > 0) {
-      decorations.push(rule(left, y, width));
       y += fontPx * 0.6;
       for (const row of note.rows) {
         const label = text(row.label, left, y, labelWidth, fontPx * 0.82, { color: accent, smallCaps: true }, 0.12);
@@ -186,7 +186,6 @@ export const getTastingNoteBlocks = (
       decorations.push(rule(left, y + fontPx * 0.1, width));
       y += fontPx * 0.9;
     } else {
-      decorations.push(rule(left, y, width));
       y += fontPx * 0.8;
     }
     const heading = text('Tasting note', left, y, width, fontPx * 0.82, { color: accent, smallCaps: true }, 0.12);

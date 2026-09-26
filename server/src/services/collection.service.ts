@@ -48,10 +48,10 @@ import {
 import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
 import {
+  FocusRect,
   ParsedSource,
   chooseReading,
   chooseSourceOcr,
-  FocusRect,
   combineSourceOcr,
   getEntriesFocus,
   getTitlePrompt,
@@ -889,22 +889,20 @@ export class CollectionService extends BaseService {
         ranges.push({ from, to });
       }
     }
-    const rows = (
-      await mapLimit(ranges, 2, ({ from, to }) =>
-        this.assetJobRepository.getForAgentEvents({
-          userIds: [auth.user.id],
-          viewingUserId: auth.user.id,
-          takenAfter: new Date(from),
-          takenBefore: new Date(to),
-          limit: COLLECTION_LIMITS.candidates,
-        }),
-      )
-    ).flat();
-    const times = new Map(rows.map((row) => [row.id, row.localDateTime.getTime()]));
+    const pages = await mapLimit(ranges, 2, ({ from, to }) =>
+      this.assetJobRepository.getForAgentEvents({
+        userIds: [auth.user.id],
+        viewingUserId: auth.user.id,
+        takenAfter: new Date(from),
+        takenBefore: new Date(to),
+        limit: COLLECTION_LIMITS.candidates,
+      }),
+    );
+    const times = new Map(pages.flat().map((row) => [row.id, row.localDateTime.getTime()]));
     const photos: LinkedPlacePhoto[] = [];
     for (const other of others) {
       const rules = getCollectionTagRules(other);
-      for (const chunk of chunks([...times.keys()])) {
+      for (const chunk of chunks(times.keys().toArray())) {
         for (const { assetId, value } of await this.tagRepository.getAssetTagsByPrefix(chunk, getTagPrefix(rules))) {
           const tag = parseCollectionTag(rules, value);
           if (tag) {

@@ -1,6 +1,6 @@
+import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import { UnionFind, cosineDistance } from 'src/utils/agent/clustering.js';
 import { softmax } from 'src/utils/collections/classify.js';
-import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
 
 /*
  * Matching the subject photos of a visit with the entries of its source. The matcher was made for food and speaks

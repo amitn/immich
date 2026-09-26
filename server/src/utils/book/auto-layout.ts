@@ -846,9 +846,7 @@ class LayoutPlanner {
     // preferred for them
     const own = pair
       ? []
-      : photos
-          .map((photo) => getEntryLayouts(photo))
-          .reduce((common, layouts) => common.filter((id) => layouts.includes(id)));
+      : getEntryLayouts(photos[0]).filter((id) => photos.every((photo) => getEntryLayouts(photo).includes(id)));
     const layouts = (this.contentLayouts.get(photos.length) ?? []).filter(
       (layout) => (!layout.collection || dishes > 0) && (!this.reserved.has(layout.id) || own.includes(layout.id)),
     );

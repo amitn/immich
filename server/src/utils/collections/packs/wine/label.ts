@@ -1,8 +1,5 @@
 import { OcrBoxInput, TextLine, groupLines, toTextBoxes } from 'src/utils/collections/ocr.js';
 import { parseMenu } from 'src/utils/collections/packs/food/menu.js';
-import { isGarbled, toTitleCase } from 'src/utils/collections/place.js';
-import { ParsedSource, SourceEntry, SourceParseOptions } from 'src/utils/collections/source.js';
-import { editDistance } from 'src/utils/collections/text.js';
 import {
   COMMON_WORDS,
   LEXICON_WORDS,
@@ -10,6 +7,9 @@ import {
   WineType,
   normalizeWords,
 } from 'src/utils/collections/packs/wine/lexicon.js';
+import { isGarbled, toTitleCase } from 'src/utils/collections/place.js';
+import { ParsedSource, SourceEntry, SourceParseOptions } from 'src/utils/collections/source.js';
+import { editDistance } from 'src/utils/collections/text.js';
 
 /**
  * Reading a bottle label. Labels are set in script fonts, curve around the bottle and are photographed at an angle
@@ -59,13 +59,16 @@ const YEAR_TOKEN = /(?<![\d\p{L}])([12][\dIlOo]{3})(er)?(?![\d\p{L}])/gu;
 
 /** the years on a line, e.g. 2009 in "2009", "1979er" or "Wehlener Sonnenuhr 2008" */
 export const findVintages = (text: string) =>
-  [...text.matchAll(YEAR_TOKEN)].flatMap((match) => {
-    const digits = match[1].replaceAll(/[Il]/g, '1').replaceAll(/[Oo]/g, '0');
-    const year = Number(digits);
-    // a year needs most of its digits read as digits
-    const letters = match[1].replaceAll(/\d/g, '').length;
-    return year >= MIN_VINTAGE && year <= MAX_VINTAGE && letters <= 2 ? [String(year)] : [];
-  });
+  text
+    .matchAll(YEAR_TOKEN)
+    .flatMap((match) => {
+      const digits = match[1].replaceAll(/[Il]/g, '1').replaceAll(/[Oo]/g, '0');
+      const year = Number(digits);
+      // a year needs most of its digits read as digits
+      const letters = match[1].replaceAll(/\d/g, '').length;
+      return year >= MIN_VINTAGE && year <= MAX_VINTAGE && letters <= 2 ? [String(year)] : [];
+    })
+    .toArray();
 
 /** a line that is just a year */
 const isVintageLine = (text: string) =>
@@ -234,14 +237,13 @@ const rawWords = (text: string) =>
 const toLabelLine = (line: TextLine): LabelLine => {
   const words = normalizeWords(line.text).split(' ').filter(Boolean);
   const terms = findTerms(words);
-  const inTerm = new Set(terms.flatMap(({ start, end }) => Array.from({ length: end - start }, (_, i) => start + i)));
   const vintages = findVintages(line.text);
   const normalized = words.join(' ');
   const noise = NOISE_TEXT.some((pattern) => pattern.test(line.text)) || NOISE_WORDS.test(normalized);
   const functionWords = words.filter((word) => FUNCTION_WORDS.has(word)).length;
   const prose = words.length >= 3 && functionWords >= 1 && terms.length === 0;
   // the text without the lexicon words and years, e.g. "Chavy" of "Louis Chavy", punctuation kept ("Joh.Jos. Prim")
-  const tokens = [...line.text.matchAll(/[\p{L}\p{M}\d]+/gu)];
+  const tokens = line.text.matchAll(/[\p{L}\p{M}\d]+/gu).toArray();
   let rest = line.text;
   if (tokens.length === words.length) {
     const cuts = [
@@ -372,7 +374,12 @@ const cleanName = (text: string) => {
     .replaceAll(/\s+/g, ' ')
     .trim();
   // "wolfer goldgrube" set in lowercase is "Wolfer Goldgrube"
-  return toTitleCase(cleaned === cleaned.toLowerCase() ? cleaned.toUpperCase() : cleaned);
+  const upper = cleaned === cleaned.toLowerCase() ? cleaned.toUpperCase() : cleaned;
+  const titled = toTitleCase(upper);
+  // "SELBACH-OSTER" is "Selbach-Oster"
+  return titled === upper
+    ? titled
+    : titled.replaceAll(/-(\p{Ll})/gu, (_, letter: string) => `-${letter.toUpperCase()}`);
 };
 
 const unique = <T>(values: T[]) => [...new Set(values)];
@@ -453,7 +460,7 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
   const german =
     styles.some((style) => GERMAN_STYLES.has(style.name)) ||
     regions.some(({ term }) => GERMAN_REGIONS.has(term.entry.name)) ||
-    terms.some(({ term }) => term.entry.kind === 'prefix' && /^Wein/.test(term.entry.name));
+    terms.some(({ term }) => term.entry.kind === 'prefix' && term.entry.name.startsWith('Wein'));
   // the most specific region: the longest name, e.g. Mosel-Saar-Ruwer over Mosel
   const region = regions
     .map(({ term, line }) => ({ entry: term.entry, line, exact: term.exact }))
@@ -472,8 +479,10 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
   for (const [index, line] of kept.entries()) {
     const markers = line.terms.filter(({ entry }) => entry.kind === 'prefix' || entry.kind === 'suffix');
     let text = line.rest;
-    for (const { site } of sites.filter((item) => item.line === line)) {
-      text = text.replace(site, ' ');
+    for (const item of sites) {
+      if (item.line === line) {
+        text = text.replace(item.site, ' ');
+      }
     }
     text = text.replaceAll(/\s+/g, ' ').trim();
     const marker = markers[0]?.entry;
@@ -530,7 +539,9 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
       ? a.height > b.height || (a.height === b.height && a.text.length <= b.text.length)
       : a.text.length > b.text.length;
   const distinct = names
-    .filter((name) => !names.some((other) => other !== name && contains(other.text, name.text) && better(other, name)))
+    .filter((name) =>
+      names.every((other) => !(other !== name && contains(other.text, name.text) && better(other, name))),
+    )
     .map((name) => ({
       ...name,
       height: Math.max(
@@ -551,7 +562,7 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
   type Part = { text: string; line: LabelLine; order: number };
   const parts: Part[] = [];
   const add = (text: string, line: LabelLine, offset = 0) => {
-    if (!parts.some((part) => normalizeWords(part.text) === normalizeWords(text))) {
+    if (parts.every((part) => normalizeWords(part.text) !== normalizeWords(text))) {
       parts.push({ text, line, order: line.top + offset });
     }
   };
@@ -588,7 +599,7 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
   const named =
     sites.length > 0 ||
     parts.some(
-      ({ text }) => !grapes.some((grape) => grape.name === text) && !styles.some((style) => style.name === text),
+      ({ text }) => grapes.every((grape) => grape.name !== text) && styles.every((style) => style.name !== text),
     );
   // ... and a wine the label names by nothing else is known by its region: "Dominican Oaks · Napa Valley · 2011"
   if (region && !region.entry.names && region.entry.name.length <= 20 && !named) {

@@ -1,7 +1,7 @@
 import { TASTING_LAYOUTS } from 'src/utils/book/layouts.js';
 import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
-import { assignBottles } from 'src/utils/collections/packs/wine/bottles.js';
 import { getWineCaption, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
+import { assignBottles } from 'src/utils/collections/packs/wine/bottles.js';
 import {
   WINERY_WORDS,
   WINE_CLASSIFY_RULES,

@@ -32,7 +32,7 @@ export const getWineCaption = (entry: string, context: { layout?: string; descri
     return entry;
   }
   const { producer, wine, vintage } = parseWineName(entry);
-  const { regions, grapes } = getNamedTerms(`${wine ?? ''}`);
+  const { regions, grapes } = getNamedTerms(wine ?? '');
   // a region or grape that is the whole name of the wine ("Pessac-Léognan", "Riesling") is said once
   const other = (values: string[]) => values.filter((value) => value.toLowerCase() !== wine?.toLowerCase());
   const fields = [

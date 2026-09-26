@@ -8,7 +8,6 @@ import {
   SubjectMatch,
   matchSubjects,
 } from 'src/utils/collections/match.js';
-import { normalizeWords } from 'src/utils/collections/packs/wine/lexicon.js';
 import {
   WineLabel,
   findVintages,
@@ -16,6 +15,7 @@ import {
   readWineLabel,
   toWineEntry,
 } from 'src/utils/collections/packs/wine/label.js';
+import { normalizeWords } from 'src/utils/collections/packs/wine/lexicon.js';
 import { editDistance } from 'src/utils/collections/text.js';
 
 /*
@@ -50,9 +50,12 @@ export type BottlePhoto = AssignPhoto & { label?: WineLabel };
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
+const letterPairs = (text: string) =>
+  Array.from({ length: Math.max(0, text.length - 1) }, (_, i) => text.slice(i, i + 2));
+
 /** "snarebtee" and "snaubte": the letter pairs they share (Dice), 0..1 */
 const pairSimilarity = (a: string, b: string) => {
-  const pairs = (text: string) => Array.from({ length: Math.max(0, text.length - 1) }, (_, i) => text.slice(i, i + 2));
+  const pairs = letterPairs;
   const x = pairs(a);
   const pool = pairs(b);
   if (x.length === 0 || pool.length === 0) {
@@ -62,10 +65,12 @@ const pairSimilarity = (a: string, b: string) => {
   let shared = 0;
   for (const pair of x) {
     const index = pool.indexOf(pair);
-    if (index !== -1) {
-      shared++;
-      pool.splice(index, 1);
+    if (index === -1) {
+      continue;
     }
+
+    shared++;
+    pool.splice(index, 1);
   }
   return (2 * shared) / total;
 };
@@ -233,8 +238,8 @@ export const assignBottles = (
     // one bottle on several photos is sure of its label only if they agree, which they do when grouped by it
     const byLookOnly =
       bottle.photos.length > 1 &&
-      !bottle.photos.some((photo, index) =>
-        bottle.photos.some((other, j) => j !== index && isSameLabel(photo.label, other.label)),
+      bottle.photos.every((photo, index) =>
+        bottle.photos.every((other, j) => j === index || !isSameLabel(photo.label, other.label)),
       );
 
     if (label && entries.length > 0) {

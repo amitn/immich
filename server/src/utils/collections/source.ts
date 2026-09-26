@@ -61,17 +61,6 @@ export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]):
  */
 export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): OcrBoxInput[] => {
   const tiled = toTextBoxes(detailed);
-  const letters = (text: string) => entryKey(text);
-  const pairs = (text: string) => new Set(Array.from({ length: text.length - 1 }, (_, i) => text.slice(i, i + 2)));
-  const isSameText = (a: string, b: string) => {
-    const [x, y] = [letters(a), letters(b)];
-    if (x.includes(y) || y.includes(x)) {
-      return true;
-    }
-    const [p, q] = [pairs(x), pairs(y)];
-    const shared = [...p].filter((pair) => q.has(pair)).length;
-    return p.size > 0 && q.size > 0 && (2 * shared) / (p.size + q.size) >= 0.3;
-  };
   const missed = stored.filter((box) => {
     const [read] = toTextBoxes([box]);
     if (!read) {
@@ -79,17 +68,34 @@ export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[])
     }
     const x = (read.left + read.right) / 2;
     const y = (read.top + read.bottom) / 2;
-    const margin = (other: { height: number }) => 0.25 * other.height;
-    return !tiled.some(
+    return tiled.every(
       (other) =>
-        x >= other.left &&
-        x <= other.right &&
-        y >= other.top - margin(other) &&
-        y <= other.bottom + margin(other) &&
-        isSameText(read.text, other.text),
+        !(
+          x >= other.left &&
+          x <= other.right &&
+          y >= other.top - 0.25 * other.height &&
+          y <= other.bottom + 0.25 * other.height &&
+          isSameText(read.text, other.text)
+        ),
     );
   });
   return [...detailed, ...missed];
+};
+
+const letterPairs = (text: string) => new Set(Array.from({ length: text.length - 1 }, (_, i) => text.slice(i, i + 2)));
+
+/** the same text read twice, give or take the letters OCR read differently: one holds the other, or most pairs */
+const isSameText = (a: string, b: string) => {
+  const [x, y] = [entryKey(a), entryKey(b)];
+  if (x.includes(y) || y.includes(x)) {
+    return true;
+  }
+  const [p, q] = [letterPairs(x), letterPairs(y)];
+  const shared = p
+    .values()
+    .filter((pair) => q.has(pair))
+    .toArray().length;
+  return p.size > 0 && q.size > 0 && (2 * shared) / (p.size + q.size) >= 0.3;
 };
 
 /** a part of a photo, normalized 0..1 */

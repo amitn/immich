@@ -309,7 +309,7 @@ const runSession = (
   const linked = session.linked.map(({ time, tag }, index) => ({
     id: `food-${index}`,
     time,
-    place: tag.split('/')[1],
+    place: tag.split('/', 2)[1],
   }));
   const places = visits.map((visit) => {
     const byTime = visit.map(({ id }) => photos[Number(id)].time);
@@ -411,13 +411,19 @@ const runSession = (
     }
   }
 
-  for (const photo of photos.filter((item) => item.kind !== 'bottle')) {
+  for (const photo of photos) {
+    if (photo.kind === 'bottle') {
+      continue;
+    }
     const scores = classifications[Number(photo.id)].scores;
     result.lines.push(
       `${photo.n} ${photo.kind} taken for ${kinds[Number(photo.id)]} [s${scores.subject.toFixed(2)} src${scores.source.toFixed(2)} sign${scores.sign.toFixed(2)} other${scores.other.toFixed(2)}]`,
     );
   }
-  for (const photo of bottles.filter((item) => kinds[Number(item.id)] !== 'subject')) {
+  for (const photo of bottles) {
+    if (kinds[Number(photo.id)] === 'subject') {
+      continue;
+    }
     const scores = classifications[Number(photo.id)].scores;
     result.lines.push(
       `${photo.n} bottle MISSED as ${kinds[Number(photo.id)]} [s${scores.subject.toFixed(2)} src${scores.source.toFixed(2)} sign${scores.sign.toFixed(2)} other${scores.other.toFixed(2)}]`,
