@@ -4,6 +4,7 @@
   import BackupSettings from './BackupSettings.svelte';
   import BookSettings from './BookSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
+  import FoodSettings from './FoodSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
   import JobSettings from './JobSettings.svelte';
   import LibrarySettings from './LibrarySettings.svelte';
@@ -44,6 +45,7 @@
     mdiPaletteOutline,
     mdiRobotOutline,
     mdiServerOutline,
+    mdiSilverwareForkKnife,
     mdiSync,
     mdiTrashCanOutline,
     mdiUpdate,
@@ -87,6 +89,13 @@
       subtitle: $t('admin.backup_settings_description'),
       key: 'backup',
       icon: mdiBackupRestore,
+    },
+    {
+      component: FoodSettings,
+      title: $t('admin.food_settings'),
+      subtitle: $t('admin.food_settings_description'),
+      key: 'food',
+      icon: mdiSilverwareForkKnife,
     },
     {
       component: ImageSettings,
