@@ -1,4 +1,5 @@
 import { bookStylePresetIds } from 'src/dtos/book.dto.js';
+import { SharedLinkType } from 'src/enum.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { AgentTool, AgentToolContext } from 'src/utils/agent/tools.js';
@@ -62,6 +63,28 @@ describe(BookAgentTools.name, () => {
     return { book, pages };
   };
 
+  const setupLink = (book: { id: string }, link: Record<string, unknown> = {}) =>
+    mocks.sharedLink.create.mockResolvedValue({
+      id: newUuid(),
+      key: Buffer.from('book-key'),
+      type: SharedLinkType.Book,
+      bookId: book.id,
+      book: { id: book.id, title: 'Book', subtitle: null, pageCount: 2, hasPdf: false },
+      albumId: null,
+      album: null,
+      assets: [],
+      userId: authStub.admin.user.id,
+      description: null,
+      password: null,
+      expiresAt: null,
+      createdAt: new Date(),
+      allowUpload: false,
+      allowDownload: true,
+      showExif: true,
+      slug: null,
+      ...link,
+    } as never);
+
   const createBook = async () => {
     const { book, pages } = setupBook();
     mocks.book.create.mockResolvedValue(book);
@@ -104,6 +127,7 @@ describe(BookAgentTools.name, () => {
         'review_book',
         'export_pdf',
         'export_html',
+        'share_book',
         'auto_layout_book',
         'add_map_page',
         'set_page_map',
@@ -125,6 +149,7 @@ describe(BookAgentTools.name, () => {
       'export_html',
       'export_pdf',
       'illustrate_map',
+      'share_book',
     ]);
   });
 
@@ -334,6 +359,80 @@ describe(BookAgentTools.name, () => {
       expect(mocks.book.setHtmlExportStatus).toHaveBeenCalledWith(book.id, 'pending');
       expect(mocks.book.setExportStatus).not.toHaveBeenCalled();
       expect(mocks.job.queue).toHaveBeenCalledWith({ name: 'BookExportHtml', data: { id: book.id } });
+    });
+  });
+
+  describe('share_book', () => {
+    afterEach(() => {
+      clearConfigCache();
+    });
+
+    it('should create a book link and return where it is', async () => {
+      const { book } = setupBook();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([book.id]));
+      const expiresAt = new Date('2030-01-01T00:00:00.000Z');
+      setupLink(book, { password: 'secret', expiresAt });
+      clearConfigCache();
+
+      const result = JSON.parse(
+        text(await call('share_book', { bookId: book.id, expiresInDays: 30, password: 'secret' })),
+      );
+
+      expect(mocks.sharedLink.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: SharedLinkType.Book,
+          bookId: book.id,
+          userId: authStub.admin.user.id,
+          password: 'secret',
+          expiresAt: expect.any(Date),
+          allowUpload: false,
+          allowDownload: true,
+        }),
+      );
+      const days = (mocks.sharedLink.create.mock.calls[0][0].expiresAt as Date).getTime() - Date.now();
+      expect(Math.round(days / 86_400_000)).toBe(30);
+      expect(result).toEqual({
+        id: expect.any(String),
+        path: `/share/${Buffer.from('book-key').toString('base64url')}`,
+        note: expect.any(String),
+        expiresAt: expiresAt.toISOString(),
+        passwordProtected: true,
+        allowDownload: true,
+        hint: expect.stringContaining('export_pdf'),
+      });
+    });
+
+    it('should return the full URL with an external domain', async () => {
+      const { book } = setupBook();
+      setupLink(book, { book: { id: book.id, title: 'Book', subtitle: null, pageCount: 2, hasPdf: true } });
+      mocks.systemMetadata.get.mockResolvedValue({ server: { externalDomain: 'https://photos.example.com' } });
+      clearConfigCache();
+
+      const result = JSON.parse(text(await call('share_book', { bookId: book.id })));
+
+      expect(result.url).toBe(`https://photos.example.com/share/${Buffer.from('book-key').toString('base64url')}`);
+      expect(result).not.toHaveProperty('hint');
+      expect(result.passwordProtected).toBe(false);
+    });
+
+    it('should not share an empty book', async () => {
+      const { book } = setupBook(0);
+
+      const result = await call('share_book', { bookId: book.id });
+
+      expect(result.isError).toBe(true);
+      expect(text(result)).toMatch(/no pages/);
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should not share a book of another user', async () => {
+      const { book } = setupBook();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set());
+
+      const result = await call('share_book', { bookId: book.id });
+
+      expect(result.isError).toBe(true);
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
     });
   });
 

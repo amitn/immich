@@ -13,10 +13,11 @@ import {
   bookStylePresets,
   defaultBookStyle,
 } from 'src/dtos/book.dto.js';
-import { BookExportFormat, Permission } from 'src/enum.js';
+import { BookExportFormat, Permission, SharedLinkType } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { PRIVATE_SOURCE_BLURRED } from 'src/services/collection.service.js';
+import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
 import {
   AgentTool,
@@ -67,7 +68,7 @@ const WORKFLOW =
   'set_page_map/add_map_page/illustrate_map) → set_caption with short captions from facts and what is visible on ' +
   'the rendered page (place, time, people, what they do; never invented light, mood or weather) → suggest a style ' +
   'preset (classic, soft, bold, or food for meals; set_book_style) → render again → export_pdf (print) and/or export_html (a ' +
-  'single-file web book). To build a book by hand instead: create_book → add_page for each page (assetIds fill the ' +
+  'single-file web book); share_book makes a public link to the web book when the user wants to share it. To build a book by hand instead: create_book → add_page for each page (assetIds fill the ' +
   'slots in one call).';
 
 const mapStyle = BookMapStyleOptionSchema.describe(
@@ -216,9 +217,16 @@ const summarizeLayout = ({ book, plan, photoCount, warnings, improvements, impro
 export class BookAgentTools extends BaseService {
   private bookService?: BookService;
 
+  private sharedLinkService?: SharedLinkService;
+
   private get books() {
     this.bookService ??= BaseService.create(BookService, this);
     return this.bookService;
+  }
+
+  private get sharedLinks() {
+    this.sharedLinkService ??= BaseService.create(SharedLinkService, this);
+    return this.sharedLinkService;
   }
 
   getTools(): AgentTool[] {
@@ -903,6 +911,63 @@ export class BookAgentTools extends BaseService {
               queued: true,
               htmlExportStatus: book.htmlExportStatus,
               downloadPath: `/api/books/${book.id}/html`,
+            });
+          }),
+      }),
+
+      defineTool({
+        name: 'share_book',
+        title: 'Share the book with a link',
+        description:
+          'Create a public link to the page-turning web version of the book, for people without an Immich account; ' +
+          'it shows only this book, with its PDF to download when allowDownload is on and the PDF was exported. ' +
+          'Optionally expires after a number of days and asks for a password. Returns the URL. The user manages ' +
+          'the link under Sharing → Shared links.',
+        input: z.object({
+          bookId,
+          expiresInDays: z
+            .int()
+            .min(1)
+            .max(3650)
+            .optional()
+            .describe('Days until the link stops working; default never'),
+          password: z.string().min(1).max(200).optional().describe('Password visitors must enter'),
+          allowDownload: z.boolean().optional().describe('Let visitors download the PDF, default true'),
+          description: z.string().max(500).optional().describe('A note shown with the link in the list of links'),
+        }),
+        mutating: true,
+        handler: (ctx, input) =>
+          this.run(async () => {
+            const book = await this.books.get(ctx.auth, input.bookId);
+            if (book.pages.length === 0) {
+              throw new ToolInputError('The book has no pages yet');
+            }
+
+            const expiresAt = input.expiresInDays
+              ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
+              : null;
+            const link = await this.sharedLinks.create(ctx.auth, {
+              type: SharedLinkType.Book,
+              bookId: input.bookId,
+              expiresAt,
+              password: input.password ?? null,
+              allowDownload: input.allowDownload ?? true,
+              showMetadata: true,
+              description: input.description ?? null,
+            });
+
+            const path = `/share/${link.key}`;
+            const { server } = await this.getConfig({ withCache: true });
+            return toolJson({
+              id: link.id,
+              ...(server.externalDomain
+                ? { url: new URL(path, server.externalDomain).href }
+                : { path, note: 'Relative to the address of this Immich server (no external domain is configured)' }),
+              expiresAt: link.expiresAt,
+              passwordProtected: !!link.password,
+              allowDownload: link.allowDownload,
+              ...(link.allowDownload &&
+                !link.book?.hasPdf && { hint: 'Export the PDF (export_pdf) so visitors can download it' }),
             });
           }),
       }),
