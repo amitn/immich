@@ -702,7 +702,8 @@
       {#if editing}
         <BookEditPanel {editor} pages={current} {pageNumber} />
       {:else if current.some((page) => page.sectionTitle || page.caption || page.slots.some((slot) => slot.caption))}
-        <div class="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 sm:flex-row">
+        <!-- the rendered pages already show their titles and captions, so this text is only for screen readers -->
+        <div class="sr-only">
           {#each current as page (page.id)}
             <div class="flex flex-1 flex-col gap-1 text-sm">
               {#if page.sectionTitle}
