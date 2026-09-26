@@ -9,6 +9,12 @@ const output = (...boxes: Array<[string, number, number, number, number]>): OcrO
   textScore: boxes.map(() => 0.95),
 });
 
+/** a line of text tilted by 30 degrees (on a 2:1 photo), starting at (x, y) */
+const tilted = (text: string, x: number, y: number) => {
+  const [dx, dy, hx, hy] = [0.3, -0.3 * Math.tan(Math.PI / 6) * 2, 0.012 * Math.sin(Math.PI / 6), 0.024];
+  return { text, box: [x, y, x + dx, y + dy, x + dx + hx, y + dy + hy, x + hx, y + hy] };
+};
+
 describe('getOcrTiles', () => {
   it('should not tile a small photo', () => {
     expect(getOcrTiles(1440, 1080)).toEqual([]);
@@ -92,6 +98,32 @@ describe('mergeOcrPasses', () => {
       { rect: right, output: output(['vongole 14,00', 0.012, 0.3, 0.2, 0.33]) },
     ]);
     expect(boxes.map(({ text }) => text)).toEqual(['Spaghetti alle vongole 14,00']);
+  });
+
+  it('should keep neighbouring lines of a tilted page apart', () => {
+    // lines tilted by 30 degrees, a text height apart: their bounding boxes overlap, their text does not
+    const lines = [tilted('4 beaten eggs', 0.3, 0.6), tilted('1/4 teaspoon salt', 0.3, 0.64)];
+    const boxes = mergeOcrPasses(width, height, [
+      {
+        rect: whole,
+        output: {
+          text: lines.map(({ text }) => text),
+          box: lines.flatMap(({ box }) => box),
+          boxScore: [0.9, 0.9],
+          textScore: [0.95, 0.95],
+        },
+      },
+    ]);
+    expect(boxes.map(({ text }) => text).toSorted()).toEqual(['1/4 teaspoon salt', '4 beaten eggs']);
+  });
+
+  it('should keep the whole text of a line that a tile read only part of', () => {
+    // faint small caps: the tile, at a higher resolution, lost the first letters
+    const boxes = mergeOcrPasses(width, height, [
+      { rect: whole, output: output(['SIMPLE CUPCAKES', 0.2, 0.1, 0.4, 0.13]) },
+      { rect: left, output: output(['UPCAKES', 0.5, 0.1, 0.72, 0.13]) },
+    ]);
+    expect(boxes.map(({ text }) => text)).toEqual(['SIMPLE CUPCAKES']);
   });
 
   it('should join text cut by the edges of two tiles where they read the same characters', () => {

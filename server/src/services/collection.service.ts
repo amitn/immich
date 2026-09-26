@@ -39,13 +39,20 @@ import {
 } from 'src/utils/collections/overpass.js';
 import {
   CollectionPack,
+  CollectionSourcePage,
   getCollectionMessages,
   getCollectionTagRules,
   redactText,
 } from 'src/utils/collections/pack.js';
 import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
-import { ParsedSource, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import {
+  ParsedSource,
+  chooseReading,
+  chooseSourceOcr,
+  getTitlePrompt,
+  mergeSourceEntries,
+} from 'src/utils/collections/source.js';
 import {
   getEntryTag,
   getSourceTag,
@@ -268,6 +275,37 @@ export class CollectionService extends BaseService {
   }
 
   /**
+   * The page a pack typesets from the text of a source photo in books (see `CollectionPack.book.sourcePage`), e.g.
+   * the ingredients and steps of a recipe of `place`, or the fields of a ticket, read at full resolution when OCR is
+   * enabled (cached like `readSource`) and redacted; undefined for a pack without it. The caller checks access to the
+   * photo.
+   */
+  async getSourcePage(packId: string, id: string, place: string): Promise<CollectionSourcePage | undefined> {
+    const pack = getCollectionPack(packId);
+    const asset = pack?.book.sourcePage ? await this.assetRepository.getById(id, { exifInfo: true }) : undefined;
+    if (!pack?.book.sourcePage || !asset || asset.deletedAt) {
+      return;
+    }
+    const stored = await this.ocrRepository.getByAssetId(id);
+    let boxes: OcrBoxInput[] = stored;
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    const exifInfo = asset.exifInfo;
+    if (isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
+      try {
+        const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
+        boxes = chooseSourceOcr(stored, detailed) === 'tiles' ? detailed : stored;
+      } catch (error) {
+        this.logger.warn(`Unable to read ${pack.names.source} ${id} at full resolution: ${error}`);
+      }
+    }
+    const { width, height } = exifInfo ? getDimensions(exifInfo) : { width: 0, height: 0 };
+    const page = pack.book.sourcePage.read(boxes, { aspectRatio: width && height ? width / height : undefined, place });
+    return page
+      ? { text: redactText(pack, page.text), ...(page.entry && { entry: redactText(pack, page.entry) }) }
+      : undefined;
+  }
+
+  /**
    * Images of a source photo for a reader: the preview, and with `zoom` the original cut in two (or four) overlapping
    * parts at a readable resolution, for small print.
    */
@@ -326,7 +364,7 @@ export class CollectionService extends BaseService {
       for (const reading of readings) {
         warnings.push(...reading.warnings);
       }
-      const merged = mergeSourceEntries(readings);
+      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
         name: item.name,
@@ -593,6 +631,54 @@ export class CollectionService extends BaseService {
     return { place, results: ids.map((id) => results.get(id)!) };
   }
 
+  /**
+   * The reading of each source that fits the subjects best, when its parser read more than one (the neighbouring
+   * recipes of a cookbook page): the title the subject photos look most like, by CLIP (the mean of the best third of
+   * the photos, as the finished dish looks more like it than the steps do)
+   */
+  private async chooseReadings(
+    pack: CollectionPack,
+    readings: SourceReading[],
+    subjectIds: string[],
+    warnings: string[],
+  ): Promise<SourceReading[]> {
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (readings.every((reading) => !reading.alternatives?.length) || !isSmartSearchEnabled(machineLearning)) {
+      return readings;
+    }
+    const stored = await this.searchRepository.getEmbeddings(subjectIds);
+    const photos = stored.map(({ embedding }) => parseEmbedding(embedding));
+    if (photos.length === 0) {
+      return readings;
+    }
+    const titles = unique(
+      readings.flatMap((reading) =>
+        [reading, ...(reading.alternatives ?? [])].flatMap(({ title }) => (title ? [title] : [])),
+      ),
+    );
+    const embeddings = await this.encodeTexts(titles.map((title) => getTitlePrompt(title)));
+    const vectors = new Map(titles.map((title, index) => [title, parseEmbedding(embeddings[index])]));
+    const fit = (title: string) => {
+      const text = vectors.get(title)!;
+      const similarities = photos
+        .map((photo) => photo.reduce((sum, value, index) => sum + value * text[index], 0))
+        .toSorted((a, b) => b - a);
+      const best = similarities.slice(0, Math.max(1, Math.ceil(similarities.length / 3)));
+      return best.reduce((sum, value) => sum + value, 0) / best.length;
+    };
+    return readings.map((reading) => {
+      const chosen = chooseReading(reading, fit);
+      if (chosen.alternatives?.length) {
+        const others = chosen.alternatives.flatMap(({ title }) => (title ? [title] : []));
+        warnings.push(
+          `The ${pack.names.source} photo also shows ${others.join(', ')}: the ${pack.names.entries} of ` +
+            `${chosen.title} fit the photos best`,
+        );
+      }
+      return chosen;
+    });
+  }
+
   private redactPlaces<T extends { name: string }>(pack: CollectionPack, candidates: T[]): T[] {
     return pack.privacy?.redact
       ? candidates.map((candidate) => ({ ...candidate, name: redactText(pack, candidate.name) }))
@@ -819,6 +905,9 @@ export class CollectionService extends BaseService {
       ...(parsed.title !== undefined && { title: redact(parsed.title) }),
       sections: parsed.sections.map((section) => redact(section)),
       ...(parsed.warnings && { warnings: parsed.warnings.map((warning) => redact(warning)) }),
+      ...(parsed.alternatives && {
+        alternatives: parsed.alternatives.map((alternative) => this.redactSource(pack, alternative)),
+      }),
     };
   }
 

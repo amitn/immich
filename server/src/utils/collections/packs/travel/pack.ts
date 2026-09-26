@@ -1,3 +1,4 @@
+import { TICKET_STUB_LAYOUT } from 'src/utils/book/layouts.js';
 import { CollectionPack } from 'src/utils/collections/pack.js';
 import { assignTravelPhotos } from 'src/utils/collections/packs/travel/assign.js';
 import { getLegChapterTitle, getTicketStubPage, reviewTravelBook } from 'src/utils/collections/packs/travel/book.js';
@@ -141,7 +142,7 @@ export const travelPack: CollectionPack = {
     chapters: 'entry',
     namedEntries: false,
     chapterTitle: getLegChapterTitle,
-    sourcePage: getTicketStubPage,
+    sourcePage: { layout: TICKET_STUB_LAYOUT, read: getTicketStubPage },
   },
 
   agent: {

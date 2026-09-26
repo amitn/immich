@@ -91,12 +91,17 @@ export type CollectionPack = {
     review: {
       unnamedEntries: boolean;
       missingSourcePage: boolean;
-      /** the pack's own checks, e.g. legs of a trip without photos */
+      /**
+       * the pack's own checks of its books, e.g. a recipe chapter without the finished dish, or a leg of a trip
+       * without photos
+       */
       check?: (input: CollectionReviewInput) => CollectionReviewIssue[];
     };
+    /** photos of one place further apart than this many hours are different chapters of a book, default 3 */
+    visitGapHours?: number;
     /**
      * one chapter per entry (e.g. a leg of a trip) instead of one per visit of a place (a meal at a restaurant); a
-     * source photo joins the chapter of the entry its `sourcePage` names
+     * source photo joins the chapter of the entry its source page names
      */
     chapters?: 'visit' | 'entry';
     /**
@@ -107,10 +112,18 @@ export type CollectionPack = {
     /** the title of the chapter of an entry, e.g. "Bus Chania → Sougia · 4 Oct 2016 · Crete, October 2016" */
     chapterTitle?: (entry: string, place: string) => string;
     /**
-     * a page typeset from the text read on a source photo instead of the photo, e.g. a ticket stub made of the
-     * redacted fields of a boarding pass: books then never print the photo (default: the photo is printed)
+     * the source's page typeset from its text, read from the photo's OCR (at full resolution, redacted) when the book
+     * is laid out; without it, the page shows the photo and lists the entries of the chapter
      */
-    sourcePage?: (ocr: OcrBoxInput[], options: { aspectRatio?: number }) => CollectionSourcePage | undefined;
+    sourcePage?: {
+      /**
+       * the layout the text is set on: one with a slot sets it beside the photo (the recipe layout: the card, then
+       * its ingredients and steps), one without puts it in place of the photo, which books then never print (the
+       * ticket-stub layout: the redacted fields of a boarding pass)
+       */
+      layout: string;
+      read: (ocr: OcrBoxInput[], context: { aspectRatio?: number; place: string }) => CollectionSourcePage | undefined;
+    };
   };
 
   agent: {
@@ -135,10 +148,21 @@ export type CollectionPack = {
   };
 };
 
-/** a source typeset as a page of its own: the entry it is for, and its text (lines of "Label: value") */
-export type CollectionSourcePage = { entry?: string; caption: string };
+/** the page of a source typeset from its text: its text, and the entry it is for (e.g. the leg of a ticket) */
+export type CollectionSourcePage = { text: string; entry?: string };
 
-/** what a pack's own book checks see: the pages, and the photos with their collection tags */
+/** a chapter of a book with the photos of one visit of a place (e.g. a recipe), for a pack's review */
+export type CollectionChapter = {
+  place: string;
+  /** the entries of the photos placed in the book, with their photos, in the order they are placed */
+  placed: Array<{ entry: string; assetIds: string[] }>;
+  /** the entries of the visit's photos that could be in the book (e.g. the album) */
+  available: Array<{ entry: string; assetIds: string[] }>;
+  /** one-based numbers of the pages of the chapter */
+  pages: number[];
+};
+
+/** what a pack's own book checks see: the pages, the photos with their collection tags, and the pack's chapters */
 export type CollectionReviewInput = {
   pages: Array<{
     layout: string;
@@ -152,6 +176,8 @@ export type CollectionReviewInput = {
     collection?: { pack: string; place: string; kind: 'entry' | 'source'; entry?: string } | null;
     sourcePage?: CollectionSourcePage | null;
   }>;
+  /** the chapters of the pack's places in the book */
+  chapters: CollectionChapter[];
 };
 
 /** an issue of a pack's own book check, of one of the kinds `review_book` reports */

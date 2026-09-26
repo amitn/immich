@@ -48,6 +48,7 @@ describe('book layouts', () => {
     expect(food).toEqual([
       'menu',
       'menu-wide',
+      'recipe',
       'dish-opener',
       'dish',
       'dish-portrait',

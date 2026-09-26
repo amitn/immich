@@ -118,10 +118,10 @@ const getChapterEntry = (photo: CollectionPhoto) => {
 
 /**
  * The visits among the photos: the photos tagged with one place of one pack, split where more than `VISIT_GAP_MS`
- * passes between two of them, with the untagged photos taken during the visit (up to `VISIT_MARGIN_MS` before or
- * after). A pack with a chapter per entry (a trip, whose entries are its legs) has a visit per entry instead, whatever
- * the gaps, and its sources join the entry they are for. The other photos are returned as they are. Both are in time
- * order.
+ * (or the pack's `book.visitGapHours`, e.g. a recipe photographed the day after the cooking) passes between two of
+ * them, with the untagged photos taken during the visit (up to `VISIT_MARGIN_MS` before or after). A pack with a
+ * chapter per entry (a trip, whose entries are its legs) has a visit per entry instead, whatever the gaps, and its
+ * sources join the entry they are for. The other photos are returned as they are. Both are in time order.
  */
 export const getPlaceVisits = <T extends CollectionPhoto>(photos: T[]): { visits: PlaceVisit<T>[]; others: T[] } => {
   const byTime = (a: T, b: T) => a.takenAt - b.takenAt || a.id.localeCompare(b.id);
@@ -138,12 +138,14 @@ export const getPlaceVisits = <T extends CollectionPhoto>(photos: T[]): { visits
       visits.push(...getEntryVisits(group));
       continue;
     }
+    const hours = getCollectionPack(pack)?.book.visitGapHours;
+    const gap = hours === undefined ? VISIT_GAP_MS : hours * 60 * 60 * 1000;
     // the spelling used most often names the place
     const names = Map.groupBy(group, (photo) => photo.collection!.place.trim());
     const place = [...names].toSorted((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))[0][0];
     let current: T[] = [];
     for (const photo of group) {
-      if (current.length > 0 && photo.takenAt - current.at(-1)!.takenAt > VISIT_GAP_MS) {
+      if (current.length > 0 && photo.takenAt - current.at(-1)!.takenAt > gap) {
         visits.push({ pack, place, photos: current, start: current[0].takenAt, end: current.at(-1)!.takenAt });
         current = [];
       }

@@ -57,6 +57,7 @@ import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { BookPageWithPlacements, BookRepository } from 'src/repositories/book.repository.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
@@ -140,7 +141,6 @@ import {
 } from 'src/utils/book/render.js';
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
-import { redactText } from 'src/utils/collections/pack.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
@@ -209,6 +209,9 @@ export const getMapArtPrompt = (title?: string) =>
     `and keep the compass rose and the scale bar${title ? ` and the title "${title}"` : ''}.`,
     'Do not add, remove or translate any text, and keep the aspect ratio of the map.',
   ].join(' ');
+
+/** the most source photos whose text is read for their pages (each is read at full resolution) */
+const MAX_SOURCE_PAGES = 24;
 
 const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) => {
   const results: R[] = Array.from({ length: items.length });
@@ -1677,28 +1680,26 @@ export class BookService extends BaseService {
     });
     // the source (menu) photo that reads best gets the source page
     const menuIds = photos.filter((photo) => photo.collection?.kind === 'source').map((photo) => photo.id);
-    // a pack may typeset its sources from their text instead (a ticket stub), and never print them
-    const typeset = photos.filter(
-      (photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourcePage,
-    );
-    if (menuIds.length > 1 || typeset.length > 0) {
+    if (menuIds.length > 1) {
       const lines = Map.groupBy(await this.ocrRepository.getByAssetIds(menuIds), ({ assetId }) => assetId);
       for (const photo of photos) {
         photo.textLines = lines.get(photo.id)?.length ?? 0;
       }
-      for (const photo of typeset) {
-        const pack = getPhotoPack(photo)!;
-        const size = { width: photo.width, height: photo.height };
-        const page = pack.book.sourcePage!(lines.get(photo.id) ?? [], {
-          ...(size.width && size.height && { aspectRatio: size.width / size.height }),
-        });
-        photo.sourcePage = page
-          ? {
-              ...(page.entry && { entry: redactText(pack, page.entry) }),
-              caption: redactText(pack, page.caption),
-            }
-          : null;
-      }
+    }
+    // the page a pack typesets from the text of a source: beside its photo (the ingredients and steps of a recipe), or
+    // in place of it (the fields of a ticket, whose photo is never printed, even when its text can't be read)
+    const typeset = photos
+      .filter((photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourcePage)
+      .slice(0, MAX_SOURCE_PAGES);
+    if (typeset.length > 0) {
+      const collections = BaseService.create(CollectionService, this);
+      await mapLimit(typeset, 2, async (photo) => {
+        const { pack, place } = photo.collection!;
+        const page = await collections.getSourcePage(pack, photo.id, place);
+        if (page) {
+          photo.sourcePage = { ...page, layout: getPhotoPack(photo)!.book.sourcePage!.layout };
+        }
+      });
     }
 
     // a copy of a dish (e.g. an improved one) is still that dish

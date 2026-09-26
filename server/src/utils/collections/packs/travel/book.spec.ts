@@ -35,7 +35,7 @@ const photo = (iso: string, values: string[], extra: Partial<AutoLayoutPhoto> = 
 };
 
 const ticket = (iso: string, entry: string, caption: string) =>
-  photo(iso, [getSourceTag(rules, trip)], { sourcePage: { entry, caption } });
+  photo(iso, [getSourceTag(rules, trip)], { sourcePage: { entry, text: caption, layout: TICKET_STUB_LAYOUT } });
 
 describe('the travel pack in books', () => {
   it('should have a Travel style that looks printed', () => {
@@ -75,7 +75,7 @@ describe('the travel pack in books', () => {
         }),
     );
     expect(stubs.every(Boolean)).toBe(true);
-    expect(stubs.find((stub) => stub?.entry === 'Flight BR186 Taipei → Okinawa, 9 Nov')?.caption).toBe(
+    expect(stubs.find((stub) => stub?.entry === 'Flight BR186 Taipei → Okinawa, 9 Nov')?.text).toBe(
       [
         'Mode: Flight',
         'Carrier: EVA Air',
@@ -89,7 +89,7 @@ describe('the travel pack in books', () => {
         'Gate: B8',
       ].join('\n'),
     );
-    expect(parseTicketStub(stubs.find((stub) => stub?.entry?.startsWith('Ferry'))!.caption)).toMatchObject({
+    expect(parseTicketStub(stubs.find((stub) => stub?.entry?.startsWith('Ferry'))!.text)).toMatchObject({
       mode: 'Ferry',
       from: 'Sougia',
       to: 'Sfakia',
@@ -122,8 +122,8 @@ describe('the travel pack in books', () => {
     ]);
     const stubs = plan.pages.filter(({ layout }) => layout === TICKET_STUB_LAYOUT);
     expect(stubs.map(({ sectionTitle, caption, slots }) => ({ sectionTitle, caption, slots }))).toEqual([
-      { sectionTitle: plan.sections[0].title, caption: photos[7].sourcePage!.caption, slots: [] },
-      { sectionTitle: plan.sections[1].title, caption: photos[8].sourcePage!.caption, slots: [] },
+      { sectionTitle: plan.sections[0].title, caption: photos[7].sourcePage!.text, slots: [] },
+      { sectionTitle: plan.sections[1].title, caption: photos[8].sourcePage!.text, slots: [] },
     ]);
     expect(plan.pages.flatMap(({ slots }) => slots.map(({ assetId }) => assetId)).some((id) => tickets.has(id))).toBe(
       false,
@@ -156,7 +156,7 @@ describe('the travel pack in books', () => {
       size,
       style,
       pages: [
-        { layout: TICKET_STUB_LAYOUT, caption: photos[2].sourcePage!.caption, assets: [] },
+        { layout: TICKET_STUB_LAYOUT, caption: photos[2].sourcePage!.text, assets: [] },
         { layout: 'single', assets: [{ slot: 0, assetId: photos[0].id, crop: null }] },
         { layout: 'single', assets: [{ slot: 0, assetId: photos[1].id, crop: null }] },
         { layout: 'single', assets: [{ slot: 0, assetId: photos[3].id, crop: null }] },

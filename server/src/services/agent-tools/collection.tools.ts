@@ -202,6 +202,13 @@ export class CollectionAgentTools extends BaseService {
                 ...(price && { price }),
                 ...(section && { section }),
               })),
+              // other readings of the page, e.g. the neighbouring recipes of a cookbook page
+              ...(reading.alternatives?.length && {
+                alternatives: reading.alternatives.map(({ title, items }) => ({
+                  title,
+                  entries: items.map(({ name }) => name),
+                })),
+              }),
               ocr: reading.ocr,
               ...(reading.warnings.length > 0 && { warnings: reading.warnings }),
             },

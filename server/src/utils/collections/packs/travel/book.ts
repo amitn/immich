@@ -41,7 +41,7 @@ export const getTicketStubPage = (
     ...(ticket.fare && { fare: ticket.fare }),
     notes: ticket.otherTime ? [`Also written on the ticket: ${ticket.otherTime}`] : [],
   });
-  return { entry: getLegName(ticket), caption };
+  return { entry: getLegName(ticket), text: caption };
 };
 
 const LEG =
@@ -159,7 +159,7 @@ export const reviewTravelBook = ({ pages, photos }: CollectionReviewInput): Coll
         assetIds: [document.id],
       });
     }
-    if (document.sourcePage && !/^Date:/m.test(document.sourcePage.caption)) {
+    if (document.sourcePage && !/^Date:/m.test(document.sourcePage.text)) {
       issues.push({
         severity: 'low',
         type: 'missing-captions',

@@ -19,6 +19,7 @@ import { getEntryName, getPhotoPack, isSourcePhoto } from 'src/utils/book/collec
 import { PageSize, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { isMapStyleFallback } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI } from 'src/utils/book/render.js';
+import { CollectionChapter } from 'src/utils/collections/pack.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 export type BookReviewSeverity = (typeof bookReviewSeverities)[number];
@@ -479,14 +480,52 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     });
   }
 
-  // the packs' own checks, e.g. the legs of a trip without photos
+  // the packs' own checks, with the chapters of their places: e.g. a recipe without its finished dish, a leg of a trip
+  // without photos
+  const chapters = new Map<string, CollectionChapter & { pack: string }>();
+  const chapterOf = (packId: string, place: string) => {
+    const key = sourceKey(packId, place);
+    const chapter = chapters.get(key) ?? { pack: packId, place, placed: [], available: [], pages: [] };
+    chapters.set(key, chapter);
+    return chapter;
+  };
+  const addEntry = (list: CollectionChapter['placed'], entry: string, assetId: string) => {
+    const item = list.find((other) => other.entry === entry);
+    if (item) {
+      item.assetIds.push(assetId);
+    } else {
+      list.push({ entry, assetIds: [assetId] });
+    }
+  };
+  for (const index of pages.keys()) {
+    for (const asset of placements[index]) {
+      const photo = photos.get(asset.assetId);
+      const entry = photo && getEntryName(photo);
+      if (!entry || !getPhotoPack(photo)?.book.review.check) {
+        continue;
+      }
+      const chapter = chapterOf(photo.collection!.pack, photo.collection!.place);
+      addEntry(chapter.placed, entry, photo.id);
+      chapter.pages = [...new Set([...chapter.pages, index + 1])];
+    }
+  }
+  for (const photo of input.photos) {
+    const entry = getEntryName(photo);
+    const key = photo.collection ? sourceKey(photo.collection.pack, photo.collection.place) : '';
+    if (entry && chapters.has(key)) {
+      addEntry(chapters.get(key)!.available, entry, photo.id);
+    }
+  }
   const packs = new Set(input.photos.flatMap((photo) => (photo.collection ? [photo.collection.pack] : [])));
   for (const packId of packs) {
     const check = getCollectionPack(packId)?.book.review.check;
-    if (check) {
-      for (const issue of check({ pages, photos: input.photos })) {
-        add(issue);
-      }
+    const own = chapters
+      .values()
+      .filter((chapter) => chapter.pack === packId)
+      .map(({ pack: _, ...chapter }) => chapter)
+      .toArray();
+    for (const issue of check?.({ pages, photos: input.photos, chapters: own }) ?? []) {
+      add(issue);
     }
   }
 

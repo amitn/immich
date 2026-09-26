@@ -5,6 +5,7 @@ import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.j
 import {
   BookCollectionTag,
   getEntryCaption,
+  getPhotoPack,
   getPlaceVisits,
   getRunsBetweenVisits,
   isCollectionTheme,
@@ -71,10 +72,11 @@ export type AutoLayoutPhoto = {
   /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
   /**
-   * a source typeset as a page of its own instead of its photo, e.g. a ticket stub made of the redacted fields of a
-   * boarding pass (see `CollectionPack.book.sourcePage`): the photo is never placed
+   * the page its pack typesets from the text of the source (see `CollectionPack.book.sourcePage`), and the layout it
+   * is set on: the recipe layout sets the ingredients and steps of a recipe beside the photo of the card, the
+   * ticket-stub layout sets the redacted fields of a boarding pass in place of its photo, which is then never placed
    */
-  sourcePage?: CollectionSourcePage | null;
+  sourcePage?: (CollectionSourcePage & { layout: string }) | null;
 };
 
 export type AutoLayoutOptions = {
@@ -187,7 +189,7 @@ const COPY_MARGIN = 0.05;
 const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
-const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', TICKET_STUB_LAYOUT]);
+const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', 'recipe', TICKET_STUB_LAYOUT]);
 /** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
 const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
 /** the entries of a source page are listed one per line up to this many */
@@ -1064,6 +1066,12 @@ export const allocatePages = (sizes: number[], total: number) => {
   return pages;
 };
 
+/** a source photo whose pack typesets its text in place of the photo (a ticket stub), which is never printed */
+const isTypesetOnly = (photo: AutoLayoutPhoto) => {
+  const typeset = isSourcePhoto(photo) ? getPhotoPack(photo)?.book.sourcePage : undefined;
+  return !!typeset && getLayout(typeset.layout)?.slots.length === 0;
+};
+
 /**
  * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
  * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
@@ -1130,8 +1138,13 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // photos too small for every slot, then one photo (or an intentional pair) per stack
   const printable: Candidate[] = [];
   for (const photo of photos) {
-    // a source typeset from its text is never printed, however small its photo
-    if (planner.isPrintable(photo) || photo.sourcePage) {
+    // a source whose pack typesets its text in place of it (a ticket stub) is never printed: without that text (it
+    // could not be read), it is left out
+    if (isTypesetOnly(photo) && !photo.sourcePage) {
+      drop(photo, 'duplicate');
+      continue;
+    }
+    if (planner.isPrintable(photo) || isTypesetOnly(photo)) {
       printable.push(photo);
     } else {
       drop(photo, 'resolution');
@@ -1164,6 +1177,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   );
 
   const pages: AutoLayoutPage[] = [];
+  /** pages typeset from the text of a source in place of its photo */
+  const typesetPages = new Set<AutoLayoutPage>();
   const used = new Set<string>();
   const pagePhotos = new Map<AutoLayoutPage, Candidate[]>();
   const place = (photo: Candidate, layout: BookLayout, slot = 0): AutoLayoutSlot => {
@@ -1275,15 +1290,32 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     menu?: { photo: Candidate; layout: BookLayout };
   };
 
-  /** the source page layout that keeps most of the photo and prints it sharp enough */
-  const getMenuLayout = (photo: Candidate) =>
-    SOURCE_LAYOUTS.map((id) => layouts.find((layout) => layout.id === id))
-      .filter((layout): layout is BookLayout => !!layout && planner.isSharpEnough(photo, planner.getShapes(layout)[0]))
-      .toSorted(
-        (a, b) =>
-          planner.getCrop(photo, planner.getShapes(b)[0].aspect).kept -
-          planner.getCrop(photo, planner.getShapes(a)[0].aspect).kept,
-      )[0];
+  /**
+   * the source page layout that keeps most of the photo and prints it sharp enough; the layout of the page the pack
+   * typesets from the text of the source when it has one: beside the photo (a recipe, when the photo prints sharp
+   * enough there) or in place of it (a ticket stub)
+   */
+  const getMenuLayout = (photo: Candidate) => {
+    const typeset = photo.sourcePage ? layouts.find((layout) => layout.id === photo.sourcePage!.layout) : undefined;
+    if (typeset && typeset.slots.length === 0) {
+      return typeset;
+    }
+    return [...(typeset ? [[typeset.id]] : []), SOURCE_LAYOUTS]
+      .map((ids) =>
+        ids
+          .map((id) => layouts.find((layout) => layout.id === id))
+          .filter(
+            (layout): layout is BookLayout => !!layout && planner.isSharpEnough(photo, planner.getShapes(layout)[0]),
+          )
+          .toSorted(
+            (a, b) =>
+              planner.getCrop(photo, planner.getShapes(b)[0].aspect).kept -
+              planner.getCrop(photo, planner.getShapes(a)[0].aspect).kept,
+          )
+          .at(0),
+      )
+      .find((layout) => layout !== undefined);
+  };
 
   const sectionPlans: SectionPlan[] = sections.map(({ photos: units, visit }) => {
     let section = units;
@@ -1296,9 +1328,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       const byLegibility = (a: Candidate, b: Candidate) =>
         (b.textLines ?? 0) - (a.textLines ?? 0) || byImportance(a, b);
       for (const photo of section.filter((unit) => !unit.pair && isSourcePhoto(unit)).toSorted(byLegibility)) {
-        // a source typeset from its text (a ticket stub) needs no photo that prints sharp enough
-        const stub = photo.sourcePage && layouts.find((layout) => layout.id === TICKET_STUB_LAYOUT);
-        const layout = menu ? undefined : (stub ?? getMenuLayout(photo));
+        const layout = menu ? undefined : getMenuLayout(photo);
         if (layout) {
           menu = { photo, layout };
         } else if (menu) {
@@ -1486,15 +1516,17 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       }
     }
 
-    if (section.menu?.layout.id === TICKET_STUB_LAYOUT) {
+    if (section.menu && section.menu.layout.slots.length === 0) {
       // the text of the source, never its photo
-      pages.push({
-        layout: TICKET_STUB_LAYOUT,
+      const page: AutoLayoutPage = {
+        layout: section.menu.layout.id,
         slots: [],
         sectionTitle: section.title,
-        caption: section.menu.photo.sourcePage!.caption,
+        caption: section.menu.photo.sourcePage!.text,
         section: index,
-      });
+      };
+      pages.push(page);
+      typesetPages.add(page);
       drop(section.menu.photo, 'duplicate');
     } else if (section.menu) {
       const page: AutoLayoutPage = {
@@ -1597,8 +1629,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       // the map is titled with the place (restaurant) and captioned with the city and date; the source lists the
       // entries (the menu page lists the dishes)
       page.sectionTitle = visit.title;
-      // a ticket stub keeps its text
-      if (page.layout !== TICKET_STUB_LAYOUT) {
+      // a page typeset in place of its source (a ticket stub) keeps its text
+      if (!typesetPages.has(page)) {
         delete page.caption;
       }
       if (page.map) {
@@ -1611,6 +1643,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       if (dishes.length > 0) {
         // a short list beside a menu, or a run of names below a wide one or when there are many
         page.caption = dishes.join(page.layout === 'menu' && dishes.length <= SOURCE_LIST_MAX ? '\n' : ' · ');
+      }
+      // the text the pack typesets beside the source, e.g. the ingredients and steps of a recipe
+      const typeset = pagePhotos.get(page)?.[0]?.sourcePage;
+      if (typeset?.layout === page.layout) {
+        page.caption = typeset.text;
       }
       for (const place of getPlaces(visitPhotos.get(page.section!) ?? [])) {
         visited.add(place);

@@ -16,9 +16,10 @@ describe('BookStylePresetPicker component', () => {
     render(BookStylePresetPicker);
 
     const radios = screen.getAllByRole('radio');
-    // then the presets of the other collection packs
-    expect(radios.map((radio) => radio.getAttribute('value')).slice(0, 4)).toEqual(['soft', 'classic', 'bold', 'food']);
-    expect(radios).toHaveLength(BOOK_STYLE_PRESETS.length);
+    // the built-in presets, food, then the presets of the other collection packs
+    const values = radios.map((radio) => radio.getAttribute('value'));
+    expect(values.slice(0, 4)).toEqual(['soft', 'classic', 'bold', 'food']);
+    expect(values).toEqual([...BOOK_STYLE_PRESETS]);
     expect(screen.getByRole('radio', { name: /book_style_preset_soft/ })).toBeChecked();
     expect(screen.getByText('book_style_preset_soft_description')).toBeInTheDocument();
   });
@@ -53,14 +54,14 @@ describe('BookStylePresetPicker component', () => {
 
     await waitFor(() => expect(screen.getAllByText('book_style_margins')).toHaveLength(4));
     const swatches = [...container.querySelectorAll<HTMLElement>(':scope label > span[aria-hidden="true"]')];
-    expect(swatches.map((swatch) => swatch.style.backgroundColor).slice(0, 4)).toEqual([
+    expect(swatches.slice(0, 4).map((swatch) => swatch.style.backgroundColor)).toEqual([
       '#f6f1e7',
       '#ffffff',
       '#ffffff',
       '#f6f0e4',
     ]);
     // the food swatch looks like a printed menu
-    expect(swatches.map((swatch) => swatch.dataset.theme).slice(0, 4)).toEqual([
+    expect(swatches.slice(0, 4).map((swatch) => swatch.dataset.theme)).toEqual([
       undefined,
       undefined,
       undefined,
