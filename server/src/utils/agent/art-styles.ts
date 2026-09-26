@@ -165,6 +165,8 @@ export const artStyles: ArtStyle[] = [
   },
 ];
 
+const CHOSEN_CAPTION = 'a short caption of your choice that fits the scene (2 to 4 words)';
+
 export const getArtStyle = (id: string) => artStyles.find((style) => style.id === id);
 
 export const buildArtPrompt = ({
@@ -181,6 +183,10 @@ export const buildArtPrompt = ({
     throw new Error('Either a style or a prompt is required');
   }
 
-  const text = caption?.trim() || 'summer days';
+  const text = caption?.trim();
+  if (!text) {
+    // without a caption the agent picks one, as the art dialog promises
+    return template.replaceAll('"{caption}"', () => CHOSEN_CAPTION).replaceAll('{caption}', () => CHOSEN_CAPTION);
+  }
   return template.replaceAll('{caption}', () => text);
 };

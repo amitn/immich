@@ -18,8 +18,13 @@ describe('art styles', () => {
     expect(prompt).not.toContain('{caption}');
   });
 
-  it('should fall back to a default caption', () => {
-    expect(buildArtPrompt({ style: getArtStyle('vintage-lithograph') })).toContain('"summer days"');
+  it('should let the agent choose a caption when there is none', () => {
+    for (const caption of [undefined, '', '  ']) {
+      const prompt = buildArtPrompt({ style: getArtStyle('vintage-lithograph'), caption });
+      expect(prompt).toContain('lettering a short caption of your choice');
+      expect(prompt).not.toContain('{caption}');
+      expect(prompt).not.toContain('"');
+    }
   });
 
   it('should prefer a custom prompt', () => {

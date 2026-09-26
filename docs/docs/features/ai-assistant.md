@@ -191,7 +191,7 @@ Open a photo you own and choose **Artistic style…** from the menu, or ask the 
 
 Or choose **Custom** and describe the artwork in your own words. For the other styles, the optional **Custom prompt** adds extra instructions, such as _warmer colors, keep the sky empty_.
 
-The **Editorial watercolor split**, **Gouache travel poster**, **Vintage lithograph** and **Botanical plate** styles write a short **Caption** into the artwork.
+The **Editorial watercolor split**, **Gouache travel poster**, **Vintage lithograph** and **Botanical plate** styles write a short **Caption** into the artwork. Leave it empty to let the agent choose one that fits the scene.
 
 Select **Generate**. It usually takes 30 seconds to 2 minutes, and stops after 10 minutes. You can **Close (keeps running)**: a notification tells you when the artwork is ready or if it failed. The artwork is a new photo stacked with the original and tagged `AI Artwork/<style name>`.
 
