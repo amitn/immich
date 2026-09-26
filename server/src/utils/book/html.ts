@@ -1,4 +1,5 @@
 import { NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   LINE_HEIGHT,
   PRINT_DPI,
@@ -551,7 +552,7 @@ export const buildBookHtml = (book: RenderBookInput, pages: RenderPageInput[], o
     `--ar:${num(book.pageWidthMm / book.pageHeightMm)}`,
     `--page-w:${book.pageWidthMm}mm`,
     `--page-h:${book.pageHeightMm}mm`,
-    `--font:${safeFontFamily(style.fontFamily)}`,
+    `--font:${safeFontFamily(getFontStack(style.fontFamily))}`,
     `--text:${safeColor(style.textColor, '#222222')}`,
   ].join(';');
 

@@ -3,6 +3,7 @@ import { LRUMap } from 'mnemonist';
 import sharp, { type Sharp } from 'sharp';
 import type { BookMap } from 'src/dtos/book.dto.js';
 import { haversineKm } from 'src/utils/agent/events.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import { isMapLayout } from 'src/utils/book/layouts.js';
 import { TileStyle, getTileStyle } from 'src/utils/book/map-styles.js';
 import { escapeXml } from 'src/utils/book/render.js';
@@ -557,7 +558,7 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
   const { width, height } = viewport;
   const u = Math.min(width, height) / 1000;
   const parts: string[] = [];
-  const labelFont = theme.labelFont === 'serif' ? fontFamily : 'sans-serif';
+  const labelFont = theme.labelFont === 'serif' ? fontFamily : getFontStack('sans-serif');
 
   const route = points.filter(
     (point, i) => i === 0 || Math.hypot(point.x - points[i - 1].x, point.y - points[i - 1].y) >= 6 * u,
@@ -631,7 +632,7 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
     const fontPx = Math.max(9, 11 * u);
     parts.push(
       `<rect x="${fmt(width - MAP_ATTRIBUTION.length * fontPx * 0.52 - 12 * u)}" y="${fmt(height - fontPx * 1.7)}" width="${fmt(MAP_ATTRIBUTION.length * fontPx * 0.52 + 12 * u)}" height="${fmt(fontPx * 1.7)}" fill="#ffffff" fill-opacity="0.7"/>`,
-      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - fontPx * 0.5)}" font-family="sans-serif" font-size="${fmt(fontPx)}" fill="#333333" text-anchor="end">${escapeXml(MAP_ATTRIBUTION)}</text>`,
+      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - fontPx * 0.5)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(fontPx)}" fill="#333333" text-anchor="end">${escapeXml(MAP_ATTRIBUTION)}</text>`,
     );
   }
 
@@ -666,7 +667,7 @@ export const renderMap = async (
   const height = Math.max(16, Math.round(size.height));
   const map = page.map ?? { ...DEFAULT_MAP, ...(page.sectionTitle && { title: page.sectionTitle }) };
   const warnings: string[] = [];
-  const fontFamily = ctx.fontFamily ?? 'serif';
+  const fontFamily = getFontStack(ctx.fontFamily ?? 'serif');
 
   if (ctx.illustrated) {
     try {

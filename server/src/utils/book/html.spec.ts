@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import { NormalizedRect, defaultBookStyle } from 'src/dtos/book.dto.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   HTML_CSP,
   HtmlImage,
@@ -368,7 +369,7 @@ describe('buildBookHtml', () => {
       ],
       { images },
     );
-    expect(html).toContain('--font:Georgia, serif');
+    expect(html).toContain(`--font:Georgia, ${getFontStack('serif')}`);
     expect(html).toContain('background:#fdf6e3');
     expect(html).toMatch(/<h2>Summer in Rome<\/h2>/);
     expect(html).toMatch(/<p>Italy 2025<\/p>/);
