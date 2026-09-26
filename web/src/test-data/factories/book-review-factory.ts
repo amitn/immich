@@ -4,6 +4,7 @@ import {
   Type,
   type BookReviewIssueDto,
   type BookReviewResponseDto,
+  type BookStyle,
   type BookStylePresetResponseDto,
 } from '@immich/sdk';
 import { Sync } from 'factory.ts';
@@ -51,6 +52,23 @@ export const bookStylePresets: BookStylePresetResponseDto[] = [
       titleSizePt: 32,
       captionSizePt: 9,
     },
+  },
+  // TODO: `BookStylePreset.Food`, with `theme` and `accentColor` in the style type, once the SDK is regenerated
+  {
+    id: 'food' as BookStylePreset,
+    name: 'Food',
+    description: 'A printed menu',
+    style: {
+      marginMm: 18,
+      gutterMm: 6,
+      background: '#f6f0e4',
+      textColor: '#2a2420',
+      fontFamily: 'FreeSerif, serif',
+      titleSizePt: 30,
+      captionSizePt: 10.5,
+      theme: 'food',
+      accentColor: '#8c3b2a',
+    } as BookStyle,
   },
 ];
 

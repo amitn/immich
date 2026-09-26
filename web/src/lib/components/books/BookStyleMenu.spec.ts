@@ -9,7 +9,7 @@ import { bookDetailFactory } from '@test-data/factories/book-factory';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
 import BookStyleMenu from './BookStyleMenu.svelte';
 
-const [classic, soft] = bookStylePresets;
+const [classic, soft, , food] = bookStylePresets;
 
 type Props = ComponentProps<typeof BookStyleMenu>;
 /** TestWrapper provides the tooltips of the menu button */
@@ -46,8 +46,9 @@ describe('BookStyleMenu component', () => {
       expect.stringContaining('book_style_preset_soft'),
       expect.stringContaining('book_style_preset_classic'),
       expect.stringContaining('book_style_preset_bold'),
+      expect.stringContaining('book_style_preset_food'),
     ]);
-    expect(entries.map((entry) => entry.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
+    expect(entries.map((entry) => entry.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false']);
   });
 
   it('should label the button like the other header buttons', async () => {
@@ -76,7 +77,7 @@ describe('BookStyleMenu component', () => {
     renderMenu({ book, onUpdated });
     const entries = await openMenu();
 
-    expect(entries).toHaveLength(4);
+    expect(entries).toHaveLength(5);
     expect(entries[0]).toHaveTextContent('book_style_custom');
     expect(entries[0]).toHaveAttribute('aria-checked', 'true');
     expect(entries[0]).toHaveAttribute('aria-disabled', 'true');
@@ -98,6 +99,28 @@ describe('BookStyleMenu component', () => {
       bookUpdateDto: { stylePreset: BookStylePreset.Classic },
     });
     expect(modalManager.showDialog).not.toHaveBeenCalled();
+  });
+
+  it('should apply the food preset and mark it', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+    const updated = { ...book, style: { ...food.style } };
+    sdkMock.updateBook.mockResolvedValue(updated);
+
+    renderMenu({ book, onUpdated });
+    await openMenu();
+    await fireEvent.click(screen.getByRole('menuitemradio', { name: /book_style_preset_food/ }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(updated));
+    expect(sdkMock.updateBook).toHaveBeenCalledWith({ id: book.id, bookUpdateDto: { stylePreset: 'food' } });
+  });
+
+  it('should mark the food preset of a food book', async () => {
+    const book = bookDetailFactory.build({ style: { ...food.style } });
+
+    renderMenu({ book, onUpdated });
+    const entries = await openMenu();
+
+    expect(entries.map((entry) => entry.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'true']);
   });
 
   it('should not apply the preset that is already used', async () => {

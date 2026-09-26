@@ -18,7 +18,8 @@ export const BOOK_REVIEW_SEVERITY_LABEL_KEYS: Record<Severity, Translations> = {
   [Severity.Low]: 'book_review_severity_low',
 };
 
-export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type, Translations> = {
+// TODO: use `Type.MissingDishName` and `Type.MissingMenuPage` once the SDK is regenerated
+export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type | 'missing-dish-name' | 'missing-menu-page', Translations> = {
   [Type.DuplicateStack]: 'book_review_issue_duplicate_stack',
   [Type.LowDpi]: 'book_review_issue_low_dpi',
   [Type.EmptySlot]: 'book_review_issue_empty_slot',
@@ -32,6 +33,8 @@ export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type, Translations> = {
   [Type.RepeatedLayout]: 'book_review_issue_repeated_layout',
   [Type.MissingCaptions]: 'book_review_issue_missing_captions',
   [Type.CouldLookBetter]: 'book_review_issue_could_look_better',
+  'missing-dish-name': 'book_review_issue_missing_dish_name',
+  'missing-menu-page': 'book_review_issue_missing_menu_page',
 };
 
 /** At most this many issues are listed in the prompt that fixes them all */

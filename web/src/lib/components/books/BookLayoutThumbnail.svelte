@@ -21,6 +21,10 @@
   const box = $derived(getLayoutBox(layout, size, style));
   const map = $derived(layout.mapArea ? placeRect(layout.mapArea, box, style.gutterMm) : null);
   const text = $derived(layout.textAreas.map((area) => ({ ...area, ...placeRect(area, box, style.gutterMm) })));
+
+  // the caption of a photo (e.g. the name of a dish) is drawn like a caption
+  // TODO: compare with the SDK enum once it is regenerated with `slotCaption`
+  const isCaptionArea = (kind: string) => kind === 'caption' || kind === 'slotCaption';
 </script>
 
 <!-- a schematic of the layout: photos as filled blocks, the map as a hatched block and text as lines -->
@@ -43,13 +47,14 @@
   {/each}
   {#each text as area, index (index)}
     {@const lineHeight = Math.min(area.height * 0.3, size.pageHeightMm / 24)}
+    {@const caption = isCaptionArea(area.kind)}
     <rect
       x={area.x + area.width * 0.15}
       y={area.y + (area.height - lineHeight) / 2}
-      width={area.width * (area.kind === 'caption' ? 0.7 : 0.5) + (area.kind === 'caption' ? 0 : area.width * 0.1)}
+      width={area.width * (caption ? 0.7 : 0.5) + (caption ? 0 : area.width * 0.1)}
       height={lineHeight}
       rx={lineHeight / 2}
-      class={area.kind === 'caption' ? 'fill-gray-300' : 'fill-gray-500'}
+      class={caption ? 'fill-gray-300' : 'fill-gray-500'}
     />
   {/each}
 </svg>

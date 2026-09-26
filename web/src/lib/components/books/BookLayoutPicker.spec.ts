@@ -68,4 +68,17 @@ describe('BookLayoutPicker component', () => {
     expect(two).toHaveLength(2);
     expect(four).toHaveLength(4);
   });
+
+  it('should draw the name of a dish below its photo like a caption', () => {
+    // TODO: type `kind` and `slot` with the SDK once it is regenerated with the slotCaption areas
+    const dish = bookLayoutFactory('dish', [{ x: 0, y: 0, width: 1, height: 0.8 }], {
+      textAreas: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.8, width: 1, height: 0.2 } as never],
+    });
+    const { container } = render(BookLayoutPicker, { layouts: [dish], size, style, photoCount: 1, onSelect });
+
+    expect(names()).toEqual(['dish']);
+    expect(container.querySelector(':scope svg .fill-gray-400')).toBeInTheDocument();
+    expect(container.querySelector(':scope svg .fill-gray-300')).toBeInTheDocument();
+    expect(container.querySelector(':scope svg .fill-gray-500')).not.toBeInTheDocument();
+  });
 });

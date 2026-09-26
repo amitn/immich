@@ -42,7 +42,7 @@
 
 <fieldset {disabled} aria-describedby={descriptionId}>
   <legend class="mb-2 text-sm font-medium">{$t('book_style')}</legend>
-  <div class="grid grid-cols-3 gap-2">
+  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
     {#each BOOK_STYLE_PRESETS as id (id)}
       {@const checked = value === id}
       {@const style = styleOf(id)}
