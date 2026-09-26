@@ -380,7 +380,9 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
   };
   const fitted = fitText(block.text, inner, block.fontPx, getCharWidth(block));
   const { fontPx } = fitted;
-  const lines = block.balance ? balanceLines(block.text, fitted.lines, inner.width, fontPx, getCharWidth(block)) : fitted.lines;
+  const lines = block.balance
+    ? balanceLines(block.text, fitted.lines, inner.width, fontPx, getCharWidth(block))
+    : fitted.lines;
   const lineHeight = fontPx * LINE_HEIGHT;
   const textHeight = lines.length * lineHeight;
 
@@ -467,7 +469,11 @@ export const getReadableColor = (
 type Align = LayoutTextArea['align'];
 
 const alignedLeft = (rect: PxRect, width: number, align: Align) =>
-  align === 'left' ? rect.left : align === 'right' ? rect.left + rect.width - width : rect.left + (rect.width - width) / 2;
+  align === 'left'
+    ? rect.left
+    : align === 'right'
+      ? rect.left + rect.width - width
+      : rect.left + (rect.width - width) / 2;
 
 /** a double hairline frame in the margins, like the border of a printed menu */
 export const getMenuFrame = (
@@ -625,7 +631,7 @@ export const planPage = (
     decorations.push(...getMenuFrame({ width, height }, mmToPx(style.marginMm, dpi), dpi, accent));
   }
 
-  for (const area of getTextRectsMm(layout, size, style)) {
+  for (const [areaIndex, area] of getTextRectsMm(layout, size, style).entries()) {
     const rect = toPxRect(area, dpi);
     const base = { rect, align: area.align, color: ink };
     switch (area.kind) {
@@ -687,7 +693,7 @@ export const planPage = (
         captionedSlots.add(slot.index);
         const slotArea = layout.slots[slot.index];
         // below its photo, the caption starts right under it; beside it, it is centred on the photo
-        const below = area.y >= slotArea.y + slotArea.height - 1e-6;
+        const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;
         const offset = below ? captionPx * (food ? 1.1 : 0.3) : 0;
         const block: PageTextBlock = {
           ...base,
@@ -757,9 +763,7 @@ export const planPage = (
         band: true,
         valign: 'bottom',
         // on food pages the caption is a paper label on the photo
-        ...(food
-          ? { color: ink, italic: true, bandColor: pageBackground, bandOpacity: 0.88 }
-          : { color: '#ffffff' }),
+        ...(food ? { color: ink, italic: true, bandColor: pageBackground, bandOpacity: 0.88 } : { color: '#ffffff' }),
       });
     }
   }

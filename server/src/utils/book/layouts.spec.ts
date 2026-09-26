@@ -42,6 +42,35 @@ describe('book layouts', () => {
     );
   });
 
+  it('should include the food layouts, with a caption area for every photo of a dish layout', () => {
+    const food = bookLayouts.filter((layout) => layout.food).map((layout) => layout.id);
+    expect(food).toEqual([
+      'menu',
+      'menu-wide',
+      'dish-opener',
+      'dish',
+      'dish-portrait',
+      'dish-pair',
+      'dish-pair-stacked',
+      'dish-list',
+      'dish-trio',
+    ]);
+    for (const layout of bookLayouts) {
+      const captions = layout.text.filter((area) => area.kind === 'slotCaption');
+      expect(captions.every((area) => area.slot !== undefined && area.slot < layout.slots.length)).toBe(true);
+      if (layout.id.startsWith('dish')) {
+        expect(captions.map((area) => area.slot).toSorted()).toEqual(layout.slots.map((_, index) => index));
+      }
+    }
+  });
+
+  it('should keep a menu photo whole in the menu layouts', () => {
+    const food = { ...style, marginMm: 18, gutterMm: 6 };
+    expect(getSlotAspectRatios(getLayout('menu')!, square, food)[0]).toBeCloseTo(0.75, 1);
+    expect(getSlotAspectRatios(getLayout('menu-wide')!, square, food)[0]).toBeCloseTo(4 / 3, 0);
+    expect(getSlotAspectRatios(getLayout('dish-list')!, square, food)[0]).toBeCloseTo(1.5, 0);
+  });
+
   it('should have unique ids', () => {
     expect(new Set(bookLayouts.map((layout) => layout.id)).size).toBe(bookLayouts.length);
   });

@@ -1484,7 +1484,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // titles and captions name the places of the photos that are actually placed: an opener covers the pages up to the
   // next opener, like its map (see `getMapAssetIds`), which may include a section that has no opener of its own
   const photosOf = (page: AutoLayoutPage) => (pagePhotos.get(page) ?? []).flatMap((unit) => membersOf(unit));
-  const opensChapter = (page: AutoLayoutPage) => !!page.map || TITLE_LAYOUTS.has(page.layout) || isMapLayout(page.layout);
+  const opensChapter = (page: AutoLayoutPage) =>
+    !!page.map || TITLE_LAYOUTS.has(page.layout) || isMapLayout(page.layout);
   const isOpener = (page: AutoLayoutPage) => page.section !== undefined && opensChapter(page);
 
   // a restaurant visit is titled after the photos placed in it; two visits of one restaurant on one day get the time

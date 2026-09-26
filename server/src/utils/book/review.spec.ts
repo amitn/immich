@@ -254,4 +254,64 @@ describe('reviewBook', () => {
     expect(result.issues.map((issue) => issue.severity)).toEqual(['high', 'low']);
     expect(result.counts).toEqual({ high: 1, medium: 0, low: 1 });
   });
+
+  describe('a food book', () => {
+    const nino = 'Trattoria da Nino';
+    const dish = (name: string, restaurant = nino) =>
+      photo({ embedding: embedding(counter % 8), food: { restaurant, kind: 'dish', dish: name } });
+    const menu = (restaurant = nino) => photo({ embedding: embedding(7), food: { restaurant, kind: 'menu' } });
+    const named = (layout: string, photos: BookReviewPhoto[]): BookReviewPage => ({
+      layout,
+      assets: photos.map((item, slot) => ({
+        slot,
+        assetId: item.id,
+        crop: null,
+        caption: item.food?.kind === 'dish' ? item.food.dish : null,
+      })),
+    });
+
+    it('should find nothing wrong with the dishes named and the menu on its own page', () => {
+      const cover = photo();
+      const nino = [menu(), dish('Caponata'), dish('Cannoli')];
+      const result = review(
+        [
+          page('cover', [cover], { caption: null }),
+          { ...named('menu', [nino[0]]), caption: 'Caponata\nCannoli' },
+          named('dish-pair', nino.slice(1)),
+        ],
+        [cover, ...nino],
+        { style: { ...defaultBookStyle, theme: 'food' } },
+      );
+      expect(types(result)).toEqual([]);
+    });
+
+    it('should report the dishes shown without their names', () => {
+      const dishes = [dish('Caponata'), dish('Cannoli'), dish('Granita')];
+      const result = review(
+        [page('dish-pair', dishes.slice(0, 2), { caption: null }), named('dish', [dishes[2]])],
+        dishes,
+      );
+      const issue = result.issues.find((item) => item.type === 'missing-dish-name')!;
+      expect(issue).toMatchObject({ severity: 'low', pages: [1], assetIds: [dishes[0].id, dishes[1].id] });
+      expect(issue.message).toContain('Caponata');
+    });
+
+    it('should report a restaurant whose menu is in the album but not in the book', () => {
+      const photos = [menu(), dish('Caponata'), dish('Cannoli'), menu('Osteria Etna')];
+      const result = review([named('dish', [photos[1]]), named('dish', [photos[2]])], photos, {
+        candidateIds: photos.map(({ id }) => id),
+      });
+      const issues = result.issues.filter((item) => item.type === 'missing-menu-page');
+      expect(issues).toEqual([
+        expect.objectContaining({ severity: 'medium', pages: [1, 2], assetIds: [photos[0].id] }),
+      ]);
+      expect(issues[0].message).toContain(nino);
+    });
+
+    it('should not ask for a menu that does not exist or is already in the book', () => {
+      const photos = [menu(), dish('Caponata')];
+      expect(types(review([named('dish', [photos[1]])], [photos[1]]))).not.toContain('missing-menu-page');
+      expect(types(review([named('four-grid', photos)], photos))).not.toContain('missing-menu-page');
+    });
+  });
 });

@@ -15,6 +15,7 @@ import {
   isRightPage,
   isSinglePhotoPage,
 } from 'src/utils/book/auto-layout.js';
+import { getDishName, isMenuPhoto } from 'src/utils/book/food.js';
 import { PageSize, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { isMapStyleFallback } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI } from 'src/utils/book/render.js';
@@ -36,7 +37,7 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city'>> & {
+  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'food'>> & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
     gain?: number;
   };
@@ -103,8 +104,8 @@ const order = (severity: BookReviewSeverity) => bookReviewSeverities.indexOf(sev
 /**
  * A checklist of what to fix in a book, most severe first: stacks shown twice, low print resolution, empty slots,
  * too much or back-to-back artwork, long runs of single photos, similar photos on neighbouring pages, maps whose
- * style falls back, main people with few photos, repeated layouts, pages without captions and photos that an improved
- * copy would clearly help; with the best
+ * style falls back, main people with few photos, dishes without their names, restaurants without their menu page,
+ * repeated layouts, pages without captions and photos that an improved copy would clearly help; with the best
  * unused photos and the weakest placed ones.
  */
 export const reviewBook = (input: BookReviewInput): BookReview => {
@@ -388,6 +389,67 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
         'swap in some of the listed photos',
       pages: [],
       assetIds: ids,
+    });
+  }
+
+  // food books: dishes shown without their names, and restaurants whose menu is left out
+  const dishPages = new Map<string, Set<number>>();
+  const unnamed: Array<{ page: number; assetId: string; dish: string }> = [];
+  for (const [index, page] of pages.entries()) {
+    if (page.layout === 'cover') {
+      continue;
+    }
+    for (const asset of placements[index]) {
+      const dish = getDishName(photos.get(asset.assetId) ?? {});
+      if (!dish) {
+        continue;
+      }
+      const restaurant = photos.get(asset.assetId)!.food!.restaurant;
+      dishPages.set(restaurant, (dishPages.get(restaurant) ?? new Set()).add(index + 1));
+      if (!asset.caption?.trim()) {
+        unnamed.push({ page: index + 1, assetId: asset.assetId, dish });
+      }
+    }
+  }
+  if (unnamed.length > 0) {
+    const numbers = [...new Set(unnamed.map(({ page }) => page))];
+    add({
+      severity: 'low',
+      type: 'missing-dish-name',
+      message:
+        `${formatPages(numbers)} show ${unnamed.length === 1 ? 'a dish' : `${unnamed.length} dishes`} without ` +
+        `${unnamed.length === 1 ? 'its name' : 'their names'} (e.g. ${unnamed[0].dish}); set the slot captions to the ` +
+        'dish names from their tags, or lay the book out again with captions "dish"',
+      pages: numbers,
+      assetIds: unnamed.map(({ assetId }) => assetId),
+    });
+  }
+  const placedMenus = new Set(
+    [...placedIds].flatMap((id) => {
+      const photo = photos.get(id);
+      return photo && isMenuPhoto(photo) ? [photo.food!.restaurant.toLowerCase()] : [];
+    }),
+  );
+  for (const [restaurant, onPages] of dishPages) {
+    if (placedMenus.has(restaurant.toLowerCase())) {
+      continue;
+    }
+    const menus = input.photos
+      .filter((photo) => isMenuPhoto(photo) && photo.food!.restaurant.toLowerCase() === restaurant.toLowerCase())
+      .toSorted((a, b) => b.score - a.score || a.takenAt - b.takenAt);
+    if (menus.length === 0) {
+      continue;
+    }
+    const numbers = [...onPages].toSorted((a, b) => a - b);
+    add({
+      severity: 'medium',
+      type: 'missing-menu-page',
+      message:
+        `${formatPages(numbers)} show dishes from ${restaurant}, but not its menu, which is in the album; add a ` +
+        `page with the menu layout (menu-wide for a landscape photo) before page ${numbers[0]} and place the menu ` +
+        'photo in it',
+      pages: numbers,
+      assetIds: menus.slice(0, 3).map(({ id }) => id),
     });
   }
 

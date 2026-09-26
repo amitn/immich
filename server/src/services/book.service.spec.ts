@@ -1188,6 +1188,42 @@ describe(BookService.name, () => {
         }
       });
 
+      it('should lay out the restaurant visits from the food tags, with the menu and the dish names', async () => {
+        const rows = trip();
+        const meal = Array.from({ length: 4 }, (_, i) =>
+          agentAsset({ localDateTime: new Date(Date.UTC(2024, 5, 1, 20, i * 15)), city: 'Rome' }),
+        );
+        // a portrait photo of the menu
+        Object.assign(meal[0], { width: 2000, height: 3000, exifImageWidth: 2000, exifImageHeight: 3000 });
+        const { albumId } = setupAlbum([...rows, ...meal]);
+        mocks.tag.getAssetTagValues.mockResolvedValue([
+          { assetId: meal[0].id, value: 'Food/Da Enzo/Menu' },
+          { assetId: meal[1].id, value: 'Food/Da Enzo/Cacio e pepe' },
+          { assetId: meal[1].id, value: 'Food/Da Enzo/Menu' },
+          { assetId: meal[2].id, value: 'Food/Da Enzo/Carciofi alla romana' },
+        ]);
+
+        const result = await sut.createFromAlbumWithPlan(auth, { albumId, stylePreset: 'food', includeMaps: false });
+
+        expect(mocks.tag.getAssetTagValues).toHaveBeenCalledWith(auth.user.id, expect.any(Array), 'Food/');
+        expect(result.plan.sections).toContainEqual(
+          expect.objectContaining({ restaurant: 'Da Enzo', title: 'Da Enzo · Rome, 1 June 2024' }),
+        );
+        const pages = plannedPages();
+        const menuPage = pages.find((page) => page.layout.startsWith('menu'))!;
+        expect(menuPage).toEqual(
+          expect.objectContaining({
+            sectionTitle: 'Da Enzo · Rome, 1 June 2024',
+            caption: 'Cacio e pepe\nCarciofi alla romana',
+            assets: [expect.objectContaining({ assetId: meal[0].id, caption: null })],
+          }),
+        );
+        const captions = new Map(pages.flatMap((page) => page.assets.map((asset) => [asset.assetId, asset.caption])));
+        expect(captions.get(meal[1].id)).toBe('Cacio e pepe');
+        expect(captions.get(meal[2].id)).toBe('Carciofi alla romana');
+        expect(captions.get(meal[3].id) ?? null).toBeNull();
+      });
+
       it('should use the title from the request and the default map style from the config', async () => {
         const { albumId } = setupAlbum(trip());
         mocks.systemMetadata.get.mockResolvedValue({ books: { maps: { defaultStyle: 'toner', stadiaApiKey: 'key' } } });

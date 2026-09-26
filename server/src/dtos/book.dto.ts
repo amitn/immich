@@ -60,7 +60,9 @@ export const BookStyleSchema = z
       .describe('Caption font size in points')
       .meta({ format: 'double' }),
     theme: BookStyleThemeSchema.optional(),
-    accentColor: cssColor.optional().describe('Color of the rules, ornaments and small-caps lines of the food theme (hex)'),
+    accentColor: cssColor
+      .optional()
+      .describe('Color of the rules, ornaments and small-caps lines of the food theme (hex)'),
   })
   .describe('Visual style of a book')
   .meta({ id: 'BookStyle' });

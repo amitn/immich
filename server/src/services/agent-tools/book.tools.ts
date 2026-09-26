@@ -65,7 +65,7 @@ const WORKFLOW =
   'place_photo; a bad crop: place_photo with a crop; a crowded page: set_page_layout; maps: ' +
   'set_page_map/add_map_page/illustrate_map) → set_caption with short captions from facts and what is visible on ' +
   'the rendered page (place, time, people, what they do; never invented light, mood or weather) → suggest a style ' +
-  'preset (classic, soft, bold; set_book_style) → render again → export_pdf (print) and/or export_html (a ' +
+  'preset (classic, soft, bold, or food for meals; set_book_style) → render again → export_pdf (print) and/or export_html (a ' +
   'single-file web book). To build a book by hand instead: create_book → add_page for each page (assetIds fill the ' +
   'slots in one call).';
 
@@ -172,6 +172,7 @@ const summarizeLayout = ({ book, plan, photoCount, warnings, improvements, impro
       title: section.title,
       dates: section.dates,
       photos: section.photoIds.length,
+      ...(section.restaurant && { restaurant: section.restaurant }),
     })),
     pages: plan.pages.map((page, index) => {
       const parts = [page.layout];
@@ -246,6 +247,7 @@ export class BookAgentTools extends BaseService {
                 orientation: layout.orientation,
                 ...(layout.text.length > 0 && { text: layout.text.map((area) => area.kind) }),
                 ...(layout.map && { map: true }),
+                ...(layout.food && { food: true }),
               })),
               stylePresets: bookStylePresetIds.map((id) => ({ id, ...bookStylePresets[id] })),
             });
@@ -279,8 +281,9 @@ export class BookAgentTools extends BaseService {
         title: 'Create a photo book',
         description:
           'Create an empty photo book (a draft the user can review in Immich). Page size defaults to 210×210mm. ' +
-          'Start from a stylePreset (classic, soft or bold) and/or set style options: marginMm, gutterMm, ' +
-          'background and textColor (hex), fontFamily, titleSizePt, captionSizePt. ' +
+          'Start from a stylePreset (classic, soft, bold or food) and/or set style options: marginMm, gutterMm, ' +
+          'background, textColor and accentColor (hex), fontFamily, titleSizePt, captionSizePt, theme (plain or ' +
+          'food). ' +
           WORKFLOW,
         input: z.object({
           title: z.string().min(1).max(200).describe('Book title, shown on the cover'),
@@ -317,8 +320,11 @@ export class BookAgentTools extends BaseService {
           'five (maxArtworkShare) and never on two pages in a row, never puts a photo in a slot it cannot print ' +
           'at 150 dpi, avoids more than two single-photo pages in a row and similar photos on neighbouring pages, ' +
           'splits a single day into chapters (e.g. the stops of a ride), keeps the main people in every section, ' +
-          'and drafts factual captions (captions: none, place, place-time or people; never descriptions of the ' +
-          'photos). It picks photos on what they can become (considerImprovements, default true): straightening ' +
+          'and drafts factual captions (captions: none, place, place-time, people or dish; never descriptions of the ' +
+          'photos). A food book (stylePreset food, or photos tagged Food/<Restaurant>/<Dish> and ' +
+          'Food/<Restaurant>/Menu) gets one chapter per restaurant visit titled "<Restaurant> · <place>, <date>", ' +
+          'opened by a menu page with the photo of the menu, and every dish captioned with its name on layouts ' +
+          'that leave room for it (captions default to dish there). It picks photos on what they can become (considerImprovements, default true): straightening ' +
           'and auto-enhance are simulated on the previews, and it returns improvements [{assetId, recipe, gain}] ' +
           'for the placed photos they help, without creating anything; then call apply_improvements. ' +
           'targetPageCount is approximate: less important photos are left out when there are too many. ' +
@@ -456,7 +462,7 @@ export class BookAgentTools extends BaseService {
         name: 'set_book_style',
         title: 'Set the book style',
         description:
-          'Change the style of the whole book. A preset (classic, soft or bold) replaces the style first; omitted ' +
+          'Change the style of the whole book. A preset (classic, soft, bold or food) replaces the style first; omitted ' +
           'options keep their value. Colors are hex (#rrggbb). Larger margins/gutters give a calmer look; small ' +
           'ones suit dense layouts.',
         input: BookStyleUpdateSchema.extend({ bookId, preset: stylePreset.optional() }),
@@ -712,7 +718,9 @@ export class BookAgentTools extends BaseService {
         title: 'Set a caption',
         description:
           'Set the caption of a page, or of the photo in a slot when `slot` is given. Also sets the page’s ' +
-          'sectionTitle when given. Use null or an empty string to remove a caption. Keep captions short.',
+          'sectionTitle when given. Use null or an empty string to remove a caption. Keep captions short. In a food ' +
+          'book the slot caption of a dish is its name (from its Food/<Restaurant>/<Dish> tag), set below the photo ' +
+          'on the dish layouts.',
         input: z.object({
           bookId,
           page: pageRef,
