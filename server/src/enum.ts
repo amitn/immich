@@ -1248,6 +1248,7 @@ export enum ApiTag {
   Download = 'Download',
   Duplicates = 'Duplicates',
   Faces = 'Faces',
+  Food = 'Food',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',

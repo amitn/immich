@@ -22,6 +22,7 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
       .fn()
       .mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
     cropBitmap: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
+    getJpegCrops: vitest.fn().mockResolvedValue([]),
     getSmallRgb: vitest.fn().mockResolvedValue({ data: Buffer.from(''), info: { width: 0, height: 0, channels: 3 } }),
     encodeJpeg: vitest.fn().mockResolvedValue({ data: Buffer.from(''), width: 0, height: 0 }),
     extract: vitest.fn().mockResolvedValue(null),

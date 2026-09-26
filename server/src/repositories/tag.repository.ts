@@ -7,6 +7,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { TagAssetTable } from 'src/schema/tables/tag-asset.table.js';
 import { TagTable } from 'src/schema/tables/tag.table.js';
+import { anyUuid } from 'src/utils/database.js';
 
 @Injectable()
 export class TagRepository {
@@ -42,6 +43,23 @@ export class TagRepository {
         .onConflict((oc) => oc.columns(['userId', 'value']).doUpdateSet({ parentId }))
         .returningAll(),
     );
+  }
+
+  /** the tags of the given assets whose value starts with `prefix` (e.g. `Food/`), with the tag ids */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.STRING] })
+  getAssetTagsByPrefix(assetIds: string[], prefix: string) {
+    if (assetIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    const pattern = `${prefix.replaceAll(/[\\%_]/g, String.raw`\$&`)}%`;
+    return this.db
+      .selectFrom('tag_asset')
+      .innerJoin('tag', 'tag.id', 'tag_asset.tagId')
+      .select(['tag_asset.assetId', 'tag.id as tagId', 'tag.value'])
+      .where('tag_asset.assetId', '=', anyUuid(assetIds))
+      .where('tag.value', 'like', pattern)
+      .execute();
   }
 
   @GenerateSql({ params: [DummyValue.UUID] })

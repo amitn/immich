@@ -26,7 +26,7 @@ export enum ModelType {
   OCR = 'ocr',
 }
 
-export type ModelPayload = { imagePath: string } | { text: string };
+export type ModelPayload = { imagePath: string } | { image: Buffer } | { text: string };
 
 type ModelOptions = { modelName: string };
 
@@ -214,14 +214,16 @@ export class MachineLearningRepository {
     return response[ModelTask.SEARCH];
   }
 
-  async ocr(imagePath: string, { modelName, minDetectionScore, minRecognitionScore, maxResolution }: OcrOptions) {
+  /** text boxes of an image file, or of an encoded image (e.g. a tile of a photo), normalized to the image */
+  async ocr(image: string | Buffer, { modelName, minDetectionScore, minRecognitionScore, maxResolution }: OcrOptions) {
     const request = {
       [ModelTask.OCR]: {
         [ModelType.DETECTION]: { modelName, options: { minScore: minDetectionScore, maxResolution } },
         [ModelType.RECOGNITION]: { modelName, options: { minScore: minRecognitionScore } },
       },
     };
-    const response = await this.predict<OcrResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<OcrResponse>(payload, request);
     return response[ModelTask.OCR];
   }
 
@@ -232,6 +234,8 @@ export class MachineLearningRepository {
     if ('imagePath' in payload) {
       const fileBuffer = await readFile(payload.imagePath);
       formData.append('image', new Blob([new Uint8Array(fileBuffer)]));
+    } else if ('image' in payload) {
+      formData.append('image', new Blob([new Uint8Array(payload.image)]));
     } else if ('text' in payload) {
       formData.append('text', payload.text);
     } else {

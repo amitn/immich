@@ -33,6 +33,7 @@ import {
   VideoContainerSchema,
 } from 'src/enum.js';
 import { bookMapStyles } from 'src/utils/book/map-styles.js';
+import { DEFAULT_OVERPASS_URL } from 'src/utils/food/overpass.js';
 
 const { Admin, User, Public } = ConfigVisibility;
 
@@ -210,6 +211,19 @@ const AdminConfigSchemaWithVisibility = z
       .describe('Photo book config')
       .meta({ id: 'AdminConfigBooksDto' }),
     ffmpeg: AdminConfigFFmpegSchema,
+    food: z
+      .object({
+        openStreetMap: z
+          .object({
+            enabled: configBool.describe(
+              'Let the assistant look up restaurants near the location of a meal on OpenStreetMap (sends the location to the Overpass API)',
+            ),
+            overpassUrl: z.url().describe('URL of the Overpass API interpreter'),
+          })
+          .meta({ id: 'AdminConfigFoodOpenStreetMapDto' }),
+      })
+      .describe('Food photos config')
+      .meta({ id: 'AdminConfigFoodDto' }),
     integrityChecks: z
       .object({
         missingFiles: AdminConfigIntegrityJobSchema,
@@ -623,6 +637,12 @@ export const defaults = Object.freeze<SystemConfig>({
     maps: {
       stadiaApiKey: '',
       defaultStyle: 'watercolor',
+    },
+  },
+  food: {
+    openStreetMap: {
+      enabled: false,
+      overpassUrl: DEFAULT_OVERPASS_URL,
     },
   },
   ffmpeg: {

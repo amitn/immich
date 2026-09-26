@@ -195,6 +195,49 @@ describe('getToolCallResult', () => {
   });
 });
 
+describe('food tool refs', () => {
+  it('should find the photos of the meals of find_meals', () => {
+    const result = {
+      count: 40,
+      meals: [
+        {
+          index: 0,
+          restaurant: { name: 'Trattoria da Nino', source: 'sign', confidence: 0.8 },
+          dishIds: [id1],
+          menuIds: [id2],
+          signIds: [id3],
+          receiptIds: [id4],
+          saved: [{ assetId: id1, tag: 'Trattoria da Nino/Carbonara' }],
+        },
+      ],
+    };
+    expect(refsOf('find_meals', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
+  });
+
+  it('should find the menu of read_menu from its input and result', () => {
+    expect(extractToolCallRefs('read_menu', { input: { id: id1 }, output: [{ id: id1, items: [] }] })).toEqual({
+      ...none,
+      assetIds: [id1],
+    });
+  });
+
+  it('should find the dishes of match_dishes and the named photos of set_dish_names', () => {
+    expect(
+      refsOf('match_dishes', {
+        items: [{ i: 0, name: 'Carbonara' }],
+        dishes: [{ assetIds: [id1, id2], match: 'Carbonara', i: 0, suggestions: [{ i: 0, name: 'Carbonara' }] }],
+        sheet: { 1: id1 },
+      }),
+    ).toEqual({ ...none, assetIds: [id1, id2] });
+    expect(
+      extractToolCallRefs('set_dish_names', {
+        input: { restaurant: 'Nino', photos: [{ id: id3, dish: 'Carbonara' }] },
+        output: [{ restaurant: 'Nino', photos: [{ id: id3, tag: 'Food/Nino/Carbonara' }] }],
+      }),
+    ).toEqual({ ...none, assetIds: [id3] });
+  });
+});
+
 describe('extractRefs', () => {
   it('should find asset, album and book ids', () => {
     expect(
