@@ -291,7 +291,7 @@ describe('isCollectionPhotoTag', () => {
     expect(isCollectionPhotoTag('Food/Trattoria da Nino/Menu')).toBe(true);
     expect(isCollectionPhotoTag('Food/Trattoria da Nino')).toBe(false);
     expect(isCollectionPhotoTag('Food')).toBe(false);
-    expect(isCollectionPhotoTag('Travel/Italy/Taormina')).toBe(false);
+    expect(isCollectionPhotoTag('Holidays/Italy/Taormina')).toBe(false);
   });
 
   it('should tell the tags of every pack', () => {

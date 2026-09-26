@@ -1,7 +1,7 @@
 import { BookStylePreset } from '@immich/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
-import { resetBookStylePresets } from '$lib/utils/book-style';
+import { BOOK_STYLE_PRESETS, resetBookStylePresets } from '$lib/utils/book-style';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
 import BookStylePresetPicker from './BookStylePresetPicker.svelte';
 
@@ -16,7 +16,9 @@ describe('BookStylePresetPicker component', () => {
     render(BookStylePresetPicker);
 
     const radios = screen.getAllByRole('radio');
-    expect(radios.map((radio) => radio.getAttribute('value'))).toEqual(['soft', 'classic', 'bold', 'food']);
+    // then the presets of the other collection packs
+    expect(radios.map((radio) => radio.getAttribute('value')).slice(0, 4)).toEqual(['soft', 'classic', 'bold', 'food']);
+    expect(radios).toHaveLength(BOOK_STYLE_PRESETS.length);
     expect(screen.getByRole('radio', { name: /book_style_preset_soft/ })).toBeChecked();
     expect(screen.getByText('book_style_preset_soft_description')).toBeInTheDocument();
   });
@@ -51,14 +53,19 @@ describe('BookStylePresetPicker component', () => {
 
     await waitFor(() => expect(screen.getAllByText('book_style_margins')).toHaveLength(4));
     const swatches = [...container.querySelectorAll<HTMLElement>(':scope label > span[aria-hidden="true"]')];
-    expect(swatches.map((swatch) => swatch.style.backgroundColor)).toEqual([
+    expect(swatches.map((swatch) => swatch.style.backgroundColor).slice(0, 4)).toEqual([
       '#f6f1e7',
       '#ffffff',
       '#ffffff',
       '#f6f0e4',
     ]);
     // the food swatch looks like a printed menu
-    expect(swatches.map((swatch) => swatch.dataset.theme)).toEqual([undefined, undefined, undefined, 'food']);
+    expect(swatches.map((swatch) => swatch.dataset.theme).slice(0, 4)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      'food',
+    ]);
     expect(swatches[3].textContent).toContain('Aa');
     expect(sdkMock.getBookStylePresets).toHaveBeenCalledTimes(1);
   });
@@ -69,7 +76,7 @@ describe('BookStylePresetPicker component', () => {
     render(BookStylePresetPicker);
 
     await waitFor(() => expect(sdkMock.getBookStylePresets).toHaveBeenCalled());
-    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(screen.getAllByRole('radio')).toHaveLength(BOOK_STYLE_PRESETS.length);
     expect(screen.queryByText('book_style_margins')).not.toBeInTheDocument();
   });
 });
