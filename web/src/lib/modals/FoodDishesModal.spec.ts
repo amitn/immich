@@ -101,6 +101,24 @@ describe('FoodDishesModal component', () => {
     expect(sdkMock.findMeals).toHaveBeenCalledWith({ foodMealsDto: { assetIds: ['a', 'b'] } });
   });
 
+  it('should search the first photos of a large selection, and say so', async () => {
+    const assetIds = Array.from({ length: 2001 }, (_, index) => `asset-${index}`);
+    sdkMock.findMeals.mockResolvedValue({ ...findResult(), count: 2000 });
+
+    render(FoodDishesModal, { props: { assetIds, onClose } });
+
+    expect(await screen.findByText('food_meals_truncated')).toBeInTheDocument();
+    expect(sdkMock.findMeals).toHaveBeenCalledWith({ foodMealsDto: { assetIds: assetIds.slice(0, 2000) } });
+  });
+
+  it('should say when only part of a large album was searched', async () => {
+    sdkMock.findMeals.mockResolvedValue({ ...findResult(), count: 5000, truncated: true });
+
+    render(FoodDishesModal, { props: { album, onClose } });
+
+    expect(await screen.findByText('food_meals_truncated')).toBeInTheDocument();
+  });
+
   it('should say when the album has no food photos, and why the search may be incomplete', async () => {
     sdkMock.findMeals.mockResolvedValue(findResult([], ['Smart search is disabled']));
 

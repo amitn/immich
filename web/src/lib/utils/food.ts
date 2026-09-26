@@ -11,8 +11,8 @@ import {
 import { DateTime } from 'luxon';
 import type { MessageFormatter, Translations } from 'svelte-i18n';
 
-/** The limits of one match request, see `FOOD_LIMITS` on the server */
-export const FOOD_MATCH_LIMITS = { dishes: 100, menus: 10 } as const;
+/** The limits of one request, see `FOOD_LIMITS` on the server */
+export const FOOD_LIMITS = { assetIds: 2000, dishes: 100, menus: 10 } as const;
 
 /** Food tags are `Food/<Restaurant>/<Dish>` and `Food/<Restaurant>/Menu` */
 export const FOOD_TAG_ROOT = 'Food';

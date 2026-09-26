@@ -1607,6 +1607,7 @@
   "food_meal_named": "{count} named",
   "food_meal_photos": "{dishes, plural, one {# dish} other {# dishes}} · {menus, plural, one {# menu photo} other {# menu photos}}",
   "food_meals_found": "{count, plural, one {# meal} other {# meals}} found. Choose one to name its dishes.",
+  "food_meals_truncated": "Only the first {count, plural, one {# photo was} other {# photos were}} searched. Select fewer photos, or name the dishes album by album.",
   "food_menu": "Menu",
   "food_menu_items_read": "{count, plural, =0 {No items could be read on the menu} one {# item read on the menu} other {# items read on the menu}}",
   "food_menu_photo": "Photo of the menu",

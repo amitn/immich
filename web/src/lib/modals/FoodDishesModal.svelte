@@ -8,7 +8,7 @@
   import { getAssetMediaUrl } from '$lib/utils';
   import {
     applyFoodDishes,
-    FOOD_MATCH_LIMITS,
+    FOOD_LIMITS,
     FOOD_MEAL_TYPE_LABEL_KEYS,
     FOOD_RESTAURANT_SOURCE_LABEL_KEYS,
     formatMealPlace,
@@ -120,11 +120,15 @@
     status = 'loading';
     errorMessage = undefined;
     try {
-      const result = await findMeals({
-        foodMealsDto: album ? { albumId: album.id } : { assetIds },
-      });
+      const ids = assetIds.slice(0, FOOD_LIMITS.assetIds);
+      const result = await findMeals({ foodMealsDto: album ? { albumId: album.id } : { assetIds: ids } });
       meals = result.meals;
-      warnings = result.warnings;
+      // only part of a large album or selection is searched
+      const truncated = result.truncated || ids.length < assetIds.length;
+      warnings = [
+        ...(truncated ? [$t('food_meals_truncated', { values: { count: result.count } })] : []),
+        ...result.warnings,
+      ];
       status = 'ready';
       if (meals.length === 1) {
         openMeal(meals[0]);
@@ -139,14 +143,14 @@
   const match = async (value: FoodMealResponseDto) => {
     const index = value.index;
     drafts[index] = { ...drafts[index], status: 'loading', error: undefined };
-    const dishIds = value.dishIds.slice(0, FOOD_MATCH_LIMITS.dishes);
+    const dishIds = value.dishIds.slice(0, FOOD_LIMITS.dishes);
     if (dishIds.length === 0) {
       drafts[index] = { ...drafts[index], status: 'ready', items: [], rows: [], warnings: [] };
       return;
     }
     try {
       const result = await matchMeal({
-        foodMatchDto: { dishIds, menuIds: value.menuIds.slice(0, FOOD_MATCH_LIMITS.menus) },
+        foodMatchDto: { dishIds, menuIds: value.menuIds.slice(0, FOOD_LIMITS.menus) },
       });
       drafts[index] = {
         ...drafts[index],
