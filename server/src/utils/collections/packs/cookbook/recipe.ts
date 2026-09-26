@@ -213,6 +213,8 @@ const QUANTITY = new RegExp(String.raw`^(?:about\s+)?(?:[\d${VULGAR}]+(?:\s*[-â€
 /** first words of ingredients printed without a quantity */
 const INGREDIENT_START =
   /^(?:dash|pinch|nonstick|non-stick|salt|pepper|freshly|ground|butter|oil|olive oil|flour|sugar|water|milk|ice|cooking spray|vegetable|fresh|grated|shredded|sliced|chopped|juice|zest)\b/i;
+/** of those, the ones that start an ingredient even in lower case below another ("butter, at room temperature" ends one) */
+const NEW_INGREDIENT = /^(?:dash|pinch|nonstick|non-stick|salt and|freshly|cooking spray)\b/i;
 
 const META_LABELS = [
   'prep',
@@ -583,7 +585,7 @@ const INGREDIENTS_HEADING = /^(?:ingredients?|you(?:'ll)? need|what you need|sho
 const METHOD_HEADING = /^(?:method|directions?|instructions?|preparation|steps?|how to make it|to make)$/i;
 
 /** reads one recipe from its lines in reading order */
-const toRecipe = (draft: Draft): Recipe => {
+const toRecipe = (draft: Draft, bodyHeight: number): Recipe => {
   const recipe: Recipe = { meta: [], ingredients: [], steps: [], notes: [], sections: [], box: [1, 1, 0, 0] };
   if (draft.title) {
     recipe.title = toTitle(draft.title.text);
@@ -673,7 +675,7 @@ const toRecipe = (draft: Draft): Recipe => {
       (indented || /^[\p{Ll}(]/u.test(text)) &&
       !QUANTITY.test(normalized) &&
       !UNIT.test(normalized) &&
-      !INGREDIENT_START.test(normalized);
+      !NEW_INGREDIENT.test(normalized);
     if (continuesIngredient) {
       lastIngredient!.item.text = normalizeFractions(joinLines([lastIngredient!.item.text, text]));
       lastIngredient!.line = line;
@@ -695,7 +697,8 @@ const toRecipe = (draft: Draft): Recipe => {
       }
       continue;
     }
-    if (kind === 'other' && isFragment(text)) {
+    if ((kind === 'other' && isFragment(text)) || line.height > 1.8 * bodyHeight) {
+      // a blur, or a note in large handwriting beside the steps ("+ color sprinkles")
       continue;
     }
 
@@ -815,6 +818,23 @@ export const readRecipes = (ocr: OcrBoxInput[], { aspectRatio = 1 }: SourceParse
     });
   });
 
+  // OCR of a small photo reads all text about as tall: a title is then a few capitalized words a little larger than
+  // the text, right above the ingredients of its column
+  if (lines.flat().every((line) => line.kind !== 'title')) {
+    for (const column of lines) {
+      for (const [index, line] of column.entries()) {
+        const below = column.slice(index + 1, index + 4);
+        if (
+          ['prose', 'other', 'heading'].includes(line.kind) &&
+          line.line.height >= 1.08 * bodyHeight &&
+          isTitleLike(line.text) &&
+          below.some(({ kind }) => kind === 'ingredient')
+        ) {
+          line.kind = 'title';
+        }
+      }
+    }
+  }
   // with no title in larger print, the first heading in capitals is the title
   if (lines.flat().every((line) => line.kind !== 'title')) {
     const heading = lines.flat().find((line) => line.kind === 'heading');
@@ -825,7 +845,7 @@ export const readRecipes = (ocr: OcrBoxInput[], { aspectRatio = 1 }: SourceParse
 
   const { drafts } = toDrafts(lines, page.lineHeight);
   const recipes = drafts
-    .map((draft) => toRecipe(draft))
+    .map((draft) => toRecipe(draft, bodyHeight))
     .filter((recipe) => recipe.ingredients.length + recipe.steps.length > 0 || recipe.title)
     .toSorted((a, b) => byContent(b) - byContent(a));
   return { recipes, columns: page.columns.length, lines: all.length };

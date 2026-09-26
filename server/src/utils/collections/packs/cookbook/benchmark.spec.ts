@@ -47,6 +47,9 @@ describe('cookbook benchmark', () => {
       expect(result.classification.recipeSource, `${result.key}: the recipe is a source`).toBe(true);
       expect(result.classification.stepsAsSource, `${result.key}: photos taken for sources`).toBe(0);
     }
+    // find_visits names the recipes from the stored OCR, except the casserole, whose title OCR read in one box with
+    // the soufflé beside it (read_source reads it at full resolution)
+    expect(results.map(({ place }) => place)).toEqual(['Quiche', undefined, 'Simple Cupcakes']);
     // what the matcher gets wrong, it has to say it is unsure of
     expect(results.reduce((sum, result) => sum + result.sureWrong, 0)).toBeLessThanOrEqual(1);
     // the neighbouring recipe is kept apart: the quiche is not mixed with the spinach quiche beside it
