@@ -27,6 +27,7 @@ import {
   CollectionPrompt,
   classifyPhoto,
   getPromptList,
+  scoreText,
   summarizeText,
 } from 'src/utils/collections/classify.js';
 import { DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
@@ -65,6 +66,16 @@ import { VisitOptions, getFallbackVisitNames, groupVisits, summarizeVisit } from
 import { decodeOriginal } from 'src/utils/image-decode.js';
 import { isOcrEnabled, isSmartSearchEnabled } from 'src/utils/misc.js';
 import { upsertTags } from 'src/utils/tag.js';
+
+/** what tools say instead of showing a private source, see `CollectionService.getPrivateSourceIds` */
+export const PRIVATE_SOURCE_NOTE =
+  'Not shown: travel documents and other private sources carry names and booking references. read_source gives ' +
+  'their redacted text.';
+
+/** what book renders for the assistant say about the private sources they blur */
+export const PRIVATE_SOURCE_BLURRED =
+  'Blurred: travel documents and other private sources carry names and booking references. Use a ticket-stub page ' +
+  'instead of their photo.';
 
 /** CLIP text embeddings of the classification prompts and entries, by model and text */
 const textEmbeddingCache = new LRUMap<string, string>(5000);
@@ -677,6 +688,51 @@ export class CollectionService extends BaseService {
       }
       return chosen;
     });
+  }
+
+  /**
+   * The photos among `ids` that are sources of a pack that keeps them from the assistant (`privacy.sourceImages` off,
+   * e.g. travel documents, which carry names and booking references): tagged as its sources, or read as one by their
+   * text (the OCR stored for them, scored as the pack scores the text of its sources). Tools that return images leave
+   * them out or blur them.
+   */
+  async getPrivateSourceIds(ids: string[]): Promise<Set<string>> {
+    const packs = getCollectionPacks().filter((pack) => pack.privacy?.sourceImages === false);
+    const found = new Set<string>();
+    if (packs.length === 0 || ids.length === 0) {
+      return found;
+    }
+    for (const pack of packs) {
+      const rules = getCollectionTagRules(pack);
+      for (const chunk of chunks(unique(ids))) {
+        for (const { assetId, value } of await this.tagRepository.getAssetTagsByPrefix(chunk, getTagPrefix(rules))) {
+          if (parseCollectionTag(rules, value)?.kind === 'source') {
+            found.add(assetId);
+          }
+        }
+      }
+    }
+    const rest = unique(ids).filter((id) => !found.has(id));
+    const ocr = new Map<string, OcrBoxInput[]>();
+    for (const chunk of chunks(rest)) {
+      for (const { assetId, ...box } of await this.ocrRepository.getByAssetIds(chunk)) {
+        ocr.set(assetId, [...(ocr.get(assetId) ?? []), box]);
+      }
+    }
+    for (const [id, boxes] of ocr) {
+      const isSource = packs.some((pack) => {
+        const summary = summarizeText(boxes, {
+          parse: pack.source.parse,
+          receiptWords: pack.classify.receiptWords,
+          placeWords: pack.place.words,
+        });
+        return (pack.classify.scoreText ?? scoreText)(summary).source >= pack.classify.thresholds.source;
+      });
+      if (isSource) {
+        found.add(id);
+      }
+    }
+    return found;
   }
 
   private redactPlaces<T extends { name: string }>(pack: CollectionPack, candidates: T[]): T[] {

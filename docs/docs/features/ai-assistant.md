@@ -310,7 +310,7 @@ Photograph your boarding passes and tickets on a trip, and Immich matches the ph
 - **Travel books.** The **Travel** style is a travel journal: a chapter per leg, opened by a ticket stub typeset from the fields of its document, with a route line and a date stamp, then the photos of the leg. Review reports legs without photos, photos no document covers, documents without a date, and a page that prints a document itself.
 
 :::info Travel documents and privacy
-Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields, and ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
+Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields: the tools that show it photos, contact sheets and book pages leave the documents out or blur them, whether they are tagged as tickets or only read as one. Ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
 :::
 
 ## Tags

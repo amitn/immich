@@ -150,7 +150,15 @@ type BookPage = Awaited<ReturnType<BookRepository['getPages']>>[number];
 type RenderAsset = Awaited<ReturnType<BookRepository['getAssetsForRender']>>[number];
 type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
 
-export type BookRenderResult = { data: Buffer; warnings: BookRenderWarning[] };
+export type BookRenderResult = {
+  data: Buffer;
+  warnings: BookRenderWarning[];
+  /** private sources (e.g. travel documents) blurred on the page, when asked to hide them */
+  hidden?: string[];
+};
+
+/** the long edge a private source is shrunk to before it fills its slot: its text can't be read */
+const HIDDEN_SOURCE_PX = 12;
 
 /** a placed photo that an improved copy would help, see `ImproveService.estimate` */
 export type BookImprovement = { assetId: string; recipe: ImproveRecipe; gain: number };
@@ -658,7 +666,17 @@ export class BookService extends BaseService {
     return this.getPageResponse(book, pageId);
   }
 
-  async renderPage(auth: AuthDto, id: string, pageId: string, dto: BookRenderQueryDto = {}): Promise<BookRenderResult> {
+  /**
+   * One page as an image; with `hidePrivate` (for the assistant) the private sources on it, such as travel documents,
+   * are blurred beyond reading
+   */
+  async renderPage(
+    auth: AuthDto,
+    id: string,
+    pageId: string,
+    dto: BookRenderQueryDto = {},
+    hidePrivate = false,
+  ): Promise<BookRenderResult> {
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const pages = await this.bookRepository.getPages(id);
@@ -672,14 +690,19 @@ export class BookService extends BaseService {
       mode: longEdge <= 400 ? 'thumbnail' : 'review',
       dpi: getDpiForLongEdge(book, longEdge),
       pages,
+      hidePrivate,
     });
   }
 
-  /** One image of pages `from`..`to` (one-based, inclusive) as labelled two-page spreads */
+  /**
+   * One image of pages `from`..`to` (one-based, inclusive) as labelled two-page spreads; with `hidePrivate` (for the
+   * assistant) the private sources, such as travel documents, are blurred beyond reading
+   */
   async renderContactSheet(
     auth: AuthDto,
     id: string,
     range: { from?: number; to?: number } = {},
+    hidePrivate = false,
   ): Promise<BookRenderResult & { pages: number[] }> {
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
@@ -698,19 +721,22 @@ export class BookService extends BaseService {
 
     const rendered: { number: number; image: Buffer }[] = [];
     const warnings: BookRenderWarning[] = [];
+    const hidden: string[] = [];
     for (const number of numbers) {
       const result = await this.renderBookPage(auth, book, pages[number - 1], number, {
         mode: 'thumbnail',
         dpi,
         pages,
+        hidePrivate,
       });
       rendered.push({ number, image: result.data });
       warnings.push(...result.warnings);
+      hidden.push(...(result.hidden ?? []));
     }
 
     const spec = planContactSheet(rendered, thumb, { spreadsPerRow });
     const { data } = await this.mediaRepository.composeBookPage(spec);
-    return { data, warnings, pages: numbers };
+    return { data, warnings, pages: numbers, ...(hidden.length > 0 && { hidden: [...new Set(hidden)] }) };
   }
 
   async export(auth: AuthDto, id: string, dto: Partial<BookExportDto> = {}): Promise<BookResponseDto> {
@@ -1013,7 +1039,7 @@ export class BookService extends BaseService {
     book: Book,
     page: BookPage,
     number: number,
-    options: { mode: BookRenderMode; dpi: number; pages?: BookPage[] },
+    options: { mode: BookRenderMode; dpi: number; pages?: BookPage[]; hidePrivate?: boolean },
   ): Promise<BookRenderResult> {
     const assetIds = page.assets.map((asset) => asset.assetId);
     if (page.layout === 'cover' && book.coverAssetId) {
@@ -1021,10 +1047,27 @@ export class BookService extends BaseService {
     }
 
     const sources = await this.getRenderSources(auth, assetIds, options.mode);
+    // private sources (travel documents) shown to the assistant are shrunk to a few pixels: their text can't be read
+    const hidden = options.hidePrivate
+      ? await BaseService.create(CollectionService, this).getPrivateSourceIds(assetIds)
+      : new Set<string>();
+    for (const assetId of hidden) {
+      const source = sources.get(assetId);
+      if (source) {
+        sources.set(assetId, {
+          ...source,
+          input: await this.mediaRepository.resizeToJpeg(source.input, HIDDEN_SOURCE_PX),
+        });
+      }
+    }
     const { mapImage, warnings } = await this.renderMapArea(auth, book, page, number, options);
     const plan = planPage(book, page, { ...options, sources, mapImage });
     const result = await this.mediaRepository.composeBookPage(plan.spec);
-    return { data: result.data, warnings: [...getPageWarnings(plan, result, number), ...warnings] };
+    return {
+      data: result.data,
+      warnings: [...getPageWarnings(plan, result, number), ...warnings],
+      ...(hidden.size > 0 && { hidden: [...hidden] }),
+    };
   }
 
   /**
