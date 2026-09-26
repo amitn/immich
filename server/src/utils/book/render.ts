@@ -1,6 +1,6 @@
 import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
-import { isPrintedTheme } from 'src/utils/book/collections.js';
+import { isGalleryTheme, isPrintedTheme } from 'src/utils/book/collections.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   BookLayout,
@@ -571,6 +571,152 @@ const getMenuHeadingRuleY = (title: string, rect: PxRect) =>
 
 export const ptToPx = (pt: number, dpi: number) => (pt * dpi) / 72;
 
+/**
+ * The part of a slot a photo of `aspect` (width / height) fills without being cropped: all of its width or all of its
+ * height, centred across, and at the foot of the slot (`bottom`) or in its middle
+ */
+export const getContainedRect = (rect: LayoutRect, aspect: number, bottom = false): LayoutRect => {
+  if (!(aspect > 0) || !Number.isFinite(aspect) || rect.width <= 0 || rect.height <= 0) {
+    return rect;
+  }
+  const width = Math.min(rect.width, rect.height * aspect);
+  const height = Math.min(rect.height, rect.width / aspect);
+  return {
+    x: rect.x + (rect.width - width) / 2,
+    y: bottom ? rect.y + rect.height - height : rect.y + (rect.height - height) / 2,
+    width,
+    height,
+  };
+};
+
+/** "12. Virgin and Child\nNicolau Chanterene, 1535-1540, marble" → number, title and details */
+export const splitGalleryCaption = (caption: string) => {
+  const [first, ...rest] = caption.split('\n');
+  const numbered = /^(\d{1,4})\.\s+(.*)$/.exec(first);
+  return {
+    ...(numbered && { number: numbered[1] }),
+    title: numbered ? numbered[2] : first,
+    details: rest.join('\n').trim(),
+  };
+};
+
+/** a gallery page's small grey: the accent, or a grey that reads on the page */
+const getGalleryAccent = (accent: string | undefined, ink: string) => accent ?? ink;
+
+/**
+ * The caption of a photo on a gallery page, like a museum label: the catalogue number in small grey figures, the
+ * title in italics, then the artist, the date and the medium; stacked from the top (below the photo) or from the
+ * bottom (beside it, level with its foot)
+ */
+const getGalleryLabel = (
+  caption: string,
+  rect: PxRect,
+  align: Align,
+  captionPx: number,
+  ink: string,
+  accent: string | undefined,
+  valign: 'top' | 'bottom',
+): PageTextBlock[] => {
+  const { number, title, details } = splitGalleryCaption(caption);
+  const parts: Array<Omit<PageTextBlock, 'rect'>> = [
+    ...(number
+      ? [
+          {
+            kind: 'slotCaption' as const,
+            text: number,
+            fontPx: captionPx * 0.85,
+            align,
+            color: getGalleryAccent(accent, ink),
+            letterSpacing: 0.08,
+          },
+        ]
+      : []),
+    { kind: 'slotCaption', text: title, fontPx: captionPx * 1.12, align, color: ink, italic: true },
+    ...(details ? [{ kind: 'slotCaption' as const, text: details, fontPx: captionPx, align, color: ink }] : []),
+  ];
+  // each part takes the lines it needs, the details what is left
+  const sized = parts.map((part, index) => {
+    const room = { width: rect.width, height: index === parts.length - 1 ? rect.height : rect.height / 2 };
+    const { lines, fontPx } = fitText(part.text, room, part.fontPx, getCharWidth(part));
+    return { part, height: lines.length * fontPx * LINE_HEIGHT + (index < parts.length - 1 ? captionPx * 0.15 : 0) };
+  });
+  const total = sized.reduce((sum, { height }) => sum + height, 0);
+  let top = valign === 'bottom' ? rect.top + Math.max(0, rect.height - total) : rect.top;
+  const blocks: PageTextBlock[] = [];
+  for (const { part, height } of sized) {
+    const available = Math.max(1, rect.top + rect.height - top);
+    blocks.push({
+      ...part,
+      rect: { left: rect.left, top, width: rect.width, height: Math.min(height, available) },
+      valign: 'top',
+    });
+    top += height;
+  }
+  return blocks;
+};
+
+/**
+ * The heading of a chapter on a gallery page: the museum in large light type, a hairline, and the city and the date
+ * in small spaced capitals below
+ */
+const getGalleryHeading = (
+  title: string,
+  rect: PxRect,
+  align: Align,
+  titlePx: number,
+  ink: string,
+  accent: string | undefined,
+  dpi: number,
+): { blocks: PageTextBlock[]; decorations: PageDecoration[] } => {
+  const [name, detail] = splitMenuHeading(title);
+  const nameRect = { ...rect, height: rect.height * (detail ? 0.62 : 0.8) };
+  const blocks: PageTextBlock[] = [
+    {
+      kind: 'sectionTitle',
+      rect: nameRect,
+      text: name,
+      fontPx: titlePx * 0.82,
+      align,
+      color: ink,
+      valign: 'bottom',
+      letterSpacing: 0.01,
+      balance: true,
+    },
+  ];
+  const ruleY = rect.top + nameRect.height + rect.height * 0.07;
+  const width = Math.min(rect.width * 0.25, mmToPx(14, dpi));
+  const left = alignedLeft(rect, width, align);
+  const decorations: PageDecoration[] = [
+    {
+      kind: 'line',
+      x1: left,
+      y1: ruleY,
+      x2: left + width,
+      y2: ruleY,
+      color: getGalleryAccent(accent, ink),
+      width: mmToPx(0.2, dpi),
+    },
+  ];
+  if (detail) {
+    blocks.push({
+      kind: 'subtitle',
+      rect: {
+        ...rect,
+        top: ruleY + rect.height * 0.06,
+        height: Math.max(1, rect.top + rect.height - ruleY - rect.height * 0.06),
+      },
+      text: detail,
+      fontPx: titlePx * 0.36,
+      align,
+      color: getGalleryAccent(accent, ink),
+      smallCaps: true,
+      letterSpacing: 0.12,
+      valign: 'top',
+    });
+  }
+  return { blocks, decorations };
+};
+
 /** Lays out one page: pixel rects for every slot, the sources to draw and the SVG text overlay */
 export const planPage = (
   book: RenderBookInput,
@@ -611,6 +757,35 @@ export const planPage = (
     };
   });
 
+  // the gallery look shows every photo whole (an artwork is never cropped): the slot shrinks to the photo, or to its
+  // crop, at the foot of the slot when its caption is below it, so that the caption hangs under the photo
+  const gallery = isGalleryTheme(style.theme);
+  // the captions of photos in slots made without room for one go on a strip under the photo, not over it
+  const galleryStrips = new Map<number, PxRect>();
+  if (gallery) {
+    const stripMm = ((style.captionSizePt * 25.4) / 72) * 4.2;
+    for (const slot of slots) {
+      const { width, height } = slot.source ?? { width: 0, height: 0 };
+      if (!width || !height) {
+        continue;
+      }
+      const area = layout.slots[slot.index];
+      const captions = layout.text.filter((text) => text.kind === 'slotCaption' && text.slot === slot.index);
+      const below = captions.some((text) => text.y >= area.y + area.height - 1e-6);
+      let box = slot.rectMm;
+      if (slot.caption && captions.length === 0 && box.height > 3 * stripMm) {
+        box = { ...box, height: box.height - stripMm };
+        galleryStrips.set(slot.index, toPxRect({ ...box, y: box.y + box.height, height: stripMm }, dpi));
+      }
+      slot.rectMm = getContainedRect(
+        box,
+        (slot.crop.width * width) / (slot.crop.height * height),
+        below || galleryStrips.has(slot.index),
+      );
+      slot.rect = toPxRect(slot.rectMm, dpi);
+    }
+  }
+
   const mapRectMm = getMapRectMm(layout, size, style);
   const map = mapRectMm ? { rect: toPxRect(mapRectMm, dpi), rectMm: mapRectMm } : null;
 
@@ -638,7 +813,9 @@ export const planPage = (
     const base = { rect, align: area.align, color: ink };
     switch (area.kind) {
       case 'title': {
-        if (food) {
+        if (gallery) {
+          blocks.push({ ...base, kind: area.kind, text: book.title, fontPx: titlePx, letterSpacing: 0.02 });
+        } else if (food) {
           const text = { ...rect, height: rect.height * 0.78 };
           blocks.push({ ...base, rect: text, kind: area.kind, text: book.title, fontPx: titlePx, ...FOOD_CAPS });
           decorations.push(...getOrnament(rect, rect.top + rect.height * 0.9, area.align, dpi, accent));
@@ -654,14 +831,22 @@ export const planPage = (
             kind: area.kind,
             text: book.subtitle,
             fontPx: titlePx * 0.55,
-            italic: true,
+            italic: !gallery,
             ...(food && { color: accent }),
+            // a catalogue's subtitle: small spaced capitals in grey
+            ...(gallery && { smallCaps: true, letterSpacing: 0.1, color: style.accentColor }),
           });
         }
         break;
       }
       case 'sectionTitle': {
         if (!page.sectionTitle) {
+          break;
+        }
+        if (gallery) {
+          const heading = getGalleryHeading(page.sectionTitle, rect, area.align, titlePx, ink, style.accentColor, dpi);
+          blocks.push(...heading.blocks);
+          decorations.push(...heading.decorations);
           break;
         }
         if (!food) {
@@ -694,6 +879,32 @@ export const planPage = (
         }
         captionedSlots.add(slot.index);
         const slotArea = layout.slots[slot.index];
+        if (gallery) {
+          // a museum label: the catalogue number, the title in italics, then the artist, the date and the medium
+          const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;
+          const photo = slot.rect;
+          const labelRect = below
+            ? {
+                // under the photo, from its left edge (or the middle of a narrow photo in a centred area)
+                left: area.align === 'center' ? rect.left : Math.max(rect.left, photo.left),
+                top: photo.top + photo.height + captionPx * 0.9,
+                width: area.align === 'center' ? rect.width : rect.left + rect.width - Math.max(rect.left, photo.left),
+                height: Math.max(1, rect.top + rect.height - (photo.top + photo.height + captionPx * 0.9)),
+              }
+            : { ...rect, top: photo.top, height: photo.height };
+          blocks.push(
+            ...getGalleryLabel(
+              slot.caption,
+              labelRect,
+              area.align,
+              captionPx,
+              ink,
+              style.accentColor,
+              below ? 'top' : 'bottom',
+            ),
+          );
+          break;
+        }
         // below its photo, the caption starts right under it; beside it, it is centred on the photo
         const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;
         const offset = below ? captionPx * (food ? 1.1 : 0.3) : 0;
@@ -755,6 +966,17 @@ export const planPage = (
   }
 
   for (const slot of slots) {
+    const strip = galleryStrips.get(slot.index);
+    if (slot.caption && slot.source && !captionedSlots.has(slot.index) && strip) {
+      const label = {
+        ...strip,
+        left: slot.rect.left,
+        top: strip.top + captionPx * 0.6,
+        width: strip.left + strip.width - slot.rect.left,
+      };
+      blocks.push(...getGalleryLabel(slot.caption, label, 'left', captionPx * 0.9, ink, style.accentColor, 'top'));
+      continue;
+    }
     if (slot.caption && slot.source && !captionedSlots.has(slot.index)) {
       blocks.push({
         kind: 'slotCaption',
@@ -892,6 +1114,7 @@ export const getPageWarnings = (
 
     const cropAspect = (slot.crop.width * width) / (slot.crop.height * height);
     const slotAspect = slot.rectMm.width / slot.rectMm.height;
+    // the gallery look fits the slot to the crop, so nothing is trimmed
     if (Math.abs(Math.log(cropAspect / slotAspect)) > Math.log(1.05)) {
       warnings.push({
         page: pageNumber,

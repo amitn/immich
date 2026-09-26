@@ -171,3 +171,34 @@ export const isCollectionTheme = (theme?: string | null) => !!getPackTheme(theme
 
 /** whether a style theme is drawn like a printed page (a menu): a hairline frame, small caps and ornaments */
 export const isPrintedTheme = (theme?: string | null) => getPackTheme(theme)?.look === 'printed';
+
+/** whether a style theme is drawn like an exhibition catalogue: photos shown whole, never cropped, with labels */
+export const isGalleryTheme = (theme?: string | null) => getPackTheme(theme)?.look === 'gallery';
+
+/** whether the source photos of a pack's visits open their chapters on a page of their own (a menu), default yes */
+export const hasSourcePages = (packId: string) => getCollectionPack(packId)?.book.sourcePages !== false;
+
+/**
+ * Numbers the entries of the packs that number them (a catalogue of artworks) through the pages, in their order: the
+ * slot captions become "1. Caption"; another photo of an entry (a detail) keeps its number.
+ */
+export const numberEntryCaptions = <T extends { slots: Array<{ assetId: string; caption?: string }> }>(
+  pages: T[],
+  photos: Map<string, Pick<CollectionPhoto, 'collection'>>,
+) => {
+  const numbers = new Map<string, number>();
+  for (const page of pages) {
+    for (const slot of page.slots) {
+      const tag = photos.get(slot.assetId)?.collection;
+      if (!slot.caption || tag?.kind !== 'entry' || !getCollectionPack(tag.pack)?.book.numbered) {
+        continue;
+      }
+      const key = `${tag.pack}\n${tag.place.toLowerCase()}\n${tag.entry}`;
+      if (!numbers.has(key)) {
+        numbers.set(key, numbers.size + 1);
+      }
+      slot.caption = `${numbers.get(key)}. ${slot.caption}`;
+    }
+  }
+  return pages;
+};

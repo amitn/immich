@@ -15,7 +15,7 @@ import {
   isRightPage,
   isSinglePhotoPage,
 } from 'src/utils/book/auto-layout.js';
-import { getEntryName, getPhotoPack, isSourcePhoto } from 'src/utils/book/collections.js';
+import { getEntryName, getPhotoPack, isGalleryTheme, isSourcePhoto } from 'src/utils/book/collections.js';
 import { PageSize, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { isMapStyleFallback } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI } from 'src/utils/book/render.js';
@@ -471,6 +471,51 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
         `${source} photo in it`,
       pages: numbers,
       assetIds: sources.slice(0, 3).map(({ id }) => id),
+    });
+  }
+
+  // entries cropped in their slots, for the packs whose entries are shown whole (an artwork): by their crop, and by
+  // the slot a crop of another shape is trimmed to (the gallery look fits the slot to the crop instead)
+  const cropped = new Map<string, Array<{ page: number; assetId: string; entry: string }>>();
+  for (const [index, page] of pages.entries()) {
+    const layout = getLayout(page.layout);
+    if (!layout || page.layout === 'cover') {
+      continue;
+    }
+    const rects = getSlotRectsMm(layout, size, style);
+    for (const asset of placements[index]) {
+      const photo = photos.get(asset.assetId);
+      const entry = photo && getEntryName(photo);
+      const pack = photo && getPhotoPack(photo);
+      const rect = rects[asset.slot];
+      if (!photo || !entry || !pack?.book.review.croppedEntries || !rect) {
+        continue;
+      }
+      const crop = asset.crop ?? FULL_CROP;
+      let kept = crop.width * crop.height;
+      if (!isGalleryTheme(style.theme) && photo.width > 0 && photo.height > 0 && rect.height > 0) {
+        const ratio = (crop.width * photo.width) / (crop.height * photo.height) / (rect.width / rect.height);
+        kept *= Math.min(ratio, 1 / ratio);
+      }
+      if (kept < 0.97) {
+        cropped.set(pack.id, [...(cropped.get(pack.id) ?? []), { page: index + 1, assetId: asset.assetId, entry }]);
+      }
+    }
+  }
+  for (const [packId, entries] of cropped) {
+    const pack = getCollectionPack(packId)!;
+    const { subject, subjects } = pack.names;
+    const numbers = [...new Set(entries.map(({ page }) => page))];
+    add({
+      severity: 'medium',
+      type: 'could-look-better',
+      message:
+        `${formatPages(numbers)} ${numbers.length === 1 ? 'crops' : 'crop'} ` +
+        `${entries.length === 1 ? article(subject) : `${entries.length} ${subjects}`} ` +
+        `(e.g. ${entries[0].entry}); ${subjects} are shown whole: use the ${pack.book.preset.id} style preset, whose ` +
+        `slots fit the photos, or clear the crops`,
+      pages: numbers,
+      assetIds: entries.map(({ assetId }) => assetId),
     });
   }
 
