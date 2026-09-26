@@ -1,3 +1,4 @@
+import { Kind2 } from '@immich/sdk';
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import BookLayoutPicker from '$lib/components/books/BookLayoutPicker.svelte';
 import { bookLayoutFactory, bookLayouts } from '@test-data/factories/book-page-factory';
@@ -70,9 +71,9 @@ describe('BookLayoutPicker component', () => {
   });
 
   it('should draw the name of a dish below its photo like a caption', () => {
-    // TODO: type `kind` and `slot` with the SDK once it is regenerated with the slotCaption areas
     const dish = bookLayoutFactory('dish', [{ x: 0, y: 0, width: 1, height: 0.8 }], {
-      textAreas: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.8, width: 1, height: 0.2 } as never],
+      food: true,
+      textAreas: [{ kind: Kind2.SlotCaption, slot: 0, x: 0, y: 0.8, width: 1, height: 0.2 }],
     });
     const { container } = render(BookLayoutPicker, { layouts: [dish], size, style, photoCount: 1, onSelect });
 

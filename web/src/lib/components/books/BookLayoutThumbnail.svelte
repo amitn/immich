@@ -6,7 +6,7 @@
     type BookPageSize,
     type BookSpacing,
   } from '$lib/utils/book-geometry';
-  import type { BookLayoutResponseDto } from '@immich/sdk';
+  import { Kind2, type BookLayoutResponseDto } from '@immich/sdk';
 
   type Props = {
     layout: BookLayoutResponseDto;
@@ -23,8 +23,7 @@
   const text = $derived(layout.textAreas.map((area) => ({ ...area, ...placeRect(area, box, style.gutterMm) })));
 
   // the caption of a photo (e.g. the name of a dish) is drawn like a caption
-  // TODO: compare with the SDK enum once it is regenerated with `slotCaption`
-  const isCaptionArea = (kind: string) => kind === 'caption' || kind === 'slotCaption';
+  const isCaptionArea = (kind: Kind2) => kind === Kind2.Caption || kind === Kind2.SlotCaption;
 </script>
 
 <!-- a schematic of the layout: photos as filled blocks, the map as a hatched block and text as lines -->

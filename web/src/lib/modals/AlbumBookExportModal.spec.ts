@@ -91,6 +91,20 @@ describe('AlbumBookExportModal component', () => {
     });
   });
 
+  it('should start from the given style preset, e.g. food after naming the dishes', async () => {
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build(), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, stylePreset: BookStylePreset.Food, onClose } });
+
+    expect(screen.getByRole('radio', { name: /book_style_preset_food/ })).toBeChecked();
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(sdkMock.createBookFromAlbum).toHaveBeenCalled());
+    expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
+      bookFromAlbumDto: expect.objectContaining({ stylePreset: BookStylePreset.Food }),
+    });
+  });
+
   it('should not improve the photos when the switch is turned off', async () => {
     sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build({ albumId: album.id }), warnings: [] });
 

@@ -32,6 +32,7 @@ describe('BookSlotHighlight component', () => {
         name: 'Two',
         description: 'Two photos',
         fullBleed: false,
+        food: false,
         orientation: Orientation.Any,
         slots: [
           { x: 0, y: 0, width: 0.5, height: 1 },

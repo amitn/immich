@@ -15,6 +15,7 @@
   import type { PageData } from './$types';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
   import { getAltText } from '$lib/utils/thumbnail-util';
+  import { isFoodPhotoTag } from '$lib/utils/food';
   import Portal from '$lib/elements/Portal.svelte';
 
   interface Props {
@@ -23,7 +24,10 @@
 
   let { data }: Props = $props();
 
-  const tags = $derived([...data.tags].sort((a, b) => a.value.localeCompare(b.value)));
+  // the tags of single dishes and menus would crowd the row: their restaurant (Food/<Restaurant>) stands for them
+  const tags = $derived(
+    data.tags.filter(({ value }) => !isFoodPhotoTag(value)).sort((a, b) => a.value.localeCompare(b.value)),
+  );
   /** the newest photo of each tag, as its cover; '' while loading or for empty tags */
   let tagCovers = $state<Record<string, string>>({});
   // not reactive on purpose: it only prevents loading a cover twice

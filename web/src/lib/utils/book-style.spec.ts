@@ -1,4 +1,4 @@
-import type { BookStyle } from '@immich/sdk';
+import { BookStyleTheme } from '@immich/sdk';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import {
   findBookStylePreset,
@@ -19,7 +19,7 @@ describe('findBookStylePreset', () => {
   });
 
   it('should tell the food theme from a plain style with the same values', () => {
-    expect(findBookStylePreset({ ...food.style, theme: 'plain' } as BookStyle, bookStylePresets)).toBeUndefined();
+    expect(findBookStylePreset({ ...food.style, theme: BookStyleTheme.Plain }, bookStylePresets)).toBeUndefined();
     expect(getBookStyleTheme(food.style)).toBe('food');
     expect(getBookStyleTheme(classic.style)).toBe('plain');
     expect(getBookStyleAccent(food.style)).toBe('#8c3b2a');
@@ -34,6 +34,15 @@ describe('findBookStylePreset', () => {
     expect(findBookStylePreset({ ...soft.style, gutterMm: 4 }, bookStylePresets)).toBeUndefined();
     expect(findBookStylePreset({ ...soft.style, fontFamily: 'sans-serif' }, bookStylePresets)).toBeUndefined();
     expect(findBookStylePreset({ ...soft.style, captionSizePt: undefined }, bookStylePresets)).toBeUndefined();
+    expect(findBookStylePreset({ ...food.style, accentColor: '#000000' }, bookStylePresets)).toBeUndefined();
+  });
+
+  it('should treat a style without a theme or accent as plain, with the accent of its text', () => {
+    const classicStyle = { ...classic.style, theme: BookStyleTheme.Plain, accentColor: classic.style.textColor };
+    const presets = [{ ...classic, style: classicStyle }];
+
+    expect(findBookStylePreset({ ...classic.style }, presets)).toBe(presets[0]);
+    expect(findBookStylePreset({ ...classic.style, accentColor: '#abcdef' }, presets)).toBeUndefined();
   });
 });
 

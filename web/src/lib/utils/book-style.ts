@@ -1,14 +1,17 @@
-import { BookStylePreset, getBookStylePresets, type BookStyle, type BookStylePresetResponseDto } from '@immich/sdk';
+import {
+  BookStylePreset,
+  BookStyleTheme,
+  getBookStylePresets,
+  type BookStyle,
+  type BookStylePresetResponseDto,
+} from '@immich/sdk';
 import type { Translations } from 'svelte-i18n';
-
-/** TODO: `BookStylePreset.Food` once the SDK is regenerated */
-export const BOOK_STYLE_PRESET_FOOD = 'food' as BookStylePreset;
 
 export const BOOK_STYLE_PRESETS = [
   BookStylePreset.Soft,
   BookStylePreset.Classic,
   BookStylePreset.Bold,
-  BOOK_STYLE_PRESET_FOOD,
+  BookStylePreset.Food,
 ] as const;
 
 export const DEFAULT_BOOK_STYLE_PRESET = BookStylePreset.Soft;
@@ -21,7 +24,7 @@ export const BOOK_STYLE_PRESET_LABEL_KEYS: Record<BookStylePreset, { name: Trans
       description: 'book_style_preset_classic_description',
     },
     [BookStylePreset.Bold]: { name: 'book_style_preset_bold', description: 'book_style_preset_bold_description' },
-    [BOOK_STYLE_PRESET_FOOD]: { name: 'book_style_preset_food', description: 'book_style_preset_food_description' },
+    [BookStylePreset.Food]: { name: 'book_style_preset_food', description: 'book_style_preset_food_description' },
   };
 
 let presets: Promise<BookStylePresetResponseDto[]> | undefined;
@@ -58,33 +61,39 @@ const STYLE_KEYS = [
   'gutterMm',
   'titleSizePt',
   'captionSizePt',
+  'theme',
+  'accentColor',
 ] as const satisfies ReadonlyArray<keyof BookStyle>;
 
-/**
- * Style options the SDK does not know yet, with their defaults on the server.
- * TODO: add them to `STYLE_KEYS` once the SDK is regenerated
- */
-const NEW_STYLE_DEFAULTS: Record<string, string> = { theme: 'plain' };
+type StyleKey = (typeof STYLE_KEYS)[number];
 
 const sameValue = (a: unknown, b: unknown) =>
   typeof a === 'string' && typeof b === 'string' ? a.toLowerCase() === b.toLowerCase() : a === b;
 
-const newValue = (style: BookStyle, key: string) => (style as Record<string, unknown>)[key] ?? NEW_STYLE_DEFAULTS[key];
+/** The value of a style option, with the defaults of the server for the options older styles don't have */
+const valueOf = (style: BookStyle, key: StyleKey) => {
+  switch (key) {
+    case 'theme': {
+      return style.theme ?? BookStyleTheme.Plain;
+    }
+    case 'accentColor': {
+      return style.accentColor ?? style.textColor;
+    }
+    default: {
+      return style[key];
+    }
+  }
+};
 
 /** The style's theme, e.g. food for the printed-menu look of the food preset */
-export const getBookStyleTheme = (style?: BookStyle) => (style ? String(newValue(style, 'theme')) : undefined);
+export const getBookStyleTheme = (style?: BookStyle) => (style ? valueOf(style, 'theme') : undefined);
 
 /** The color of the rules and ornaments of the food theme */
-export const getBookStyleAccent = (style?: BookStyle) =>
-  style ? String((style as Record<string, unknown>).accentColor ?? style.textColor) : undefined;
+export const getBookStyleAccent = (style?: BookStyle) => (style ? valueOf(style, 'accentColor') : undefined);
 
 /** The preset the style is exactly equal to, or undefined for a custom style */
 export const findBookStylePreset = (
   style: BookStyle,
   available: BookStylePresetResponseDto[],
 ): BookStylePresetResponseDto | undefined =>
-  available.find(
-    (preset) =>
-      STYLE_KEYS.every((key) => sameValue(style[key], preset.style[key])) &&
-      Object.keys(NEW_STYLE_DEFAULTS).every((key) => sameValue(newValue(style, key), newValue(preset.style, key))),
-  );
+  available.find((preset) => STYLE_KEYS.every((key) => sameValue(valueOf(style, key), valueOf(preset.style, key))));
