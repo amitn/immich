@@ -466,6 +466,35 @@ describe(AgentService.name, () => {
       expect(updates().at(-1)).toEqual({ sessionId: session.id, status: AgentSessionStatus.Idle });
       expect(mocks.agent.updateSession).toHaveBeenLastCalledWith(session.id, { status: AgentSessionStatus.Idle });
     });
+
+    it('should link the album and photos of a create_album call reported by claude-agent-acp', async () => {
+      const albumId = '1d7b2c4e-9f5a-4d3b-8e2c-7a6f5e4d3c2b';
+      const assetIds = ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10', '0b6f4f3e-7c3d-4d8e-9d4c-6f1f1f0e7b5a'];
+      const text = JSON.stringify({ id: albumId, name: 'Best of Sicily', added: 2, duplicate: 0, failed: 0 });
+      const session = newSession();
+      await startTurn(session.id);
+
+      await send({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'toolu_01',
+        title: 'mcp__immich__create_album',
+        kind: 'other',
+        status: 'pending',
+        rawInput: { name: 'Best of Sicily', assetIds },
+        _meta: { claudeCode: { toolName: 'mcp__immich__create_album' } },
+      });
+      await send({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'toolu_01',
+        status: 'completed',
+        rawOutput: [{ type: 'text', text }],
+        content: [{ type: 'content', content: { type: 'text', text } }],
+        _meta: { claudeCode: { toolName: 'mcp__immich__create_album' } },
+      });
+
+      const toolCall = messages().find((message) => message.kind === AgentMessageKind.ToolCall);
+      expect(toolCall?.content).toMatchObject({ toolName: 'create_album', albumIds: [albumId], assetIds });
+    });
   });
 
   describe('permission policy', () => {
