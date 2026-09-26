@@ -39,6 +39,15 @@ export type PageSize = { pageWidthMm: number; pageHeightMm: number };
 /** a page typeset from the text of a source instead of its photo, see `CollectionPack.book.sourcePage` */
 export const TICKET_STUB_LAYOUT = 'ticket-stub';
 
+/**
+ * the tasting notes of wine books (see `CollectionPack.book.entryLayouts`): a portrait bottle with its fiche beside it,
+ * a landscape one with its fiche below, and two bottles with theirs
+ */
+export const TASTING_NOTE_LAYOUT = 'tasting-note';
+export const TASTING_NOTE_WIDE_LAYOUT = 'tasting-note-wide';
+export const TASTING_NOTES_LAYOUT = 'tasting-notes';
+export const TASTING_LAYOUTS: readonly string[] = [TASTING_NOTE_LAYOUT, TASTING_NOTE_WIDE_LAYOUT, TASTING_NOTES_LAYOUT];
+
 const third = 1 / 3;
 
 export const bookLayouts: readonly BookLayout[] = [
@@ -356,6 +365,46 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 2, x: 2 * third, y: 0.61, width: third, height: 0.17, align: 'center' },
     ],
     orientation: 'any',
+    collection: true,
+  },
+  {
+    id: TASTING_NOTE_LAYOUT,
+    name: 'Tasting note',
+    description:
+      'A tasting note: a portrait photo of a bottle (slot 1) with its fiche beside it, typeset from the slot caption as ' +
+      'lines of "Label: value" (Producer, Wine, Vintage, Region, Grape, Style) and, after a blank line, the note ' +
+      '(ruled lines to write one when there is none).',
+    slots: [{ x: 0, y: 0.03, width: 0.58, height: 0.94 }],
+    text: [{ kind: 'slotCaption', slot: 0, x: 0.63, y: 0.03, width: 0.37, height: 0.94, align: 'left' }],
+    orientation: 'portrait',
+    collection: true,
+  },
+  {
+    id: TASTING_NOTE_WIDE_LAYOUT,
+    name: 'Tasting note, wide',
+    description:
+      'A tasting note for a landscape photo of a bottle or glasses (slot 1): the fiche below it, the name on the left ' +
+      'and the rows and note on the right, typeset from the slot caption like the tasting note.',
+    slots: [{ x: 0, y: 0, width: 1, height: 0.64 }],
+    text: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.68, width: 1, height: 0.32, align: 'left' }],
+    orientation: 'landscape',
+    collection: true,
+  },
+  {
+    id: TASTING_NOTES_LAYOUT,
+    name: 'Two tasting notes',
+    description:
+      'Two bottles in rows, each portrait photo on the left (slots 1 and 2) with its fiche beside it, typeset from ' +
+      'its slot caption like the tasting note.',
+    slots: [
+      { x: 0, y: 0, width: 0.3, height: 0.5 },
+      { x: 0, y: 0.5, width: 0.3, height: 0.5 },
+    ],
+    text: [
+      { kind: 'slotCaption', slot: 0, x: 0.35, y: 0, width: 0.65, height: 0.5, align: 'left' },
+      { kind: 'slotCaption', slot: 1, x: 0.35, y: 0.5, width: 0.65, height: 0.5, align: 'left' },
+    ],
+    orientation: 'portrait',
     collection: true,
   },
   {

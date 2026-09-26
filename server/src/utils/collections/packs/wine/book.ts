@@ -1,12 +1,8 @@
+import { TASTING_LAYOUTS } from 'src/utils/book/layouts.js';
 import { CollectionReviewInput, CollectionReviewIssue } from 'src/utils/collections/pack.js';
 import { findTerms, parseWineName } from 'src/utils/collections/packs/wine/label.js';
 import { normalizeWords } from 'src/utils/collections/packs/wine/lexicon.js';
 import { isGarbled } from 'src/utils/collections/place.js';
-
-/** the tasting-note layouts of wine books: a bottle with its fiche and note, and two bottles with theirs */
-export const TASTING_NOTE_LAYOUT = 'tasting-note';
-export const TASTING_NOTES_LAYOUT = 'tasting-notes';
-export const TASTING_LAYOUTS = [TASTING_NOTE_LAYOUT, TASTING_NOTES_LAYOUT];
 
 /** the region and the grape named in the name of a wine, e.g. Bourgogne and Pinot Noir in "Bourgogne Pinot Noir" */
 export const getNamedTerms = (text: string) => {
@@ -37,12 +33,14 @@ export const getWineCaption = (entry: string, context: { layout?: string; descri
   }
   const { producer, wine, vintage } = parseWineName(entry);
   const { regions, grapes } = getNamedTerms(`${wine ?? ''}`);
+  // a region or grape that is the whole name of the wine ("Pessac-Léognan", "Riesling") is said once
+  const other = (values: string[]) => values.filter((value) => value.toLowerCase() !== wine?.toLowerCase());
   const fields = [
     producer && `Producer: ${producer}`,
     wine && `Wine: ${wine}`,
     vintage && `Vintage: ${vintage}`,
-    regions.length > 0 && `Region: ${regions.join(', ')}`,
-    grapes.length > 0 && `Grape: ${grapes.join(', ')}`,
+    other(regions).length > 0 && `Region: ${other(regions).join(', ')}`,
+    other(grapes).length > 0 && `Grape: ${other(grapes).join(', ')}`,
   ].filter(Boolean);
   const note = context.description?.trim();
   // the description save_entries wrote is the name again, not a note

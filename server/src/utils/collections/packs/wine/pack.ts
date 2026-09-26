@@ -1,6 +1,7 @@
+import { TASTING_LAYOUTS } from 'src/utils/book/layouts.js';
 import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
 import { assignBottles } from 'src/utils/collections/packs/wine/bottles.js';
-import { TASTING_LAYOUTS, getWineCaption, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
+import { getWineCaption, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
 import {
   WINERY_WORDS,
   WINE_CLASSIFY_RULES,
@@ -135,7 +136,7 @@ export const winePack: CollectionPack = {
     },
     caption: (wine, _tasting, context) => getWineCaption(wine, context),
     review: { unnamedEntries: true, missingSourcePage: false, check: reviewWineBook },
-    entryLayouts: TASTING_LAYOUTS,
+    entryLayouts: [...TASTING_LAYOUTS],
     // a tasting is a day at one place: the aperitif and the last glass of a long dinner are one chapter
     visitGapHours: 8,
   },

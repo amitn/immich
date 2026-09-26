@@ -8,6 +8,7 @@ import {
   LayoutTextArea,
   PageSize,
   PxRect,
+  TASTING_LAYOUTS,
   TICKET_STUB_LAYOUT,
   getLayout,
   getLayoutBox,
@@ -18,6 +19,7 @@ import {
   toPxRect,
 } from 'src/utils/book/layouts.js';
 import { getRecipeBlocks } from 'src/utils/book/recipe-page.js';
+import { getTastingNoteBlocks } from 'src/utils/book/tasting-note.js';
 import { getTicketStub } from 'src/utils/book/ticket-stub.js';
 
 /** thumbnail: contact sheets from thumbnail files; review: ~1200px pages from previews; print: 300 dpi from originals */
@@ -785,6 +787,22 @@ export const planPage = (
           break;
         }
         captionedSlots.add(slot.index);
+        if (TASTING_LAYOUTS.includes(layout.id)) {
+          // the fiche of a bottle and its tasting note, typeset beside (or below) its photo
+          const note = getTastingNoteBlocks(slot.caption, rect, {
+            fontPx: captionPx,
+            ink,
+            accent: food ? accent : (style.accentColor ?? ink),
+            pxPerMm: mmToPx(1, dpi),
+            wrap: wrapText,
+            lineHeight: LINE_HEIGHT,
+            charWidth: CHAR_WIDTH,
+            smallCapsCharWidth: SMALL_CAPS_CHAR_WIDTH,
+          });
+          blocks.push(...note.blocks);
+          decorations.push(...note.decorations);
+          break;
+        }
         const slotArea = layout.slots[slot.index];
         // below its photo, the caption starts right under it; beside it, it is centred on the photo
         const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;

@@ -1718,6 +1718,7 @@ export class BookService extends BaseService {
         kind: getPhotoKind(stacks.get(row.id) ?? {}),
         people: getPeople(row),
         embedding: vectors.get(row.id) ?? null,
+        description: row.description ?? null,
         collection: getCollectionTag((tagValues.get(row.id) ?? []).map(({ value }) => value)) ?? null,
       };
     });
