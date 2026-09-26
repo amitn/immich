@@ -24,7 +24,7 @@
     type AlbumResponseDto,
     type BookFromAlbumDto,
   } from '@immich/sdk';
-  import { Checkbox, Field, FormModal, Icon, Input, Label, modalManager, NumberInput, Text } from '@immich/ui';
+  import { Field, FormModal, Icon, Input, modalManager, NumberInput, Switch, Text } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline, mdiCheckCircle } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
@@ -127,7 +127,7 @@
         {#each BOOK_PAGE_SIZE_PRESETS as preset (preset.id)}
           {@const checked = pageSize === preset.id}
           <label
-            class="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-primary {checked
+            class="relative flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 p-3 text-center transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-primary {checked
               ? 'border-primary bg-primary/5'
               : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
           >
@@ -141,12 +141,17 @@
                 style:width="{(preset.widthMm / 300) * 40}px"
               ></span>
             </span>
-            <span class="flex items-center gap-1 text-xs font-medium">
-              {$t(preset.labelKey)}
-              {#if checked}
-                <Icon icon={mdiCheckCircle} size="14" class="text-primary" aria-hidden />
-              {/if}
+            <span class="flex flex-col text-xs">
+              <span class="font-medium">{$t(preset.labelKey)}</span>
+              <span class="whitespace-nowrap text-gray-500 dark:text-gray-400">
+                {$t('book_page_size_dimensions', {
+                  values: { width: preset.widthMm / 10, height: preset.heightMm / 10 },
+                })}
+              </span>
             </span>
+            {#if checked}
+              <Icon icon={mdiCheckCircle} size="16" class="absolute inset-e-2 top-2 text-primary" aria-hidden />
+            {/if}
           </label>
         {/each}
       </div>
@@ -165,19 +170,15 @@
         min={1}
         max={BOOK_MAX_PAGES}
         step={1}
-        placeholder={String(suggestedPageCount)}
+        placeholder={$t('book_target_page_count_placeholder')}
       />
     </Field>
 
     <BookMapOptions bind:includeMaps bind:mapStyle bind:illustratedMaps />
 
-    <div class="flex flex-col gap-1">
-      <div class="flex items-center gap-2">
-        <Checkbox id="book-improve-photos" size="tiny" bind:checked={improvePhotos} />
-        <Label label={$t('book_improve_photos')} for="book-improve-photos" class="text-sm font-medium" />
-      </div>
-      <Text size="tiny" color="muted" class="ps-6">{$t('book_improve_photos_description')}</Text>
-    </div>
+    <Field label={$t('book_improve_photos')} description={$t('book_improve_photos_description')}>
+      <Switch bind:checked={improvePhotos} />
+    </Field>
 
     <fieldset>
       <legend class="mb-2 text-sm font-medium">{$t('book_export_format')}</legend>

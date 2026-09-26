@@ -22,10 +22,10 @@ export type BookPageSizePreset = {
 };
 
 export const BOOK_PAGE_SIZE_PRESETS: BookPageSizePreset[] = [
-  { id: 'square-21', labelKey: 'book_page_size_square_21', widthMm: 210, heightMm: 210 },
+  { id: 'square-21', labelKey: 'book_page_size_square', widthMm: 210, heightMm: 210 },
   { id: 'a4-portrait', labelKey: 'book_page_size_a4_portrait', widthMm: 210, heightMm: 297 },
   { id: 'a4-landscape', labelKey: 'book_page_size_a4_landscape', widthMm: 297, heightMm: 210 },
-  { id: 'square-30', labelKey: 'book_page_size_square_30', widthMm: 300, heightMm: 300 },
+  { id: 'square-30', labelKey: 'book_page_size_square', widthMm: 300, heightMm: 300 },
 ];
 
 export const DEFAULT_BOOK_PAGE_SIZE: BookPageSizePresetId = 'square-21';

@@ -76,17 +76,24 @@ describe('AlbumBookExportModal component', () => {
     });
   });
 
-  it('should not improve the photos when the checkbox is cleared', async () => {
+  it('should not improve the photos when the switch is turned off', async () => {
     sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build({ albumId: album.id }), warnings: [] });
 
     render(AlbumBookExportModal, { props: { album, onClose } });
-    await fireEvent.click(screen.getByRole('checkbox', { name: 'book_improve_photos' }));
+    await fireEvent.click(screen.getByRole('switch', { name: 'book_improve_photos' }));
     await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
       bookFromAlbumDto: expect.objectContaining({ improvePhotos: false }),
     });
+  });
+
+  it('should show a placeholder, not a value, in the page count field', () => {
+    render(AlbumBookExportModal, { props: { album, onClose } });
+
+    const input = screen.getByPlaceholderText('book_target_page_count_placeholder');
+    expect(input).toHaveValue(null);
   });
 
   it('should not export when the book could not be created', async () => {

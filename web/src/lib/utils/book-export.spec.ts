@@ -32,9 +32,12 @@ describe('page size presets', () => {
     ]);
   });
 
-  it('should have a unique id and label for each preset', () => {
+  it('should have a unique id, and a unique label and size, for each preset', () => {
     expect(new Set(BOOK_PAGE_SIZE_PRESETS.map(({ id }) => id)).size).toBe(BOOK_PAGE_SIZE_PRESETS.length);
-    expect(new Set(BOOK_PAGE_SIZE_PRESETS.map(({ labelKey }) => labelKey)).size).toBe(BOOK_PAGE_SIZE_PRESETS.length);
+    expect(
+      new Set(BOOK_PAGE_SIZE_PRESETS.map(({ labelKey, widthMm, heightMm }) => `${labelKey} ${widthMm}×${heightMm}`))
+        .size,
+    ).toBe(BOOK_PAGE_SIZE_PRESETS.length);
   });
 
   it('should look presets up by id', () => {
