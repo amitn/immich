@@ -290,6 +290,19 @@ The **Food** style (_Like a printed menu: warm paper, small-caps headings, thin 
 - **Dish captions.** The name of each dish is set below its photo, from its food tag. A page of other photos is captioned with their place, as in the other styles.
 - **Review.** **Dish without its name** is a named dish shown without its caption. **Restaurant without its menu** is a restaurant whose dishes are in the book but whose menu, which is in the album, isn't.
 
+## Travel documents
+
+Photograph your boarding passes and tickets on a trip, and Immich matches the photos of the trip with its legs. Choose **Name the legs of a trip…** from the menu of an album or of selected photos, or ask the assistant. It uses the same smart search and OCR models as [Food](#food), locally.
+
+- **Documents.** Boarding passes, bus, train, ferry and monorail tickets, park and museum tickets and fare receipts are read into legs: the mode, the carrier, the flight or train number, from → to, the date and time, the seat and the class, in English, Greek, Japanese and Chinese. What can't be read is said, such as a date printed vertically, a year that isn't printed or a time written over by hand.
+- **Legs.** A leg runs from a little before its departure (the wait at the station or the airport) until the next leg, or the end of its day; the photos between two legs belong to the destination of the earlier one. A document with only a date covers its day, one without a date the day it was photographed. The places and look a photo shares with a leg, such as a ferry's name on its hull, can move it to that leg. Days without documents stay unassigned: name them yourself, such as _Chania day_.
+- **Tags.** Photos are tagged `Travel/<Trip>/<Leg>`, such as `Travel/Crete, October 2016/Bus Chania → Sougia, 4 Oct 2016`, and the documents `Travel/<Trip>/Tickets`. Name the trip after its destinations and month.
+- **Travel books.** The **Travel** style is a travel journal: a chapter per leg, opened by a ticket stub typeset from the fields of its document, with a route line and a date stamp, then the photos of the leg. Review reports legs without photos, photos no document covers, documents without a date, and a page that prints a document itself.
+
+:::info Travel documents and privacy
+Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields, and ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
+:::
+
 ## Tags
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:
