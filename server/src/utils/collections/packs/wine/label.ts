@@ -34,12 +34,14 @@ export type WineLabel = {
   type?: WineType;
   /** 0..1: how much of the label was read, and how clearly */
   confidence: number;
-  /** the reading is clear enough to be trusted without a look */
+  /** the whole name (producer, wine and vintage) is read clearly enough to be trusted without a look */
   sure: boolean;
   /** several different labels (vintages) on the photo, e.g. three bottles at a tasting */
   several: boolean;
-  /** the words that tell this label from others, normalized, for photos of the same bottle */
+  /** the words that tell this label from others, normalized, read clearly: for photos of the same bottle */
   words: string[];
+  /** those words and the ones read less clearly ("snarebtee"), which may still be the same as another reading's */
+  looseWords: string[];
   /** where the label's text is on the photo: [left, top, right, bottom], normalized 0..1 */
   box?: [number, number, number, number];
 };
@@ -66,13 +68,14 @@ export const findVintages = (text: string) =>
   });
 
 /** a line that is just a year */
-const isVintageLine = (text: string) => /^[\s·.,'’-]*[12][\dIlOo]{3}(?:er)?[\s·.,'’-]*$/u.test(text) && findVintages(text).length > 0;
+const isVintageLine = (text: string) =>
+  /^[\s·.,'’-]*[12][\dIlOo]{3}(?:er)?[\s·.,'’-]*$/u.test(text) && findVintages(text).length > 0;
 
 /** the mandatory small print, addresses and numbers of a label */
 const NOISE_TEXT = [
   /%/,
   /\bvol\b|by\s?vol/i,
-  /\d\s?m[lI]\b|\bm[lI]e?\b|\bcl\b/,
+  /\d\s?m[lI]e?\b|\bm[lI]e?\b|\bcl\b/,
   /\d{5,}/,
   /\ba[.\s-]{0,2}p[.\s-]{0,2}n[rt]/i,
   /since\s?\d{4}/i,
@@ -158,34 +161,42 @@ const matchWindow = (window: string, target: string, size: number) => {
 export const findTerms = (words: string[]): Term[] => {
   const used = Array.from({ length: words.length }, () => false);
   const terms: Term[] = [];
-  const lengths = [...new Set(LEXICON_WORDS.map((entry) => entry.words.join('').length))].toSorted((a, b) => b - a);
-  for (const length of lengths) {
-    const entries = LEXICON_WORDS.filter((entry) => entry.words.join('').length === length);
-    for (const exact of [true, false]) {
-      for (const entry of entries) {
-        const size = entry.words.length;
-        const target = entry.words.join('');
-        for (let start = 0; start + size <= words.length; start++) {
-          if (used.slice(start, start + size).some(Boolean)) {
-            continue;
-          }
-          const window = words.slice(start, start + size).join('');
-          const match = exact
-            ? window === target
-            : matchWindow(window, target, size) ||
-              // a grape cut after four letters: "VIUR" is Viura
-              (entry.kind === 'grape' && size === 1 && window.length === 4 && target.length <= 6 && target.startsWith(window));
-          if (!match) {
-            continue;
-          }
-          for (let index = start; index < start + size; index++) {
-            used[index] = true;
-          }
-          terms.push({ entry, start, end: start + size, exact });
+  const find = (entries: typeof LEXICON_WORDS, exact: boolean) => {
+    for (const entry of entries) {
+      const size = entry.words.length;
+      const target = entry.words.join('');
+      for (let start = 0; start + size <= words.length; start++) {
+        if (used.slice(start, start + size).some(Boolean)) {
+          continue;
         }
+        const window = words.slice(start, start + size).join('');
+        const match = exact
+          ? window === target
+          : matchWindow(window, target, size) ||
+            // a grape cut after four letters: "VIUR" is Viura
+            (entry.kind === 'grape' &&
+              size === 1 &&
+              window.length === 4 &&
+              target.length <= 6 &&
+              target.startsWith(window));
+        if (!match) {
+          continue;
+        }
+        for (let index = start; index < start + size; index++) {
+          used[index] = true;
+        }
+        terms.push({ entry, start, end: start + size, exact: window === target });
       }
     }
-  }
+  };
+  // long names first, even misread ("Vin de la Tierre de Cadiz"), then the exact readings of the others ("Weinbau"
+  // before a misread "Weinhaus"), then their misreadings
+  const long = LEXICON_WORDS.filter((entry) => entry.words.length >= 3);
+  const rest = LEXICON_WORDS.filter((entry) => entry.words.length < 3);
+  find(long, true);
+  find(long, false);
+  find(rest, true);
+  find(rest, false);
   return terms.toSorted((a, b) => a.start - b.start);
 };
 
@@ -235,7 +246,9 @@ const toLabelLine = (line: TextLine): LabelLine => {
   if (tokens.length === words.length) {
     const cuts = [
       ...terms.map(({ start, end }) => [tokens[start].index, tokens[end - 1].index + tokens[end - 1][0].length]),
-      ...tokens.filter((token) => findVintages(token[0]).length > 0).map((token) => [token.index, token.index + token[0].length]),
+      ...tokens
+        .filter((token) => findVintages(token[0]).length > 0)
+        .map((token) => [token.index, token.index + token[0].length]),
     ].toSorted((a, b) => b[0] - a[0]);
     for (const [from, to] of cuts) {
       rest = `${rest.slice(0, from)} ${rest.slice(to)}`;
@@ -243,7 +256,10 @@ const toLabelLine = (line: TextLine): LabelLine => {
   } else {
     rest = terms.length === 0 ? line.text.replaceAll(YEAR_TOKEN, ' ') : '';
   }
-  rest = rest.replaceAll(/\s+/g, ' ').replaceAll(/^[\s\p{P}]+|[\s\p{P}]+$/gu, (match) => (/[.]$/.test(match) ? match.trim() : '')).trim();
+  rest = rest
+    .replaceAll(/\s+/g, ' ')
+    .replaceAll(/^[\s\p{P}]+|[\s\p{P}]+$/gu, (match) => (/[.]$/.test(match) ? match.trim() : ''))
+    .trim();
   return {
     ...line,
     words,
@@ -257,6 +273,47 @@ const toLabelLine = (line: TextLine): LabelLine => {
 };
 
 const letters = (text: string) => text.replaceAll(/[^\p{L}]/gu, '').length;
+
+/**
+ * The lines of a paragraph are prose too (the story of a back label): four lines or more in a column, of the same
+ * size, most of them in sentence case
+ */
+const markParagraphs = (lines: LabelLine[]): LabelLine[] => {
+  const prose = new Set<LabelLine>();
+  let run: LabelLine[] = [];
+  const flush = () => {
+    const sentences = run.filter((line) => /(?:^|\s)\p{Ll}/u.test(line.text)).length;
+    if (run.length >= 4 && sentences >= 0.6 * run.length) {
+      for (const line of run) {
+        prose.add(line);
+      }
+    }
+    run = [];
+  };
+  // the small print between the lines of a story neither makes it nor breaks it, and a line with the words of the
+  // lexicon (a grape, a style) is part of the label
+  for (const line of lines.filter(({ noise }) => !noise).toSorted((a, b) => a.top - b.top)) {
+    if (line.terms.length > 0) {
+      flush();
+      continue;
+    }
+    const previous = run.at(-1);
+    const words = rawWords(line.text).length;
+    const continues =
+      words >= 2 &&
+      !!previous &&
+      Math.abs(line.height - previous.height) <= 0.35 * Math.max(line.height, previous.height) &&
+      line.top - previous.bottom < 1.5 * previous.height;
+    if (!continues) {
+      flush();
+    }
+    if (words >= 2) {
+      run.push(line);
+    }
+  }
+  flush();
+  return lines.map((line) => (prose.has(line) ? { ...line, prose: true } : line));
+};
 
 /** a line that only says what every label says: "SELECTION", "ESTATE GROWN", "Crisp and refreshing" */
 const isCommonOnly = (text: string) => {
@@ -308,14 +365,15 @@ const findSite = (line: LabelLine): string | undefined => {
 };
 
 /** "WILLI HAAG" → "Willi Haag", "Joh.Jos. Prim" as printed; the canonical spelling of lexicon words */
-const cleanName = (text: string) =>
-  toTitleCase(
-    text
-      .replaceAll(/\s*:\s*/g, ' ')
-      .replaceAll(/[“”"«»]/g, '')
-      .replaceAll(/\s+/g, ' ')
-      .trim(),
-  );
+const cleanName = (text: string) => {
+  const cleaned = text
+    .replaceAll(/\s*:\s*/g, ' ')
+    .replaceAll(/[“”"«»]/g, '')
+    .replaceAll(/\s+/g, ' ')
+    .trim();
+  // "wolfer goldgrube" set in lowercase is "Wolfer Goldgrube"
+  return toTitleCase(cleaned === cleaned.toLowerCase() ? cleaned.toUpperCase() : cleaned);
+};
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 
@@ -329,7 +387,9 @@ const contains = (a: string, b: string) => {
 const distinctWords = (lines: LabelLine[]) =>
   unique(
     lines.flatMap((line) => {
-      const inTerm = new Set(line.terms.flatMap(({ start, end }) => Array.from({ length: end - start }, (_, i) => start + i)));
+      const inTerm = new Set(
+        line.terms.flatMap(({ start, end }) => Array.from({ length: end - start }, (_, i) => start + i)),
+      );
       return line.words.filter(
         (word, index) =>
           !inTerm.has(index) &&
@@ -367,9 +427,11 @@ const typeOf = (styles: LexiconEntry[], grapes: LexiconEntry[]): WineType | unde
  * and how sure the reading is; undefined when nothing on the photo reads as a label.
  */
 export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
-  const lines = groupLines(toTextBoxes(ocr))
-    .filter((line) => findVintages(line.text).length > 0 || isLatin(line.text))
-    .map((line) => toLabelLine(line));
+  const lines = markParagraphs(
+    groupLines(toTextBoxes(ocr))
+      .filter((line) => findVintages(line.text).length > 0 || isLatin(line.text))
+      .map((line) => toLabelLine(line)),
+  );
   if (lines.length === 0) {
     return;
   }
@@ -416,7 +478,8 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
     text = text.replaceAll(/\s+/g, ' ').trim();
     const marker = markers[0]?.entry;
     const bareMarker =
-      markers.length > 0 && rawWords(text).every((word) => letters(word) <= 2 || FUNCTION_WORDS.has(word.toLowerCase()));
+      markers.length > 0 &&
+      rawWords(text).every((word) => letters(word) <= 2 || FUNCTION_WORDS.has(word.toLowerCase()));
     if (isCommonOnly(line.text) && !bareMarker) {
       continue;
     }
@@ -436,7 +499,8 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
       if (letters(base) < 3) {
         continue;
       }
-      const joined = marker.kind === 'prefix' ? `${marker.name} ${cleanName(base)}` : `${cleanName(base)} ${marker.name}`;
+      const joined =
+        marker.kind === 'prefix' ? `${marker.name} ${cleanName(base)}` : `${cleanName(base)} ${marker.name}`;
       const used = partner ? [line, partner] : [line];
       names.push({
         text: joined.replaceAll(/\s+/g, ' ').trim(),
@@ -450,18 +514,29 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
     if (letters(text) < 3 || isCommonOnly(text)) {
       continue;
     }
-    names.push({ text: cleanName(text), lines: [line], marker: false, height: line.height, confidence: line.confidence });
+    names.push({
+      text: cleanName(text),
+      lines: [line],
+      marker: false,
+      height: line.height,
+      confidence: line.confidence,
+    });
   }
   // a name repeated on the neck label ("HAAG" and "WILLI HAAG"): the longer reading, unless it only adds a letter or
   // two of noise ("NACHTGOLD NA"), as large as the largest of them
   const extra = (a: Name, b: Name) => Math.abs(letters(a.text) - letters(b.text));
   const better = (a: Name, b: Name) =>
-    extra(a, b) <= 2 ? a.height > b.height || (a.height === b.height && a.text.length <= b.text.length) : a.text.length > b.text.length;
+    extra(a, b) <= 2
+      ? a.height > b.height || (a.height === b.height && a.text.length <= b.text.length)
+      : a.text.length > b.text.length;
   const distinct = names
     .filter((name) => !names.some((other) => other !== name && contains(other.text, name.text) && better(other, name)))
     .map((name) => ({
       ...name,
-      height: Math.max(name.height, ...names.filter((other) => contains(other.text, name.text)).map((other) => other.height)),
+      height: Math.max(
+        name.height,
+        ...names.filter((other) => contains(other.text, name.text)).map((other) => other.height),
+      ),
     }))
     .filter((name, index, all) => all.findIndex((other) => other.text === name.text) === index);
   const largest = Math.max(0, ...distinct.map((name) => name.height));
@@ -510,8 +585,13 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
   }
   const wineParts = parts.toSorted((a, b) => a.order - b.order).map(({ text }) => text);
   // a wine named only by its grape or style is known by its region too: "Napa Valley Reserve"
-  const named = sites.length > 0 || parts.some(({ text }) => !grapes.some((grape) => grape.name === text) && !styles.some((style) => style.name === text));
-  if (region && !region.entry.names && region.entry.name.length <= 20 && wineParts.length > 0 && !named) {
+  const named =
+    sites.length > 0 ||
+    parts.some(
+      ({ text }) => !grapes.some((grape) => grape.name === text) && !styles.some((style) => style.name === text),
+    );
+  // ... and a wine the label names by nothing else is known by its region: "Dominican Oaks · Napa Valley · 2011"
+  if (region && !region.entry.names && region.entry.name.length <= 20 && !named) {
     wineParts.unshift(region.entry.name);
   }
   const wine = wineParts.join(' ') || undefined;
@@ -520,7 +600,8 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
     return;
   }
 
-  const producerSure = !!producer && producer.confidence >= 1 && !isGarbled(producer.text) && letters(producer.text) >= 4;
+  const producerSure =
+    !!producer && producer.confidence >= 1 && !isGarbled(producer.text) && letters(producer.text) >= 4;
   const confidence =
     (several ? 0.5 : 1) *
     ((producer ? 0.4 * producer.confidence : 0) +
@@ -541,9 +622,12 @@ export const readWineLabel = (ocr: OcrBoxInput[]): WineLabel | undefined => {
     ...(grapes.length > 0 && { grape: grapes.map(({ name }) => name).join(', ') }),
     ...(typeOf(styles, grapes) && { type: typeOf(styles, grapes) }),
     confidence: Math.round(confidence * 100) / 100,
-    sure: producerSure && !!(wine || vintage) && !several && confidence >= 0.7,
+    // sure of the whole name only: its producer and vintage read clearly, and its wine (not only its region)
+    sure:
+      producerSure && parts.length > 0 && !!vintage && vintage.line.confidence >= 1 && !several && confidence >= 0.8,
     several,
-    words: distinctWords(kept),
+    words: distinctWords(kept.filter((line) => line.confidence >= 0.8)),
+    looseWords: distinctWords(kept),
     box: union(used),
   };
 };
@@ -569,8 +653,8 @@ export const parseWineName = (name: string): Pick<WineLabel, 'producer' | 'wine'
     .map((part) => part.trim())
     .filter(Boolean);
   const vintage = parts.length > 1 && VINTAGE_PART.test(parts.at(-1)!) ? parts.pop() : undefined;
-  if (parts.length === 0) {
-    return { ...(vintage && { vintage }) };
+  if (parts.length === 0 || (parts.length === 1 && !vintage && VINTAGE_PART.test(parts[0]))) {
+    return { ...((vintage ?? parts[0]) && { vintage: vintage ?? parts[0] }) };
   }
   if (parts.length === 1) {
     return { wine: parts[0], ...(vintage && { vintage }) };
@@ -579,7 +663,8 @@ export const parseWineName = (name: string): Pick<WineLabel, 'producer' | 'wine'
 };
 
 /** a line of a wine list: a vintage or a price, e.g. "2015 Barolo, Vietti .... 95" */
-const isListLine = (line: TextLine) => findVintages(line.text).length > 0 || /\d+[.,]\d{2}\b|[$€£]\s?\d/.test(line.text);
+const isListLine = (line: TextLine) =>
+  findVintages(line.text).length > 0 || /\d+[.,]\d{2}\b|[$€£]\s?\d/.test(line.text);
 
 /** a wine list, a tasting sheet or a pairing menu: many lines, several with a vintage or a price */
 export const isWineList = (ocr: OcrBoxInput[]) => {
