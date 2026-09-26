@@ -1,6 +1,6 @@
 import { CollectionPack, validateCollectionPack } from 'src/utils/collections/pack.js';
 // (keep this line: the packs are imported in alphabetical order, one per reserved line, between lines like this one)
-// cookbook: import { cookbookPack } from 'src/utils/collections/packs/cookbook/pack.js';
+import { cookbookPack } from 'src/utils/collections/packs/cookbook/pack.js';
 // (keep this line)
 import { foodPack } from 'src/utils/collections/packs/food/pack.js';
 // (keep this line)
@@ -23,7 +23,7 @@ export const BUILT_IN_COLLECTION_PACKS: readonly CollectionPack[] = [
   // (keep this line)
   // winePack,
   // (keep this line)
-  // cookbookPack,
+  cookbookPack,
   // (keep this line)
   // travelPack,
   // (keep this line)

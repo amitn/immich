@@ -1,6 +1,7 @@
 import type { BookStyle } from 'src/dtos/book.dto.js';
 import type { ClassifyRules, CollectionPrompts } from 'src/utils/collections/classify.js';
 import type { MatchOptions } from 'src/utils/collections/match.js';
+import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import type { OsmFilter } from 'src/utils/collections/overpass.js';
 import type { PlaceNameRules } from 'src/utils/collections/place.js';
 import type { SourceEntry, SourceParser } from 'src/utils/collections/source.js';
@@ -82,7 +83,18 @@ export type CollectionPack = {
     /** the caption of an entry photo in a book, e.g. the name of the dish */
     caption: (entry: string, place: string) => string;
     /** the checks `review_book` runs on books with the pack's photos */
-    review: { unnamedEntries: boolean; missingSourcePage: boolean };
+    review: {
+      unnamedEntries: boolean;
+      missingSourcePage: boolean;
+      /** the pack's own checks of a chapter, e.g. a recipe without a photo of the finished dish */
+      chapter?: (chapter: CollectionChapter) => CollectionChapterIssue[];
+    };
+    /**
+     * the text of the source's page in a book, e.g. the ingredients and the steps of a recipe typeset beside the photo
+     * of the card, read from the photo's OCR (at full resolution) when the book is laid out; without it, the page
+     * lists the entries shown in the chapter
+     */
+    sourceText?: (ocr: OcrBoxInput[], context: { aspectRatio?: number; place: string }) => string | undefined;
   };
 
   agent: {
@@ -105,6 +117,23 @@ export type CollectionPack = {
      */
     sourceImages?: boolean;
   };
+};
+
+/** a chapter of a book with the photos of one visit of a place (e.g. a recipe), for a pack's review */
+export type CollectionChapter = {
+  place: string;
+  /** the entries of the photos placed in the book, with their photos, in the order they are placed */
+  placed: Array<{ entry: string; assetIds: string[] }>;
+  /** the entries of the visit's photos that could be in the book (e.g. the album) */
+  available: Array<{ entry: string; assetIds: string[] }>;
+  /** one-based numbers of the pages of the chapter */
+  pages: number[];
+};
+
+export type CollectionChapterIssue = {
+  severity: 'high' | 'medium' | 'low';
+  message: string;
+  assetIds?: string[];
 };
 
 export type CollectionNames = {
