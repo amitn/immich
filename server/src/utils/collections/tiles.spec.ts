@@ -9,6 +9,12 @@ const output = (...boxes: Array<[string, number, number, number, number]>): OcrO
   textScore: boxes.map(() => 0.95),
 });
 
+/** a line of text tilted by 30 degrees (on a 2:1 photo), starting at (x, y) */
+const tilted = (text: string, x: number, y: number) => {
+  const [dx, dy, hx, hy] = [0.3, -0.3 * Math.tan(Math.PI / 6) * 2, 0.012 * Math.sin(Math.PI / 6), 0.024];
+  return { text, box: [x, y, x + dx, y + dy, x + dx + hx, y + dy + hy, x + hx, y + hy] };
+};
+
 describe('getOcrTiles', () => {
   it('should not tile a small photo', () => {
     expect(getOcrTiles(1440, 1080)).toEqual([]);
@@ -96,10 +102,6 @@ describe('mergeOcrPasses', () => {
 
   it('should keep neighbouring lines of a tilted page apart', () => {
     // lines tilted by 30 degrees, a text height apart: their bounding boxes overlap, their text does not
-    const tilted = (text: string, x: number, y: number) => {
-      const [dx, dy, hx, hy] = [0.3, -0.3 * Math.tan(Math.PI / 6) * 2, 0.012 * Math.sin(Math.PI / 6), 0.024];
-      return { text, box: [x, y, x + dx, y + dy, x + dx + hx, y + dy + hy, x + hx, y + hy] };
-    };
     const lines = [tilted('4 beaten eggs', 0.3, 0.6), tilted('1/4 teaspoon salt', 0.3, 0.64)];
     const boxes = mergeOcrPasses(width, height, [
       {

@@ -209,6 +209,17 @@ const scorePhoto = (photo: PlacePhoto, rules: PlaceNameRules): Scored[] => {
     score *= textConfidence(line) * (isGarbled(name) ? 0.5 : 1);
     results.push({ name, score: score * KIND_WEIGHT[photo.kind], source: photo.kind, assetId: photo.assetId });
   }
+  // the title of a source read on a row with the text beside it (two titles of a page, side by side): the title the
+  // pack's parser read on its own scores as the row, and its bonus
+  const titleName = title ? cleanPlaceName(title, rules) : undefined;
+  if (titleName && results.every((result) => normalize(result.name) !== normalize(titleName))) {
+    const row = results
+      .filter((result) => normalize(result.name).includes(normalize(titleName)))
+      .toSorted((a, b) => b.score - a.score)[0];
+    if (row) {
+      results.push({ ...row, name: titleName, score: row.score + 0.15 * KIND_WEIGHT[photo.kind] });
+    }
+  }
   return results;
 };
 

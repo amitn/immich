@@ -47,15 +47,15 @@ describe('mergeSourceEntries', () => {
   });
 });
 
-describe('chooseReading', () => {
-  const reading = (title: string): ParsedSource => ({
-    items: [item(`${title} step`)],
-    title,
-    sections: [],
-    columns: 1,
-    lines: 5,
-  });
+const reading = (title: string): ParsedSource => ({
+  items: [item(`${title} step`)],
+  title,
+  sections: [],
+  columns: 1,
+  lines: 5,
+});
 
+describe('chooseReading', () => {
   it('should keep the main reading unless an alternative clearly fits better', () => {
     const page = { ...reading('Quiche'), alternatives: [reading('Spinach Quiche')] };
     expect(chooseReading(page, (title) => (title === 'Quiche' ? 0.3 : 0.305)).title).toBe('Quiche');
