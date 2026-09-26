@@ -275,7 +275,7 @@ Saving gives each photo one food tag, replacing any other food tag it had:
 | Dish  | `Food/<Restaurant>/<Dish>` |
 | Menu  | `Food/<Restaurant>/Menu`   |
 
-A `/` in a name is replaced with `-`, and a dish that is called _Menu_ is tagged `Menu (dish)` so that it isn't taken for the menu.
+A `/` in a name is replaced with `-`. A dish named just _Menu_ marks its photo as the menu.
 
 A dish photo without a description gets one, such as _Pasta alla Norma · Trattoria da Nino_, which shows as its caption in the photo viewer. A description you wrote is never changed. Only a description that an earlier naming wrote is updated when you rename the dish.
 
