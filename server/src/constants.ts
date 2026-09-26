@@ -165,6 +165,8 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.Duplicates]: 'Endpoints for managing and identifying duplicate assets.',
   [ApiTag.Faces]:
     'A face is a detected human face within an asset, which can be associated with a person. Faces are normally detected via machine learning, but can also be created manually.',
+  [ApiTag.Food]:
+    'Food photos are organized by restaurant and dish with Food/<Restaurant>/<Dish> tags; these endpoints find the meals among assets, match their dishes with menu items and save the names.',
   [ApiTag.Integrity]: 'Endpoints for viewing and managing integrity reports.',
   [ApiTag.Jobs]:
     'Queues and background jobs are used for processing tasks asynchronously. Queues can be paused and resumed as needed.',

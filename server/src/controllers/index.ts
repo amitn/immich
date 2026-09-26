@@ -20,6 +20,7 @@ import { DownloadController } from 'src/controllers/download.controller.js';
 import { DuplicateController } from 'src/controllers/duplicate.controller.js';
 import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
+import { FoodController } from 'src/controllers/food.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryController } from 'src/controllers/library.controller.js';
@@ -73,6 +74,7 @@ export const controllers = [
   DuplicateController,
   EnhanceController,
   FaceController,
+  FoodController,
   IntegrityAdminController,
   JobController,
   LibraryController,
