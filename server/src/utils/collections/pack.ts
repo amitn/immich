@@ -69,6 +69,11 @@ export type CollectionPack = {
     options?: Partial<MatchOptions>;
     /** CLIP texts of subjects that are usually not on the source; the best of them is "off the list" */
     offListPrompts: string[];
+    /**
+     * whether entries that no subject matched are worth a warning, e.g. a wall label read next to no artwork (the
+     * items of a menu that nobody ordered are not)
+     */
+    reportUnmatched?: boolean;
   };
 
   /** the description a subject photo gets when it has none, e.g. "Caponata · Trattoria da Nino" */
@@ -81,8 +86,19 @@ export type CollectionPack = {
     theme?: CollectionBookTheme;
     /** the caption of an entry photo in a book, e.g. the name of the dish */
     caption: (entry: string, place: string) => string;
-    /** the checks `review_book` runs on books with the pack's photos */
-    review: { unnamedEntries: boolean; missingSourcePage: boolean };
+    /**
+     * whether a source photo opens the chapter of its visit on a page of its own (the menu), default true; false
+     * leaves the source photos out of the automatic layout, as the captions of the entries say what they say (the
+     * wall labels of a museum)
+     */
+    sourcePages?: boolean;
+    /** the entries are numbered through the book, like the works of an exhibition catalogue */
+    numbered?: boolean;
+    /**
+     * the checks `review_book` runs on books with the pack's photos: entries without their names, visits without
+     * their source page, and entry photos that are cropped (an artwork is shown whole)
+     */
+    review: { unnamedEntries: boolean; missingSourcePage: boolean; croppedEntries?: boolean };
   };
 
   agent: {
@@ -139,8 +155,11 @@ export type CollectionBookTheme = {
   id: string;
   /** for the list of themes in the API */
   summary: string;
-  /** how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments) */
-  look: 'printed';
+  /**
+   * how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments); gallery
+   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions)
+   */
+  look: 'printed' | 'gallery';
 };
 
 export type CollectionMessages = {
@@ -166,6 +185,8 @@ export type CollectionMessages = {
   noLocation: string;
   /** the lookup is disabled by the admin */
   lookupDisabled: string;
+  /** entries that no subject matched, for packs that report them */
+  unmatchedEntries: (entries: string[]) => string;
 };
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
@@ -181,7 +202,7 @@ const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 
 /** the engine's messages in the words of a pack */
 export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'messages'>): CollectionMessages => {
-  const { subjects, source, sources, place, entries } = pack.names;
+  const { subject, subjects, source, sources, place, entry, entries } = pack.names;
   return {
     smartSearchDisabled: `Smart search is disabled: ${subjects} cannot be recognized, only ${sources} by their text`,
     ocrDisabled: `OCR is disabled: ${sources} are recognized by their look only`,
@@ -197,6 +218,13 @@ export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'mess
     lookupDisabled:
       'The OpenStreetMap lookup is disabled in the server settings (Food > OpenStreetMap). Ask the user for the ' +
       `name of the ${place} instead.`,
+    unmatchedEntries: (names) =>
+      `${names.length === 1 ? `1 ${entry}` : `${names.length} ${entries}`} matched no ${subject} (${names
+        .slice(0, 5)
+        .join(
+          '; ',
+        )}${names.length > 5 ? '; …' : ''}): check whether ${/^[aeiou]/i.test(subject) ? 'an' : 'a'} ${subject} photo is missing, or matched to ` +
+      `another ${entry}`,
     ...pack.messages,
   };
 };

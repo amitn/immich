@@ -26,6 +26,26 @@ export type EntryCandidate = {
   course?: number;
   /** the item has a price on the menu */
   priced?: boolean;
+  /** capture time in ms of the source photo the entry was read on, for `MatchOptions.sequence` */
+  time?: number;
+};
+
+/**
+ * Subjects photographed beside their source, one source photo per subject: a wall label next to each artwork, taken
+ * a few seconds before or (more often) after it. An entry is then more likely for the subjects photographed right
+ * next to its source photo in the sequence of the visit, and each cost below is a log-probability subtracted from
+ * the match of a subject with an entry (a prior, combined with what CLIP sees).
+ */
+export type SequenceOptions = {
+  /** for each other subject or source photo taken between the subject and the source of the entry */
+  step: number;
+  /** when the source was photographed before the subject rather than after it */
+  before: number;
+  /** for each doubling of the time between them beyond `seconds` */
+  time: number;
+  seconds: number;
+  /** for a subject without a source of its own (an artwork without a label), against its nearest source */
+  off: number;
 };
 
 export type MatchOptions = {
@@ -74,6 +94,11 @@ export type MatchOptions = {
    * menu items are smaller than between the labels CLIP was made for
    */
   temperature: number;
+  /**
+   * subjects follow their sources in the sequence of the photos (see `SequenceOptions`); none by default (a menu is
+   * photographed once for all the dishes). It applies when every entry has the `time` of its source photo.
+   */
+  sequence?: SequenceOptions;
 };
 
 /** calibrated on real meals, see `src/utils/collections/packs/food/benchmark.spec.ts` */
@@ -513,12 +538,20 @@ export const matchSubjects = (
   const centered = center(similarities);
   const centeredBaselines = center(baselineSimilarities);
   const hasOff = baselines.length > 0;
-  const probabilities = groups.map((_, group) =>
+  let probabilities = groups.map((_, group) =>
     softmax(
       hasOff ? [...centered[group], Math.max(...centeredBaselines[group]) + settings.offListBias] : centered[group],
       settings.temperature,
     ),
   );
+  if (settings.sequence && items.length > 0 && items.every((item) => item.time !== undefined)) {
+    probabilities = applySequencePrior(
+      groups.map((members) => members.map((member) => photos[member].time)),
+      items.map((item) => item.time!),
+      probabilities,
+      settings.sequence,
+    );
+  }
   const logs = probabilities.map((row) => [
     ...row.slice(0, items.length).map((value) => Math.log(Math.max(value, 1e-12))),
     hasOff ? Math.log(Math.max(row[items.length], 1e-12)) : -Infinity,
@@ -571,6 +604,52 @@ export const matchSubjects = (
     ),
     ordered: alignment !== undefined,
   };
+};
+
+/**
+ * The cost of matching a subject (the times of its photos) with an entry whose source photo was taken at `source`,
+ * among the times of all the subjects and sources of the visit (see `SequenceOptions`).
+ */
+export const getSequenceCost = (
+  subject: number[],
+  source: number,
+  others: { subjects: number[][]; sources: number[] },
+  options: SequenceOptions,
+) => {
+  const start = Math.min(...subject);
+  const end = Math.max(...subject);
+  const before = source < start;
+  const [from, to] = before ? [source, start] : [end, source];
+  // the photos taken between them: other subjects and other sources
+  const between =
+    others.subjects.filter((times) => times !== subject && times.some((time) => time > from && time < to)).length +
+    new Set(others.sources.filter((time) => time !== source && time > from && time < to)).size;
+  const seconds = Math.min(...subject.map((time) => Math.abs(time - source))) / 1000;
+  const late = Math.max(0, seconds - options.seconds) / options.seconds;
+  return options.step * between + (before ? options.before : 0) + options.time * Math.log2(1 + late);
+};
+
+/**
+ * The probabilities of each group of photos over the items (and "not on the list", the last column when there is
+ * one) with the prior of the sequence of the photos: each item weighed by how close its source photo was taken to the
+ * group, "not on the list" by the cost of a subject without a source of its own.
+ */
+export const applySequencePrior = (
+  subjects: number[][],
+  sources: number[],
+  probabilities: number[][],
+  options: SequenceOptions,
+): number[][] => {
+  const others = { subjects, sources };
+  return probabilities.map((row, group) => {
+    const weighted = row.map((value, item) =>
+      item < sources.length
+        ? value * Math.exp(-getSequenceCost(subjects[group], sources[item], others, options))
+        : value * Math.exp(-options.off),
+    );
+    const sum = weighted.reduce((total, value) => total + value, 0);
+    return sum > 0 ? weighted.map((value) => value / sum) : row;
+  });
 };
 
 /** the matches of `matchSubjects` */

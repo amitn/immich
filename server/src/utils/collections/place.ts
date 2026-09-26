@@ -34,6 +34,11 @@ export type PlaceNameRules = {
   isNotName?: (text: string) => boolean;
   /** the title of a source photo, which is often the name of the place */
   title?: (ocr: OcrBoxInput[]) => string | undefined;
+  /**
+   * a name read on a source photo needs one of the `words`: its large text names the entries, not the place (the
+   * artist and the title of a wall label, repeated on every label of a museum)
+   */
+  sourceNameNeedsWord?: boolean;
 };
 
 /** a candidate needs at least this score to be the name of the place */
@@ -184,6 +189,9 @@ const scorePhoto = (photo: PlacePhoto, rules: PlaceNameRules): Scored[] => {
       } else if (previous && line.top - previous.bottom < 1.5 * previous.height) {
         name = clean(`${toTitleCase(previous.text)} ${toTitleCase(line.text)}`) ?? name;
       }
+    }
+    if (photo.kind === 'source' && rules.sourceNameNeedsWord && !rules.words.test(name)) {
+      continue;
     }
     let score = 0.35 * (line.height / largest);
     if (rules.words.test(name)) {

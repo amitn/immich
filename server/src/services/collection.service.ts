@@ -312,8 +312,9 @@ export class CollectionService extends BaseService {
 
     const warnings: string[] = [];
     let entries: CollectionEntryResponse[];
-    // where each entry is in the order of the source (e.g. the courses of a menu), and whether it has a price
-    let courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>;
+    // where each entry is in the order of the source (e.g. the courses of a menu), whether it has a price, and when
+    // its source was photographed (for the packs whose subjects follow their sources, e.g. the wall labels of a museum)
+    let courses: Array<Pick<EntryCandidate, 'course' | 'priced' | 'time'>>;
     if (dto.entries && dto.entries.length > 0) {
       entries = dto.entries.map(({ name, description }, index) => {
         const text = description?.trim() ? redactText(pack, description.trim()) : undefined;
@@ -327,6 +328,7 @@ export class CollectionService extends BaseService {
         warnings.push(...reading.warnings);
       }
       const merged = mergeSourceEntries(readings);
+      const sourceTimes = pack.match.options?.sequence ? await this.getPhotoTimes(auth, sourceIds) : undefined;
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
         name: item.name,
@@ -335,7 +337,11 @@ export class CollectionService extends BaseService {
         ...(item.section && { section: item.section }),
         sourceId,
       }));
-      courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
+      courses = merged.map(({ item, course, sourceId }) => ({
+        course,
+        priced: item.price !== undefined,
+        ...(sourceTimes?.has(sourceId) && { time: sourceTimes.get(sourceId) }),
+      }));
     }
     if (entries.length === 0) {
       warnings.push(sourceIds.length > 0 ? messages.noEntriesRead : messages.noSource);
@@ -369,6 +375,18 @@ export class CollectionService extends BaseService {
       { ...pack.match.options, baselines },
     );
 
+    if (pack.match.reportUnmatched && matches.length > 0 && entryEmbeddings.length === entries.length) {
+      // an entry is matched, or another entry of its source is (a case of objects under one label, one photographed)
+      const matched = new Set(matches.flatMap(({ item }) => (item === undefined ? [] : [item])));
+      const sources = new Set([...matched].flatMap((index) => entries[index].sourceId ?? []));
+      const unmatched = entries
+        .filter(({ index, sourceId }) => !matched.has(index) && !(sourceId && sources.has(sourceId)))
+        .map(({ name }) => name);
+      if (unmatched.length > 0) {
+        warnings.push(messages.unmatchedEntries(unmatched));
+      }
+    }
+
     return {
       entries,
       ...(ordered && { ordered }),
@@ -384,6 +402,12 @@ export class CollectionService extends BaseService {
       noEmbedding,
       warnings: unique(warnings),
     };
+  }
+
+  /** the capture times (local, in ms) of photos, by id */
+  private async getPhotoTimes(auth: AuthDto, ids: string[]) {
+    const rows = ids.length > 0 ? await this.assetJobRepository.getForAgent(ids, auth.user.id) : [];
+    return new Map(rows.map((row) => [row.id, row.localDateTime.getTime()]));
   }
 
   /** Named places of the pack (e.g. restaurants) near a visit on OpenStreetMap, when the admin enabled the lookup */
