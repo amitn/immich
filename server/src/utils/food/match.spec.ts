@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assignMax, matchDishes } from 'src/utils/food/match.js';
+import { alignCourses, assignMax, groupDishPhotos, matchCourses, matchDishes } from 'src/utils/food/match.js';
 
 const vector = (...values: number[]) => {
   const norm = Math.hypot(...values);
@@ -148,5 +148,173 @@ describe('matchDishes', () => {
   it('should return the groups without suggestions when there are no items', () => {
     const matches = matchDishes([{ id: 'a', time: 0, embedding: vector(1, 0, 0, 0) }], []);
     expect(matches).toEqual([{ ids: ['a'], score: 0, unsure: true, suggestions: [] }]);
+  });
+});
+
+/** a unit vector along axis `axis` of `size`, with `weight` on it and the rest spread over the others by `noise` */
+const axis = (size: number, index: number, weight = 1, noise: number[] = []) =>
+  vector(...Array.from({ length: size }, (_, i) => (i === index ? weight : (noise[i] ?? 0))));
+
+/** a plated dish on a white tablecloth, leaning a little towards one side */
+const plate = (lean: number) => vector(1, lean, 0.2);
+
+describe('groupDishPhotos', () => {
+  const options = { sameDishDistance: 0.03, sameDishMinutes: 5 };
+
+  it('should group a burst of near-identical photos', () => {
+    const groups = groupDishPhotos(
+      [
+        { id: 'a', time: 0, embedding: vector(1, 0.1, 0.05) },
+        { id: 'b', time: 20_000, embedding: vector(1, 0.12, 0.06) },
+        { id: 'c', time: minutes(12), embedding: vector(0.1, 1, 0.05) },
+      ],
+      options,
+    );
+    expect(groups).toEqual([[0, 1], [2]]);
+  });
+
+  it('should keep courses that look alike apart', () => {
+    // plated courses on white tablecloths: 0.95 alike, 12 minutes apart
+    const groups = groupDishPhotos(
+      [
+        { id: 'trout', time: 0, embedding: plate(0.3) },
+        { id: 'crab', time: minutes(12), embedding: plate(0.6) },
+        { id: 'poularde', time: minutes(25), embedding: plate(0.45) },
+      ],
+      options,
+    );
+    expect(groups).toEqual([[0], [1], [2]]);
+    // and the same photo taken again much later is another plate
+    expect(
+      groupDishPhotos(
+        [
+          { id: 'a', time: 0, embedding: plate(0.3) },
+          { id: 'b', time: minutes(20), embedding: plate(0.3) },
+        ],
+        options,
+      ),
+    ).toEqual([[0], [1]]);
+  });
+});
+
+describe('alignCourses', () => {
+  const penalties = {
+    sharePenalty: Math.log(8),
+    skipPenalty: 0,
+    asidePenalty: 2,
+    pacePenalty: 0,
+    paceTolerance: 0.2,
+    offPenalty: 0,
+  };
+  const log = (...values: number[]) => values.map((value) => Math.log(value));
+
+  it('should take the courses in order, skip what no photo shows and leave the extras off the menu', () => {
+    // three courses and "not on the menu"; the second dish looks a little more like the third course
+    const logs = [
+      log(0.1, 0.1, 0.1, 0.7), // amuse-bouche
+      log(0.6, 0.2, 0.1, 0.1),
+      log(0.1, 0.4, 0.45, 0.05),
+      log(0.1, 0.2, 0.6, 0.1),
+      log(0.05, 0.05, 0.1, 0.8), // coffee
+    ];
+    const { choices, marginals, offMarginals } = alignCourses(logs, [0, 1, 2], [], penalties);
+    expect(choices.map(({ kind, item }) => (kind === 'off' ? null : item))).toEqual([null, 0, 1, 2, null]);
+    // the probabilities over all alignments
+    expect(marginals[2][1]).toBeGreaterThan(marginals[2][2]);
+    expect(offMarginals[0]).toBeGreaterThan(0.5);
+    for (const [dish, row] of marginals.entries()) {
+      expect(row.reduce((sum, value) => sum + value, 0) + offMarginals[dish]).toBeCloseTo(1, 6);
+    }
+  });
+
+  it('should let two dishes share a course and take a drink of the pairing out of order', () => {
+    const logs = [
+      log(0.7, 0.1, 0.1, 0.1),
+      log(0.05, 0.05, 0.85, 0.05), // a drink of the pairing (item 2, aside)
+      log(0.05, 0.85, 0.05, 0.05),
+      log(0.05, 0.85, 0.05, 0.05), // another dessert of the same course
+    ];
+    const { choices } = alignCourses(logs, [0, 1], [2], penalties);
+    expect(choices.map(({ kind, item }) => [kind, item])).toEqual([
+      ['course', 0],
+      ['aside', 2],
+      ['course', 1],
+      ['share', 1],
+    ]);
+  });
+});
+
+describe('matchCourses', () => {
+  // a tasting menu of six courses, and a generic "not on the menu" text; CLIP tells the courses apart only a little
+  const size = 8;
+  const courses = Array.from({ length: 6 }, (_, index) => ({ embedding: axis(size, index), course: index }));
+  const baselines = [axis(size, 6)];
+  // each course photo is closest to its course, but also close to the course two places later
+  const photo = (index: number, time: number, confuser = (index + 2) % 6) => ({
+    id: `course-${index}`,
+    time: minutes(time),
+    embedding: axis(size, index, 0.5, { [confuser]: 0.47, 7: 0.7 } as unknown as number[]),
+  });
+  const photos = [
+    { id: 'amuse', time: 0, embedding: axis(size, 6, 0.6, { 7: 0.7 } as unknown as number[]) },
+    ...Array.from({ length: 6 }, (_, index) => photo(index, 10 + index * 15)),
+    { id: 'coffee', time: minutes(110), embedding: axis(size, 6, 0.6, { 7: 0.7 } as unknown as number[]) },
+  ];
+
+  it('should follow the order of the courses of a tasting menu', () => {
+    const { matches, ordered } = matchCourses(photos, courses, { baselines });
+    expect(ordered).toBe(true);
+    expect(matches.map(({ ids, item }) => [ids[0], item])).toEqual([
+      ['amuse', undefined],
+      ...Array.from({ length: 6 }, (_, index) => [`course-${index}`, index]),
+      ['coffee', undefined],
+    ]);
+    for (const match of matches) {
+      expect(match.score).toBeGreaterThanOrEqual(0);
+      expect(match.score).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('should not follow the order of a menu with prices', () => {
+    const priced = courses.map((course) => ({ ...course, priced: true }));
+    expect(matchCourses(photos, priced, { baselines }).ordered).toBe(false);
+  });
+
+  it('should not follow the order of a long list of items without prices', () => {
+    // an à la carte menu read without its prices: many more items than dishes
+    const list = Array.from({ length: 20 }, (_, index) => ({ embedding: axis(24, index), course: index }));
+    const dishes = [0, 3, 7, 12].map((index, position) => ({
+      id: `dish-${index}`,
+      time: minutes(position * 10),
+      embedding: axis(24, index, 0.6, { 23: 0.7 } as unknown as number[]),
+    }));
+    const { matches, ordered } = matchCourses(dishes, list);
+    expect(ordered).toBe(false);
+    expect(matches.map(({ item }) => item)).toEqual([0, 3, 7, 12]);
+  });
+
+  it('should not follow the order when the photos are not in it', () => {
+    const times = [5, 0, 3, 1, 4, 2];
+    const shuffled = photos.map((photo, index) =>
+      index > 0 && index < 7 ? { ...photo, time: minutes(10 + times[index - 1] * 15) } : photo,
+    );
+    expect(matchCourses(shuffled, courses, { baselines }).ordered).toBe(false);
+    expect(matchCourses(shuffled, courses, { baselines, order: 'none' }).ordered).toBe(false);
+  });
+
+  it('should not let a text that CLIP likes for every photo win every dish', () => {
+    // "caviar" (the last item) is a little closer to every photo than the dishes' own items
+    const items = [
+      ...Array.from({ length: 4 }, (_, index) => ({ embedding: axis(5, index) })),
+      { embedding: vector(0.25, 0.25, 0.25, 0.25, 0.93) },
+    ];
+    const dishes = [0, 1, 2, 3].map((index) => ({
+      id: `dish-${index}`,
+      time: minutes(index * 20),
+      embedding: axis(5, index, 0.5, [0, 0, 0, 0, 0.87]),
+    }));
+    expect(matchDishes(dishes, items, { order: 'none' }).map(({ item }) => item)).toEqual([0, 1, 2, 3]);
+    // measured on their own, caviar wins a dish
+    expect(matchDishes(dishes, items, { order: 'none', centerDishes: 10 }).map(({ item }) => item)).toContain(4);
   });
 });

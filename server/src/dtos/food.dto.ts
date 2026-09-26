@@ -150,6 +150,12 @@ const FoodMatchResponseSchema = z
   .object({
     items: z.array(FoodMenuItemSchema).describe('The menu items'),
     dishes: z.array(FoodDishMatchSchema).describe('The dishes, with their matches'),
+    ordered: z
+      .boolean()
+      .optional()
+      .describe(
+        'The dishes were matched in the order of the courses of a tasting menu; the scores are then the probabilities over all such alignments',
+      ),
     noEmbedding: z.array(uuid()).describe('Dish photos that could not be matched because smart search has not run'),
     warnings: z.array(z.string()).describe('Why matching may be incomplete'),
   })

@@ -21,9 +21,9 @@ import { TagService } from 'src/services/tag.service.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import { FOOD_PROMPT_LIST, FoodClassification, classifyFood, summarizeOcr } from 'src/utils/food/classify.js';
-import { MatchOptions, matchDishes } from 'src/utils/food/match.js';
+import { DishCandidate, OFF_MENU_PROMPTS, itemPrompt, matchCourses } from 'src/utils/food/match.js';
 import { MealOptions, getFallbackMealNames, groupMeals, summarizeMeal } from 'src/utils/food/meals.js';
-import { ParsedMenu, parseMenu } from 'src/utils/food/menu.js';
+import { ParsedMenu, chooseMenuOcr, mergeMenuItems, parseMenu } from 'src/utils/food/menu.js';
 import { OcrBoxInput } from 'src/utils/food/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -50,15 +50,6 @@ const textEmbeddingCache = new LRUMap<string, string>(5000);
 /** high-resolution OCR of menu photos, by asset and checksum; never written over the stored OCR */
 const menuOcrCache = new LRUMap<string, OcrBoxInput[]>(200);
 
-/** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
-export const OFF_MENU_PROMPTS = [
-  'a photo of food',
-  'a photo of a bread basket with butter',
-  'a photo of a cup of coffee',
-  'a photo of a small amuse-bouche',
-  'a photo of chocolates and petits fours',
-];
-
 const CHUNK = 1000;
 /** a menu is read in tiles as if its long edge were at most this many pixels */
 const MENU_DECODE_SIZE = 4096;
@@ -70,11 +61,6 @@ const MENU_WHOLE_RESOLUTION = 1280;
 const MENU_MIN_RECOGNITION_SCORE = 0.6;
 /** the long edge of the menu images returned to a reader */
 const MENU_IMAGE_SIZE = 1440;
-
-export const itemPrompt = (item: { name: string; description?: string }) => {
-  const text = item.description ? `${item.name}: ${item.description}` : item.name;
-  return `a photo of ${text.length > 200 ? text.slice(0, 200) : text}`;
-};
 
 const unique = <T>(values: T[]) => [...new Set(values)];
 
@@ -106,13 +92,6 @@ const parseDate = (value?: string) => {
   }
   return date;
 };
-
-const normalizeName = (name: string) =>
-  name
-    .normalize('NFD')
-    .replaceAll(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .replaceAll(/[^\p{L}\d]/gu, '');
 
 type FoodCandidate = {
   id: string;
@@ -258,34 +237,31 @@ export class FoodService extends BaseService {
 
     const warnings: string[] = [];
     let items: FoodMenuItemResponse[];
+    // where each item is among the courses of the menu (the order they are served in), and whether it has a price
+    let courses: Array<Pick<DishCandidate, 'course' | 'priced'>>;
     if (dto.items && dto.items.length > 0) {
       items = dto.items.map(({ name, description }, index) => ({
         index,
         name: name.trim(),
         ...(description?.trim() && { description: description.trim() }),
       }));
+      // items passed in are in the order they were read; the matcher only follows it when the photos do
+      courses = items.map((_, index) => ({ course: index }));
     } else {
       const readings = await mapLimit(menuIds, 2, (id) => this.getMenuReading(id, true));
-      const seen = new Set<string>();
-      items = [];
       for (const reading of readings) {
         warnings.push(...reading.warnings);
-        for (const item of reading.items) {
-          const key = normalizeName(item.name);
-          if (seen.has(key)) {
-            continue;
-          }
-          seen.add(key);
-          items.push({
-            index: items.length,
-            name: item.name,
-            ...(item.description && { description: item.description }),
-            ...(item.price && { price: item.price }),
-            ...(item.section && { section: item.section }),
-            menuId: reading.assetId,
-          });
-        }
       }
+      const merged = mergeMenuItems(readings);
+      items = merged.map(({ menuId, item }, index) => ({
+        index,
+        name: item.name,
+        ...(item.description && { description: item.description }),
+        ...(item.price && { price: item.price }),
+        ...(item.section && { section: item.section }),
+        menuId,
+      }));
+      courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
     }
     if (items.length === 0) {
       warnings.push(
@@ -315,14 +291,17 @@ export class FoodService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
-    const matches = matchDishes(
+    const { matches, ordered } = matchCourses(
       photos,
-      itemEmbeddings.length === items.length ? itemEmbeddings.map((embedding) => ({ embedding })) : [],
-      { baselines } satisfies Partial<MatchOptions> & { baselines: Float32Array[] },
+      itemEmbeddings.length === items.length
+        ? itemEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
+        : [],
+      { baselines },
     );
 
     return {
       items,
+      ...(ordered && { ordered }),
       dishes: matches.map((match) => ({
         assetIds: match.ids,
         ...(match.item !== undefined && { index: match.item, name: items[match.item].name }),
@@ -661,8 +640,7 @@ export class FoodService extends BaseService {
     if (highResolution && isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
       try {
         const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
-        // keep the stored reading when the tiles somehow read less
-        if (parseMenu(detailed, { aspectRatio }).items.length >= parseMenu(stored, { aspectRatio }).items.length) {
+        if (chooseMenuOcr(stored, detailed) === 'tiles') {
           boxes = detailed;
           source = 'tiles';
         }

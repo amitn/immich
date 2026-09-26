@@ -72,7 +72,7 @@ const compactMeals = ({ count, truncated, foodPhotos, meals, warnings }: FoodMea
   ...(warnings.length > 0 && { warnings }),
 });
 
-const compactMatch = ({ items, dishes, noEmbedding, warnings }: FoodMatchResponseDto) => ({
+const compactMatch = ({ items, dishes, ordered, noEmbedding, warnings }: FoodMatchResponseDto) => ({
   items: items.map(({ index, name, description, price, section }) => ({
     i: index,
     name,
@@ -89,6 +89,7 @@ const compactMatch = ({ items, dishes, noEmbedding, warnings }: FoodMatchRespons
     ...(dish.offMenu !== undefined && dish.offMenu >= 0.2 && { offMenu: dish.offMenu }),
     suggestions: dish.suggestions.map(({ index, name, score }) => ({ i: index, name, score })),
   })),
+  ...(ordered && { ordered }),
   ...(noEmbedding.length > 0 && { noEmbedding }),
   ...(warnings.length > 0 && { warnings }),
 });
@@ -180,14 +181,16 @@ export class FoodAgentTools extends BaseService {
         title: 'Match dishes with the menu',
         description:
           'Suggest which menu item each dish photo of one meal shows: CLIP compares the photos with the item names ' +
-          '(and descriptions), photos of the same dish are grouped, and each dish gets a different item unless two ' +
-          'dishes clearly share one (a course of assorted desserts, two plates of the same thing). Items come from ' +
-          'the menuIds (read like read_menu), or pass items yourself (what you read on the menu). Returns {items: ' +
-          '[{i, name, price, section}], dishes: [{assetIds, match (item name or null), i, score (0-1), unsure, ' +
-          'shared, offMenu (probability it is not on the menu: bread, coffee, an amuse-bouche), suggestions: [{i, ' +
-          'name, score}]}]} and a contact sheet of the dishes captioned with their suggestions. Suggestions only: ' +
-          'check every match with view_photos, especially unsure ones, and name off-menu dishes from what you ' +
-          'see. Without a menu, name the dishes yourself.',
+          '(and descriptions), near-identical photos of the same dish are grouped, and each dish gets a different ' +
+          'item unless two dishes clearly share one (a course of assorted desserts, two plates of the same thing). ' +
+          'At a tasting menu (few prices) whose courses the photos follow, the dishes are matched in the order of ' +
+          'the courses, skipping courses no photo shows and dishes off the menu (ordered: true). Items come from ' +
+          'the menuIds (read like read_menu), or pass items yourself (what you read on the menu, in menu order). ' +
+          'Returns {items: [{i, name, price, section}], dishes: [{assetIds, match (item name or null), i, score ' +
+          '(0-1), unsure, shared, offMenu (probability it is not on the menu: bread, coffee, an amuse-bouche), ' +
+          'suggestions: [{i, name, score}]}], ordered} and a contact sheet of the dishes captioned with their ' +
+          'suggestions. Suggestions only: check every match with view_photos, especially unsure ones, and name ' +
+          'off-menu dishes from what you see. Without a menu, name the dishes yourself.',
         input: z.object({
           dishIds: z.array(uuid).min(1).max(FOOD_LIMITS.dishes),
           menuIds: z.array(uuid).max(FOOD_LIMITS.menus).optional(),

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { cleanItemText, isPageFurniture, isSectionHeading, parseMenu, splitPrice } from 'src/utils/food/menu.js';
+import {
+  chooseMenuOcr,
+  cleanItemText,
+  isDate,
+  isMenuTitle,
+  isPageFurniture,
+  isSectionHeading,
+  mergeMenuItems,
+  parseMenu,
+  splitPrice,
+} from 'src/utils/food/menu.js';
 import { OcrBoxInput } from 'src/utils/food/ocr.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
@@ -125,6 +135,34 @@ const tasting: OcrBoxInput[] = [
   box('€ 85', 0.45, 0.8, 0.026),
 ];
 
+/** a centered box of `text`, in capitals or not */
+const centered = (text: string, top: number, height = 0.012) => {
+  const width = text.length * height * 0.45;
+  return box(text, 0.5 - width / 2, top, height, width);
+};
+
+// a tasting menu: the restaurant, the title and the date, then courses in capitals with their descriptions
+const chefs: OcrBoxInput[] = [
+  centered('THE GARDEN HOUSE', 0.08, 0.02),
+  centered("CHEF'S TASTING MENU", 0.13),
+  centered('MARCH 14, 2024', 0.145),
+  centered('"OYSTERS AND PEARLS"', 0.2),
+  centered('Sabayon of Pearl Tapioca with Island Creek Oysters', 0.213, 0.014),
+  centered('and White Sturgeon Caviar', 0.227, 0.014),
+  centered('ROYAL OSSETRA CAVIAR', 0.243),
+  centered('Hen Egg Mousse, Kohlrabi Relish', 0.256, 0.014),
+  centered('(75.00 supplement)', 0.27, 0.014),
+  centered('SALAD OF HEARTS OF PEACH PALM', 0.32),
+  centered('Ruby Red Grapefruit, Tokyo Turnips', 0.333, 0.014),
+  centered('LAMB SADDLE', 0.4),
+  centered('Long of Naples Squash, Black Trumpet Mushrooms', 0.413, 0.014),
+  centered('and Garden Mache', 0.45, 0.014),
+  centered('"ASSORTMENT OF DESSERTS"', 0.5),
+  centered('Fruit, Ice Cream, Chocolate', 0.513, 0.014),
+  centered('PRIX FIXE 295.00  SERVICE INCLUDED', 0.6),
+  centered('6640 Washington Street, Yountville CA 94599', 0.62),
+];
+
 describe('splitPrice', () => {
   it.each([
     ['Margherita 8,50', 'Margherita', '8,50'],
@@ -157,22 +195,60 @@ describe('cleanItemText', () => {
     ['12. Margherita', 'Margherita'],
     ['Tiramisù*', 'Tiramisù'],
     ['Carbonara ..........', 'Carbonara'],
+    ['Wagyu (100.00 supplement)', 'Wagyu'],
+    ['Tartufo bianco supplemento 30 €', 'Tartufo bianco'],
   ])('should clean %s', (text, expected) => {
     expect(cleanItemText(text)).toBe(expected);
   });
 });
 
 describe('isSectionHeading', () => {
-  it.each(['Antipasti', 'PRIMI PIATTI', 'I nostri dolci', 'Entrées', 'Postres', 'Hauptgerichte', 'Desserts', 'Menu'])(
-    'should know %s',
-    (text) => {
-      expect(isSectionHeading(text)).toBe(true);
-    },
-  );
+  it.each([
+    'Antipasti',
+    'PRIMI PIATTI',
+    'I nostri dolci',
+    'Entrées',
+    'Postres',
+    'Hauptgerichte',
+    'Desserts',
+    'Menu',
+    'Juice pairing',
+  ])('should know %s', (text) => {
+    expect(isSectionHeading(text)).toBe(true);
+  });
 
   it.each(['Spaghetti alle vongole', 'Crema catalana', 'Pizza margherita'])('should not take %s', (text) => {
     expect(isSectionHeading(text)).toBe(false);
   });
+});
+
+describe('isDate', () => {
+  it.each(['JANUARY 11, 2014', 'January 2O14', '11 gennaio 2024', '3 de mayo', '14/03/2024', '1er avril'])(
+    'should recognize %s',
+    (text) => {
+      expect(isDate(text)).toBe(true);
+    },
+  );
+
+  it.each(['Arroz del mar 18', 'Mai Tai 12', 'Pizza 4 formaggi', 'Tagliata 250g'])('should keep %s', (text) => {
+    expect(isDate(text)).toBe(false);
+  });
+});
+
+describe('isMenuTitle', () => {
+  it.each(["CHEF'S TASTING MENU", 'Menu dégustation', 'Tasting Menu March 14, 2024', 'Prix Fixe Lunch'])(
+    'should recognize %s',
+    (text) => {
+      expect(isMenuTitle(text)).toBe(true);
+    },
+  );
+
+  it.each(['Tasting of spring vegetables', 'Kids menu burger with fries', 'Oysters and pearls'])(
+    'should keep %s',
+    (text) => {
+      expect(isMenuTitle(text)).toBe(false);
+    },
+  );
 });
 
 describe('isPageFurniture', () => {
@@ -387,5 +463,72 @@ describe('parseMenu', () => {
       price('8,00', 0.8, 0.5),
     ]);
     expect(menu.items.map(({ name }) => name)).toEqual(['Margherita']);
+  });
+
+  it('should read a centered tasting menu with names in capitals and no prices', () => {
+    const menu = parseMenu(chefs);
+
+    expect(menu.items.map(({ name, description }) => ({ name, description }))).toEqual([
+      {
+        name: '"OYSTERS AND PEARLS"',
+        description: 'Sabayon of Pearl Tapioca with Island Creek Oysters and White Sturgeon Caviar',
+      },
+      { name: 'ROYAL OSSETRA CAVIAR', description: 'Hen Egg Mousse, Kohlrabi Relish' },
+      { name: 'SALAD OF HEARTS OF PEACH PALM', description: 'Ruby Red Grapefruit, Tokyo Turnips' },
+      {
+        name: 'LAMB SADDLE',
+        description: 'Long of Naples Squash, Black Trumpet Mushrooms and Garden Mache',
+      },
+      { name: '"ASSORTMENT OF DESSERTS"', description: 'Fruit, Ice Cream, Chocolate' },
+    ]);
+  });
+
+  it('should drop single words that are not dishes', () => {
+    const menu = parseMenu([box("CHEF'S", 0.1, 0.1), box('Bologna', 0.1, 0.2), price('11.95', 0.6, 0.2)]);
+    expect(menu.items.map(({ name }) => name)).toEqual(['Bologna']);
+  });
+
+  it('should read two lines set tight in a spaced list of courses as one name', () => {
+    const courses = [
+      'Seafood platter and crocodile fat',
+      'PIE: dried scallops and nasturtium flowers',
+      'Truffle and Avocado',
+    ];
+    const menu = parseMenu([
+      ...courses.slice(0, 2).map((course, i) => box(course, 0.2, 0.2 + i * 0.05, 0.02)),
+      box("BBQ'd milk 'dumpling'", 0.2, 0.3, 0.02),
+      box('Marron and Magpie goose', 0.2, 0.325, 0.02),
+      box(courses[2], 0.2, 0.37, 0.02),
+    ]);
+    expect(menu.items.map(({ name }) => name)).toEqual([
+      ...courses.slice(0, 2),
+      "BBQ'd milk 'dumpling' Marron and Magpie goose",
+      courses[2],
+    ]);
+  });
+});
+
+describe('chooseMenuOcr', () => {
+  it('should prefer the tiled reading unless it read much less text', () => {
+    const stored = [box('Spaghetti alle vongole', 0.1, 0.1), box('Caponata', 0.1, 0.2)];
+    const tiles = [box('Spaghetti alle vongole', 0.1, 0.1), box('Caponata siciliana', 0.1, 0.2)];
+    expect(chooseMenuOcr(stored, tiles)).toBe('tiles');
+    expect(chooseMenuOcr(stored, tiles.slice(1))).toBe('stored');
+  });
+});
+
+const item = (name: string) => ({ name, column: 0, box: [0, 0, 1, 1] as [number, number, number, number] });
+
+describe('mergeMenuItems', () => {
+  it('should list the items of the pages of a menu once, in order', () => {
+    const merged = mergeMenuItems([
+      { assetId: 'a', items: [item('Oysters and Pearls'), item('Salad')] },
+      { assetId: 'b', items: [item('"OYSTERS AND PEARLS"'), item('Salad'), item('Lamb')] },
+    ]);
+    expect(merged.map(({ menuId, item }) => [menuId, item.name])).toEqual([
+      ['a', 'Oysters and Pearls'],
+      ['a', 'Salad'],
+      ['b', 'Lamb'],
+    ]);
   });
 });

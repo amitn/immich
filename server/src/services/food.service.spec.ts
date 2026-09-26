@@ -84,6 +84,9 @@ const mlOcr = (boxes: OcrBoxInput[]) => ({
   textScore: boxes.map(() => 0.95),
 });
 
+/** a unit vector along an axis */
+const unit = (index: number, size = 8) => Array.from({ length: size }, (_, i) => (i === index ? 1 : 0));
+
 describe(FoodService.name, () => {
   let sut: FoodService;
   let mocks: ServiceMocks;
@@ -265,6 +268,33 @@ describe(FoodService.name, () => {
       ]);
       expect(result.dishes[0].offMenu).toBeGreaterThan(0.5);
       expect(result.noEmbedding).toEqual([]);
+    });
+
+    it('should match the courses of a tasting menu in the order they were served', async () => {
+      // six courses that CLIP tells apart only a little: each photo is almost as close to the course two later
+      const courses = ['Oysters', 'Salad', 'Trout', 'Crab', 'Lamb', 'Desserts'];
+      mocks.machineLearning.encodeText.mockImplementation((text: string) => {
+        const index = courses.findIndex((course) => text === `a photo of ${course}`);
+        return Promise.resolve(JSON.stringify(unit(index === -1 ? 6 : index)));
+      });
+      const ids = courses.map(() => newUuid());
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(ids));
+      mocks.assetJob.getForAgent.mockResolvedValue(
+        ids.map((id, index) => agentRow(id, { localDateTime: new Date(Date.UTC(2024, 5, 12, 19, 10 + index * 15)) })),
+      );
+      mocks.search.getEmbeddings.mockResolvedValue(
+        ids.map((assetId, index) => {
+          const embedding = unit(index).map((value) => value * 0.5);
+          embedding[(index + 2) % 6] = 0.47;
+          embedding[7] = 0.7;
+          return { assetId, embedding: JSON.stringify(embedding) };
+        }),
+      );
+
+      const result = await sut.matchMeal(auth, { dishIds: ids, items: courses.map((name) => ({ name })) });
+
+      expect(result.ordered).toBe(true);
+      expect(result.dishes.map(({ name }) => name)).toEqual(courses);
     });
 
     it('should read the items of the menu photos at full resolution', async () => {

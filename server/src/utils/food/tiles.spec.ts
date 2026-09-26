@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OcrOutput, getOcrTiles, mergeOcrPasses } from 'src/utils/food/tiles.js';
+import { OcrOutput, getOcrTiles, mergeOcrPasses, stitchText } from 'src/utils/food/tiles.js';
 
 /** an OCR output with axis-aligned boxes given as [text, left, top, right, bottom] normalized to the pass */
 const output = (...boxes: Array<[string, number, number, number, number]>): OcrOutput => ({
@@ -83,5 +83,39 @@ describe('mergeOcrPasses', () => {
       { rect: right, output: output(["Katz's Pastrami 26,95", 0.3, 0.4, 0.7, 0.43]) },
     ]);
     expect(boxes.map(({ text }) => text)).toEqual(['MENU', 'Matzo Ball Soup 9,95', "Katz's Pastrami 26,95"]);
+  });
+
+  it('should take a box that ends within a text height of a tile edge for cut text', () => {
+    // detection boxes keep a margin: "alle vongole 14,00" starts 1% into the right tile, not at its edge
+    const boxes = mergeOcrPasses(width, height, [
+      { rect: whole, output: output(['Spaghetti alle vongole 14,00', 0.4, 0.3, 0.6, 0.33]) },
+      { rect: right, output: output(['vongole 14,00', 0.012, 0.3, 0.2, 0.33]) },
+    ]);
+    expect(boxes.map(({ text }) => text)).toEqual(['Spaghetti alle vongole 14,00']);
+  });
+
+  it('should join text cut by the edges of two tiles where they read the same characters', () => {
+    // no whole-photo reading of the line: the two cut pieces are joined
+    const boxes = mergeOcrPasses(width, height, [
+      { rect: left, output: output(['Abalone schnitz', 0.7, 0.5, 0.998, 0.52]) },
+      { rect: right, output: output(['hnitzel and bush condiments', 0.002, 0.5, 0.35, 0.52]) },
+    ]);
+    expect(boxes.map(({ text }) => text)).toEqual(['Abalone schnitzel and bush condiments']);
+    expect(boxes[0].x1).toBeCloseTo((0.7 * 1100) / 2000, 3);
+    expect(boxes[0].x2).toBeCloseTo((900 + 0.35 * 1100) / 2000, 3);
+  });
+});
+
+describe('stitchText', () => {
+  it('should join two pieces of a line at the characters both read', () => {
+    expect(stitchText('Abalone schnitz', 'hnitzel and bush', 0.35)).toBe('Abalone schnitzel and bush');
+    // one character read differently
+    expect(stitchText('Peanut milk and freekah "B', 'nd Ireekah "Baytime"', 0.4)).toBe(
+      'Peanut milk and freekah "Baytime"',
+    );
+  });
+
+  it('should not join pieces that disagree', () => {
+    expect(stitchText('Spaghetti alle', 'Caponata siciliana', 0.3)).toBeUndefined();
   });
 });

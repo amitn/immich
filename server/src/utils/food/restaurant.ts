@@ -1,6 +1,6 @@
 import { hasRestaurantWord } from 'src/utils/food/classify.js';
 import { cleanItemText, isPageFurniture, isSectionHeading, parseMenu, splitPrice } from 'src/utils/food/menu.js';
-import { OcrBoxInput, groupLines, toTextBoxes } from 'src/utils/food/ocr.js';
+import { OcrBoxInput, TextLine, groupLines, toTextBoxes } from 'src/utils/food/ocr.js';
 
 export type RestaurantSource = 'sign' | 'menu' | 'receipt';
 
@@ -120,17 +120,43 @@ const isSimilarName = (a: string, b: string) =>
 const KIND_WEIGHT: Record<RestaurantSource, number> = { sign: 1, menu: 0.85, receipt: 0.9 };
 const SOURCE_ORDER: RestaurantSource[] = ['sign', 'menu', 'receipt'];
 
-const normalize = (name: string) =>
+const normalize = (name: string, keepSpaces = false) =>
   name
     .normalize('NFD')
     .replaceAll(/\p{Diacritic}/gu, '')
     .toLowerCase()
-    .replaceAll(/[^\p{L}\d]/gu, '');
+    .replaceAll(keepSpaces ? /[^\p{L}\d\s]/gu : /[^\p{L}\d]/gu, '');
 
 /** "Pizzeria" alone names a kind of place, not a place */
 const isRestaurantWordOnly = (name: string) => !name.includes(' ') && hasRestaurantWord(name);
 
 type Scored = { name: string; score: number; source: RestaurantSource; assetId: string };
+
+/**
+ * Whether a name reads like letters OCR made up: a run of five consonants ("MZSDGUICAT", from a sign seen at an
+ * angle), or a long word without a vowel.
+ */
+export const isGarbled = (name: string) =>
+  normalize(name, true)
+    .split(/\s+/)
+    .some((word) => /[^aeiouy\d\s]{5}/.test(word) || (word.length >= 4 && !/[aeiouy]/.test(word)));
+
+/** a name read on a single photo, none of whose words is on the other photos of the meal, counts this much */
+const UNSUPPORTED = 0.85;
+
+/** the words of a text that can tell a name apart: "Katz's Delicatessen" → katzs */
+const words = (text: string) =>
+  normalize(text.replaceAll(/[^\p{L}\d]+/gu, ' ').replaceAll(/\s+/g, ' '), true)
+    .split(' ')
+    .filter((word) => word.length >= 4 && !hasRestaurantWord(word));
+
+/** OCR is less sure of made-up readings: a line read with less confidence than this counts for less */
+const SURE_TEXT = 0.9;
+
+const textConfidence = (line: TextLine) => {
+  const score = Math.min(...line.boxes.map((box) => box.score));
+  return score >= SURE_TEXT ? 1 : 0.6 + 0.4 * Math.max(0, (score - 0.8) / (SURE_TEXT - 0.8));
+};
 
 const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
   const lines = groupLines(toTextBoxes(photo.ocr));
@@ -179,6 +205,7 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
     if (title && normalize(title) === normalize(name)) {
       score += 0.15;
     }
+    score *= textConfidence(line) * (isGarbled(name) ? 0.5 : 1);
     results.push({ name, score: score * KIND_WEIGHT[photo.kind], source: photo.kind, assetId: photo.assetId });
   }
   return results;
@@ -232,6 +259,20 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
     }
   }
 
+  // the words on each photo: a name read once, whose words no other photo of the meal has, may be made up
+  const photoWords = photos.map(({ assetId, ocr }) => ({
+    assetId,
+    words: new Set(ocr.flatMap(({ text }) => words(text))),
+  }));
+  const isSupported = (name: string, assetIds: Set<string>) => {
+    const others = photoWords.filter(({ assetId, words }) => !assetIds.has(assetId) && words.size > 0);
+    return (
+      assetIds.size > 1 ||
+      others.length === 0 ||
+      words(name).some((word) => others.some(({ words }) => words.has(word)))
+    );
+  };
+
   const candidates = merged
     .values()
     .map(([, entry]) => {
@@ -239,9 +280,10 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
         .values()
         .toArray()
         .toSorted((a, b) => b - a);
-      // repeated on other photos: a menu page header, the sign and the receipt agree
-      const score = scores[0] + 0.2 * Math.min(2, scores.length - 1);
       const name = [...entry.names].toSorted((a, b) => b[1] - a[1] || (a[0] === a[0].toUpperCase() ? 1 : -1))[0][0];
+      // repeated on other photos: a menu page header, the sign and the receipt agree
+      const score =
+        (scores[0] + 0.2 * Math.min(2, scores.length - 1)) * (isSupported(name, entry.assetIds) ? 1 : UNSUPPORTED);
       const source = SOURCE_ORDER.find((kind) => entry.sources.has(kind))!;
       return { name, score, source, assetIds: [...entry.assetIds] };
     })

@@ -1,14 +1,6 @@
-import {
-  OcrBoxInput,
-  TextBox,
-  TextLine,
-  deskewBoxes,
-  groupLines,
-  isPrice,
-  median,
-  parsePrice,
-  toTextBoxes,
-} from 'src/utils/food/ocr.js';
+import { findColumns, splitAtPrices } from 'src/utils/food/layout.js';
+import { OcrBoxInput, TextLine, deskewBoxes, isPrice, median, parsePrice, toTextBoxes } from 'src/utils/food/ocr.js';
+import { editDistance } from 'src/utils/food/tiles.js';
 
 export type MenuItem = {
   /** the name as printed, in the language of the menu */
@@ -36,12 +28,6 @@ export type ParsedMenu = {
   lines: number;
 };
 
-type Column = { left: number; right: number; boxes: TextBox[] };
-
-/** the width is split into this many bins to find the gutters between columns */
-const BINS = 100;
-/** a bin covered by at most this fraction of the busiest bin's boxes is part of a gutter */
-const GUTTER = 0.2;
 /** a line at most this much smaller than the item names is a description */
 const SMALLER = 0.85;
 
@@ -136,6 +122,10 @@ const SECTION_WORDS = new Set(
     'beers',
     'cocktails',
     'spirits',
+    'pairing',
+    'wine pairing',
+    'juice pairing',
+    'tea pairing',
     'kids',
     "kids' menu",
     'kids menu',
@@ -254,6 +244,7 @@ const FURNITURE = [
   /\b(?:open|opening|aperto|chiuso|closed|ouvert|ferme|fermé|abierto|cerrado|geöffnet|geschlossen)\b/i,
   // cover, service, taxes, legends
   /\b(?:coperto|servizio|service|iva|vat|tax|taxes|tva|p\.?\s?iva|cover charge|pane e coperto|prezzi|prices|precios|prix nets|propina|gratuity|mwst|inkl)\b/i,
+  /\bprix\s+f[i1l]xe\b/i,
   /allerg|alérg|surgelat|congelat|frozen|abbattut|gluten[- ]free options/i,
   // addresses
   /^(?:via|viale|piazza|corso|vicolo|largo|rue|avenue|boulevard|calle|avenida|plaza|paseo|rua)\s+\p{L}/iu,
@@ -263,6 +254,97 @@ const FURNITURE = [
 ];
 
 export const isPageFurniture = (text: string) => FURNITURE.some((pattern) => pattern.test(text));
+
+/** month names (in full, and abbreviations that aren't words) in English, Italian, French, Spanish, Portuguese, German */
+const MONTHS =
+  '(?:january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|aug|sept?|oct|nov|dec|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|dicembre|janvier|f[ée]vrier|avril|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre|enero|febrero|abril|mayo|junio|julio|septiembre|octubre|noviembre|diciembre|januar|februar|m[äa]rz|juni|juli|oktober|dezember|janeiro|fevereiro|mar[çc]o|maio|junho|julho|setembro|outubro|dezembro)';
+/** "January 11, 2014", "11 gennaio", "11/01/2014"; OCR reads zeros as the letter O */
+const DATE = new RegExp(
+  String.raw`(?<!\p{L})${MONTHS}\.?\s+[\dOo]{1,4}(?!\p{L})|(?<!\p{L})\d{1,2}(?:st|nd|rd|th|er|º)?\.?\s+(?:de\s+)?${MONTHS}(?!\p{L})|\b\d{1,2}[./-]\d{1,2}[./-](?:\d{4}|\d{2})\b`,
+  'iu',
+);
+const YEAR = /(?<![\d\p{L}])(?:19|2[0O])[\dOo]{2}(?![\d\p{L}])/u;
+
+/** a date, as printed on the menus of the day or of a tasting menu */
+export const isDate = (text: string) => DATE.test(text);
+
+/** the words of a menu's own title: "Chef's Tasting Menu", "Menu dégustation", "Prix fixe" */
+const MENU_WORDS = new Set([
+  'menu',
+  'menus',
+  'tasting',
+  'degustation',
+  'degustazione',
+  'degustacion',
+  'degustacao',
+  'carte',
+  'prix',
+  'fixe',
+  'omakase',
+  'kaiseki',
+]);
+const MENU_TITLE_WORDS = new Set([
+  ...MENU_WORDS,
+  'chef',
+  'chefs',
+  'the',
+  'our',
+  'a',
+  'la',
+  'le',
+  'il',
+  'de',
+  'du',
+  'del',
+  'di',
+  'des',
+  'jour',
+  'giorno',
+  'dia',
+  'lunch',
+  'dinner',
+  'brunch',
+  'seasonal',
+  'season',
+  'vegetarian',
+  'vegan',
+  'set',
+  'signature',
+  'grand',
+  'petit',
+  'discovery',
+  'decouverte',
+  'experience',
+  'course',
+  'courses',
+  'and',
+  'wine',
+  'juice',
+  'pairing',
+  'pairings',
+  'of',
+  'today',
+  'todays',
+]);
+
+/** the title of a menu rather than an item: "CHEF'S TASTING MENU JANUARY 11, 2014" */
+export const isMenuTitle = (text: string) => {
+  const words = normalizeWords(text.replace(DATE, ' '))
+    .replaceAll(/['’]s\b/g, '')
+    .replaceAll("'", '')
+    .split(' ')
+    .filter((word) => word.length > 0);
+  return (
+    words.length > 0 &&
+    words.length <= 7 &&
+    words.some((word) => MENU_WORDS.has(word)) &&
+    words.every((word) => MENU_TITLE_WORDS.has(word))
+  );
+};
+
+/** "(75.00 supplement)", "supplemento 10 €": the extra charge of an optional course */
+const SUPPLEMENT =
+  /\(\s*[^()]{0,16}?(?<!\p{L})(?:supplement|supplemento|suppl[ée]ment|suplemento|aufpreis|zuschlag|additional charge|extra charge)(?!\p{L})[^()]{0,8}\)?|(?:[$£€]\s?)?\d[\d.,]*\s*(?:[$£€]\s?)?(?:supplement|supplemento|suppl[ée]ment|suplemento)(?!\p{L})|(?<!\p{L})(?:supplement|supplemento|suppl[ée]ment|suplemento)\s*(?:[$£€]\s?)?\d[\d.,]*(?:\s?[$£€])?/giu;
 
 const PRICE_PATTERN = String.raw`(?:(?:[$£€¥₹]|eur\s|chf\s)\s?\d{1,4}(?:[.,]\d{1,2})?|\d{1,4}(?:[.,]\d{1,2})?(?:\s?(?:[$£€¥₹]|eur\b|chf\b|,-|\.-))?)`;
 const TRAILING_PRICE = new RegExp(String.raw`(?:\s*(?:\.{2,}|…+|_{2,}|-{2,}|\s/))?\s+(${PRICE_PATTERN})\s*$`, 'i');
@@ -308,7 +390,7 @@ const SUPERSCRIPTS = /[¹²³⁴⁵⁶⁷⁸⁹⁰*†°]+/g;
 
 /** removes allergen codes, footnote marks, numbering and leader dots from an item name */
 export const cleanItemText = (text: string) => {
-  let result = text.replaceAll(SUPERSCRIPTS, ' ');
+  let result = text.replaceAll(SUPPLEMENT, ' ').replaceAll(SUPERSCRIPTS, ' ');
   for (let i = 0; i < 3; i++) {
     result = result.replace(ALLERGENS_PARENS, '').replace(ALLERGENS_LIST, '').trim();
   }
@@ -324,79 +406,14 @@ const CONNECTOR_END =
   /(?:\b(?:alla?|alle|allo|agli|ai|al|con|e|di|del|dello|della|delle|dei|degli|in|su|with|and|of|on|de|du|des|la|le|aux|au|à|et|y|en|el|los|las|mit|und|an)|[,&+-])$/i;
 const CONNECTOR_START = /^(?:con|e|di|al|alla|alle|with|and|served|avec|et|aux|au|con|y|en|mit|und|in|su|on)\b/i;
 
+/** a line that goes on from the one above: "and Garden Mache", "with truffle" */
+const CONTINUATION = /^(?:and|with|or|served|con|alla|alle|avec|et|aux|mit|und|oder|und|y|con)\s+\p{L}/u;
+
 const startsLowercase = (text: string) => /^[\p{Ll}(]/u.test(text);
 
 /** joins two lines of text, mending words hyphenated over the line break */
 const joinText = (a: string, b: string) =>
   /\p{L}-$/u.test(a) && startsLowercase(b) ? `${a.slice(0, -1)}${b}` : `${a} ${b}`;
-
-/** splits the photo into columns at its gutters, with the strips of prices joined to the text on their left */
-export const findColumns = (boxes: TextBox[]): Column[] => {
-  // how many boxes cover each 1% of the width; the gutters between columns are (almost) empty
-  const counts = Array.from({ length: BINS }, () => 0);
-  for (const box of boxes) {
-    for (let i = Math.max(0, Math.floor(box.left * BINS)); i < Math.min(BINS, Math.ceil(box.right * BINS)); i++) {
-      counts[i]++;
-    }
-  }
-  // a few headings, addresses or titles across the page don't close a gutter
-  const threshold = Math.floor(GUTTER * Math.max(...counts));
-
-  const bands: Column[] = [];
-  let start = -1;
-  for (let i = 0; i <= BINS; i++) {
-    const covered = i < BINS && counts[i] > threshold;
-    if (covered && start < 0) {
-      start = i;
-    } else if (!covered && start >= 0) {
-      bands.push({ left: start / BINS, right: i / BINS, boxes: [] });
-      start = -1;
-    }
-  }
-  if (bands.length <= 1) {
-    return [{ left: bands[0]?.left ?? 0, right: bands[0]?.right ?? 1, boxes: [...boxes] }];
-  }
-
-  const overlap = (column: Column, box: TextBox) =>
-    Math.max(0, Math.min(column.right, box.right) - Math.max(column.left, box.left));
-  const nearest = (columns: Column[], box: TextBox) => {
-    const overlaps = columns.map((column) => overlap(column, box));
-    return overlaps.indexOf(Math.max(...overlaps));
-  };
-
-  for (const box of boxes) {
-    bands[nearest(bands, box)].boxes.push(box);
-  }
-
-  // strips of prices (and stray boxes) belong to the text on their left, or on their right at the left edge
-  const isPriceBand = (band: Column) =>
-    band.boxes.length < 2 || band.boxes.filter((box) => isPrice(box.text)).length >= 0.6 * band.boxes.length;
-  const columns: Column[] = [];
-  for (const band of bands) {
-    if (band.boxes.length === 0) {
-      continue;
-    }
-    const previous = columns.at(-1);
-    if (previous && (isPriceBand(band) || isPriceBand(previous))) {
-      previous.right = band.right;
-      previous.boxes.push(...band.boxes);
-    } else {
-      columns.push(band);
-    }
-  }
-
-  // boxes across more than one column are headings, titles and addresses of the whole page
-  const result = columns.map((column) => ({ ...column, boxes: [] as TextBox[] }));
-  for (const box of boxes) {
-    const spanned = result.filter((column) => overlap(column, box) > 0.3 * (column.right - column.left));
-    if (spanned.length > 1) {
-      continue;
-    }
-    result[nearest(result, box)].boxes.push(box);
-  }
-
-  return result.filter((column) => column.boxes.length > 0);
-};
 
 type LineInfo = {
   line: TextLine;
@@ -414,7 +431,7 @@ const analyzeLine = (line: TextLine): LineInfo => {
   const price = prices.length > 0 ? prices.join(' / ') : undefined;
   const text = cleanItemText(split.text);
 
-  if (isPageFurniture(line.text)) {
+  if (isPageFurniture(line.text) || isDate(line.text) || isMenuTitle(text)) {
     return { line, text, price, kind: 'furniture' };
   }
   if (!/\p{L}{2}/u.test(text)) {
@@ -427,6 +444,38 @@ const analyzeLine = (line: TextLine): LineInfo => {
 };
 
 const wordCount = (text: string) => text.split(/\s+/).filter(Boolean).length;
+
+/** "OYSTERS AND PEARLS": the names of many tasting menus are in capitals, their descriptions not */
+const isAllCaps = (text: string) => {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  return (
+    letters.length >= 3 && letters.filter((letter) => letter !== letter.toLowerCase()).length >= 0.85 * letters.length
+  );
+};
+
+/**
+ * The name of the restaurant and the title or the date of the menu at the top of a column ("THE FRENCH LAUNDRY",
+ * "CHEF'S TASTING MENU", "JANUARY 11, 2014", "Noma Australia 2016") are not items.
+ */
+const markHeader = (lines: LineInfo[]) => {
+  let end = -1;
+  for (const [index, info] of lines.slice(0, 4).entries()) {
+    const dated = isDate(info.line.text) || YEAR.test(info.line.text);
+    if (info.price && !dated) {
+      break;
+    }
+    if (
+      (info.kind === 'furniture' && (dated || isMenuTitle(info.text))) ||
+      (info.kind !== 'furniture' && dated && wordCount(info.text) <= 5)
+    ) {
+      end = index;
+    }
+  }
+  for (const info of lines.slice(0, end + 1)) {
+    info.kind = 'furniture';
+  }
+  return lines;
+};
 const isCapitalized = (text: string) => text === text.toUpperCase() || /^(?:\p{Lu}\p{Ll}*\s?)+$/u.test(text);
 
 /**
@@ -478,9 +527,19 @@ const joinLines = (parts: string[]) => {
   return cleanItemText(text);
 };
 
+/** a word that can't be a dish on its own: "CHEF'S", "Katz's", "and", "of" */
+const isFragment = (name: string) => {
+  const words = name.split(/\s+/).filter(Boolean);
+  const letters = name.replaceAll(/[^\p{L}]/gu, '').length;
+  return (
+    letters < 3 ||
+    (words.length === 1 && (/['’]s$/iu.test(name) || CONNECTOR_START.test(name) || CONNECTOR_END.test(name)))
+  );
+};
+
 const toItem = (draft: Draft, column: number): MenuItem | undefined => {
   const name = joinLines(draft.name);
-  if (!/\p{L}{2}/u.test(name) || isSectionHeading(name) || isPageFurniture(name)) {
+  if (!/\p{L}{2}/u.test(name) || isSectionHeading(name) || isPageFurniture(name) || isFragment(name)) {
     return;
   }
   const description = joinLines(draft.description);
@@ -510,6 +569,11 @@ const parseColumn = (lines: LineInfo[], column: number, section?: string) => {
   const priced = textLines.filter((info) => info.price);
   const isPriced = priced.length + lines.filter((info) => info.kind === 'price').length >= 0.3 * textLines.length;
   const nameHeight = median((priced.length > 0 ? priced : textLines).map((info) => info.line.height)) || 0.02;
+  // a list of one name per line with space between the lines: two lines set tight together are one name
+  const gaps = textLines
+    .slice(1)
+    .map((info, index) => (info.line.top - textLines[index].line.bottom) / Math.max(info.line.height, 1e-6));
+  const spaced = !isPriced && gaps.length >= 3 && median(gaps) > 0.8;
 
   const items: MenuItem[] = [];
   let current: Draft | undefined;
@@ -566,7 +630,24 @@ const parseColumn = (lines: LineInfo[], column: number, section?: string) => {
       };
     };
 
-    if (!current || !close) {
+    // a name in capitals after the (mixed case) description of a name in capitals is the next item
+    const nextInCapitals =
+      current !== undefined &&
+      current.description.length > 0 &&
+      isAllCaps(text) &&
+      isAllCaps(current.name[0]) &&
+      !isAllCaps(current.description.at(-1)!);
+    // "and Garden Mache" goes on from the line above, even after a gap
+    const continues =
+      current !== undefined &&
+      !close &&
+      !price &&
+      CONTINUATION.test(text) &&
+      gap <= 3 * Math.max(line.height, previous?.height ?? 0);
+
+    if (continues) {
+      addDescription(current!, info);
+    } else if (!current || !close || nextInCapitals) {
       start();
     } else if (current.price) {
       // the item is complete: a description follows, or the next item; text as large as the name after a smaller
@@ -589,7 +670,9 @@ const parseColumn = (lines: LineInfo[], column: number, section?: string) => {
       const continuesName =
         !smaller &&
         current.description.length === 0 &&
-        (CONNECTOR_END.test(lastName) || (/\p{L}-$/u.test(lastName) && startsLowercase(text)));
+        (CONNECTOR_END.test(lastName) ||
+          (/\p{L}-$/u.test(lastName) && startsLowercase(text)) ||
+          (spaced && gap < 0.4 * line.height && isAllCaps(text) === isAllCaps(lastName)));
       const afterSmallDescription =
         current.description.length > 0 && !smaller && current.descriptionHeight < SMALLER * current.nameHeight;
 
@@ -635,19 +718,16 @@ export const parseMenu = (
   ocr: OcrBoxInput[],
   options: { minScore?: number; aspectRatio?: number } = {},
 ): ParsedMenu => {
-  const boxes = toTextBoxes(deskewBoxes(ocr, options.aspectRatio), options.minScore);
+  const boxes = toTextBoxes(deskewBoxes(ocr, options.aspectRatio), options.minScore).flatMap((box) =>
+    splitAtPrices(box),
+  );
   if (boxes.length === 0) {
     return { items: [], sections: [], columns: 0, lines: 0 };
   }
 
-  const columns = findColumns(boxes);
-  const assigned = new Set(columns.flatMap((column) => column.boxes));
-  const spanning = boxes.filter((box) => !assigned.has(box));
-
-  const columnLines = columns
-    .toSorted((a, b) => a.left - b.left)
-    .map((column) => groupLines(column.boxes).map((line) => analyzeLine(line)));
-  const spanningLines = groupLines(spanning).map((line) => analyzeLine(line));
+  const { columns, spanning } = findColumns(boxes, options.aspectRatio);
+  const columnLines = columns.map((column) => markHeader(column.lines.map((line) => analyzeLine(line))));
+  const spanningLines = markHeader(spanning.map((line) => analyzeLine(line)));
   const allLines = [...spanningLines, ...columnLines.flat()];
 
   // headings are much larger than the item names, which are the lines with a price when there are prices
@@ -709,4 +789,64 @@ const getTitle = (lines: TextLine[], bodyHeight: number) => {
     .filter(({ text }) => /\p{L}{3}/u.test(text) && !isSectionHeading(text) && !isPageFurniture(text))
     .toSorted((a, b) => b.line.height - a.line.height || a.line.top - b.line.top);
   return candidates[0]?.text;
+};
+
+const readText = (boxes: OcrBoxInput[]) =>
+  toTextBoxes(boxes).reduce((sum, box) => sum + box.text.replaceAll(/[^\p{L}\d]/gu, '').length, 0);
+
+/**
+ * Which OCR to read a menu from: the tiled full-resolution reading, unless it somehow reads much less text than the
+ * OCR stored for the photo.
+ */
+export const chooseMenuOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
+  readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
+
+const itemKey = (name: string) =>
+  stripAccents(name)
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/** the same name, give or take a few letters OCR read differently */
+const isSameKey = (a: string, b: string) =>
+  a === b || (Math.min(a.length, b.length) >= 8 && editDistance(a, b) <= 0.15 * Math.max(a.length, b.length));
+
+export type MergedMenuItem = {
+  menuId: string;
+  item: MenuItem;
+  /** the place of the item in the longest column of the menu, the courses in the order they are served */
+  course?: number;
+};
+
+/**
+ * The items of the menus of a meal, without the items another page (or photo) of it already listed, in menu order.
+ * The longest column of any page is the sequence of courses (of a tasting menu): its items, and the items of other
+ * photos that name them again, get their place in it.
+ */
+export const mergeMenuItems = <T extends { items: MenuItem[] }>(
+  readings: Array<T & { assetId: string }>,
+): MergedMenuItem[] => {
+  let courses: string[] = [];
+  for (const reading of readings) {
+    const columns = Map.groupBy(reading.items, (item) => item.column);
+    for (const column of columns.values()) {
+      if (column.length > courses.length) {
+        courses = column.map((item) => itemKey(item.name));
+      }
+    }
+  }
+
+  const seen: string[] = [];
+  const items: MergedMenuItem[] = [];
+  for (const reading of readings) {
+    for (const item of reading.items) {
+      const key = itemKey(item.name);
+      if (seen.some((other) => isSameKey(other, key))) {
+        continue;
+      }
+      seen.push(key);
+      const course = courses.findIndex((other) => isSameKey(other, key));
+      items.push({ menuId: reading.assetId, item, ...(course !== -1 && { course }) });
+    }
+  }
+  return items;
 };
