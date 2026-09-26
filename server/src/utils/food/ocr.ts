@@ -60,6 +60,43 @@ export const toTextBoxes = (boxes: OcrBoxInput[], minScore = MIN_TEXT_SCORE) =>
     .filter((box) => box.text.length > 0 && box.score >= minScore && box.height > 0)
     .toSorted((a, b) => a.top - b.top || a.left - b.left);
 
+/**
+ * Levels the boxes of a photo of a tilted page: the median angle of the wide boxes (text lines) is measured in pixel
+ * proportions (`aspectRatio` = width / height of the photo) and undone by rotating every corner about the center.
+ * Tilts under half a degree, or over 20 degrees (a page on its side, or noise), are left alone.
+ */
+export const deskewBoxes = <T extends OcrBoxInput>(boxes: T[], aspectRatio = 1): T[] => {
+  const angles = boxes
+    .map((box) => {
+      const dx = (box.x2 - box.x1) * aspectRatio;
+      const dy = box.y2 - box.y1;
+      const height = Math.hypot((box.x4 - box.x1) * aspectRatio, box.y4 - box.y1);
+      return Math.hypot(dx, dy) > 2 * height ? Math.atan2(dy, dx) : undefined;
+    })
+    .filter((angle): angle is number => angle !== undefined);
+  const angle = median(angles);
+  const degrees = Math.abs((angle * 180) / Math.PI);
+  if (angles.length < 3 || degrees < 0.5 || degrees > 20) {
+    return boxes;
+  }
+
+  const cos = Math.cos(-angle);
+  const sin = Math.sin(-angle);
+  const cx = aspectRatio / 2;
+  const rotate = (x: number, y: number) => {
+    const px = x * aspectRatio - cx;
+    const py = y - 0.5;
+    return [(px * cos - py * sin + cx) / aspectRatio, px * sin + py * cos + 0.5];
+  };
+  return boxes.map((box) => {
+    const [x1, y1] = rotate(box.x1, box.y1);
+    const [x2, y2] = rotate(box.x2, box.y2);
+    const [x3, y3] = rotate(box.x3, box.y3);
+    const [x4, y4] = rotate(box.x4, box.y4);
+    return { ...box, x1, y1, x2, y2, x3, y3, x4, y4 };
+  });
+};
+
 export const median = (values: number[]) => {
   if (values.length === 0) {
     return 0;

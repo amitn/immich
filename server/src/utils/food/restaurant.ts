@@ -60,14 +60,20 @@ export const toTitleCase = (text: string) => {
   if (text !== text.toUpperCase()) {
     return text;
   }
-  return text
-    .toLowerCase()
-    .split(' ')
-    .map((word, index) =>
-      index > 0 && SMALL_WORDS.has(word) ? word : word.replace(/^(\p{L})/u, (letter) => letter.toUpperCase()),
-    )
-    .join(' ')
-    .replaceAll(/(['’])(\p{L})/gu, (_, quote: string, letter: string) => `${quote}${letter.toUpperCase()}`);
+  return (
+    text
+      .toLowerCase()
+      .split(' ')
+      .map((word, index) =>
+        index > 0 && SMALL_WORDS.has(word) ? word : word.replace(/^(\p{L})/u, (letter) => letter.toUpperCase()),
+      )
+      .join(' ')
+      // L'Osteria, D'Amico, but Katz's
+      .replaceAll(
+        /(^|\s)(\p{L}['’])(\p{L})/gu,
+        (_, space: string, elision: string, letter: string) => `${space}${elision}${letter.toUpperCase()}`,
+      )
+  );
 };
 
 /** the name of a place as printed on a line, without legal suffixes and prices; undefined when it can't be a name */
@@ -82,11 +88,34 @@ export const cleanRestaurantName = (text: string) => {
   if (letters < 3 || words > 6 || cleaned.length > 40 || letters < 0.6 * cleaned.replaceAll(/\s/g, '').length) {
     return;
   }
-  if (isSectionHeading(cleaned) || isPageFurniture(cleaned)) {
+  if (isSectionHeading(cleaned) || isPageFurniture(cleaned) || NOT_A_NAME.test(cleaned)) {
     return;
   }
   return toTitleCase(cleaned);
 };
+
+/** labels, associations and slogans that are printed on signs and menus but don't name the place */
+const NOT_A_NAME =
+  /relais\s*&?\s*ch[aâ]teaux|grandes tables|michelin|tripadvisor|zagat|gault\s*&?\s*millau|certificate of excellence|travell?ers'? choice|slow food|^(?:open|opened|welcome|entrance|entrata|ingresso|exit|uscita|push|pull|spingere|tirare|visa|mastercard|american express|no smoking|vietato fumare|since \d{4}|dal \d{4}|est\.? \d{4}|thank you|grazie|merci|gracias)$/i;
+
+/** edit distance of two strings, for names that OCR read with a letter or two missing */
+export const editDistance = (a: string, b: string) => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+};
+
+/** "therenchaundry" is "thefrenchlaundry" with two letters dropped */
+const isSimilarName = (a: string, b: string) =>
+  a === b ||
+  (Math.min(a.length, b.length) >= 5 &&
+    editDistance(a, b) <= Math.max(1, Math.floor(0.2 * Math.max(a.length, b.length))));
 
 const KIND_WEIGHT: Record<RestaurantSource, number> = { sign: 1, menu: 0.85, receipt: 0.9 };
 const SOURCE_ORDER: RestaurantSource[] = ['sign', 'menu', 'receipt'];
@@ -108,20 +137,26 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
   if (lines.length === 0) {
     return [];
   }
-  const largest = Math.max(...lines.map((line) => line.height));
+  const names = lines.map((line) => cleanRestaurantName(line.text));
+  // the largest text that can be a name: labels such as "Relais & Châteaux" don't count
+  const largest = Math.max(0, ...lines.filter((_, index) => names[index]).map((line) => line.height));
   const title = photo.kind === 'menu' ? parseMenu(photo.ocr).title : undefined;
 
   const results: Scored[] = [];
   for (const [index, line] of lines.entries()) {
-    let name = cleanRestaurantName(line.text);
+    let name = names[index];
     if (!name) {
       continue;
     }
-    // "OSTERIA" over "da Carlo" on a sign
+    // "OSTERIA" over "da Carlo", or "KATZ'S" over "DELICATESSEN" on a sign
     const next = lines[index + 1];
-    const alone = isRestaurantWordOnly(name);
-    if (alone && next && next.top - line.bottom < 1.5 * line.height) {
-      name = cleanRestaurantName(`${toTitleCase(line.text)} ${toTitleCase(next.text)}`) ?? name;
+    const previous = lines[index - 1];
+    if (isRestaurantWordOnly(name)) {
+      if (next && next.top - line.bottom < 1.5 * line.height) {
+        name = cleanRestaurantName(`${toTitleCase(line.text)} ${toTitleCase(next.text)}`) ?? name;
+      } else if (previous && line.top - previous.bottom < 1.5 * previous.height) {
+        name = cleanRestaurantName(`${toTitleCase(previous.text)} ${toTitleCase(line.text)}`) ?? name;
+      }
     }
     let score = 0.35 * (line.height / largest);
     if (hasRestaurantWord(name)) {
@@ -129,6 +164,10 @@ const scorePhoto = (photo: RestaurantPhoto): Scored[] => {
     }
     if (line.height === largest) {
       score += 0.1;
+      // a sign with a few words in large letters: the largest is the name ("noma")
+      if (photo.kind === 'sign' && lines.length <= 4) {
+        score += 0.15;
+      }
     }
     if (photo.kind === 'receipt' && index === 0) {
       // the first line of a receipt is the business
@@ -174,9 +213,28 @@ export const findRestaurantNames = (photos: RestaurantPhoto[], limit = 3): Resta
     }
   }
 
-  const candidates = byName
+  // names OCR read with letters missing join the complete reading: the longest key wins
+  const merged: Array<[string, NonNullable<ReturnType<typeof byName.get>>]> = [];
+  for (const [key, entry] of [...byName].toSorted((a, b) => b[0].length - a[0].length)) {
+    const target = merged.find(([other]) => isSimilarName(other, key))?.[1];
+    if (!target) {
+      merged.push([key, entry]);
+      continue;
+    }
+    for (const [assetId, score] of entry.best) {
+      target.best.set(assetId, Math.max(target.best.get(assetId) ?? 0, score));
+    }
+    for (const source of entry.sources) {
+      target.sources.add(source);
+    }
+    for (const assetId of entry.assetIds) {
+      target.assetIds.add(assetId);
+    }
+  }
+
+  const candidates = merged
     .values()
-    .map((entry) => {
+    .map(([, entry]) => {
       const scores = entry.best
         .values()
         .toArray()

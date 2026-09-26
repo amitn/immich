@@ -54,8 +54,8 @@ describe('groupMeals', () => {
         `2024-06-12T${String(12 + Math.floor((i * 30) / 60)).padStart(2, '0')}:${String((i * 30) % 60).padStart(2, '0')}:00`,
       ),
     );
-    const meals = groupMeals(photos);
-    expect(meals.map((meal) => meal.length)).toEqual([7, 1]);
+    expect(groupMeals(photos).map((meal) => meal.length)).toEqual([8]);
+    expect(groupMeals(photos, { maxSpanMinutes: 180 }).map((meal) => meal.length)).toEqual([7, 1]);
   });
 
   it('should split meals at different places', () => {
@@ -72,6 +72,83 @@ describe('groupMeals', () => {
       photo('dish', '2024-06-12T20:00:00', 'dish', nino),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dish']]);
+  });
+
+  it('should attach a menu photographed after the meal and keep a menu on its own', () => {
+    const meals = groupMeals([
+      photo('dessert', '2024-06-12T14:01:00'),
+      photo('signed-menu', '2024-06-12T16:08:00', 'menu'),
+      photo('other-menu', '2024-06-13T12:00:00', 'menu'),
+    ]);
+    expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dessert', 'signed-menu'], ['other-menu']]);
+  });
+
+  it('should not attach a sign at another place', () => {
+    const meals = groupMeals([
+      photo('sign', '2024-06-12T19:00:00', 'sign', bar),
+      photo('dish', '2024-06-12T20:00:00', 'dish', nino),
+    ]);
+    expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['dish']]);
+  });
+
+  it('should find the three meals of the demo photos without GPS', () => {
+    // times as the cameras recorded them: a long tasting lunch, a signed menu two hours later, a tasting menu of
+    // three and a half hours on a camera on the wrong time zone, and a quick deli breakfast
+    const frenchLaundry = [
+      photo('fl-outside', '2014-01-11T11:28:22', 'sign'),
+      photo('fl-relais', '2014-01-11T11:30:11', 'sign'),
+      photo('fl-menu', '2014-01-11T11:43:00', 'menu'),
+      ...[
+        '11:52:10',
+        '11:52:55',
+        '11:57:19',
+        '12:08:01',
+        '12:08:37',
+        '12:22:28',
+        '12:35:57',
+        '12:49:44',
+        '13:17:36',
+        '13:28:42',
+        '13:46:16',
+        '14:01:40',
+      ].map((time, i) => photo(`fl-dish-${i}`, `2014-01-11T${time}`)),
+      photo('fl-signed-menu', '2014-01-11T16:08:21', 'menu'),
+    ];
+    const noma = [
+      photo('noma-front', '2016-03-23T17:19:46', 'sign'),
+      photo('noma-sign', '2016-03-23T17:27:59', 'sign'),
+      ...[
+        '17:41:16',
+        '17:49:34',
+        '17:55:32',
+        '17:59:58',
+        '18:09:15',
+        '18:18:52',
+        '18:28:43',
+        '18:37:32',
+        '18:48:17',
+        '18:56:58',
+        '19:09:53',
+        '19:38:21',
+        '19:51:24',
+        '20:01:39',
+        '20:17:28',
+      ].map((time, i) => photo(`noma-dish-${i}`, `2016-03-23T${time}`)),
+      photo('noma-menu', '2016-03-23T20:51:08', 'menu'),
+    ];
+    const katz = [
+      photo('katz-outside', '2013-06-15T08:42:57', 'sign'),
+      photo('katz-menu', '2013-06-15T08:53:24', 'menu'),
+      ...['08:55:32', '09:02:38', '09:03:35', '09:07:13', '09:14:03'].map((time, i) =>
+        photo(`katz-dish-${i}`, `2013-06-15T${time}`),
+      ),
+    ];
+
+    const meals = groupMeals([...noma, ...frenchLaundry, ...katz]);
+
+    expect(meals.map((meal) => meal.length)).toEqual([katz.length, frenchLaundry.length, noma.length]);
+    expect(summarizeMeal(meals[1]).menuIds).toEqual(['fl-menu', 'fl-signed-menu']);
+    expect(summarizeMeal(meals[2])).toMatchObject({ signIds: ['noma-front', 'noma-sign'], menuIds: ['noma-menu'] });
   });
 
   it('should accept other options', () => {

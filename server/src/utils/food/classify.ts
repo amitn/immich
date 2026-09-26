@@ -76,7 +76,7 @@ const RECEIPT_WORDS =
   /\b(?:total[e]?|subtotal|sub-total|iva|tva|vat|tax|mwst|cash|contanti|resto|change|carta|card|visa|mastercard|amex|scontrino|ricevuta|fattura|documento commerciale|ticket|rechnung|summe|importe|propina|tip|gratuity|tavolo|table|coperti|covers|cameriere|server|pagato|paid|bancomat|efectivo|cambio)\b/gi;
 
 const RESTAURANT_WORDS =
-  /(?<!\p{L})(?:ristorante|trattoria|osteria|pizzeria|taverna|enoteca|locanda|bar|caff[eè]|caf[eé]|bistro|bistrot|brasserie|restaurant|restaurante|cantina|gelateria|pasticceria|panificio|bodega|taberna|tasca|marisquer[ií]a|cervecer[ií]a|asador|auberge|cr[eê]perie|boulangerie|p[aâ]tisserie|pub|tavern|grill|diner|kitchen|eatery|steakhouse|sushi|ramen|izakaya)(?!\p{L})/iu;
+  /(?<!\p{L})(?:ristorante|trattoria|osteria|pizzeria|taverna|enoteca|locanda|bar|caff[eè]|caf[eé]|bistro|bistrot|brasserie|restaurant|restaurante|cantina|gelateria|pasticceria|panificio|bodega|taberna|tasca|marisquer[ií]a|cervecer[ií]a|asador|auberge|cr[eê]perie|boulangerie|p[aâ]tisserie|pub|tavern|grill|diner|kitchen|eatery|steakhouse|sushi|ramen|izakaya|deli|delicat\p{L}*|delikatessen|bakery|brewery|taqueria|noodle bar|chophouse|oyster bar)(?!\p{L})/iu;
 
 export const hasRestaurantWord = (text: string) => RESTAURANT_WORDS.test(text);
 
@@ -196,7 +196,7 @@ export const classifyFood = ({
   const candidates = (['menu', 'receipt', 'dish', 'sign'] as const)
     .filter((kind) => scores[kind] >= FOOD_THRESHOLDS[kind])
     .toSorted((a, b) => scores[b] - scores[a]);
-  const kind: FoodKind = candidates[0] ?? 'other';
+  const kind: FoodKind = candidates.at(0) ?? 'other';
   const confidence =
     kind === 'other' ? (clip ? Math.max(scores.other, 1 - Math.max(scores.dish, scores.menu)) : 1) : scores[kind];
 

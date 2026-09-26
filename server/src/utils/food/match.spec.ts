@@ -90,7 +90,7 @@ describe('matchDishes', () => {
         { id: 'b', time: minutes(40), embedding: vector(0.2, 0.1, 0.9, 0.3) },
       ],
       [carbonara],
-      { baseline },
+      { baselines: [baseline] },
     );
     expect(matches.map(({ ids, item, unsure }) => ({ ids, item, unsure }))).toEqual([
       { ids: ['a'], item: 0, unsure: false },
@@ -106,10 +106,43 @@ describe('matchDishes', () => {
       ],
       [carbonara, vongole],
     );
-    expect(matches.map(({ ids, item, unsure }) => ({ ids, item, unsure }))).toEqual([
-      { ids: ['a'], item: 0, unsure: false },
-      { ids: ['b'], item: 0, unsure: true },
+    expect(matches.map(({ ids, item, unsure, shared }) => ({ ids, item, unsure, shared }))).toEqual([
+      { ids: ['a'], item: 0, unsure: false, shared: true },
+      { ids: ['b'], item: 0, unsure: false, shared: true },
     ]);
+  });
+
+  it('should match a tasting menu with courses that are not on it', () => {
+    // a French Laundry-like lunch: two desserts for one "assortment of desserts" course, an amuse-bouche and
+    // coffee that are not on the menu; axes: oysters, lamb, desserts, bread/coffee/snacks, the table
+    const oysters = { embedding: vector(1, 0, 0, 0, 0) };
+    const lamb = { embedding: vector(0, 1, 0, 0, 0) };
+    const desserts = { embedding: vector(0, 0, 1, 0, 0) };
+    const baselines = [vector(0.2, 0.2, 0.2, 1, 0.3)];
+
+    const matches = matchDishes(
+      [
+        { id: 'gougeres', time: minutes(0), embedding: vector(0.1, 0.05, 0.05, 0.9, 0.4) },
+        { id: 'oysters', time: minutes(5), embedding: vector(0.9, 0.05, 0, 0.1, 0.4) },
+        { id: 'lamb', time: minutes(80), embedding: vector(0.05, 0.9, 0, 0.1, 0.4) },
+        { id: 'meringue', time: minutes(91), embedding: vector(0, 0.05, 0.85, 0.1, 0.4) },
+        { id: 'chocolate-cake', time: minutes(109), embedding: vector(0.2, 0.1, 0.6, 0.4, 0) },
+        { id: 'cappuccino', time: minutes(124), embedding: vector(0.02, 0.02, 0.2, 0.9, 0.4) },
+      ],
+      [oysters, lamb, desserts],
+      { baselines },
+    );
+
+    expect(matches.map(({ ids, item }) => ({ ids, item }))).toEqual([
+      { ids: ['gougeres'], item: undefined },
+      { ids: ['oysters'], item: 0 },
+      { ids: ['lamb'], item: 1 },
+      { ids: ['meringue'], item: 2 },
+      { ids: ['chocolate-cake'], item: 2 },
+      { ids: ['cappuccino'], item: undefined },
+    ]);
+    expect(matches[0].offMenu).toBeGreaterThan(0.5);
+    expect(matches[0].unsure).toBe(true);
   });
 
   it('should return the groups without suggestions when there are no items', () => {

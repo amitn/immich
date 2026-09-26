@@ -131,6 +131,20 @@ describe('classifyFood', () => {
     expect(result.kind).toBe('menu');
   });
 
+  it('should not take the printed placemat under a plate for a menu', () => {
+    // Katz's: a pastrami sandwich on a placemat that reads "FROM OUR GRIDDLE / SANDWICHES"
+    const placemat = summarizeOcr([
+      box('FROM OUR GRIDDLE', 0.05, 0.08, 0.035),
+      box('SANDWICHES', 0.6, 0.1, 0.035),
+      box("KATZ'S", 0.1, 0.85, 0.05),
+      box('THAT’S ALL!', 0.55, 0.9, 0.03),
+      box('SINCE 1888', 0.4, 0.95, 0.02),
+    ]);
+    const result = classifyFood({ similarities: similarities({ dish: 0.29, menu: 0.24, other: 0.2 }), ocr: placemat });
+    expect(result.kind).toBe('dish');
+    expect(result.scores.menu).toBeLessThan(0.5);
+  });
+
   it('should find a receipt rather than a menu', () => {
     const result = classifyFood({
       similarities: similarities({ menu: 0.26, receipt: 0.25, other: 0.2 }),

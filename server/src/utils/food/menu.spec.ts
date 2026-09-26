@@ -9,6 +9,23 @@ const box = (text: string, left: number, top: number, height = 0.022, width?: nu
   return { x1: left, y1: top, x2: right, y2: top, x3: right, y3: bottom, x4: left, y4: bottom, text, textScore: 0.95 };
 };
 
+/** a box on a photo of the page taken at an angle (radians), about the center of a photo of the aspect ratio */
+const tiltBox = (input: OcrBoxInput, angle: number, aspectRatio: number): OcrBoxInput => {
+  const rotate = (x: number, y: number) => {
+    const px = (x - 0.5) * aspectRatio;
+    const py = y - 0.5;
+    return [
+      (px * Math.cos(angle) - py * Math.sin(angle)) / aspectRatio + 0.5,
+      px * Math.sin(angle) + py * Math.cos(angle) + 0.5,
+    ];
+  };
+  const [x1, y1] = rotate(input.x1, input.y1);
+  const [x2, y2] = rotate(input.x2, input.y2);
+  const [x3, y3] = rotate(input.x3, input.y3);
+  const [x4, y4] = rotate(input.x4, input.y4);
+  return { ...input, x1, y1, x2, y2, x3, y3, x4, y4 };
+};
+
 /** a right-aligned price that ends at `right` */
 const price = (text: string, right: number, top: number, height = 0.022) =>
   box(text, right - text.length * height * 0.45, top, height);
@@ -324,6 +341,37 @@ describe('parseMenu', () => {
       { name: 'Piccione', description: undefined, price: undefined },
       { name: 'Cannolo scomposto', description: undefined, price: undefined },
     ]);
+  });
+
+  it('should read a tilted page', () => {
+    // a Noma-like tasting menu photographed at an angle: one course per line, no prices
+    const courses = [
+      'Unripe macadamia and spanner crab',
+      'Wild seasonal berries flavoured with gubinge',
+      'Porridge of golden & desert oak wattleseed with saltbush',
+      'Seafood platter and crocodile fat',
+      'W.A. deep sea snow crab with cured egg yolk',
+    ];
+    const aspectRatio = 1.5;
+    const tilt = (input: OcrBoxInput) => tiltBox(input, (5 * Math.PI) / 180, aspectRatio);
+    const ocr = [
+      box('noma australia', 0.35, 0.1, 0.04),
+      ...courses.map((course, i) => box(course, 0.2, 0.25 + i * 0.07, 0.02, course.length * 0.0085)),
+    ].map((input) => tilt(input));
+
+    const menu = parseMenu(ocr, { aspectRatio });
+
+    expect(menu.items.map(({ name }) => name)).toEqual(courses);
+    expect(menu.title).toBe('noma australia');
+
+    // prices far from their names only line up again once the page is levelled
+    const level = parseMenu(trattoria).items.map(({ name, price }) => [name, price]);
+    expect(
+      parseMenu(
+        trattoria.map((input) => tilt(input)),
+        { aspectRatio },
+      ).items.map(({ name, price }) => [name, price]),
+    ).toEqual(level);
   });
 
   it('should ignore unreadable boxes and return nothing for an empty photo', () => {

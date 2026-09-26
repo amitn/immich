@@ -86,6 +86,39 @@ describe('findRestaurantNames', () => {
     expect(candidates[0].confidence).toBe(1);
   });
 
+  describe('signs of the demo photos', () => {
+    it('should read a single word on a sign', () => {
+      const [best] = findRestaurantNames([
+        { assetId: 'noma-sign', kind: 'sign', ocr: [box('noma', 0.35, 0.4, 0.12), box('BARANGAROO', 0.7, 0.9, 0.02)] },
+      ]);
+      expect(best).toMatchObject({ name: 'noma', source: 'sign' });
+    });
+
+    it('should join a name above a restaurant word', () => {
+      const [best] = findRestaurantNames([
+        { assetId: 'katz', kind: 'sign', ocr: [box("ATZ'S", 0.3, 0.2, 0.1), box('DELICATESEN', 0.2, 0.32, 0.08)] },
+      ]);
+      expect(best).toMatchObject({ name: "Atz's Delicatesen", source: 'sign' });
+    });
+
+    it('should skip hotel associations and prefer the complete reading of a name', () => {
+      const candidates = findRestaurantNames([
+        {
+          assetId: 'outside',
+          kind: 'sign',
+          ocr: [box('THE RENCH AUNDRY', 0.2, 0.3, 0.06), box('RELAIS& CHATEAUX', 0.25, 0.8, 0.08)],
+        },
+        {
+          assetId: 'menu',
+          kind: 'menu',
+          ocr: [box('THE FRENCH LAUNDRY', 0.2, 0.05, 0.05), box('CHEF’S TASTING MENU', 0.25, 0.12, 0.03)],
+        },
+      ]);
+      expect(candidates[0]).toMatchObject({ name: 'The French Laundry', assetIds: ['menu', 'outside'] });
+      expect(candidates.map(({ name }) => name)).not.toContain('Relais& Chateaux');
+    });
+  });
+
   it('should find nothing in text that names no place', () => {
     expect(findRestaurantNames([{ assetId: 'menu', kind: 'menu', ocr: menu.slice(2) }])).toEqual([]);
     expect(findRestaurantNames([])).toEqual([]);

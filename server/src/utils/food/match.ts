@@ -26,6 +26,8 @@ export type MatchOptions = {
   /** a match at or above this probability, and ahead of the runner-up by `margin`, is sure */
   sureScore: number;
   margin: number;
+  /** the log-probability cost of giving a dish the same item as another dish instead of an item of its own */
+  sharePenalty: number;
 };
 
 export const DEFAULT_MATCH_OPTIONS: MatchOptions = {
@@ -35,6 +37,7 @@ export const DEFAULT_MATCH_OPTIONS: MatchOptions = {
   minScore: 0.05,
   sureScore: 0.5,
   margin: 0.2,
+  sharePenalty: Math.log(8),
 };
 
 export type MatchSuggestion = {
@@ -54,6 +57,10 @@ export type DishMatch = {
   score: number;
   /** the assignment is weak, or not the photos' favourite: check it by looking at the photos */
   unsure: boolean;
+  /** the item is also matched to another dish */
+  shared?: boolean;
+  /** probability that the dish is not on the menu (with baselines) */
+  offMenu?: number;
   suggestions: MatchSuggestion[];
 };
 
@@ -183,68 +190,97 @@ export const groupDishPhotos = (photos: DishPhoto[], similarities: number[][], o
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
 /**
- * Matches the dish photos of a meal with the items of its menu: the CLIP image embedding of each photo is compared
- * with the CLIP text embedding of each item, photos of the same dish are grouped and share one item, and the groups
- * get different items (a one-to-one assignment that maximizes the total probability). Weak matches, and matches that
- * are not a group's favourite item, are marked unsure; every group keeps its top suggestions.
+ * Matches the dish photos of a meal with the items of its menu. The CLIP image embedding of each photo is compared
+ * with the CLIP text embedding of each item and turned into probabilities (a softmax at CLIP's temperature); with
+ * `baselines` (generic "food", "bread", "coffee"... texts) the best of them takes part as "not on the menu". Photos of
+ * the same dish are grouped and share one item. The groups then get different items in a one-to-one assignment that
+ * maximizes the total log probability, except that a group may share its favourite item with another group at a
+ * cost of `sharePenalty` (two plates of the same dish, one "assortment of desserts" course). A group whose favourite
+ * is "not on the menu", or whose match is below `minScore`, gets no item. Weak matches, and matches that are not a
+ * group's favourite, are marked unsure; every group keeps its top suggestions.
  */
 export const matchDishes = (
   photos: DishPhoto[],
   items: DishCandidate[],
   options: Partial<MatchOptions> & {
     suggestions?: number;
-    /**
-     * the text embedding of a generic dish ("a photo of food"): it takes part in the probabilities as "none of the
-     * items", so that a dish that is not on the menu doesn't get a confident match
-     */
-    baseline?: Float32Array;
+    /** text embeddings of dishes that are usually not on menus, e.g. "a photo of food", "a photo of bread" */
+    baselines?: Float32Array[];
   } = {},
 ): DishMatch[] => {
   const settings = { ...DEFAULT_MATCH_OPTIONS, ...options };
+  const baselines = options.baselines ?? [];
   const similarities = photos.map((photo) => items.map((item) => dot(photo.embedding, item.embedding)));
   const groups = groupDishPhotos(photos, similarities, settings);
 
   const groupSimilarities = groups.map((members) =>
     items.map((_, item) => average(members, (index) => similarities[index][item])),
   );
-  const probabilities = groups.map((members, index) => {
+  const noneSimilarities = groups.map((members) =>
+    baselines.length === 0
+      ? undefined
+      : Math.max(...baselines.map((baseline) => average(members, (member) => dot(photos[member].embedding, baseline)))),
+  );
+  const probabilities = groups.map((_, index) => {
     const row = groupSimilarities[index];
-    if (!options.baseline) {
-      return softmax(row, CLIP_TEMPERATURE);
-    }
-    const baseline = average(members, (member) => dot(photos[member].embedding, options.baseline!));
-    return softmax([...row, baseline], CLIP_TEMPERATURE).slice(0, row.length);
+    const none = noneSimilarities[index];
+    return none === undefined ? softmax(row, CLIP_TEMPERATURE) : softmax([...row, none], CLIP_TEMPERATURE);
   });
-  // log probabilities make the assignment prefer confident matches over many lukewarm ones
-  const assignment = assignMax(probabilities.map((row) => row.map((value) => Math.log(Math.max(value, 1e-9)))));
 
-  return groups.map((members, index) => {
-    const row = probabilities[index];
+  // log probabilities make the assignment prefer confident matches over many lukewarm ones; the extra column of each
+  // group is "share my favourite item"
+  const logs = probabilities.map((row) => row.slice(0, items.length).map((value) => Math.log(Math.max(value, 1e-9))));
+  const matrix = logs.map((row, index) => [
+    ...row,
+    ...groups.map((_, other) =>
+      other === index && row.length > 0 ? Math.max(...row) - settings.sharePenalty : -Infinity,
+    ),
+  ]);
+  const finite = matrix.map((row) => row.map((value) => (Number.isFinite(value) ? value : -1e6)));
+  const assignment = items.length > 0 ? assignMax(finite) : groups.map(() => -1);
+
+  const matches = groups.map((members, index) => {
+    const row = probabilities[index].slice(0, items.length);
+    const noneScore = noneSimilarities[index] === undefined ? 0 : probabilities[index][items.length];
     const ranked = row
       .map((score, item) => ({ item, score, similarity: groupSimilarities[index][item] }))
       .toSorted((a, b) => b.score - a.score);
     const favourite = ranked[0];
-    // a group the assignment leaves without a plausible item shares its favourite (two plates of the same dish)
+
     let assigned = assignment[index];
-    if ((assigned < 0 || row[assigned] < settings.minScore) && favourite && favourite.score >= settings.minScore) {
+    const shared = assigned >= items.length;
+    if (shared) {
       assigned = favourite.item;
     }
     const score = assigned >= 0 ? row[assigned] : 0;
-    const runnerUp = ranked.find(({ item }) => item !== assigned)?.score ?? 0;
-    const shared = assigned !== assignment[index];
+    const offMenu = noneScore > (favourite?.score ?? 0);
+    const matched = assigned >= 0 && score >= settings.minScore && !offMenu;
+    const runnerUp = Math.max(noneScore, ranked.find(({ item }) => item !== assigned)?.score ?? 0);
     const sure =
-      !shared && favourite?.item === assigned && score >= settings.sureScore && score - runnerUp >= settings.margin;
+      matched && favourite?.item === assigned && score >= settings.sureScore && score - runnerUp >= settings.margin;
 
-    return {
+    const match: DishMatch = {
       ids: members.map((member) => photos[member].id),
-      ...(assigned >= 0 && score >= settings.minScore && { item: assigned }),
-      score: round(score),
+      ...(matched && { item: assigned }),
+      score: round(matched ? score : 0),
       unsure: !sure,
+      ...(noneSimilarities[index] !== undefined && { offMenu: round(noneScore) }),
       suggestions: ranked.slice(0, options.suggestions ?? 3).map((suggestion) => ({
         item: suggestion.item,
         score: round(suggestion.score),
         similarity: round(suggestion.similarity),
       })),
     };
+    return match;
   });
+
+  const counts = new Map<number, number>();
+  for (const { item } of matches) {
+    if (item !== undefined) {
+      counts.set(item, (counts.get(item) ?? 0) + 1);
+    }
+  }
+  return matches.map((match) =>
+    match.item !== undefined && counts.get(match.item)! > 1 ? { ...match, shared: true } : match,
+  );
 };

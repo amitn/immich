@@ -15,13 +15,23 @@ export type FoodPhoto = {
 export type MealOptions = {
   /** a longer gap between food photos starts a new meal */
   maxGapMinutes: number;
-  /** a meal lasts at most this long */
+  /** a meal lasts at most this long (a tasting menu can take four hours) */
   maxSpanMinutes: number;
   /** a photo further than this from the meal's place starts a new meal */
   maxDistanceMeters: number;
+  /**
+   * menus, signs and receipts photographed apart from any dish (the storefront on the way in, the menu signed by the
+   * chef after the meal) join the closest meal within this many minutes
+   */
+  attachMinutes: number;
 };
 
-export const DEFAULT_MEAL_OPTIONS: MealOptions = { maxGapMinutes: 45, maxSpanMinutes: 180, maxDistanceMeters: 150 };
+export const DEFAULT_MEAL_OPTIONS: MealOptions = {
+  maxGapMinutes: 45,
+  maxSpanMinutes: 300,
+  maxDistanceMeters: 150,
+  attachMinutes: 180,
+};
 
 export type MealType = 'Breakfast' | 'Lunch' | 'Dinner';
 
@@ -42,20 +52,69 @@ const centroid = (points: Located[]): Located | undefined =>
         longitude: points.reduce((sum, point) => sum + point.longitude, 0) / points.length,
       };
 
+const hasDish = (photos: FoodPhoto[]) => photos.some((photo) => photo.kind === 'dish');
+
+const locatedOf = (photos: FoodPhoto[]) => photos.filter((photo) => isLocated(photo)) as Located[];
+
+/** minutes between two groups of photos, each ordered by time */
+const minutesApart = (a: FoodPhoto[], b: FoodPhoto[]) =>
+  Math.max(0, b[0].time - a.at(-1)!.time, a[0].time - b.at(-1)!.time) / 60_000;
+
+/** whether two groups can be the same place: yes unless both are located and too far apart */
+const isSamePlace = (a: FoodPhoto[], b: FoodPhoto[], maxDistanceMeters: number) => {
+  const placeA = centroid(locatedOf(a));
+  const placeB = centroid(locatedOf(b));
+  return !placeA || !placeB || haversineKm(placeA, placeB) * 1000 <= maxDistanceMeters;
+};
+
 /**
  * Groups food photos (dishes, menus, signs and receipts) into restaurant visits: photos taken at most
  * `maxGapMinutes` apart, within `maxSpanMinutes` of the first one and, when both are located, within
- * `maxDistanceMeters` of the place of the meal so far. Visits without a dish or a menu (a storefront passed by) are
- * dropped. Ordered by time, as is each meal.
+ * `maxDistanceMeters` of the place of the meal so far. Menus, signs and receipts photographed apart from any dish
+ * join the closest meal at the same place within `attachMinutes`; a menu on its own is a meal too, while a lone
+ * storefront or receipt is dropped. Ordered by time, as is each meal.
  */
-export const groupMeals = <T extends FoodPhoto>(photos: T[], options: MealOptions = DEFAULT_MEAL_OPTIONS): T[][] => {
-  const meals: T[][] = [];
+export const groupMeals = <T extends FoodPhoto>(
+  photos: T[],
+  options: Partial<MealOptions> = DEFAULT_MEAL_OPTIONS,
+): T[][] => {
+  const settings = { ...DEFAULT_MEAL_OPTIONS, ...options };
+  const groups = splitVisits(photos, settings);
+
+  // attach the groups without dishes to the closest meal with dishes
+  const meals = groups.filter((group) => hasDish(group));
+  const others: T[][] = [];
+  for (const group of groups) {
+    if (hasDish(group)) {
+      continue;
+    }
+    const closest = meals
+      .map((meal) => ({ meal, minutes: minutesApart(meal, group) }))
+      .filter(
+        ({ meal, minutes }) =>
+          minutes <= settings.attachMinutes && isSamePlace(meal, group, settings.maxDistanceMeters),
+      )
+      .toSorted((a, b) => a.minutes - b.minutes)[0];
+    if (closest) {
+      closest.meal.push(...group);
+    } else if (group.some((photo) => photo.kind === 'menu')) {
+      others.push(group);
+    }
+  }
+
+  return [...meals, ...others]
+    .map((meal) => sortByTime(meal))
+    .toSorted((a, b) => a[0].time - b[0].time || a[0].id.localeCompare(b[0].id));
+};
+
+const splitVisits = <T extends FoodPhoto>(photos: T[], options: MealOptions): T[][] => {
+  const groups: T[][] = [];
   let current: T[] = [];
   let located: Located[] = [];
 
   const flush = () => {
-    if (current.some((photo) => photo.kind === 'dish' || photo.kind === 'menu')) {
-      meals.push(current);
+    if (current.length > 0) {
+      groups.push(current);
     }
     current = [];
     located = [];
@@ -82,7 +141,7 @@ export const groupMeals = <T extends FoodPhoto>(photos: T[], options: MealOption
   }
   flush();
 
-  return meals;
+  return groups;
 };
 
 /** breakfast before 11:00, lunch until 16:00, dinner after (local time) */

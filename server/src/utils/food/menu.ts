@@ -2,6 +2,7 @@ import {
   OcrBoxInput,
   TextBox,
   TextLine,
+  deskewBoxes,
   groupLines,
   isPrice,
   median,
@@ -627,10 +628,14 @@ const normalizeName = (name: string) => normalizeWords(name).replaceAll(' ', '')
  * Reads the items of a menu from the OCR boxes of its photo: the boxes are split into columns and lines; prices,
  * section headings, allergen codes and page furniture (addresses, phone numbers, opening hours, cover charges) are set
  * aside; names over several lines are joined; the smaller text or the text that follows a priced name is the
- * description. Names are kept in the language of the menu.
+ * description. Names are kept in the language of the menu. A tilted page is levelled first (see `deskewBoxes`; pass
+ * the `aspectRatio` of the photo for an exact angle).
  */
-export const parseMenu = (ocr: OcrBoxInput[], options: { minScore?: number } = {}): ParsedMenu => {
-  const boxes = toTextBoxes(ocr, options.minScore);
+export const parseMenu = (
+  ocr: OcrBoxInput[],
+  options: { minScore?: number; aspectRatio?: number } = {},
+): ParsedMenu => {
+  const boxes = toTextBoxes(deskewBoxes(ocr, options.aspectRatio), options.minScore);
   if (boxes.length === 0) {
     return { items: [], sections: [], columns: 0, lines: 0 };
   }
