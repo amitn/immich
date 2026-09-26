@@ -3,7 +3,7 @@
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import { openAssistant } from '$lib/services/assistant.service';
   import { handleError } from '$lib/utils/handle-error';
-  import { Button, Container, Icon, type ActionItem } from '@immich/ui';
+  import { Button, Icon, type ActionItem } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline, mdiCreationOutline } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
@@ -32,7 +32,7 @@
 </script>
 
 <UserPageLayout title={data.meta.title} actions={[CreateWithAssistant]}>
-  <Container size="large" center class="px-2 pb-20">
+  <div class="pb-20">
     {#if books.length === 0}
       <div class="mx-auto mt-16 flex max-w-md flex-col items-center gap-4 text-center">
         <div class="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -51,11 +51,13 @@
         {/if}
       </div>
     {:else}
-      <ul class="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      <!-- the cards have their own padding (for the hover background): pull them out so the covers line up with the
+           page title -->
+      <ul class="-mx-2 mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
         {#each books as book (book.id)}
           <li><BookCard {book} /></li>
         {/each}
       </ul>
     {/if}
-  </Container>
+  </div>
 </UserPageLayout>
