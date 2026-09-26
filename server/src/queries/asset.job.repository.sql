@@ -1007,6 +1007,27 @@ order by
 limit
   $8
 
+-- AssetJobRepository.getPersonTimesForAgent
+select
+  "asset_face"."personGroupId" as "personId",
+  "asset"."localDateTime"
+from
+  "asset"
+  inner join "asset_face" on "asset_face"."assetId" = "asset"."id"
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+where
+  "asset_face"."personGroupId" = any ($1::uuid[])
+  and "asset"."ownerId" = $2::uuid
+  and "asset"."deletedAt" is null
+  and "asset"."visibility" in ('archive', 'timeline')
+  and "asset"."localDateTime" >= $3
+  and "asset"."localDateTime" < $4
+order by
+  "asset"."localDateTime" desc
+limit
+  $5
+
 -- AssetJobRepository.getPeopleForAgent
 select
   "person"."personGroupId" as "id",
