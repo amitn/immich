@@ -1,4 +1,5 @@
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
+import type { FoodTag } from 'src/utils/food/tags.js';
 import { cosineDistance } from 'src/utils/agent/clustering.js';
 import { EventSplitOptions, getAdaptiveEventOptions, isShortSpan, splitEvents } from 'src/utils/agent/events.js';
 import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.js';
@@ -20,7 +21,6 @@ import {
 } from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
 import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
-import type { FoodTag } from 'src/utils/food/tags.js';
 
 /**
  * What an asset is: an original photo, or a copy stacked with it (the original is the primary asset of the stack).
@@ -1107,7 +1107,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       drop(photo, 'resolution');
     }
   }
-  const stacks = [...Map.groupBy(printable, (photo) => photo.stackId ?? photo.id).values()];
+  const stacks = Map.groupBy(printable, (photo) => photo.stackId ?? photo.id)
+    .values()
+    .toArray();
   // a food book has a page per menu, and more room for the dishes
   const foodCounts = foodBook
     ? {
@@ -1491,10 +1493,12 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // a restaurant visit is titled after the photos placed in it; two visits of one restaurant on one day get the time
   const visitPhotos = new Map<number, Candidate[]>();
   for (const [index, section] of sectionPlans.entries()) {
-    if (section.restaurant) {
-      const placed = pages.filter((page) => page.section === index).flatMap((page) => photosOf(page));
-      visitPhotos.set(index, placed.length > 0 ? placed : section.all);
+    if (!section.restaurant) {
+      continue;
     }
+
+    const placed = pages.filter((page) => page.section === index).flatMap((page) => photosOf(page));
+    visitPhotos.set(index, placed.length > 0 ? placed : section.all);
   }
   const visitTitles = new Map<number, { title: string; place?: string; detail: string }>();
   for (const [index, placed] of visitPhotos) {

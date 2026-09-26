@@ -442,7 +442,7 @@ export const getLuminance = (hex: string) => {
   const full = value.length <= 4 ? [...value.slice(0, 3)].map((digit) => digit + digit).join('') : value.slice(0, 6);
   const [r, g, b] = [0, 2, 4].map((index) => {
     const channel = Number.parseInt(full.slice(index, index + 2), 16) / 255;
-    return channel <= 0.039_28 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
   return Number.isFinite(r + g + b) ? 0.2126 * r + 0.7152 * g + 0.0722 * b : 0;
 };
@@ -782,8 +782,10 @@ export const planPage = (
     }
   }
   const text = blocks.filter((block) => block.text.trim());
-  parts.push(...decorations.map((decoration) => renderDecoration(decoration)));
-  parts.push(...text.map((block) => renderTextBlock(block, style.fontFamily)));
+  parts.push(
+    ...decorations.map((decoration) => renderDecoration(decoration)),
+    ...text.map((block) => renderTextBlock(block, style.fontFamily)),
+  );
 
   const overlay =
     parts.length > 0

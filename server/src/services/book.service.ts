@@ -84,7 +84,6 @@ import {
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
 import { getFoodTag, shareFoodTagsInStacks } from 'src/utils/book/food.js';
-import { FOOD_TAG_ROOT } from 'src/utils/food/tags.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -137,6 +136,7 @@ import {
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
+import { FOOD_TAG_ROOT } from 'src/utils/food/tags.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
 

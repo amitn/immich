@@ -39,6 +39,20 @@ beforeEach(() => {
   counter = 0;
 });
 
+const nino = 'Trattoria da Nino';
+const dish = (name: string, restaurant = nino) =>
+  photo({ embedding: embedding(counter % 8), food: { restaurant, kind: 'dish', dish: name } });
+const menu = (restaurant = nino) => photo({ embedding: embedding(7), food: { restaurant, kind: 'menu' } });
+const named = (layout: string, photos: BookReviewPhoto[]): BookReviewPage => ({
+  layout,
+  assets: photos.map((item, slot) => ({
+    slot,
+    assetId: item.id,
+    crop: null,
+    caption: item.food?.kind === 'dish' ? item.food.dish : null,
+  })),
+});
+
 describe('reviewBook', () => {
   it('should find nothing wrong with a varied book', () => {
     const photos = Array.from({ length: 7 }, (_, i) => photo({ embedding: embedding(i) }));
@@ -256,20 +270,6 @@ describe('reviewBook', () => {
   });
 
   describe('a food book', () => {
-    const nino = 'Trattoria da Nino';
-    const dish = (name: string, restaurant = nino) =>
-      photo({ embedding: embedding(counter % 8), food: { restaurant, kind: 'dish', dish: name } });
-    const menu = (restaurant = nino) => photo({ embedding: embedding(7), food: { restaurant, kind: 'menu' } });
-    const named = (layout: string, photos: BookReviewPhoto[]): BookReviewPage => ({
-      layout,
-      assets: photos.map((item, slot) => ({
-        slot,
-        assetId: item.id,
-        crop: null,
-        caption: item.food?.kind === 'dish' ? item.food.dish : null,
-      })),
-    });
-
     it('should find nothing wrong with the dishes named and the menu on its own page', () => {
       const cover = photo();
       const nino = [menu(), dish('Caponata'), dish('Cannoli')];

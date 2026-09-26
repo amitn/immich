@@ -59,7 +59,9 @@ describe('book layouts', () => {
       const captions = layout.text.filter((area) => area.kind === 'slotCaption');
       expect(captions.every((area) => area.slot !== undefined && area.slot < layout.slots.length)).toBe(true);
       if (layout.id.startsWith('dish')) {
-        expect(captions.map((area) => area.slot).toSorted()).toEqual(layout.slots.map((_, index) => index));
+        expect(captions.map((area) => area.slot!).toSorted((a, b) => a - b)).toEqual(
+          layout.slots.map((_, index) => index),
+        );
       }
     }
   });

@@ -104,5 +104,5 @@ export const getRestaurantVisits = <T extends FoodPhoto>(
 export const getRunsBetweenVisits = <T extends FoodPhoto>(photos: T[], visits: RestaurantVisit<FoodPhoto>[]): T[][] => {
   const starts = visits.map((visit) => visit.start).toSorted((a, b) => a - b);
   const runs = Map.groupBy(photos, (photo) => starts.filter((start) => start <= photo.takenAt).length);
-  return [...runs.entries()].toSorted((a, b) => a[0] - b[0]).map(([, run]) => run);
+  return [...runs].toSorted((a, b) => a[0] - b[0]).map(([, run]) => run);
 };

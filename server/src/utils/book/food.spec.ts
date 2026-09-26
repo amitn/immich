@@ -170,14 +170,15 @@ describe('getFactualCaption', () => {
   });
 });
 
-describe('planAutoLayout in a food book', () => {
-  const trip = () => [
-    photo({ takenAt: start - DAY, city: 'Catania', score: 0.9 }),
-    ...dinner(nino, start, ['Spaghetti alle vongole', 'Pesce spada', 'Caponata', 'Cannoli'], { city: 'Taormina' }),
-    ...Array.from({ length: 4 }, (_, i) => photo({ takenAt: start + DAY - 6 * HOUR + i * MINUTE, city: 'Savoca' })),
-    ...dinner(etna, start + DAY, ['Arancini', 'Pasta alla Norma', 'Granita'], { city: 'Catania' }),
-  ];
+/** a day in Catania, dinner at Nino in Taormina, a morning in Savoca and dinner at Etna in Catania */
+const trip = () => [
+  photo({ takenAt: start - DAY, city: 'Catania', score: 0.9 }),
+  ...dinner(nino, start, ['Spaghetti alle vongole', 'Pesce spada', 'Caponata', 'Cannoli'], { city: 'Taormina' }),
+  ...Array.from({ length: 4 }, (_, i) => photo({ takenAt: start + DAY - 6 * HOUR + i * MINUTE, city: 'Savoca' })),
+  ...dinner(etna, start + DAY, ['Arancini', 'Pasta alla Norma', 'Granita'], { city: 'Catania' }),
+];
 
+describe('planAutoLayout in a food book', () => {
   it('should make one chapter per restaurant visit, titled with the restaurant, the place and the date', () => {
     const result = plan(trip());
     const restaurants = result.sections.filter((section) => section.restaurant);
@@ -187,8 +188,11 @@ describe('planAutoLayout in a food book', () => {
       [etna, 'Osteria Etna · Catania, 24 June 2009'],
     ]);
     expect(result.sections.some((section) => !section.restaurant)).toBe(true);
-    for (const page of result.pages.filter((item) => item.section !== undefined)) {
-      const section = result.sections[page.section!];
+    for (const page of result.pages) {
+      if (page.section === undefined) {
+        continue;
+      }
+      const section = result.sections[page.section];
       const photos = new Set(section.photoIds);
       expect(page.slots.every((slot) => photos.has(slot.assetId))).toBe(true);
     }
