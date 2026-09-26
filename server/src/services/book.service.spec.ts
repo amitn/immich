@@ -22,6 +22,7 @@ import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
 import { ImproveEstimate } from 'src/utils/agent/improve.js';
 import { validatePageStyle } from 'src/utils/book/layouts.js';
+import { getDpiForLongEdge } from 'src/utils/book/render.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
@@ -908,6 +909,12 @@ describe(BookService.name, () => {
   });
 
   describe('shared links', () => {
+    beforeEach(() => {
+      // no travel documents unless a test adds them
+      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+      mocks.ocr.getByAssetIds.mockResolvedValue([]);
+    });
+
     it('should show the book of the link, drawn with the photos of its owner', async () => {
       const { book, asset } = await setupExport();
       const linkAuth = sharedLinkAuth(book.id);
@@ -1010,6 +1017,7 @@ describe(BookService.name, () => {
     it('should only give the PDF when the link allows downloads', async () => {
       const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf' });
       mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([]);
       allowLink(book.id);
 
       await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: false }), book.id)).rejects.toBeInstanceOf(
@@ -1017,6 +1025,45 @@ describe(BookService.name, () => {
       );
       await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: true }), book.id)).resolves.toEqual(
         expect.objectContaining({ path: '/data/thumbs/books/book.pdf', contentType: 'application/pdf' }),
+      );
+    });
+
+    it('should not give the PDF of a book that shows a travel document', async () => {
+      const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf', coverAssetId: null });
+      const ticket = newUuid();
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([{ assets: [{ assetId: ticket }] }] as never);
+      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([
+        { assetId: ticket, value: 'Travel/Crete, October 2016/Tickets' },
+      ] as never);
+      allowLink(book.id);
+
+      await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: true }), book.id)).rejects.toThrow(
+        'travel documents',
+      );
+      // the owner still gets it
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([book.id]));
+      await expect(sut.downloadPdf(factory.auth({ user: { id: book.ownerId } }), book.id)).resolves.toEqual(
+        expect.objectContaining({ contentType: 'application/pdf' }),
+      );
+    });
+
+    it('should cap the size of the pages a shared link renders and blur its travel documents', async () => {
+      const { book } = await setupExport();
+      const [page] = await mocks.book.getPages(book.id);
+      allowLink(book.id);
+      const render = vi
+        .spyOn(sut as never as { renderBookPage: (...args: unknown[]) => unknown }, 'renderBookPage')
+        .mockResolvedValue({ data: Buffer.from('page') } as never);
+
+      await sut.renderPage(sharedLinkAuth(book.id), book.id, page.id, { size: 4000 });
+
+      expect(render).toHaveBeenCalledWith(
+        expect.anything(),
+        book,
+        page,
+        1,
+        expect.objectContaining({ hidePrivate: true, dpi: getDpiForLongEdge(book, 2000) }),
       );
     });
   });
