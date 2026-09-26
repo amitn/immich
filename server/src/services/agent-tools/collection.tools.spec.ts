@@ -3,7 +3,9 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CollectionService, SourceReading } from 'src/services/collection.service.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
+import { registerCollectionPack, unregisterCollectionPack } from 'src/utils/collections/registry.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
+import { labelsPack } from 'test/fixtures/collections/labels.pack.js';
 import { newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
@@ -70,6 +72,36 @@ describe(CollectionAgentTools.name, () => {
     }
     const find = sut.getTools().find(({ name }) => name === 'find_visits')!;
     expect(() => find.input.parse({ pack: 'unknown', albumId: newUuid() })).toThrow();
+  });
+
+  it('should offer every registered pack', async () => {
+    registerCollectionPack(labelsPack);
+    try {
+      const find = sut.getTools().find(({ name }) => name === 'find_visits')!;
+      expect(find.input.shape.pack.options).toEqual(['food', 'labels']);
+      expect(find.input.shape.pack.description).toContain('labels (botanical garden walks');
+      const lookup = sut.getTools().find(({ name }) => name === 'lookup_place')!;
+      expect(lookup.description).toContain('(food)');
+
+      const findVisits = vi.spyOn(CollectionService.prototype, 'findVisits').mockResolvedValue({
+        pack: 'labels',
+        count: 1,
+        truncated: false,
+        photos: 0,
+        visits: [],
+        warnings: [],
+      });
+      const albumId = newUuid();
+      expect(parse(await call('find_visits', { pack: 'labels', albumId }))).toEqual({
+        pack: 'labels',
+        count: 1,
+        photos: 0,
+        visits: [],
+      });
+      expect(findVisits).toHaveBeenCalledWith(auth, 'labels', { albumId });
+    } finally {
+      unregisterCollectionPack(labelsPack.id);
+    }
   });
 
   describe('find_visits', () => {

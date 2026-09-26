@@ -1,5 +1,6 @@
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import {
+  LAYOUT_ALIASES,
   LayoutRect,
   bookLayouts,
   getLayout,
@@ -75,6 +76,17 @@ describe('book layouts', () => {
 
   it('should have unique ids', () => {
     expect(new Set(bookLayouts.map((layout) => layout.id)).size).toBe(bookLayouts.length);
+  });
+
+  it('should name the source pages of every collection pack by aliases, and store their own ids', () => {
+    expect(getLayout('source-page')).toBe(getLayout('menu'));
+    expect(getLayout('source-page-wide')?.id).toBe('menu-wide');
+    expect(getLayout('entry-opener')?.id).toBe('dish-opener');
+    expect(getLayout('toString')).toBeUndefined();
+    for (const [alias, id] of LAYOUT_ALIASES) {
+      expect(getLayout(id), alias).toBeDefined();
+      expect(bookLayouts.some((layout) => layout.id === alias)).toBe(false);
+    }
   });
 
   describe.each(bookLayouts.map((layout) => [layout.id, layout] as const))('%s', (_, layout) => {
