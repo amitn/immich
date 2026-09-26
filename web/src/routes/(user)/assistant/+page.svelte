@@ -33,7 +33,7 @@
     type AgentUpdateDto,
   } from '@immich/sdk';
   import { Alert, Button, IconButton, LoadingSpinner, modalManager, Switch, toastManager } from '@immich/ui';
-  import { mdiArrowDown, mdiForumOutline, mdiPlus } from '@mdi/js';
+  import { mdiArrowDown, mdiForumOutline, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
   import { onMount, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -63,6 +63,7 @@
   let isAtBottom = $state(true);
 
   const sortedSessions = $derived([...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+  const currentSession = $derived(sessions.find(({ id }) => id === conversation.sessionId));
   const lastMessage = $derived(conversation.messages.at(-1));
   const showWorking = $derived(conversation.isRunning && (!lastMessage || lastMessage.role === AgentMessageRole.User));
 
@@ -299,6 +300,42 @@
     }
   };
 
+  const deleteAllSessions = async () => {
+    // a running chat is left alone: its agent is still working
+    const deletable = sessions.filter(({ status }) => status !== AgentSessionStatus.Running);
+    if (deletable.length === 0) {
+      return;
+    }
+
+    const confirmed = await modalManager.showDialog({
+      title: $t('assistant_delete_all_chats'),
+      prompt: $t('assistant_delete_all_chats_prompt', { values: { count: deletable.length } }),
+      confirmText: $t('delete'),
+      confirmColor: 'danger',
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    const deleted: string[] = [];
+    for (const session of deletable) {
+      try {
+        await deleteAgentSession({ id: session.id });
+        deleted.push(session.id);
+      } catch (error) {
+        handleError(error, $t('errors.unable_to_delete_assistant_chat'));
+      }
+    }
+
+    sessions = sessions.filter(({ id }) => !deleted.includes(id));
+    if (conversation.sessionId && deleted.includes(conversation.sessionId)) {
+      await newChat();
+    }
+    if (deleted.length > 0) {
+      toastManager.primary($t('assistant_chats_deleted', { values: { count: deleted.length } }));
+    }
+  };
+
   const pickExample = async (prompt: string) => {
     draft = prompt;
     await focusInput();
@@ -373,6 +410,19 @@
         >
           {$t('assistant_chats')}
         </Button>
+        {#if currentSession}
+          <Button
+            variant="ghost"
+            size="small"
+            color="secondary"
+            leadingIcon={mdiTrashCanOutline}
+            title={$t('assistant_delete_chat')}
+            aria-label={$t('assistant_delete_chat')}
+            onclick={() => currentSession && deleteSession(currentSession)}
+          >
+            <span class="hidden sm:inline">{$t('assistant_delete_chat')}</span>
+          </Button>
+        {/if}
         <Button variant="ghost" size="small" color="secondary" leadingIcon={mdiPlus} onclick={newChat}>
           {$t('assistant_new_chat')}
         </Button>
@@ -400,6 +450,7 @@
           onSelect={selectSession}
           onNew={newChat}
           onDelete={deleteSession}
+          onDeleteAll={deleteAllSessions}
         />
       </aside>
 

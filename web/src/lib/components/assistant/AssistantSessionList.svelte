@@ -13,9 +13,10 @@
     onSelect: (session: AgentSessionResponseDto) => void;
     onNew: () => void;
     onDelete: (session: AgentSessionResponseDto) => void;
+    onDeleteAll?: () => void;
   };
 
-  const { sessions, activeId, onSelect, onNew, onDelete }: Props = $props();
+  const { sessions, activeId, onSelect, onNew, onDelete, onDeleteAll }: Props = $props();
 
   const TICK_MS = 30_000;
 
@@ -87,12 +88,29 @@
             variant="ghost"
             color="secondary"
             shape="round"
-            class="shrink-0 opacity-100 focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            class="shrink-0 {active
+              ? ''
+              : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100'}"
             aria-label={$t('assistant_delete_chat_named', { values: { title } })}
             onclick={() => onDelete(session)}
           />
         </li>
       {/each}
     </ul>
+    {#if onDeleteAll && sessions.length > 1}
+      <div class="border-t border-gray-200 p-2 dark:border-gray-700">
+        <Button
+          fullWidth
+          size="small"
+          shape="round"
+          variant="ghost"
+          color="secondary"
+          leadingIcon={mdiTrashCanOutline}
+          onclick={onDeleteAll}
+        >
+          {$t('assistant_delete_all_chats')}
+        </Button>
+      </div>
+    {/if}
   {/if}
 </nav>
