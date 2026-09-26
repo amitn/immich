@@ -238,28 +238,89 @@ export const compactJson = (value: unknown, depth = 0): unknown => {
 
 export const truncateText = (text: string, length = 2000) => truncate(text, length);
 
-/** A one line, human readable description of tool arguments, e.g. for approval prompts. */
+/** arguments that are photos: counted, since the photos are shown next to the summary */
+const PHOTO_ARGS = new Set(['id', 'ids', 'assetId', 'assetIds', 'photoIds', 'photos']);
+const PEOPLE_ARGS = new Set(['personId', 'personIds']);
+const ARG_LABELS: Record<string, string> = {
+  rect: 'Crop (pixels)',
+  rectNormalized: 'Crop',
+  pageWidthMm: 'Page width (mm)',
+  pageHeightMm: 'Page height (mm)',
+};
+
+const plural = (count: number, one: string, other: string) => `${count} ${count === 1 ? one : other}`;
+
+/** `aspectRatio` → `Aspect ratio` */
+const toLabel = (key: string) => {
+  const words = key.replaceAll(/([\da-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return ARG_LABELS[key] ?? words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+const isUuid = (value: unknown) => typeof value === 'string' && UUID.test(value);
+
+const formatValue = (value: unknown): string => {
+  if (typeof value === 'boolean') {
+    return value ? 'yes' : 'no';
+  }
+  if (typeof value === 'number') {
+    return String(Math.round(value * 1000) / 1000);
+  }
+  if (Array.isArray(value)) {
+    return value.length <= 3 && value.every((item) => typeof item !== 'object')
+      ? value.map((item) => formatValue(item)).join(', ')
+      : plural(value.length, 'item', 'items');
+  }
+  if (isObject(value)) {
+    return Object.entries(value)
+      .filter(([, child]) => child !== undefined && child !== null)
+      .map(([key, child]) => `${toLabel(key).toLowerCase()} ${isObject(child) ? '…' : formatValue(child)}`)
+      .join(', ');
+  }
+  return String(value);
+};
+
+const countOf = (value: unknown) => (Array.isArray(value) ? value.length : 1);
+
+/**
+ * A short, human readable description of tool arguments for approval prompts, e.g. `Name: Best of Sicily · 20 photos`.
+ * Photos are counted and other ids (albums, books...) left out, since they are shown as thumbnails and links.
+ */
 export const summarizeToolArgs = (args: Record<string, unknown>) => {
-  const parts: string[] = [];
+  const parts: Array<string | { photos: number }> = [];
+  let photos: { photos: number } | undefined;
+  let people = 0;
+
   for (const [key, value] of Object.entries(args)) {
-    if (value === undefined || value === null) {
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) {
       continue;
     }
 
-    if (Array.isArray(value)) {
-      parts.push(
-        value.length <= 3 && value.every((item) => typeof item !== 'object')
-          ? `${key}: ${value.join(', ')}`
-          : `${key}: ${value.length} items`,
-      );
-    } else if (typeof value === 'object') {
-      parts.push(`${key}: ${truncate(JSON.stringify(value), 80)}`);
-    } else {
-      parts.push(`${key}: ${truncate(String(value), 80)}`);
+    if (PHOTO_ARGS.has(key)) {
+      if (!photos) {
+        photos = { photos: 0 };
+        parts.push(photos);
+      }
+      photos.photos += countOf(value);
+      continue;
     }
+
+    if (PEOPLE_ARGS.has(key)) {
+      people += countOf(value);
+      continue;
+    }
+
+    if (isUuid(value) || (Array.isArray(value) && value.every((item) => isUuid(item)))) {
+      continue;
+    }
+
+    parts.push(`${toLabel(key)}: ${truncate(formatValue(value), 80)}`);
   }
 
-  return parts.join(', ');
+  if (people > 0) {
+    parts.push(plural(people, 'person', 'people'));
+  }
+
+  return parts.map((part) => (typeof part === 'string' ? part : plural(part.photos, 'photo', 'photos'))).join(' · ');
 };
 
 type ToolCallLike = {

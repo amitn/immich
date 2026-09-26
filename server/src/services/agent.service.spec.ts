@@ -630,7 +630,7 @@ describe(AgentService.name, () => {
       expect(permission.content).toMatchObject({
         toolName: 'create_album',
         title: 'Create album',
-        summary: 'name: Italy, assetIds: 5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10',
+        summary: 'Name: Italy · 1 photo',
         status: 'pending',
         assetIds: ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10'],
       });

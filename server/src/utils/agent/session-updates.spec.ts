@@ -248,10 +248,51 @@ describe('compactJson', () => {
 });
 
 describe('summarizeToolArgs', () => {
-  it('should describe arguments in one line', () => {
-    expect(summarizeToolArgs({ name: 'Italy', assetIds: [1, 2, 3, 4], crop: { x: 0 }, skip: undefined })).toBe(
-      'name: Italy, assetIds: 4 items, crop: {"x":0}',
+  it('should describe create_album with readable labels and a photo count', () => {
+    expect(
+      summarizeToolArgs({
+        name: 'Best of Sicily',
+        description: 'Our summer trip',
+        assetIds: Array.from({ length: 20 }, () => id1),
+        skip: undefined,
+      }),
+    ).toBe('Name: Best of Sicily · Description: Our summer trip · 20 photos');
+  });
+
+  it('should leave out album and book ids, which are shown as links', () => {
+    expect(summarizeToolArgs({ albumId: id2, assetIds: [id1] })).toBe('1 photo');
+    expect(summarizeToolArgs({ bookId: id3 })).toBe('');
+  });
+
+  it('should count the photos of improve_photos once', () => {
+    expect(
+      summarizeToolArgs({
+        photos: [
+          { id: id1, rotate: 1.2, gain: 0.05 },
+          { id: id2, enhance: { strength: 'subtle' } },
+        ],
+        ids: [id3],
+        auto: true,
+      }),
+    ).toBe('3 photos · Auto: yes');
+  });
+
+  it('should describe crops, lists and people', () => {
+    expect(
+      summarizeToolArgs({
+        id: id1,
+        aspectRatio: '4:3',
+        rectNormalized: { x: 0.1, y: 0, width: 0.8, height: 0.9123 },
+        rotate: -1.5,
+      }),
+    ).toBe('1 photo · Aspect ratio: 4:3 · Crop: x 0.1, y 0, width 0.8, height 0.912 · Rotate: -1.5');
+    expect(summarizeToolArgs({ id: id1, only: ['exposure', 'contrast'], personIds: [id2, id3] })).toBe(
+      '1 photo · Only: exposure, contrast · 2 people',
     );
+  });
+
+  it('should cut long values', () => {
+    expect(summarizeToolArgs({ description: 'x'.repeat(100) })).toBe(`Description: ${'x'.repeat(80)}…`);
   });
 });
 
