@@ -83,7 +83,12 @@ import {
   getPhotoKind,
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
-import { getCollectionTag, getCollectionTagPrefixes, shareCollectionTagsInStacks } from 'src/utils/book/collections.js';
+import {
+  getCollectionTag,
+  getCollectionTagPrefixes,
+  getPhotoPack,
+  shareCollectionTagsInStacks,
+} from 'src/utils/book/collections.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -135,6 +140,7 @@ import {
 } from 'src/utils/book/render.js';
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
+import { redactText } from 'src/utils/collections/pack.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
@@ -1671,10 +1677,27 @@ export class BookService extends BaseService {
     });
     // the source (menu) photo that reads best gets the source page
     const menuIds = photos.filter((photo) => photo.collection?.kind === 'source').map((photo) => photo.id);
-    if (menuIds.length > 1) {
+    // a pack may typeset its sources from their text instead (a ticket stub), and never print them
+    const typeset = photos.filter(
+      (photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourcePage,
+    );
+    if (menuIds.length > 1 || typeset.length > 0) {
       const lines = Map.groupBy(await this.ocrRepository.getByAssetIds(menuIds), ({ assetId }) => assetId);
       for (const photo of photos) {
         photo.textLines = lines.get(photo.id)?.length ?? 0;
+      }
+      for (const photo of typeset) {
+        const pack = getPhotoPack(photo)!;
+        const size = { width: photo.width, height: photo.height };
+        const page = pack.book.sourcePage!(lines.get(photo.id) ?? [], {
+          ...(size.width && size.height && { aspectRatio: size.width / size.height }),
+        });
+        photo.sourcePage = page
+          ? {
+              ...(page.entry && { entry: redactText(pack, page.entry) }),
+              caption: redactText(pack, page.caption),
+            }
+          : null;
       }
     }
 

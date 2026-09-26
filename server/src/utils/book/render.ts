@@ -8,6 +8,7 @@ import {
   LayoutTextArea,
   PageSize,
   PxRect,
+  TICKET_STUB_LAYOUT,
   getLayout,
   getLayoutBox,
   getMapRectMm,
@@ -16,6 +17,7 @@ import {
   mmToPx,
   toPxRect,
 } from 'src/utils/book/layouts.js';
+import { getTicketStub } from 'src/utils/book/ticket-stub.js';
 
 /** thumbnail: contact sheets from thumbnail files; review: ~1200px pages from previews; print: 300 dpi from originals */
 export type BookRenderMode = 'thumbnail' | 'review' | 'print';
@@ -343,9 +345,44 @@ export type PageTextBlock = {
 
 /** Rules, ornaments and frames drawn over the page, in pixels */
 export type PageDecoration =
-  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; opacity?: number }
+  | {
+      kind: 'line';
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      color: string;
+      width: number;
+      opacity?: number;
+      /** a dashed line: the lengths of the dashes and gaps (stroke-dasharray) */
+      dash?: string;
+      cap?: 'round';
+    }
   | { kind: 'diamond'; x: number; y: number; size: number; color: string; opacity?: number }
-  | { kind: 'frame'; rect: PxRect; color: string; width: number; opacity?: number };
+  | {
+      kind: 'frame';
+      rect: PxRect;
+      color: string;
+      width: number;
+      opacity?: number;
+      /** rounded corners */
+      radius?: number;
+      fill?: string;
+    }
+  | { kind: 'circle'; x: number; y: number; r: number; color: string; width: number; fill?: string; opacity?: number }
+  | { kind: 'path'; d: string; color: string; width?: number; fill?: string; opacity?: number }
+  /** a round rubber stamp: two rings and a few lines of text, turned by `rotate` degrees */
+  | {
+      kind: 'stamp';
+      x: number;
+      y: number;
+      r: number;
+      color: string;
+      lines: string[];
+      rotate: number;
+      fontFamily: string;
+      opacity?: number;
+    };
 
 /** the average character width of a text block, as a share of its font size, see `wrapText` */
 export const getCharWidth = (block: Pick<PageTextBlock, 'smallCaps' | 'letterSpacing'>) =>
@@ -359,7 +396,9 @@ export const renderDecoration = (decoration: PageDecoration) => {
   const color = escapeXml(decoration.color);
   switch (decoration.kind) {
     case 'line': {
-      return `<line x1="${px(decoration.x1)}" y1="${px(decoration.y1)}" x2="${px(decoration.x2)}" y2="${px(decoration.y2)}" stroke="${color}" stroke-width="${px(decoration.width)}"${opacityOf(decoration.opacity)}/>`;
+      const dash = decoration.dash ? ` stroke-dasharray="${escapeXml(decoration.dash)}"` : '';
+      const cap = decoration.cap ? ` stroke-linecap="${decoration.cap}"` : '';
+      return `<line x1="${px(decoration.x1)}" y1="${px(decoration.y1)}" x2="${px(decoration.x2)}" y2="${px(decoration.y2)}" stroke="${color}" stroke-width="${px(decoration.width)}"${dash}${cap}${opacityOf(decoration.opacity)}/>`;
     }
     case 'diamond': {
       const { x, y, size } = decoration;
@@ -368,7 +407,35 @@ export const renderDecoration = (decoration: PageDecoration) => {
     }
     case 'frame': {
       const { rect } = decoration;
-      return `<rect x="${px(rect.left)}" y="${px(rect.top)}" width="${px(rect.width)}" height="${px(rect.height)}" fill="none" stroke="${color}" stroke-width="${px(decoration.width)}"${opacityOf(decoration.opacity)}/>`;
+      const radius = decoration.radius ? ` rx="${px(decoration.radius)}"` : '';
+      const fill = decoration.fill ? escapeXml(decoration.fill) : 'none';
+      const stroke = decoration.width > 0 ? ` stroke="${color}" stroke-width="${px(decoration.width)}"` : '';
+      return `<rect x="${px(rect.left)}" y="${px(rect.top)}" width="${px(rect.width)}" height="${px(rect.height)}"${radius} fill="${fill}"${stroke}${opacityOf(decoration.opacity)}/>`;
+    }
+    case 'circle': {
+      const fill = decoration.fill ? escapeXml(decoration.fill) : 'none';
+      const stroke = decoration.width > 0 ? ` stroke="${color}" stroke-width="${px(decoration.width)}"` : '';
+      return `<circle cx="${px(decoration.x)}" cy="${px(decoration.y)}" r="${px(decoration.r)}" fill="${fill}"${stroke}${opacityOf(decoration.opacity)}/>`;
+    }
+    case 'path': {
+      const fill = decoration.fill ? escapeXml(decoration.fill) : 'none';
+      const stroke = decoration.width ? ` stroke="${color}" stroke-width="${px(decoration.width)}"` : '';
+      return `<path d="${escapeXml(decoration.d)}" fill="${fill}"${stroke}${opacityOf(decoration.opacity)}/>`;
+    }
+    case 'stamp': {
+      const { x, y, r, lines } = decoration;
+      // bold capitals, spaced: wider than the average character; each line as large as fits the ring
+      const sizes = lines.map((line, position) =>
+        Math.min(r * (position === 0 ? 0.34 : 0.24), (1.3 * r) / (Math.max(3, line.length) * 0.66)),
+      );
+      const texts = lines.map((line, position) => {
+        const fontPx = sizes[position];
+        const offset = sizes.slice(0, position).reduce((sum, size) => sum + size * 1.15, 0);
+        const total = sizes.reduce((sum, size) => sum + size * 1.15, 0);
+        const baseline = y - total / 2 + offset + fontPx * 0.92;
+        return `<text x="${px(x)}" y="${px(baseline)}" text-anchor="middle" font-family="${escapeXml(getFontStack(decoration.fontFamily))}" font-size="${px(fontPx)}" font-weight="bold" letter-spacing="${px(fontPx * 0.08)}" fill="${color}">${escapeXml(line)}</text>`;
+      });
+      return `<g transform="rotate(${decoration.rotate} ${px(x)} ${px(y)})"${opacityOf(decoration.opacity)}><circle cx="${px(x)}" cy="${px(y)}" r="${px(r)}" fill="none" stroke="${color}" stroke-width="${px(r * 0.06)}"/><circle cx="${px(x)}" cy="${px(y)}" r="${px(r * 0.82)}" fill="none" stroke="${color}" stroke-width="${px(r * 0.025)}"/>${texts.join('')}</g>`;
     }
   }
 };
@@ -674,7 +741,17 @@ export const planPage = (
       }
       case 'caption': {
         hasCaptionArea = true;
-        if (page.caption) {
+        if (page.caption && layout.id === TICKET_STUB_LAYOUT) {
+          // a ticket stub typeset from the fields in the caption
+          const stub = getTicketStub(
+            page.caption,
+            rect,
+            { ink, accent: food ? accent : (style.accentColor ?? style.textColor), page: pageBackground },
+            { fontPx: captionPx, dpi, fontFamily: style.fontFamily },
+          );
+          decorations.push(...stub.decorations);
+          blocks.push(...stub.blocks);
+        } else if (page.caption) {
           // text-only pages read like a story, so the caption is a little larger there
           blocks.push({
             ...base,

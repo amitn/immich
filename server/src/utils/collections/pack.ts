@@ -1,6 +1,7 @@
 import type { BookStyle } from 'src/dtos/book.dto.js';
 import type { ClassifyRules, CollectionPrompts } from 'src/utils/collections/classify.js';
 import type { MatchOptions, SubjectAssigner } from 'src/utils/collections/match.js';
+import type { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import type { OsmFilter } from 'src/utils/collections/overpass.js';
 import type { PlaceNameRules } from 'src/utils/collections/place.js';
 import type { SourceEntry, SourceParser } from 'src/utils/collections/source.js';
@@ -87,7 +88,29 @@ export type CollectionPack = {
     /** the caption of an entry photo in a book, e.g. the name of the dish */
     caption: (entry: string, place: string) => string;
     /** the checks `review_book` runs on books with the pack's photos */
-    review: { unnamedEntries: boolean; missingSourcePage: boolean };
+    review: {
+      unnamedEntries: boolean;
+      missingSourcePage: boolean;
+      /** the pack's own checks, e.g. legs of a trip without photos */
+      check?: (input: CollectionReviewInput) => CollectionReviewIssue[];
+    };
+    /**
+     * one chapter per entry (e.g. a leg of a trip) instead of one per visit of a place (a meal at a restaurant); a
+     * source photo joins the chapter of the entry its `sourcePage` names
+     */
+    chapters?: 'visit' | 'entry';
+    /**
+     * whether entry photos are named below them on layouts made for that (dishes, default), or laid out as other
+     * photos because the chapter names the entry (the legs of a trip)
+     */
+    namedEntries?: boolean;
+    /** the title of the chapter of an entry, e.g. "Bus Chania → Sougia · 4 Oct 2016 · Crete, October 2016" */
+    chapterTitle?: (entry: string, place: string) => string;
+    /**
+     * a page typeset from the text read on a source photo instead of the photo, e.g. a ticket stub made of the
+     * redacted fields of a boarding pass: books then never print the photo (default: the photo is printed)
+     */
+    sourcePage?: (ocr: OcrBoxInput[], options: { aspectRatio?: number }) => CollectionSourcePage | undefined;
   };
 
   agent: {
@@ -110,6 +133,35 @@ export type CollectionPack = {
      */
     sourceImages?: boolean;
   };
+};
+
+/** a source typeset as a page of its own: the entry it is for, and its text (lines of "Label: value") */
+export type CollectionSourcePage = { entry?: string; caption: string };
+
+/** what a pack's own book checks see: the pages, and the photos with their collection tags */
+export type CollectionReviewInput = {
+  pages: Array<{
+    layout: string;
+    sectionTitle?: string | null;
+    caption?: string | null;
+    assets: Array<{ assetId: string }>;
+  }>;
+  photos: Array<{
+    id: string;
+    takenAt: number;
+    collection?: { pack: string; place: string; kind: 'entry' | 'source'; entry?: string } | null;
+    sourcePage?: CollectionSourcePage | null;
+  }>;
+};
+
+/** an issue of a pack's own book check, of one of the kinds `review_book` reports */
+export type CollectionReviewIssue = {
+  severity: 'high' | 'medium' | 'low';
+  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name';
+  message: string;
+  /** one-based page numbers */
+  pages: number[];
+  assetIds?: string[];
 };
 
 export type CollectionNames = {

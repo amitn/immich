@@ -38,7 +38,12 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection'>> & {
+  Partial<
+    Pick<
+      AutoLayoutPhoto,
+      'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection' | 'sourcePage'
+    >
+  > & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
     gain?: number;
   };
@@ -472,6 +477,17 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       pages: numbers,
       assetIds: sources.slice(0, 3).map(({ id }) => id),
     });
+  }
+
+  // the packs' own checks, e.g. the legs of a trip without photos
+  const packs = new Set(input.photos.flatMap((photo) => (photo.collection ? [photo.collection.pack] : [])));
+  for (const packId of packs) {
+    const check = getCollectionPack(packId)?.book.review.check;
+    if (check) {
+      for (const issue of check({ pages, photos: input.photos })) {
+        add(issue);
+      }
+    }
   }
 
   // repeated layouts and missing captions

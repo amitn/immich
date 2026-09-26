@@ -15,6 +15,7 @@ import {
   BookLayout,
   LayoutRect,
   PageSize,
+  TICKET_STUB_LAYOUT,
   bookLayouts,
   getLayout,
   getSlotRectsMm,
@@ -22,6 +23,8 @@ import {
 } from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
 import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
+import { CollectionSourcePage } from 'src/utils/collections/pack.js';
+import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 /**
  * What an asset is: an original photo, or a copy stacked with it (the original is the primary asset of the stack).
@@ -67,6 +70,11 @@ export type AutoLayoutPhoto = {
   collection?: BookCollectionTag | null;
   /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
+  /**
+   * a source typeset as a page of its own instead of its photo, e.g. a ticket stub made of the redacted fields of a
+   * boarding pass (see `CollectionPack.book.sourcePage`): the photo is never placed
+   */
+  sourcePage?: CollectionSourcePage | null;
 };
 
 export type AutoLayoutOptions = {
@@ -179,7 +187,7 @@ const COPY_MARGIN = 0.05;
 const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
-const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide']);
+const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', TICKET_STUB_LAYOUT]);
 /** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
 const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
 /** the entries of a source page are listed one per line up to this many */
@@ -1122,7 +1130,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // photos too small for every slot, then one photo (or an intentional pair) per stack
   const printable: Candidate[] = [];
   for (const photo of photos) {
-    if (planner.isPrintable(photo)) {
+    // a source typeset from its text is never printed, however small its photo
+    if (planner.isPrintable(photo) || photo.sourcePage) {
       printable.push(photo);
     } else {
       drop(photo, 'resolution');
@@ -1227,12 +1236,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
   // a collection book has a chapter for every visit of a place (a restaurant), and the photos between them are split
   // by event as usual
-  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string } }>;
+  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string; entry?: string } }>;
   const { visits, others } = collectionBook ? getPlaceVisits(kept) : { visits: [], others: kept };
   if (visits.length > 0) {
     const otherSections = Math.max(1, maxSections - visits.length);
     sections = [
-      ...visits.map((visit) => ({ photos: visit.photos, visit: { pack: visit.pack, place: visit.place } })),
+      ...visits.map((visit) => ({
+        photos: visit.photos,
+        visit: { pack: visit.pack, place: visit.place, ...(visit.entry && { entry: visit.entry }) },
+      })),
       ...getRunsBetweenVisits(others, visits).flatMap((run) =>
         mergeEvents(
           getEvents(run, options.events),
@@ -1257,8 +1269,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     dates: string;
     opener: 'map' | 'map-photo' | 'section-opener' | 'dish-opener' | null;
     openerPhoto?: Candidate;
-    /** the place of a visit of a collection (a restaurant) and its pack */
-    visit?: { pack: string; place: string };
+    /** the place of a visit of a collection (a restaurant) and its pack; the entry of a chapter per entry (a leg) */
+    visit?: { pack: string; place: string; entry?: string };
     /** the source (menu) of the visit, on a page of its own after the opener (or as the opener) */
     menu?: { photo: Candidate; layout: BookLayout };
   };
@@ -1284,7 +1296,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       const byLegibility = (a: Candidate, b: Candidate) =>
         (b.textLines ?? 0) - (a.textLines ?? 0) || byImportance(a, b);
       for (const photo of section.filter((unit) => !unit.pair && isSourcePhoto(unit)).toSorted(byLegibility)) {
-        const layout = menu ? undefined : getMenuLayout(photo);
+        // a source typeset from its text (a ticket stub) needs no photo that prints sharp enough
+        const stub = photo.sourcePage && layouts.find((layout) => layout.id === TICKET_STUB_LAYOUT);
+        const layout = menu ? undefined : (stub ?? getMenuLayout(photo));
         if (layout) {
           menu = { photo, layout };
         } else if (menu) {
@@ -1472,7 +1486,17 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       }
     }
 
-    if (section.menu) {
+    if (section.menu?.layout.id === TICKET_STUB_LAYOUT) {
+      // the text of the source, never its photo
+      pages.push({
+        layout: TICKET_STUB_LAYOUT,
+        slots: [],
+        sectionTitle: section.title,
+        caption: section.menu.photo.sourcePage!.caption,
+        section: index,
+      });
+      drop(section.menu.photo, 'duplicate');
+    } else if (section.menu) {
       const page: AutoLayoutPage = {
         layout: section.menu.layout.id,
         slots: [place(section.menu.photo, section.menu.layout)],
@@ -1542,8 +1566,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         sectionPlans[other].visit!.place.toLowerCase() === place.toLowerCase() &&
         getVisitTitle(place, otherPhotos) === getVisitTitle(place, placed),
     );
-    const title = getVisitTitle(place, placed, sameDay);
-    visitTitles.set(index, { title, place: getVisitPlace(placed), detail: title.slice(place.length + 3) });
+    const { entry } = sectionPlans[index].visit!;
+    const chapterTitle = entry ? getCollectionPack(pack)?.book.chapterTitle : undefined;
+    const title = chapterTitle ? chapterTitle(entry!, place) : getVisitTitle(place, placed, sameDay);
+    const detail = title.includes(' · ') ? title.slice(title.indexOf(' · ') + 3) : '';
+    visitTitles.set(index, { title, place: getVisitPlace(placed), detail });
   }
   /** the entries (dishes) of a visit in the order they are shown, e.g. for its source (menu) page */
   const getDishes = (section: number) => [
@@ -1570,7 +1597,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       // the map is titled with the place (restaurant) and captioned with the city and date; the source lists the
       // entries (the menu page lists the dishes)
       page.sectionTitle = visit.title;
-      delete page.caption;
+      // a ticket stub keeps its text
+      if (page.layout !== TICKET_STUB_LAYOUT) {
+        delete page.caption;
+      }
       if (page.map) {
         page.map = { ...page.map, title: sectionPlans[page.section!].visit!.place };
         if (page.layout === 'map') {
