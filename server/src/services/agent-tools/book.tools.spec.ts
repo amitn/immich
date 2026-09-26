@@ -70,6 +70,7 @@ describe(BookAgentTools.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookAgentTools));
+    mocks.tag.getAssetTagValues.mockResolvedValue([]);
     tools = new Map(sut.getTools().map((tool) => [tool.name, tool]));
     ctx = { auth: authStub.admin, sessionId: newUuid() };
 
@@ -705,7 +706,7 @@ describe(BookAgentTools.name, () => {
 
     it('should list the style presets with the layouts', async () => {
       const result = JSON.parse(text(await call('list_layouts', {})));
-      expect(result.stylePresets.map(({ id }: { id: string }) => id)).toEqual(['classic', 'soft', 'bold']);
+      expect(result.stylePresets.map(({ id }: { id: string }) => id)).toEqual(['classic', 'soft', 'bold', 'food']);
     });
   });
 });

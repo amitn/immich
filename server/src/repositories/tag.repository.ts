@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectKysely } from 'nestjs-kysely';
 import type { InsertQueryBuilder, Insertable, Kysely, QueryCreator, Selectable, Updateable } from 'kysely';
 import { columns } from 'src/database.js';
-import { Chunked, ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
+import { Chunked, ChunkedArray, ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { TagAssetTable } from 'src/schema/tables/tag-asset.table.js';
@@ -240,6 +240,29 @@ export class TagRepository {
       .selectFrom('created_tag')
       .selectAll()
       .executeTakeFirstOrThrow();
+  }
+
+  /** the values of the user's tags on the assets that start with the prefix (no wildcards), e.g. "Food/" */
+  @ChunkedArray({ paramIndex: 1 })
+  @GenerateSql({ params: [DummyValue.UUID, [DummyValue.UUID], DummyValue.STRING] })
+  async getAssetTagValues(
+    userId: string,
+    assetIds: string[],
+    prefix: string,
+  ): Promise<Array<{ assetId: string; value: string }>> {
+    if (assetIds.length === 0) {
+      return [];
+    }
+
+    return this.db
+      .selectFrom('tag_asset')
+      .innerJoin('tag', 'tag.id', 'tag_asset.tagId')
+      .select(['tag_asset.assetId as assetId', 'tag.value as value'])
+      .where('tag.userId', '=', userId)
+      .where('tag_asset.assetId', 'in', assetIds)
+      .where('tag.value', 'like', `${prefix}%`)
+      .orderBy('tag.value')
+      .execute();
   }
 
   /** photos per tag, counting the photos of child tags too */

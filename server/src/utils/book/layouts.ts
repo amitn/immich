@@ -2,9 +2,15 @@ import type { BookStyle } from 'src/dtos/book.dto.js';
 
 export type LayoutRect = { x: number; y: number; width: number; height: number };
 
-export type LayoutTextKind = 'title' | 'subtitle' | 'sectionTitle' | 'caption';
+/** `slotCaption` is the caption of one photo (`slot`), e.g. the name of a dish, drawn beside the photo instead of on it */
+export type LayoutTextKind = 'title' | 'subtitle' | 'sectionTitle' | 'caption' | 'slotCaption';
 
-export type LayoutTextArea = LayoutRect & { kind: LayoutTextKind; align: 'left' | 'center' | 'right' };
+export type LayoutTextArea = LayoutRect & {
+  kind: LayoutTextKind;
+  align: 'left' | 'center' | 'right';
+  /** zero-based slot of a `slotCaption` area */
+  slot?: number;
+};
 
 export type LayoutOrientation = 'any' | 'landscape' | 'portrait';
 
@@ -21,6 +27,8 @@ export type BookLayout = {
   fullBleed?: boolean;
   /** area of the page map, normalized like the slots */
   map?: LayoutRect;
+  /** made for food books: menu pages and dishes with their names; the automatic layout uses it only there */
+  food?: boolean;
 };
 
 export type PageSize = { pageWidthMm: number; pageHeightMm: number };
@@ -198,6 +206,105 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'caption', x: 0.1, y: 0.33, width: 0.8, height: 0.5, align: 'center' },
     ],
     orientation: 'any',
+  },
+  {
+    id: 'menu',
+    name: 'Menu',
+    description:
+      'Opens a restaurant chapter with its menu: a large portrait photo of the menu (slot 1), kept whole enough to ' +
+      'read, with the section title and the caption (e.g. the dishes that follow) beside it.',
+    slots: [{ x: 0, y: 0.07, width: 0.64, height: 0.86 }],
+    text: [
+      { kind: 'sectionTitle', x: 0.67, y: 0.07, width: 0.33, height: 0.4, align: 'center' },
+      { kind: 'caption', x: 0.67, y: 0.49, width: 0.33, height: 0.44, align: 'center' },
+    ],
+    orientation: 'portrait',
+    food: true,
+  },
+  {
+    id: 'menu-wide',
+    name: 'Menu (wide)',
+    description:
+      'Opens a restaurant chapter with a landscape photo of its menu (slot 1, e.g. a blackboard) between the section ' +
+      'title and the caption.',
+    slots: [{ x: 0.05, y: 0.22, width: 0.9, height: 0.62 }],
+    text: [
+      { kind: 'sectionTitle', x: 0, y: 0, width: 1, height: 0.2, align: 'center' },
+      { kind: 'caption', x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' },
+    ],
+    orientation: 'landscape',
+    food: true,
+  },
+  {
+    id: 'dish-opener',
+    name: 'Dish opener',
+    description:
+      'Opens a restaurant chapter that has no menu photo: the section title, one dish (slot 1) and its name below it.',
+    slots: [{ x: 0, y: 0.2, width: 1, height: 0.66 }],
+    text: [
+      { kind: 'sectionTitle', x: 0, y: 0, width: 1, height: 0.2, align: 'center' },
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.87, width: 1, height: 0.13, align: 'center' },
+    ],
+    orientation: 'landscape',
+    food: true,
+  },
+  {
+    id: 'dish',
+    name: 'Dish',
+    description: 'One dish on its own page, with its name (the slot caption) below the photo.',
+    slots: [{ x: 0, y: 0, width: 1, height: 0.85 }],
+    text: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' }],
+    orientation: 'landscape',
+    food: true,
+  },
+  {
+    id: 'dish-pair',
+    name: 'Two dishes',
+    description: 'Two dishes side by side in near-square slots, each with its name (the slot caption) below it.',
+    slots: [
+      { x: 0, y: 0.14, width: 0.5, height: 0.56 },
+      { x: 0.5, y: 0.14, width: 0.5, height: 0.56 },
+    ],
+    text: [
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.71, width: 0.5, height: 0.14, align: 'center' },
+      { kind: 'slotCaption', slot: 1, x: 0.5, y: 0.71, width: 0.5, height: 0.14, align: 'center' },
+    ],
+    orientation: 'any',
+    food: true,
+  },
+  {
+    id: 'dish-pair-stacked',
+    name: 'Two dishes, staggered',
+    description:
+      'Two landscape dishes in staggered rows, like a magazine: slot 1 top left with its name to the right, slot 2 ' +
+      'bottom right with its name to the left.',
+    slots: [
+      { x: 0, y: 0, width: 0.66, height: 0.5 },
+      { x: 0.34, y: 0.5, width: 0.66, height: 0.5 },
+    ],
+    text: [
+      { kind: 'slotCaption', slot: 0, x: 0.68, y: 0.14, width: 0.32, height: 0.22, align: 'left' },
+      { kind: 'slotCaption', slot: 1, x: 0, y: 0.64, width: 0.32, height: 0.22, align: 'right' },
+    ],
+    orientation: 'landscape',
+    food: true,
+  },
+  {
+    id: 'dish-trio',
+    name: 'Three dishes',
+    description: 'Three dishes in a row of near-square slots, each with its name (the slot caption) below it.',
+    slots: [
+      { x: 0, y: 0.24, width: third, height: 0.37 },
+      { x: third, y: 0.24, width: third, height: 0.37 },
+      { x: 2 * third, y: 0.24, width: third, height: 0.37 },
+    ],
+    text: [
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.62, width: third, height: 0.16, align: 'center' },
+      { kind: 'slotCaption', slot: 1, x: third, y: 0.62, width: third, height: 0.16, align: 'center' },
+      { kind: 'slotCaption', slot: 2, x: 2 * third, y: 0.62, width: third, height: 0.16, align: 'center' },
+    ],
+    orientation: 'any',
+    food: true,
   },
 ];
 

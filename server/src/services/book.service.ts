@@ -83,6 +83,8 @@ import {
   getPhotoKind,
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
+import { getFoodTag, shareFoodTagsInStacks } from 'src/utils/book/food.js';
+import { FOOD_TAG_ROOT } from 'src/utils/food/tags.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -280,7 +282,12 @@ const toPageValues = (page: AutoLayoutPage): BookPageWithPlacements => ({
   caption: page.caption ?? null,
   background: null,
   map: page.map ?? null,
-  assets: page.slots.map((slot, index) => ({ slot: index, assetId: slot.assetId, crop: slot.crop, caption: null })),
+  assets: page.slots.map((slot, index) => ({
+    slot: index,
+    assetId: slot.assetId,
+    crop: slot.crop,
+    caption: slot.caption ?? null,
+  })),
 });
 
 /** event index of every photo, see `splitEvents`; a single day is split into chapters by its own gaps */
@@ -1480,6 +1487,7 @@ export class BookService extends BaseService {
         ).map((face) => ({ x: face.x1, y: face.y1, width: face.x2 - face.x1, height: face.y2 - face.y1 }));
         const aspect = aspects[slotIndex];
         page.slots[slotIndex] = {
+          ...slot,
           assetId: copy.id,
           crop: aspect ? getDefaultCrop({ width: copy.width, height: copy.height }, faces, aspect) : slot.crop,
         };
@@ -1592,14 +1600,17 @@ export class BookService extends BaseService {
     }
 
     const ids = rows.map((row) => row.id);
-    const [renderAssets, embeddings, stackInfo, { machineLearning }] = await Promise.all([
+    const [renderAssets, embeddings, stackInfo, foodTags, { machineLearning }] = await Promise.all([
       this.bookRepository.getAssetsForRender(ids),
       this.searchRepository.getEmbeddings(ids),
       this.bookRepository.getStackInfo(ids),
+      // dishes and menus, tagged Food/<Restaurant>/<Dish> and Food/<Restaurant>/Menu
+      this.tagRepository.getAssetTagValues(auth.user.id, ids, `${FOOD_TAG_ROOT}/`),
       this.getConfig({ withCache: true }),
     ]);
 
     const assets = new Map(renderAssets.map((asset) => [asset.id, asset]));
+    const tagValues = Map.groupBy(foodTags, ({ assetId }) => assetId);
     const stacks = new Map(stackInfo.map((info) => [info.id, info]));
     const vectors = new Map(embeddings.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
     const clusters = clusterSimilar(
@@ -1621,7 +1632,7 @@ export class BookService extends BaseService {
       await this.estimateImprovements(rows, analyses, heroIds, improve);
     }
 
-    return rows.map((row, index) => {
+    const photos = rows.map((row, index): AutoLayoutPhoto => {
       const asset = assets.get(row.id);
       const size = asset ? getAssetDimensions(asset) : { width: row.width ?? 0, height: row.height ?? 0 };
       const faces = row.faces.map((face) => normalizeFaceBox(face));
@@ -1648,8 +1659,11 @@ export class BookService extends BaseService {
         kind: getPhotoKind(stacks.get(row.id) ?? {}),
         people: getPeople(row),
         embedding: vectors.get(row.id) ?? null,
+        food: getFoodTag((tagValues.get(row.id) ?? []).map(({ value }) => value)) ?? null,
       };
     });
+    // a copy of a dish (e.g. an improved one) is still that dish
+    return shareFoodTagsInStacks(photos);
   }
 
   /**

@@ -113,6 +113,8 @@ export type PagePlan = {
   slots: PagePlanSlot[];
   /** titles and captions, in pixels; drawn into `spec.overlay` */
   text: PageTextBlock[];
+  /** rules, ornaments and frames, in pixels; drawn into `spec.overlay` under the text */
+  decorations: PageDecoration[];
   /** the map area of the layout, if it has one */
   map: { rect: PxRect; rectMm: LayoutRect } | null;
   spec: BookPageComposeSpec;
@@ -220,12 +222,14 @@ export const escapeXml = (value: string) =>
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
 
-const CHAR_WIDTH = 0.52;
+/** average character width, as a share of the font size */
+export const CHAR_WIDTH = 0.52;
+const SMALL_CAPS_CHAR_WIDTH = 0.6;
 export const LINE_HEIGHT = 1.25;
 
 /** Greedy word wrap based on an average character width */
-export const wrapText = (text: string, maxWidthPx: number, fontPx: number): string[] => {
-  const maxChars = Math.max(1, Math.floor(maxWidthPx / (fontPx * CHAR_WIDTH)));
+export const wrapText = (text: string, maxWidthPx: number, fontPx: number, charWidth = CHAR_WIDTH): string[] => {
+  const maxChars = Math.max(1, Math.floor(maxWidthPx / (fontPx * charWidth)));
   const lines: string[] = [];
 
   for (const paragraph of text.split(/\r?\n/)) {
@@ -259,10 +263,15 @@ export const wrapText = (text: string, maxWidthPx: number, fontPx: number): stri
 };
 
 /** Shrinks the font (down to 60%) until the text fits the box, then truncates it with an ellipsis */
-export const fitText = (text: string, box: { width: number; height: number }, fontPx: number) => {
+export const fitText = (
+  text: string,
+  box: { width: number; height: number },
+  fontPx: number,
+  charWidth = CHAR_WIDTH,
+) => {
   const minPx = fontPx * 0.6;
   for (let size = fontPx; size >= minPx; size *= 0.9) {
-    const lines = wrapText(text, box.width, size);
+    const lines = wrapText(text, box.width, size, charWidth);
     if (lines.length * size * LINE_HEIGHT <= box.height) {
       return { lines, fontPx: size };
     }
@@ -270,7 +279,7 @@ export const fitText = (text: string, box: { width: number; height: number }, fo
 
   const size = Math.min(minPx, box.height / LINE_HEIGHT);
   const maxLines = Math.max(1, Math.floor(box.height / (size * LINE_HEIGHT)));
-  const lines = wrapText(text, box.width, size);
+  const lines = wrapText(text, box.width, size, charWidth);
   if (lines.length <= maxLines) {
     return { lines, fontPx: size };
   }
@@ -291,9 +300,47 @@ export type PageTextBlock = {
   color: string;
   bold?: boolean;
   italic?: boolean;
+  smallCaps?: boolean;
+  /** extra space between the letters, as a share of the font size */
+  letterSpacing?: number;
   /** draws a translucent band behind the text, for captions over photos */
   band?: boolean;
-  valign?: 'middle' | 'bottom';
+  /** default black at 45% */
+  bandColor?: string;
+  bandOpacity?: number;
+  valign?: 'top' | 'middle' | 'bottom';
+};
+
+/** Rules, ornaments and frames drawn over the page, in pixels */
+export type PageDecoration =
+  | { kind: 'line'; x1: number; y1: number; x2: number; y2: number; color: string; width: number; opacity?: number }
+  | { kind: 'diamond'; x: number; y: number; size: number; color: string; opacity?: number }
+  | { kind: 'frame'; rect: PxRect; color: string; width: number; opacity?: number };
+
+/** the average character width of a text block, as a share of its font size, see `wrapText` */
+export const getCharWidth = (block: Pick<PageTextBlock, 'smallCaps' | 'letterSpacing'>) =>
+  (block.smallCaps ? SMALL_CAPS_CHAR_WIDTH : CHAR_WIDTH) + (block.letterSpacing ?? 0);
+
+const px = (value: number) => value.toFixed(1);
+
+const opacityOf = (opacity?: number) => (opacity === undefined ? '' : ` opacity="${opacity}"`);
+
+export const renderDecoration = (decoration: PageDecoration) => {
+  const color = escapeXml(decoration.color);
+  switch (decoration.kind) {
+    case 'line': {
+      return `<line x1="${px(decoration.x1)}" y1="${px(decoration.y1)}" x2="${px(decoration.x2)}" y2="${px(decoration.y2)}" stroke="${color}" stroke-width="${px(decoration.width)}"${opacityOf(decoration.opacity)}/>`;
+    }
+    case 'diamond': {
+      const { x, y, size } = decoration;
+      const half = size / 2;
+      return `<path d="M${px(x)} ${px(y - half)}L${px(x + half)} ${px(y)}L${px(x)} ${px(y + half)}L${px(x - half)} ${px(y)}Z" fill="${color}"${opacityOf(decoration.opacity)}/>`;
+    }
+    case 'frame': {
+      const { rect } = decoration;
+      return `<rect x="${px(rect.left)}" y="${px(rect.top)}" width="${px(rect.width)}" height="${px(rect.height)}" fill="none" stroke="${color}" stroke-width="${px(decoration.width)}"${opacityOf(decoration.opacity)}/>`;
+    }
+  }
 };
 
 const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
@@ -302,17 +349,19 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
     width: Math.max(1, block.rect.width - 2 * padding),
     height: Math.max(1, block.rect.height - 2 * padding),
   };
-  const { lines, fontPx } = fitText(block.text, inner, block.fontPx);
+  const { lines, fontPx } = fitText(block.text, inner, block.fontPx, getCharWidth(block));
   const lineHeight = fontPx * LINE_HEIGHT;
   const textHeight = lines.length * lineHeight;
 
   const anchor = block.align === 'left' ? 'start' : block.align === 'right' ? 'end' : 'middle';
+  // letter spacing is added after every letter, the last one too
+  const spacing = (block.letterSpacing ?? 0) * fontPx;
   const x =
     block.align === 'left'
       ? block.rect.left + padding
       : block.align === 'right'
-        ? block.rect.left + block.rect.width - padding
-        : block.rect.left + block.rect.width / 2;
+        ? block.rect.left + block.rect.width - padding + spacing
+        : block.rect.left + block.rect.width / 2 + spacing / 2;
 
   const parts: string[] = [];
   let top: number;
@@ -321,10 +370,12 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
     const bandTop = block.rect.top + block.rect.height - bandHeight;
     if (block.band) {
       parts.push(
-        `<rect x="${block.rect.left}" y="${bandTop.toFixed(1)}" width="${block.rect.width}" height="${bandHeight.toFixed(1)}" fill="#000000" fill-opacity="0.45"/>`,
+        `<rect x="${block.rect.left}" y="${bandTop.toFixed(1)}" width="${block.rect.width}" height="${bandHeight.toFixed(1)}" fill="${escapeXml(block.bandColor ?? '#000000')}" fill-opacity="${block.bandOpacity ?? 0.45}"/>`,
       );
     }
     top = bandTop + padding;
+  } else if (block.valign === 'top') {
+    top = block.rect.top + padding;
   } else {
     top = block.rect.top + (block.rect.height - textHeight) / 2;
   }
@@ -335,7 +386,7 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
   });
 
   parts.push(
-    `<text font-family="${escapeXml(getFontStack(fontFamily))}" font-size="${fontPx.toFixed(1)}" fill="${escapeXml(block.color)}" text-anchor="${anchor}"${block.bold ? ' font-weight="bold"' : ''}${block.italic ? ' font-style="italic"' : ''}>${tspans.join('')}</text>`,
+    `<text font-family="${escapeXml(getFontStack(fontFamily))}" font-size="${fontPx.toFixed(1)}" fill="${escapeXml(block.color)}" text-anchor="${anchor}"${block.bold ? ' font-weight="bold"' : ''}${block.italic ? ' font-style="italic"' : ''}${block.smallCaps ? ' font-variant="small-caps"' : ''}${block.letterSpacing ? ` letter-spacing="${(block.letterSpacing * fontPx).toFixed(2)}"` : ''}>${tspans.join('')}</text>`,
   );
 
   return parts.join('');
@@ -349,6 +400,105 @@ const renderPlaceholder = (rect: PxRect, label: string, fontFamily: string) => {
     renderTextBlock({ kind: 'caption', rect, text: label, fontPx, align: 'center', color: '#707070' }, fontFamily)
   );
 };
+
+const FOOD_CAPS = { smallCaps: true, letterSpacing: 0.12 } as const;
+
+type Align = LayoutTextArea['align'];
+
+const alignedLeft = (rect: PxRect, width: number, align: Align) =>
+  align === 'left' ? rect.left : align === 'right' ? rect.left + rect.width - width : rect.left + (rect.width - width) / 2;
+
+/** a double hairline frame in the margins, like the border of a printed menu */
+export const getMenuFrame = (
+  page: { width: number; height: number },
+  marginPx: number,
+  dpi: number,
+  color: string,
+): PageDecoration[] => {
+  if (marginPx < mmToPx(8, dpi)) {
+    return [];
+  }
+  const inset = marginPx * 0.4;
+  const inner = inset + mmToPx(1.2, dpi);
+  const frame = (value: number): PxRect => ({
+    left: value,
+    top: value,
+    width: page.width - 2 * value,
+    height: page.height - 2 * value,
+  });
+  return [
+    { kind: 'frame', rect: frame(inset), color, width: mmToPx(0.35, dpi), opacity: 0.55 },
+    { kind: 'frame', rect: frame(inner), color, width: mmToPx(0.15, dpi), opacity: 0.45 },
+  ];
+};
+
+/** a thin rule with a diamond in the middle, under a heading */
+export const getOrnament = (rect: PxRect, y: number, align: Align, dpi: number, color: string): PageDecoration[] => {
+  const width = Math.min(rect.width * 0.5, mmToPx(44, dpi));
+  const size = mmToPx(2.2, dpi);
+  const stroke = mmToPx(0.25, dpi);
+  const left = alignedLeft(rect, width, align);
+  const middle = left + width / 2;
+  const gap = size * 1.1;
+  return [
+    { kind: 'line', x1: left, y1: y, x2: middle - gap, y2: y, color, width: stroke },
+    { kind: 'diamond', x: middle, y, size, color },
+    { kind: 'line', x1: middle + gap, y1: y, x2: left + width, y2: y, color, width: stroke },
+  ];
+};
+
+/** the short rule above the name of a dish */
+const getDishRule = (rect: PxRect, y: number, align: Align, dpi: number, color: string): PageDecoration => {
+  const width = Math.min(rect.width * 0.3, mmToPx(10, dpi));
+  const left = alignedLeft(rect, width, align);
+  return { kind: 'line', x1: left, y1: y, x2: left + width, y2: y, color, width: mmToPx(0.3, dpi), opacity: 0.85 };
+};
+
+/** "Trattoria da Nino · Taormina, 23 June 2009" → ["Trattoria da Nino", "Taormina, 23 June 2009"] */
+export const splitMenuHeading = (title: string): [string, string?] => {
+  const index = title.indexOf(' · ');
+  return index === -1 ? [title] : [title.slice(0, index), title.slice(index + 3)];
+};
+
+/** the heading of a food page: the name in spaced small caps, then (after an ornament) the rest in italics */
+const getMenuHeading = (
+  title: string,
+  rect: PxRect,
+  align: Align,
+  titlePx: number,
+  color: string,
+  accent: string,
+): PageTextBlock[] => {
+  const [name, detail] = splitMenuHeading(title);
+  const blocks: PageTextBlock[] = [
+    {
+      kind: 'sectionTitle',
+      rect: { ...rect, height: rect.height * (detail ? 0.58 : 0.74) },
+      text: name,
+      fontPx: titlePx * 0.9,
+      align,
+      color,
+      valign: 'bottom',
+      ...FOOD_CAPS,
+    },
+  ];
+  if (detail) {
+    blocks.push({
+      kind: 'subtitle',
+      rect: { ...rect, top: rect.top + rect.height * 0.74, height: rect.height * 0.26 },
+      text: detail,
+      fontPx: titlePx * 0.5,
+      align,
+      color: accent,
+      italic: true,
+      valign: 'top',
+    });
+  }
+  return blocks;
+};
+
+const getMenuHeadingRuleY = (title: string, rect: PxRect) =>
+  rect.top + rect.height * (splitMenuHeading(title)[1] ? 0.66 : 0.86);
 
 export const ptToPx = (pt: number, dpi: number) => (pt * dpi) / 72;
 
@@ -397,27 +547,54 @@ export const planPage = (
 
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
+  const food = style.theme === 'food';
+  const accent = style.accentColor ?? style.textColor;
   const blocks: PageTextBlock[] = [];
+  const decorations: PageDecoration[] = [];
   let hasCaptionArea = false;
+  const captionedSlots = new Set<number>();
+
+  if (food && !layout.fullBleed) {
+    decorations.push(...getMenuFrame({ width, height }, mmToPx(style.marginMm, dpi), dpi, accent));
+  }
 
   for (const area of getTextRectsMm(layout, size, style)) {
     const rect = toPxRect(area, dpi);
     const base = { rect, align: area.align, color: style.textColor };
     switch (area.kind) {
       case 'title': {
-        blocks.push({ ...base, kind: area.kind, text: book.title, fontPx: titlePx, bold: true });
+        if (food) {
+          const text = { ...rect, height: rect.height * 0.78 };
+          blocks.push({ ...base, rect: text, kind: area.kind, text: book.title, fontPx: titlePx, ...FOOD_CAPS });
+          decorations.push(...getOrnament(rect, rect.top + rect.height * 0.9, area.align, dpi, accent));
+        } else {
+          blocks.push({ ...base, kind: area.kind, text: book.title, fontPx: titlePx, bold: true });
+        }
         break;
       }
       case 'subtitle': {
         if (book.subtitle) {
-          blocks.push({ ...base, kind: area.kind, text: book.subtitle, fontPx: titlePx * 0.55, italic: true });
+          blocks.push({
+            ...base,
+            kind: area.kind,
+            text: book.subtitle,
+            fontPx: titlePx * 0.55,
+            italic: true,
+            ...(food && { color: accent }),
+          });
         }
         break;
       }
       case 'sectionTitle': {
-        if (page.sectionTitle) {
-          blocks.push({ ...base, kind: area.kind, text: page.sectionTitle, fontPx: titlePx * 0.9, bold: true });
+        if (!page.sectionTitle) {
+          break;
         }
+        if (!food) {
+          blocks.push({ ...base, kind: area.kind, text: page.sectionTitle, fontPx: titlePx * 0.9, bold: true });
+          break;
+        }
+        blocks.push(...getMenuHeading(page.sectionTitle, rect, area.align, titlePx, style.textColor, accent));
+        decorations.push(...getOrnament(rect, getMenuHeadingRuleY(page.sectionTitle, rect), area.align, dpi, accent));
         break;
       }
       case 'caption': {
@@ -428,8 +605,38 @@ export const planPage = (
             ...base,
             kind: area.kind,
             text: page.caption,
-            fontPx: layout.slots.length === 0 ? captionPx * 1.3 : captionPx,
+            fontPx: (layout.slots.length === 0 ? captionPx * 1.3 : captionPx) * (food ? 1.1 : 1),
+            ...(food && { italic: true }),
           });
+        }
+        break;
+      }
+      case 'slotCaption': {
+        const slot = area.slot === undefined ? undefined : slots[area.slot];
+        if (!slot?.caption || !slot.assetId) {
+          break;
+        }
+        captionedSlots.add(slot.index);
+        const slotArea = layout.slots[slot.index];
+        // below its photo, the caption starts right under it; beside it, it is centred on the photo
+        const below = area.y >= slotArea.y + slotArea.height - 1e-6;
+        const offset = below ? captionPx * (food ? 1.1 : 0.3) : 0;
+        const block: PageTextBlock = {
+          ...base,
+          kind: 'slotCaption',
+          rect: { ...rect, top: rect.top + offset, height: Math.max(1, rect.height - offset) },
+          text: slot.caption,
+          fontPx: food ? captionPx * 1.3 : captionPx,
+          valign: below ? 'top' : 'middle',
+          ...(food && { italic: true }),
+        };
+        blocks.push(block);
+        if (food) {
+          // a short rule above the name of the dish
+          const { lines, fontPx } = fitText(block.text, block.rect, block.fontPx, getCharWidth(block));
+          const textHeight = lines.length * fontPx * LINE_HEIGHT;
+          const textTop = below ? block.rect.top : block.rect.top + (block.rect.height - textHeight) / 2;
+          decorations.push(getDishRule(rect, textTop - captionPx * 0.55, area.align, dpi, accent));
         }
         break;
       }
@@ -453,6 +660,7 @@ export const planPage = (
             fontPx: captionPx,
             align: 'center',
             color: style.textColor,
+            ...(food && { italic: true }),
           }
         : {
             kind: 'caption',
@@ -460,24 +668,29 @@ export const planPage = (
             text: page.caption,
             fontPx: captionPx,
             align: 'center',
-            color: '#ffffff',
             band: true,
             valign: 'bottom',
+            ...(food
+              ? { color: style.textColor, italic: true, bandColor: style.background, bandOpacity: 0.88 }
+              : { color: '#ffffff' }),
           },
     );
   }
 
   for (const slot of slots) {
-    if (slot.caption && slot.source) {
+    if (slot.caption && slot.source && !captionedSlots.has(slot.index)) {
       blocks.push({
         kind: 'slotCaption',
         rect: { ...slot.rect, top: slot.rect.top + slot.rect.height * 0.6, height: slot.rect.height * 0.4 },
         text: slot.caption,
         fontPx: captionPx * 0.9,
         align: 'left',
-        color: '#ffffff',
         band: true,
         valign: 'bottom',
+        // on food pages the caption is a paper label on the photo
+        ...(food
+          ? { color: style.textColor, italic: true, bandColor: style.background, bandOpacity: 0.88 }
+          : { color: '#ffffff' }),
       });
     }
   }
@@ -496,6 +709,7 @@ export const planPage = (
     }
   }
   const text = blocks.filter((block) => block.text.trim());
+  parts.push(...decorations.map((decoration) => renderDecoration(decoration)));
   parts.push(...text.map((block) => renderTextBlock(block, style.fontFamily)));
 
   const overlay =
@@ -510,6 +724,7 @@ export const planPage = (
     unknownLayout: !knownLayout,
     slots,
     text,
+    decorations,
     map,
     spec: {
       width,

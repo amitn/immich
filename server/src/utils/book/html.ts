@@ -8,7 +8,9 @@ import {
   RenderPageInput,
   RenderSource,
   fitText,
+  getCharWidth,
   planPage,
+  renderDecoration,
 } from 'src/utils/book/render.js';
 
 /** CSS pixels of a page's long edge on a large screen; images are sized for this at `HTML_PIXEL_RATIO` */
@@ -242,9 +244,10 @@ const renderText = (block: PageTextBlock, page: { width: number; height: number 
     width: Math.max(1, block.rect.width - 2 * padding),
     height: Math.max(1, block.rect.height - 2 * padding),
   };
-  const { fontPx } = fitText(block.text, inner, block.fontPx);
+  const { fontPx } = fitText(block.text, inner, block.fontPx, getCharWidth(block));
   const tag = block.kind === 'title' || block.kind === 'sectionTitle' ? 'h2' : 'p';
-  const classes = ['text', block.band && 'band', block.valign === 'bottom' && 'bottom'].filter(Boolean).join(' ');
+  const valign = block.valign === 'bottom' || block.valign === 'top' ? block.valign : undefined;
+  const classes = ['text', block.band && 'band', valign].filter(Boolean).join(' ');
   const style = [
     `left:${pct((block.rect.left / page.width) * 100)}`,
     `top:${pct((block.rect.top / page.height) * 100)}`,
@@ -255,6 +258,10 @@ const renderText = (block: PageTextBlock, page: { width: number; height: number 
     `color:${safeColor(block.color, '#222222')}`,
     block.bold ? 'font-weight:bold' : '',
     block.italic ? 'font-style:italic' : '',
+    block.smallCaps ? 'font-variant:small-caps' : '',
+    block.letterSpacing ? `letter-spacing:${num(block.letterSpacing)}em` : '',
+    block.band && block.bandColor ? `--band:${safeColor(block.bandColor, '#000000')}` : '',
+    block.band && block.bandOpacity !== undefined ? `--band-opacity:${num(block.bandOpacity)}` : '',
   ]
     .filter(Boolean)
     .join(';');
@@ -295,6 +302,14 @@ const renderPage = (book: RenderBookInput, page: RenderPageInput, index: number,
         `<img ${imageSource(refs, `asset:${slot.assetId}`, image.data)} alt="${escapeHtml(alt)}" ` +
         `style="width:${pct(css.width)};height:${pct(css.height)};transform:translate(${pct(css.x)},${pct(css.y)})">` +
         `</div>`,
+    );
+  }
+
+  if (plan.decorations.length > 0) {
+    // the rules and ornaments are drawn in the page's pixels, and the page keeps its aspect ratio
+    parts.push(
+      `<svg class="deco" viewBox="0 0 ${plan.spec.width} ${plan.spec.height}" preserveAspectRatio="none" aria-hidden="true">` +
+        `${plan.decorations.map((decoration) => renderDecoration(decoration)).join('')}</svg>`,
     );
   }
 
@@ -339,8 +354,12 @@ main{flex:1;display:flex;flex-direction:column;align-items:center;gap:1.5rem;pad
 .page-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .text{position:absolute;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
 .text.bottom{justify-content:flex-end}
+.text.top{justify-content:flex-start}
+.deco{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .text>*{margin:0;font-size:inherit;font-weight:inherit;line-height:${LINE_HEIGHT};white-space:pre-line;overflow-wrap:anywhere}
-.text.band>*{padding:.5em;background:rgba(0,0,0,.45)}
+.text.band>*{padding:.5em;position:relative}
+.text.band>*::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--band,#000000);opacity:var(--band-opacity,.45)}
+.text.band{isolation:isolate}
 .pager{display:none;align-items:center;justify-content:center;gap:.75rem;padding:.5rem 1rem}
 .mode-book .pager{display:flex}
 .pager output{min-width:9rem;text-align:center;font-variant-numeric:tabular-nums}

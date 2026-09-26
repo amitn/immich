@@ -212,6 +212,7 @@ describe(BookService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookService));
+    mocks.tag.getAssetTagValues.mockResolvedValue([]);
 
     mocks.book.update.mockResolvedValue();
     mocks.book.delete.mockResolvedValue();
@@ -230,7 +231,7 @@ describe(BookService.name, () => {
   describe('getStylePresets', () => {
     it('should list the presets with valid styles', () => {
       const presets = sut.getStylePresets();
-      expect(presets.map(({ id }) => id)).toEqual(['classic', 'soft', 'bold']);
+      expect(presets.map(({ id }) => id)).toEqual(['classic', 'soft', 'bold', 'food']);
       expect(presets[0].style).toEqual(
         expect.objectContaining({ marginMm: 12, background: '#ffffff', fontFamily: 'serif' }),
       );
@@ -329,7 +330,23 @@ describe(BookService.name, () => {
             fontFamily: 'serif',
             titleSizePt: 28,
             captionSizePt: 11,
+            theme: 'plain',
+            accentColor: '#5b4636',
           },
+        }),
+      );
+    });
+
+    it('should start from the food preset', async () => {
+      mocks.book.create.mockImplementation((book) =>
+        Promise.resolve(BookFactory.create({ ...(book as object), id: newUuid() } as never)),
+      );
+
+      await sut.create(auth, { title: 'Sicily, plate by plate', stylePreset: 'food' });
+
+      expect(mocks.book.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          style: expect.objectContaining({ theme: 'food', fontFamily: 'FreeSerif, serif', marginMm: 18 }),
         }),
       );
     });

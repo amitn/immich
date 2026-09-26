@@ -32,6 +32,18 @@ const fontFamily = z
   .max(100)
   .regex(/^[\w\s,'-]+$/, { error: 'Font family contains invalid characters' });
 
+export const bookStyleThemes = ['plain', 'food'] as const;
+
+export type BookStyleTheme = (typeof bookStyleThemes)[number];
+
+export const BookStyleThemeSchema = z
+  .enum(bookStyleThemes)
+  .describe(
+    'Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and ' +
+      'the names of the dishes set below the photos)',
+  )
+  .meta({ id: 'BookStyleTheme' });
+
 export const BookStyleSchema = z
   .object({
     marginMm: z.number().min(0).max(50).describe('Outer page margin in millimeters').meta({ format: 'double' }),
@@ -47,6 +59,8 @@ export const BookStyleSchema = z
       .optional()
       .describe('Caption font size in points')
       .meta({ format: 'double' }),
+    theme: BookStyleThemeSchema.optional(),
+    accentColor: cssColor.optional().describe('Color of the rules, ornaments and small-caps lines of the food theme (hex)'),
   })
   .describe('Visual style of a book')
   .meta({ id: 'BookStyle' });
@@ -61,6 +75,8 @@ export const defaultBookStyle: Required<BookStyle> = Object.freeze({
   fontFamily: 'serif',
   titleSizePt: 28,
   captionSizePt: 10,
+  theme: 'plain',
+  accentColor: '#222222',
 });
 
 export const resolveBookStyle = (style?: Partial<BookStyle> | null): Required<BookStyle> => ({
@@ -68,7 +84,7 @@ export const resolveBookStyle = (style?: Partial<BookStyle> | null): Required<Bo
   ...Object.fromEntries(Object.entries(style ?? {}).filter(([, value]) => value !== undefined && value !== null)),
 });
 
-export const bookStylePresetIds = ['classic', 'soft', 'bold'] as const;
+export const bookStylePresetIds = ['classic', 'soft', 'bold', 'food'] as const;
 
 export type BookStylePreset = (typeof bookStylePresetIds)[number];
 
@@ -76,8 +92,9 @@ export const BookStylePresetSchema = z
   .enum(bookStylePresetIds)
   .describe(
     'Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, ' +
-      'serif) or bold (small margins, tight gutters, sans-serif; suits full-bleed photos). The style options ' +
-      'override its values',
+      'serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos) or food (a printed menu: ' +
+      'warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one ' +
+      'chapter per restaurant visit). The style options override its values',
   )
   .meta({ id: 'BookStylePreset' });
 
@@ -101,6 +118,8 @@ export const bookStylePresets: Record<
       fontFamily: 'serif',
       titleSizePt: 28,
       captionSizePt: 10,
+      theme: 'plain',
+      accentColor: '#5b4636',
     },
   },
   bold: {
@@ -114,6 +133,25 @@ export const bookStylePresets: Record<
       fontFamily: 'sans-serif',
       titleSizePt: 32,
       captionSizePt: 9,
+      theme: 'plain',
+      accentColor: '#111111',
+    },
+  },
+  food: {
+    name: 'Food',
+    description:
+      'A printed menu: warm off-white paper, deep ink and terracotta, small-caps serif headings, thin rules and ' +
+      'ornaments, and the name of every dish below its photo',
+    style: {
+      marginMm: 18,
+      gutterMm: 6,
+      background: '#f6f0e4',
+      textColor: '#2a2420',
+      fontFamily: 'FreeSerif, serif',
+      titleSizePt: 30,
+      captionSizePt: 10.5,
+      theme: 'food',
+      accentColor: '#8c3b2a',
     },
   },
 };
@@ -219,13 +257,15 @@ const illustratedMaps = z
   .optional()
   .describe('Also redraw every map as an illustration with the art agent (default false)');
 
-export const bookCaptionModes = ['none', 'place', 'place-time', 'people'] as const;
+export const bookCaptionModes = ['none', 'place', 'place-time', 'people', 'dish'] as const;
 
 export const BookCaptionModeSchema = z
   .enum(bookCaptionModes)
   .describe(
-    'Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time) ' +
-      'or people (place and the names of the people); default place',
+    'Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time), ' +
+      'people (place and the names of the people) or dish (the name of the dish below every dish photo, from its ' +
+      'Food/<Restaurant>/<Dish> tag, and place for the other photos); default dish for the food style or photos ' +
+      'with food tags, otherwise place',
   )
   .meta({ id: 'BookCaptionMode' });
 
@@ -422,6 +462,8 @@ export const bookReviewIssueTypes = [
   'repeated-layout',
   'missing-captions',
   'could-look-better',
+  'missing-dish-name',
+  'missing-menu-page',
 ] as const;
 
 const BookReviewIssueSchema = z
@@ -503,11 +545,15 @@ const BookLayoutResponseSchema = z
     description: z.string().describe('Layout description'),
     orientation: z.enum(['any', 'landscape', 'portrait']).describe('Preferred photo orientation'),
     fullBleed: z.boolean().describe('Whether the layout ignores the page margins'),
+    food: z.boolean().describe('Whether the layout is made for food books (menu pages, dishes with their names)'),
     slots: z.array(LayoutRectSchema).describe('Photo slots, relative to the area inside the margins'),
     textAreas: z
       .array(
         LayoutRectSchema.extend({
-          kind: z.enum(['title', 'subtitle', 'sectionTitle', 'caption']).describe('Text shown in the area'),
+          kind: z
+            .enum(['title', 'subtitle', 'sectionTitle', 'caption', 'slotCaption'])
+            .describe('Text shown in the area; slotCaption is the caption of one photo, drawn beside it'),
+          slot: z.int().min(0).optional().describe('Zero-based slot whose caption a slotCaption area shows'),
         }),
       )
       .describe('Text areas, relative to the area inside the margins'),
@@ -605,8 +651,16 @@ export const mapBookLayout = (layout: BookLayout): BookLayoutResponseDto => ({
   description: layout.description,
   orientation: layout.orientation,
   fullBleed: !!layout.fullBleed,
+  food: !!layout.food,
   slots: layout.slots.map(({ x, y, width, height }) => ({ x, y, width, height })),
-  textAreas: layout.text.map(({ kind, x, y, width, height }) => ({ kind, x, y, width, height })),
+  textAreas: layout.text.map(({ kind, slot, x, y, width, height }) => ({
+    kind,
+    ...(slot !== undefined && { slot }),
+    x,
+    y,
+    width,
+    height,
+  })),
   ...(layout.map && {
     mapArea: { x: layout.map.x, y: layout.map.y, width: layout.map.width, height: layout.map.height },
   }),
