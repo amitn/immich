@@ -270,9 +270,12 @@ export const fitText = (
   charWidth = CHAR_WIDTH,
 ) => {
   const minPx = fontPx * 0.6;
+  // the text shrinks rather than break a word
+  const longestWord = Math.max(0, ...text.split(/\s+/).map((word) => word.length));
   for (let size = fontPx; size >= minPx; size *= 0.9) {
     const lines = wrapText(text, box.width, size, charWidth);
-    if (lines.length * size * LINE_HEIGHT <= box.height) {
+    const breaksWords = longestWord > Math.max(1, Math.floor(box.width / (size * charWidth)));
+    if (!breaksWords && lines.length * size * LINE_HEIGHT <= box.height) {
       return { lines, fontPx: size };
     }
   }
@@ -289,6 +292,30 @@ export const fitText = (
   return { lines: kept, fontPx: size };
 };
 
+/**
+ * The same text in no more lines, wrapped as narrowly as possible so the lines have about the same length, e.g.
+ * "Four Story Hill Farm / Milk-Poached Poularde" instead of "Four Story Hill Farm Milk-Poached / Poularde"; lines
+ * that were shortened with an ellipsis are kept
+ */
+export const balanceLines = (text: string, lines: string[], width: number, fontPx: number, charWidth = CHAR_WIDTH) => {
+  if (lines.length < 2 || lines.at(-1)!.endsWith('…') || text.includes('\n')) {
+    return lines;
+  }
+  const longestWord = Math.max(...text.split(/\s+/).map((word) => word.length));
+  let low = Math.min(width, Math.max(width / lines.length, longestWord * fontPx * charWidth));
+  let high = width;
+  for (let step = 0; step < 12; step++) {
+    const middle = (low + high) / 2;
+    if (wrapText(text, middle, fontPx, charWidth).length <= lines.length) {
+      high = middle;
+    } else {
+      low = middle;
+    }
+  }
+  const balanced = wrapText(text, high, fontPx, charWidth);
+  return balanced.length <= lines.length ? balanced : lines;
+};
+
 export type PageTextKind = LayoutTextArea['kind'] | 'slotCaption';
 
 export type PageTextBlock = {
@@ -301,6 +328,8 @@ export type PageTextBlock = {
   bold?: boolean;
   italic?: boolean;
   smallCaps?: boolean;
+  /** wraps the text into lines of about the same length */
+  balance?: boolean;
   /** extra space between the letters, as a share of the font size */
   letterSpacing?: number;
   /** draws a translucent band behind the text, for captions over photos */
@@ -349,7 +378,9 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
     width: Math.max(1, block.rect.width - 2 * padding),
     height: Math.max(1, block.rect.height - 2 * padding),
   };
-  const { lines, fontPx } = fitText(block.text, inner, block.fontPx, getCharWidth(block));
+  const fitted = fitText(block.text, inner, block.fontPx, getCharWidth(block));
+  const { fontPx } = fitted;
+  const lines = block.balance ? balanceLines(block.text, fitted.lines, inner.width, fontPx, getCharWidth(block)) : fitted.lines;
   const lineHeight = fontPx * LINE_HEIGHT;
   const textHeight = lines.length * lineHeight;
 
@@ -401,7 +432,37 @@ const renderPlaceholder = (rect: PxRect, label: string, fontFamily: string) => {
   );
 };
 
-const FOOD_CAPS = { smallCaps: true, letterSpacing: 0.12 } as const;
+const FOOD_CAPS = { smallCaps: true, letterSpacing: 0.12, balance: true } as const;
+
+/** relative luminance of a hex color (#rgb, #rrggbb, alpha ignored), 0..1 */
+export const getLuminance = (hex: string) => {
+  const value = hex.replace('#', '');
+  const full = value.length <= 4 ? [...value.slice(0, 3)].map((digit) => digit + digit).join('') : value.slice(0, 6);
+  const [r, g, b] = [0, 2, 4].map((index) => {
+    const channel = Number.parseInt(full.slice(index, index + 2), 16) / 255;
+    return channel <= 0.039_28 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return Number.isFinite(r + g + b) ? 0.2126 * r + 0.7152 * g + 0.0722 * b : 0;
+};
+
+export const getContrast = (a: string, b: string) => {
+  const [light, dark] = [getLuminance(a), getLuminance(b)].toSorted((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+};
+
+/** the color, or a light or a dark one when it is hard to read on the background (e.g. a page set on charcoal) */
+export const getReadableColor = (
+  color: string,
+  background: string,
+  minContrast = 3,
+  light = '#f1e9dc',
+  dark = '#2a2420',
+) => {
+  if (getContrast(color, background) >= minContrast) {
+    return color;
+  }
+  return getContrast(light, background) >= getContrast(dark, background) ? light : dark;
+};
 
 type Align = LayoutTextArea['align'];
 
@@ -487,10 +548,11 @@ const getMenuHeading = (
       kind: 'subtitle',
       rect: { ...rect, top: rect.top + rect.height * 0.74, height: rect.height * 0.26 },
       text: detail,
-      fontPx: titlePx * 0.5,
+      fontPx: titlePx * 0.46,
       align,
       color: accent,
       italic: true,
+      balance: true,
       valign: 'top',
     });
   }
@@ -548,7 +610,12 @@ export const planPage = (
   const titlePx = ptToPx(style.titleSizePt, dpi);
   const captionPx = ptToPx(style.captionSizePt, dpi);
   const food = style.theme === 'food';
-  const accent = style.accentColor ?? style.textColor;
+  const pageBackground = page.background ?? style.background;
+  // a food page set on dark paper (e.g. charcoal) keeps its text readable
+  const ink = food ? getReadableColor(style.textColor, pageBackground) : style.textColor;
+  const accent = food
+    ? getReadableColor(style.accentColor ?? style.textColor, pageBackground, 2.2, '#d4957c', '#8c3b2a')
+    : style.textColor;
   const blocks: PageTextBlock[] = [];
   const decorations: PageDecoration[] = [];
   let hasCaptionArea = false;
@@ -560,7 +627,7 @@ export const planPage = (
 
   for (const area of getTextRectsMm(layout, size, style)) {
     const rect = toPxRect(area, dpi);
-    const base = { rect, align: area.align, color: style.textColor };
+    const base = { rect, align: area.align, color: ink };
     switch (area.kind) {
       case 'title': {
         if (food) {
@@ -593,7 +660,7 @@ export const planPage = (
           blocks.push({ ...base, kind: area.kind, text: page.sectionTitle, fontPx: titlePx * 0.9, bold: true });
           break;
         }
-        blocks.push(...getMenuHeading(page.sectionTitle, rect, area.align, titlePx, style.textColor, accent));
+        blocks.push(...getMenuHeading(page.sectionTitle, rect, area.align, titlePx, ink, accent));
         decorations.push(...getOrnament(rect, getMenuHeadingRuleY(page.sectionTitle, rect), area.align, dpi, accent));
         break;
       }
@@ -606,7 +673,8 @@ export const planPage = (
             kind: area.kind,
             text: page.caption,
             fontPx: (layout.slots.length === 0 ? captionPx * 1.3 : captionPx) * (food ? 1.1 : 1),
-            ...(food && { italic: true }),
+            // e.g. the dishes on a menu page follow its heading
+            ...(food && { italic: true, balance: true, ...(layout.food && { valign: 'top' as const }) }),
           });
         }
         break;
@@ -628,7 +696,7 @@ export const planPage = (
           text: slot.caption,
           fontPx: food ? captionPx * 1.3 : captionPx,
           valign: below ? 'top' : 'middle',
-          ...(food && { italic: true }),
+          ...(food && { italic: true, balance: true }),
         };
         blocks.push(block);
         if (food) {
@@ -654,12 +722,13 @@ export const planPage = (
               left: box.left,
               top: box.top + box.height,
               width: box.width,
-              height: height - box.top - box.height,
+              // above the frame of a food page
+              height: height - box.top - box.height - (food ? marginPx * 0.5 : 0),
             },
             text: page.caption,
             fontPx: captionPx,
             align: 'center',
-            color: style.textColor,
+            color: ink,
             ...(food && { italic: true }),
           }
         : {
@@ -671,7 +740,7 @@ export const planPage = (
             band: true,
             valign: 'bottom',
             ...(food
-              ? { color: style.textColor, italic: true, bandColor: style.background, bandOpacity: 0.88 }
+              ? { color: ink, italic: true, bandColor: pageBackground, bandOpacity: 0.88 }
               : { color: '#ffffff' }),
           },
     );
@@ -689,7 +758,7 @@ export const planPage = (
         valign: 'bottom',
         // on food pages the caption is a paper label on the photo
         ...(food
-          ? { color: style.textColor, italic: true, bandColor: style.background, bandOpacity: 0.88 }
+          ? { color: ink, italic: true, bandColor: pageBackground, bandOpacity: 0.88 }
           : { color: '#ffffff' }),
       });
     }

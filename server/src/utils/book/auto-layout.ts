@@ -169,13 +169,19 @@ const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
 const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide']);
 const MENU_LAYOUTS = ['menu', 'menu-wide'];
+/** the dishes of a menu page are listed one per line up to this many */
+const MENU_LIST_MAX = 7;
 const OPENER_LAYOUTS = new Set(['cover', 'text', 'map', 'map-photo', ...TITLE_LAYOUTS]);
 /** the most dishes on one page, so that each gets room for its name */
 const MAX_DISHES_PER_PAGE = 4;
 /** a dish on a layout without room for its name below it, where the name covers the photo */
-const DISH_PLAIN_PENALTY = 0.8;
+const DISH_PLAIN_PENALTY = 0.4;
 /** four dishes on a page */
 const DISH_DENSE_PENALTY = 0.6;
+/** a photo without a dish name (e.g. the bread) on a layout made for dishes, whose caption stays empty */
+const UNNAMED_DISH_PENALTY = 0.3;
+/** a food book gives its dishes more room: a page per this many dishes */
+export const DISHES_PER_PAGE = 1.6;
 
 type Candidate = AutoLayoutPhoto & {
   importance: number;
@@ -224,8 +230,16 @@ export const getImportance = (photo: AutoLayoutPhoto, hero = false, mainPeople?:
   (mainPeople && photo.people?.some(({ id }) => mainPeople.has(id)) ? MAIN_PERSON_BONUS : 0) +
   (hero ? 1 : 0);
 
-export const getTargetPageCount = (photoCount: number) =>
-  clamp(Math.round(photoCount / PHOTOS_PER_PAGE), MIN_AUTO_PAGES, MAX_AUTO_PAGES);
+export const getTargetPageCount = (photoCount: number, food?: { dishes: number; menus: number }) =>
+  clamp(
+    Math.round(
+      food
+        ? (photoCount - food.dishes - food.menus) / PHOTOS_PER_PAGE + food.dishes / DISHES_PER_PAGE + food.menus
+        : photoCount / PHOTOS_PER_PAGE,
+    ),
+    MIN_AUTO_PAGES,
+    MAX_AUTO_PAGES,
+  );
 
 /** see `AutoLayoutPhotoKind`; copies are told apart by the suffix of their file name (e.g. IMG_1-crop.jpg) */
 export const getPhotoKind = (asset: {
@@ -790,11 +804,12 @@ class LayoutPlanner {
     if (dishes > 0 && photos.length > MAX_DISHES_PER_PAGE) {
       return null;
     }
-    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter(
-      (layout) => !layout.food || dishes === photos.length,
-    );
+    const layouts = (this.contentLayouts.get(photos.length) ?? []).filter((layout) => !layout.food || dishes > 0);
     const dishPenalty = (layout: BookLayout) =>
-      dishes > 0 ? (layout.food ? 0 : DISH_PLAIN_PENALTY) + (photos.length >= 4 ? DISH_DENSE_PENALTY : 0) : 0;
+      dishes > 0
+        ? (layout.food ? UNNAMED_DISH_PENALTY * (photos.length - dishes) : DISH_PLAIN_PENALTY * dishes) +
+          (photos.length >= 4 ? DISH_DENSE_PENALTY : 0)
+        : 0;
     const sharedHero = !pair && photos.length > 1 && photos.some((photo) => photo.hero);
     if (sharedHero && strict) {
       return null;
@@ -1092,8 +1107,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       drop(photo, 'resolution');
     }
   }
-  const stackCount = new Set(printable.map((photo) => photo.stackId ?? photo.id)).size;
-  const target = Math.max(1, Math.round(options.targetPageCount ?? getTargetPageCount(stackCount)));
+  const stacks = [...Map.groupBy(printable, (photo) => photo.stackId ?? photo.id).values()];
+  // a food book has a page per menu, and more room for the dishes
+  const foodCounts = foodBook
+    ? {
+        dishes: stacks.filter((stack) => stack.some((photo) => isDishPhoto(photo))).length,
+        menus: new Set(printable.filter((photo) => isMenuPhoto(photo)).map((photo) => photo.food!.restaurant)).size,
+      }
+    : undefined;
+  const target = Math.max(1, Math.round(options.targetPageCount ?? getTargetPageCount(stacks.length, foodCounts)));
   const artworkBudget = Math.round(target * clamp(options.maxArtworkShare ?? DEFAULT_MAX_ARTWORK_SHARE, 0, 1));
   const units = resolveStacks(
     printable,
@@ -1518,7 +1540,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       }
       const dishes = MENU_LAYOUTS.includes(page.layout) && captions === 'dish' ? getDishes(page.section!) : [];
       if (dishes.length > 0) {
-        page.caption = dishes.join('\n');
+        // a short list beside a menu, or a run of names below a wide one or when there are many
+        page.caption = dishes.join(page.layout === 'menu' && dishes.length <= MENU_LIST_MAX ? '\n' : ' · ');
       }
       for (const place of getPlaces(visitPhotos.get(page.section!) ?? [])) {
         visited.add(place);

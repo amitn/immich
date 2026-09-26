@@ -243,7 +243,7 @@ export const bookLayouts: readonly BookLayout[] = [
     slots: [{ x: 0, y: 0.2, width: 1, height: 0.66 }],
     text: [
       { kind: 'sectionTitle', x: 0, y: 0, width: 1, height: 0.2, align: 'center' },
-      { kind: 'slotCaption', slot: 0, x: 0, y: 0.87, width: 1, height: 0.13, align: 'center' },
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' },
     ],
     orientation: 'landscape',
     food: true,
@@ -252,9 +252,18 @@ export const bookLayouts: readonly BookLayout[] = [
     id: 'dish',
     name: 'Dish',
     description: 'One dish on its own page, with its name (the slot caption) below the photo.',
-    slots: [{ x: 0, y: 0, width: 1, height: 0.85 }],
-    text: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.86, width: 1, height: 0.14, align: 'center' }],
+    slots: [{ x: 0, y: 0, width: 1, height: 0.8 }],
+    text: [{ kind: 'slotCaption', slot: 0, x: 0, y: 0.8, width: 1, height: 0.2, align: 'center' }],
     orientation: 'landscape',
+    food: true,
+  },
+  {
+    id: 'dish-portrait',
+    name: 'Dish, portrait',
+    description: 'One portrait dish on the left (slot 1), with its name (the slot caption) beside it, like a magazine.',
+    slots: [{ x: 0, y: 0.04, width: 0.64, height: 0.92 }],
+    text: [{ kind: 'slotCaption', slot: 0, x: 0.67, y: 0.36, width: 0.33, height: 0.28, align: 'left' }],
+    orientation: 'portrait',
     food: true,
   },
   {
@@ -266,8 +275,8 @@ export const bookLayouts: readonly BookLayout[] = [
       { x: 0.5, y: 0.14, width: 0.5, height: 0.56 },
     ],
     text: [
-      { kind: 'slotCaption', slot: 0, x: 0, y: 0.71, width: 0.5, height: 0.14, align: 'center' },
-      { kind: 'slotCaption', slot: 1, x: 0.5, y: 0.71, width: 0.5, height: 0.14, align: 'center' },
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.7, width: 0.5, height: 0.15, align: 'center' },
+      { kind: 'slotCaption', slot: 1, x: 0.5, y: 0.7, width: 0.5, height: 0.15, align: 'center' },
     ],
     orientation: 'any',
     food: true,
@@ -290,6 +299,25 @@ export const bookLayouts: readonly BookLayout[] = [
     food: true,
   },
   {
+    id: 'dish-list',
+    name: 'Three dishes, listed',
+    description:
+      'Three landscape dishes in rows like the lines of a menu: each photo on the left (slots 1 to 3) with its name ' +
+      '(the slot caption) beside it.',
+    slots: [
+      { x: 0, y: 0, width: 0.52, height: third },
+      { x: 0, y: third, width: 0.52, height: third },
+      { x: 0, y: 2 * third, width: 0.52, height: third },
+    ],
+    text: [
+      { kind: 'slotCaption', slot: 0, x: 0.56, y: 0.04, width: 0.44, height: third - 0.08, align: 'left' },
+      { kind: 'slotCaption', slot: 1, x: 0.56, y: third + 0.04, width: 0.44, height: third - 0.08, align: 'left' },
+      { kind: 'slotCaption', slot: 2, x: 0.56, y: 2 * third + 0.04, width: 0.44, height: third - 0.08, align: 'left' },
+    ],
+    orientation: 'landscape',
+    food: true,
+  },
+  {
     id: 'dish-trio',
     name: 'Three dishes',
     description: 'Three dishes in a row of near-square slots, each with its name (the slot caption) below it.',
@@ -299,9 +327,9 @@ export const bookLayouts: readonly BookLayout[] = [
       { x: 2 * third, y: 0.24, width: third, height: 0.37 },
     ],
     text: [
-      { kind: 'slotCaption', slot: 0, x: 0, y: 0.62, width: third, height: 0.16, align: 'center' },
-      { kind: 'slotCaption', slot: 1, x: third, y: 0.62, width: third, height: 0.16, align: 'center' },
-      { kind: 'slotCaption', slot: 2, x: 2 * third, y: 0.62, width: third, height: 0.16, align: 'center' },
+      { kind: 'slotCaption', slot: 0, x: 0, y: 0.61, width: third, height: 0.17, align: 'center' },
+      { kind: 'slotCaption', slot: 1, x: third, y: 0.61, width: third, height: 0.17, align: 'center' },
+      { kind: 'slotCaption', slot: 2, x: 2 * third, y: 0.61, width: third, height: 0.17, align: 'center' },
     ],
     orientation: 'any',
     food: true,

@@ -259,6 +259,7 @@ const renderText = (block: PageTextBlock, page: { width: number; height: number 
     block.bold ? 'font-weight:bold' : '',
     block.italic ? 'font-style:italic' : '',
     block.smallCaps ? 'font-variant:small-caps' : '',
+    block.balance ? 'text-wrap:balance' : '',
     block.letterSpacing ? `letter-spacing:${num(block.letterSpacing)}em` : '',
     block.band && block.bandColor ? `--band:${safeColor(block.bandColor, '#000000')}` : '',
     block.band && block.bandOpacity !== undefined ? `--band-opacity:${num(block.bandOpacity)}` : '',
