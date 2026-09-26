@@ -11,6 +11,11 @@ import { OcrPass, mergeOcrPasses } from 'src/utils/food/tiles.js';
  * full-resolution OCR of their menus, the CLIP embeddings of their dish photos and the CLIP text embeddings of the menu
  * items, captured by `capture-benchmark.mjs`. The menus are read, the dishes matched as `FoodService.matchMeal` does,
  * and the result is scored against what each photo shows (see `src/utils/food/benchmark.spec.ts`).
+ *
+ * `benchmark.json.gz` is derived from photos by City Foodsters (https://www.flickr.com/people/89060048@N03), CC BY 2.0
+ * (https://creativecommons.org/licenses/by/2.0), via Wikimedia Commons: The French Laundry (2014-01-11), Katz's
+ * Delicatessen (2013-06-15) and Noma Australia (2016-03-24). It holds no images, only their OCR, CLIP embeddings,
+ * capture times, and what each photo shows.
  */
 
 const FIXTURE = new URL('benchmark.json.gz', import.meta.url);
