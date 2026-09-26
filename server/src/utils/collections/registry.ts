@@ -1,19 +1,20 @@
 import { CollectionPack, validateCollectionPack } from 'src/utils/collections/pack.js';
-import { foodPack } from 'src/utils/collections/packs/food/pack.js';
-// (keep this line: packs are imported one per line, each between two of these)
-// museum: import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
-// (keep this line)
-// wine: import { winePack } from 'src/utils/collections/packs/wine/pack.js';
-// (keep this line)
+// (keep this line: the packs are imported in alphabetical order, one per reserved line, between lines like this one)
 // cookbook: import { cookbookPack } from 'src/utils/collections/packs/cookbook/pack.js';
+// (keep this line)
+import { foodPack } from 'src/utils/collections/packs/food/pack.js';
+// (keep this line)
+// museum: import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
 // (keep this line)
 // travel: import { travelPack } from 'src/utils/collections/packs/travel/pack.js';
 // (keep this line)
+// wine: import { winePack } from 'src/utils/collections/packs/wine/pack.js';
+// (keep this line)
 
 /**
- * The packs of the collections engine, in the order they are listed. To add a pack, replace its reserved line here
- * and in the imports above (keep the "(keep this line)" lines between them, so that packs added on different branches
- * merge without conflicts).
+ * The packs of the collections engine, in the order they are listed (food first). To add a pack, replace its reserved
+ * line here and in the imports above with the import and the name of the pack (keep the "(keep this line)" lines
+ * between them, so that packs added on different branches merge without conflicts).
  */
 export const BUILT_IN_COLLECTION_PACKS: readonly CollectionPack[] = [
   foodPack,
