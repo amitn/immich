@@ -45,7 +45,7 @@
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAlbumBookActions } from '$lib/services/book.service';
-  import { getAlbumFoodActions, getFoodBulkActions } from '$lib/services/food.service';
+  import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
   import { handlePromiseError, isEnabled } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
@@ -332,7 +332,7 @@
   const { Cast } = $derived(getGlobalActions($t));
   const { Share, Leave } = $derived(getAlbumActions($t, album));
   const { ExportAsBook } = $derived(getAlbumBookActions($t, album));
-  const { NameDishes } = $derived(getAlbumFoodActions($t, album));
+  const CollectionActions = $derived(getAlbumCollectionActions($t, album));
   const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets));
 
   const Close = $derived({
@@ -474,7 +474,7 @@
     {#if assetMultiSelectManager.selectionActive}
       <AssetSelectControlBar>
         {@const Actions = getAssetBulkActions($t, album)}
-        {@const FoodActions = getFoodBulkActions($t)}
+        {@const CollectionBulkActions = getCollectionBulkActions($t)}
         <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
         <CreateSharedLink />
         <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
@@ -509,7 +509,9 @@
           {#if authManager.preferences.tags.enabled && assetMultiSelectManager.isAllUserOwned}
             <TagAction menuItem />
           {/if}
-          <ActionMenuItem action={FoodActions.NameDishes} />
+          {#each CollectionBulkActions as action (action.title)}
+            <ActionMenuItem {action} />
+          {/each}
 
           <ActionMenuItem action={Actions.RemoveFromAlbum} />
           {#if assetMultiSelectManager.isAllUserOwned}
@@ -567,7 +569,7 @@
               />
             {/if}
 
-            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook) || isEnabled(NameDishes)}
+            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook) || CollectionActions.some( (action) => isEnabled(action) )}
               <ButtonContextMenu
                 icon={mdiDotsVertical}
                 title={$t('album_options')}
@@ -575,7 +577,9 @@
                 offset={{ x: 175, y: 25 }}
               >
                 <ActionMenuItem action={ExportAsBook} />
-                <ActionMenuItem action={NameDishes} />
+                {#each CollectionActions as action (action.title)}
+                  <ActionMenuItem {action} />
+                {/each}
                 {#if containsEditors}
                   <MenuOption
                     icon={showAlbumUsers ? mdiAccountEye : mdiAccountEyeOutline}

@@ -6,31 +6,35 @@ import {
   type BookStylePresetResponseDto,
 } from '@immich/sdk';
 import type { Translations } from 'svelte-i18n';
+import { collectionPacks } from '$lib/collections/registry';
 
-export const BOOK_STYLE_PRESETS = [
+/** the presets in the order of the picker: the built-in ones, then the preset of each collection pack (e.g. food) */
+export const BOOK_STYLE_PRESETS: readonly BookStylePreset[] = [
   BookStylePreset.Soft,
   BookStylePreset.Classic,
   BookStylePreset.Bold,
-  BookStylePreset.Food,
-] as const;
+  ...collectionPacks.map((pack) => pack.bookStylePreset),
+];
 
 export const DEFAULT_BOOK_STYLE_PRESET = BookStylePreset.Soft;
 
-export const BOOK_STYLE_PRESET_LABEL_KEYS: Record<BookStylePreset, { name: Translations; description: Translations }> =
-  {
-    [BookStylePreset.Soft]: { name: 'book_style_preset_soft', description: 'book_style_preset_soft_description' },
-    [BookStylePreset.Classic]: {
-      name: 'book_style_preset_classic',
-      description: 'book_style_preset_classic_description',
-    },
-    [BookStylePreset.Bold]: { name: 'book_style_preset_bold', description: 'book_style_preset_bold_description' },
-    [BookStylePreset.Food]: { name: 'book_style_preset_food', description: 'book_style_preset_food_description' },
-  };
+type PresetLabels = { name: Translations; description: Translations };
+
+/** the labels of the built-in presets, then of the preset of each collection pack */
+export const BOOK_STYLE_PRESET_LABEL_KEYS = {
+  [BookStylePreset.Soft]: { name: 'book_style_preset_soft', description: 'book_style_preset_soft_description' },
+  [BookStylePreset.Classic]: {
+    name: 'book_style_preset_classic',
+    description: 'book_style_preset_classic_description',
+  },
+  [BookStylePreset.Bold]: { name: 'book_style_preset_bold', description: 'book_style_preset_bold_description' },
+  ...Object.fromEntries(collectionPacks.map((pack) => [pack.bookStylePreset, pack.bookStyleLabels])),
+} as Record<BookStylePreset, PresetLabels>;
 
 let presets: Promise<BookStylePresetResponseDto[]> | undefined;
 
 const presetOrder = (preset: BookStylePresetResponseDto) => {
-  const index = (BOOK_STYLE_PRESETS as readonly BookStylePreset[]).indexOf(preset.id);
+  const index = BOOK_STYLE_PRESETS.indexOf(preset.id);
   return index === -1 ? BOOK_STYLE_PRESETS.length : index;
 };
 

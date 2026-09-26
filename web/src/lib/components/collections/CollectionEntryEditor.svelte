@@ -1,39 +1,44 @@
 <script lang="ts">
+  import { getCollectionLabel, type CollectionLabel, type WebCollectionPack } from '$lib/collections/pack';
+  import type { CollectionEntry } from '$lib/collections/types';
   import Combobox, { type ComboBoxOption } from '$lib/components/shared-components/Combobox.svelte';
   import { getAssetMediaUrl } from '$lib/utils';
-  import { getDishOptions, type FoodDishRow } from '$lib/utils/food';
-  import { AssetMediaSize, type FoodMenuItemDto } from '@immich/sdk';
+  import { getEntryOptions, type EntryRow } from '$lib/utils/collections';
+  import { AssetMediaSize } from '@immich/sdk';
   import { Checkbox, Input, Label } from '@immich/ui';
   import { t } from 'svelte-i18n';
 
   type Props = {
-    row: FoodDishRow;
-    /** the items read on the menu; without them dishes are named freely */
-    items: FoodMenuItemDto[];
+    pack: WebCollectionPack;
+    row: EntryRow;
+    /** the entries read on the source; without them subjects are named freely */
+    entries: CollectionEntry[];
     disabled?: boolean;
-    onChange: (row: FoodDishRow) => void;
+    onChange: (row: EntryRow) => void;
   };
 
-  const { row, items, disabled = false, onChange }: Props = $props();
+  const { pack, row, entries, disabled = false, onChange }: Props = $props();
 
-  const hasMenu = $derived(items.length > 0);
-  const options = $derived(getDishOptions(items, row));
+  const label = (key: CollectionLabel) => getCollectionLabel(pack, key);
+
+  const hasSource = $derived(entries.length > 0);
+  const options = $derived(getEntryOptions(entries, row));
   const selectedOption = $derived<ComboBoxOption | undefined>(
     row.name ? { id: `${row.key}-${row.name}`, label: row.name, value: row.name } : undefined,
   );
   const saved = $derived(!!row.savedName && row.savedName === row.name.trim());
   const [cover, ...others] = $derived(row.assetIds);
-  const checkboxId = $derived(`food-off-menu-${row.key}`);
+  const checkboxId = $derived(`${pack.id}-off-list-${row.key}`);
 
-  const menuNames = $derived(new Set(items.map(({ name }) => name)));
+  const entryNames = $derived(new Set(entries.map(({ name }) => name)));
 
-  const setOffMenu = (offMenu: boolean) => {
-    if (offMenu) {
-      onChange({ ...row, offMenu, name: menuNames.has(row.name) ? '' : row.name });
+  const setOffList = (offList: boolean) => {
+    if (offList) {
+      onChange({ ...row, offList, name: entryNames.has(row.name) ? '' : row.name });
       return;
     }
-    const name = menuNames.has(row.name) ? row.name : (row.matchedName ?? row.suggestions[0] ?? '');
-    onChange({ ...row, offMenu, name });
+    const name = entryNames.has(row.name) ? row.name : (row.matchedName ?? row.suggestions[0] ?? '');
+    onChange({ ...row, offList, name });
   };
 </script>
 
@@ -41,21 +46,21 @@
   class="flex gap-3 rounded-xl border p-2 sm:p-3 {row.unsure
     ? 'border-amber-400 bg-amber-50 dark:border-amber-600 dark:bg-amber-950/30'
     : 'border-gray-200 dark:border-gray-700'}"
-  data-testid="food-dish"
+  data-testid="collection-entry"
   data-unsure={row.unsure || undefined}
-  data-off-menu={row.offMenu || undefined}
+  data-off-list={row.offList || undefined}
 >
   <div class="relative shrink-0">
     <img
       src={getAssetMediaUrl({ id: cover, size: AssetMediaSize.Thumbnail })}
-      alt={row.name || $t('food_dish_unnamed')}
+      alt={row.name || $t(label('subject_unnamed'))}
       class="size-20 rounded-lg bg-gray-100 object-cover sm:size-24 dark:bg-gray-800"
       draggable="false"
     />
     {#if others.length > 0}
       <span
         class="absolute inset-e-1 bottom-1 rounded-full bg-black/70 px-1.5 text-xs text-white"
-        title={$t('food_dish_photos', { values: { count: row.assetIds.length } })}
+        title={$t(label('subject_photos'), { values: { count: row.assetIds.length } })}
       >
         +{others.length}
       </span>
@@ -68,53 +73,57 @@
         <span
           class="rounded-full bg-amber-200 px-2 py-0.5 font-medium text-amber-900 dark:bg-amber-800 dark:text-amber-100"
         >
-          {$t('food_dish_unsure')}
+          {$t(label('subject_unsure'))}
         </span>
       {/if}
-      {#if row.offMenu}
+      {#if row.offList}
         <span class="rounded-full bg-gray-200 px-2 py-0.5 text-gray-800 dark:bg-gray-700 dark:text-gray-100">
-          {$t('food_not_on_menu')}
+          {$t(label('not_on_source'))}
         </span>
       {/if}
       {#if saved}
         <span class="rounded-full bg-green-100 px-2 py-0.5 text-green-900 dark:bg-green-900 dark:text-green-100">
-          {$t('food_dish_saved')}
+          {$t(label('subject_saved'))}
         </span>
       {/if}
     </div>
 
-    {#if hasMenu && !row.offMenu}
+    {#if hasSource && !row.offList}
       <Combobox
-        label={$t('food_dish_name')}
+        label={$t(label('subject_name'))}
         {options}
         {selectedOption}
         {disabled}
         allowCreate
-        placeholder={$t('food_dish_name_placeholder')}
+        placeholder={$t(label('subject_name_placeholder'))}
         onSelect={(option) => onChange({ ...row, name: option?.value ?? '', unsure: false })}
       />
     {:else}
-      <Label label={$t('food_dish_name')} for="food-dish-{row.key}" class="text-xs font-light text-neutral-500" />
+      <Label
+        label={$t(label('subject_name'))}
+        for="{pack.id}-entry-{row.key}"
+        class="text-xs font-light text-neutral-500"
+      />
       <Input
-        id="food-dish-{row.key}"
+        id="{pack.id}-entry-{row.key}"
         value={row.name}
         {disabled}
         maxlength={200}
-        placeholder={$t('food_dish_free_placeholder')}
+        placeholder={$t(label('subject_free_placeholder'))}
         oninput={(event) => onChange({ ...row, name: event.currentTarget.value, unsure: false })}
       />
     {/if}
 
-    {#if hasMenu}
+    {#if hasSource}
       <div class="flex items-center gap-2">
         <Checkbox
           id={checkboxId}
           size="tiny"
-          checked={row.offMenu}
+          checked={row.offList}
           {disabled}
-          onCheckedChange={(checked) => setOffMenu(!!checked)}
+          onCheckedChange={(checked) => setOffList(!!checked)}
         />
-        <Label label={$t('food_not_on_menu')} for={checkboxId} class="text-sm" />
+        <Label label={$t(label('not_on_source'))} for={checkboxId} class="text-sm" />
       </div>
     {/if}
   </div>
