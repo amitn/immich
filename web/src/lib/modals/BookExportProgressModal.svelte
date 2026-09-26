@@ -5,9 +5,10 @@
   import { getBookExportStatus, getBookFileName, isBookExporting, isExportActive } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
   import { BookExportFormat, BookExportStatus, exportBook, getBook, type BookDetailResponseDto } from '@immich/sdk';
-  import { Button, HStack, Icon, LoadingSpinner, Modal, ModalBody, ModalFooter, Text } from '@immich/ui';
+  import { Alert, Button, HStack, Icon, LoadingSpinner, Modal, ModalBody, ModalFooter, Text } from '@immich/ui';
   import {
     mdiAlertCircleOutline,
+    mdiAlertOutline,
     mdiBookOpenPageVariantOutline,
     mdiCheckCircle,
     mdiDownload,
@@ -23,10 +24,12 @@
     book: BookDetailResponseDto;
     /** the exports that were requested */
     formats: BookExportFormat[];
+    /** notes from laying out the book, e.g. maps drawn as sketches for lack of a Stadia Maps key */
+    warnings?: string[];
     onClose: () => void;
   };
 
-  const { book: initialBook, formats, onClose }: Props = $props();
+  const { book: initialBook, formats, warnings = [], onClose }: Props = $props();
 
   const POLL_INTERVAL = 3000;
 
@@ -122,6 +125,16 @@
       <Text size="small" color="muted">
         {$t('book_export_progress_description', { values: { title: book.title, count: book.pages.length } })}
       </Text>
+
+      {#if warnings.length > 0}
+        <Alert color="warning" icon={mdiAlertOutline} size="small" title={$t('book_layout_warnings')}>
+          <ul class="flex list-disc flex-col gap-1 ps-4 text-sm" data-testid="book-layout-warnings">
+            {#each warnings as warning (warning)}
+              <li>{warning}</li>
+            {/each}
+          </ul>
+        </Alert>
+      {/if}
 
       <ul class="flex flex-col gap-2" aria-label={$t('book_exports')}>
         {#each formats as format (format)}

@@ -8,14 +8,15 @@
     toBookMapStyleOption,
   } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
-  import { autoLayoutBook, type BookDetailResponseDto } from '@immich/sdk';
+  import { autoLayoutBook, type BookAutoLayoutResponseDto, type BookDetailResponseDto } from '@immich/sdk';
   import { Alert, Field, FormModal, NumberInput } from '@immich/ui';
   import { mdiAlertOutline, mdiAutoFix } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
   type Props = {
     book: BookDetailResponseDto;
-    onClose: (updated?: BookDetailResponseDto) => void;
+    /** Called with the book laid out again, and the notes from laying it out */
+    onClose: (updated?: BookAutoLayoutResponseDto) => void;
   };
 
   const { book, onClose }: Props = $props();

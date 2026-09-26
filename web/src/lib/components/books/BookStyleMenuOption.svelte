@@ -41,21 +41,21 @@
   onclick={handleClick}
   onmouseover={() => ($selectedIdStore = id)}
   onmouseleave={() => ($selectedIdStore = undefined)}
-  class="flex w-full items-center gap-3 px-4 py-2 text-start text-sm font-medium text-immich-fg dark:text-immich-dark-bg {disabled
+  class="flex w-full items-center gap-3 px-4 py-2 text-start text-sm font-medium text-immich-fg dark:text-immich-dark-fg {disabled
     ? 'cursor-default'
-    : 'cursor-pointer'} {isActive ? 'bg-slate-300' : 'bg-slate-100'}"
+    : 'cursor-pointer'} {isActive ? 'bg-slate-300 dark:bg-neutral-700' : 'bg-slate-100 dark:bg-neutral-900'}"
   role="menuitemradio"
   aria-checked={checked}
   aria-disabled={disabled || undefined}
 >
   <BookStyleSwatch {style} {pageWidthMm} size={36} />
   <span class="flex min-w-0 grow flex-col">
-    <span class={checked ? 'text-immich-primary' : ''}>{name}</span>
+    <span class={checked ? 'text-immich-primary dark:text-immich-dark-primary' : ''}>{name}</span>
     {#if description}
-      <span class="max-w-56 text-xs font-normal text-gray-500">{description}</span>
+      <span class="max-w-56 text-xs font-normal text-gray-500 dark:text-gray-400">{description}</span>
     {/if}
   </span>
-  <span class="size-4.5 shrink-0 text-immich-primary">
+  <span class="size-4.5 shrink-0 text-immich-primary dark:text-immich-dark-primary">
     {#if checked}
       <Icon icon={mdiCheck} size="18" aria-hidden />
     {/if}

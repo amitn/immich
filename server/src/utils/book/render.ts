@@ -1,5 +1,6 @@
 import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   BookLayout,
   LayoutRect,
@@ -334,7 +335,7 @@ const renderTextBlock = (block: PageTextBlock, fontFamily: string) => {
   });
 
   parts.push(
-    `<text font-family="${escapeXml(fontFamily)}" font-size="${fontPx.toFixed(1)}" fill="${escapeXml(block.color)}" text-anchor="${anchor}"${block.bold ? ' font-weight="bold"' : ''}${block.italic ? ' font-style="italic"' : ''}>${tspans.join('')}</text>`,
+    `<text font-family="${escapeXml(getFontStack(fontFamily))}" font-size="${fontPx.toFixed(1)}" fill="${escapeXml(block.color)}" text-anchor="${anchor}"${block.bold ? ' font-weight="bold"' : ''}${block.italic ? ' font-style="italic"' : ''}>${tspans.join('')}</text>`,
   );
 
   return parts.join('');

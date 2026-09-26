@@ -10,13 +10,16 @@
     type Align,
   } from '$lib/utils/context-menu';
   import { generateId } from '$lib/utils/generate-id';
-  import { IconButton, type Color, type Size, type Variants } from '@immich/ui';
+  import { Button, IconButton, type Color, type Size, type Variants } from '@immich/ui';
   import type { Snippet } from 'svelte';
-  import type { HTMLAttributes } from 'svelte/elements';
+  import type { ClassValue, HTMLAttributes } from 'svelte/elements';
 
   type Props = {
     icon: string;
+    /** The accessible name and tooltip of the button */
     title: string;
+    /** A visible label next to the icon (from the sm breakpoint up), like the other buttons of a page header */
+    label?: string;
     /**
      * The alignment of the context menu relative to the button.
      */
@@ -33,6 +36,10 @@
      * Additional classes to apply to the button.
      */
     buttonClass?: string | undefined;
+    /**
+     * Additional classes for the menu, e.g. its colours in dark mode.
+     */
+    menuClass?: ClassValue;
     hideContent?: boolean;
     children?: Snippet;
     offset?: {
@@ -44,12 +51,14 @@
   let {
     icon,
     title,
+    label = undefined,
     align = 'top-left',
     direction = 'right',
     color = 'secondary',
     size = undefined,
     variant = 'ghost',
     buttonClass = undefined,
+    menuClass = undefined,
     hideContent = false,
     children,
     offset,
@@ -158,20 +167,39 @@
   {...restProps}
 >
   <div bind:this={buttonContainer}>
-    <IconButton
-      {color}
-      {icon}
-      {size}
-      shape="round"
-      {variant}
-      aria-label={title}
-      aria-controls={menuId}
-      aria-expanded={isOpen}
-      aria-haspopup={true}
-      class={buttonClass}
-      id={buttonId}
-      onclick={handleClick}
-    />
+    {#if label}
+      <Button
+        {color}
+        leadingIcon={icon}
+        {size}
+        {variant}
+        aria-label={title}
+        title={title === label ? undefined : title}
+        aria-controls={menuId}
+        aria-expanded={isOpen}
+        aria-haspopup={true}
+        class={buttonClass}
+        id={buttonId}
+        onclick={handleClick}
+      >
+        <span class="hidden sm:inline">{label}</span>
+      </Button>
+    {:else}
+      <IconButton
+        {color}
+        {icon}
+        {size}
+        shape="round"
+        {variant}
+        aria-label={title}
+        aria-controls={menuId}
+        aria-expanded={isOpen}
+        aria-haspopup={true}
+        class={buttonClass}
+        id={buttonId}
+        onclick={handleClick}
+      />
+    {/if}
   </div>
   {#if isOpen || !hideContent}
     <div
@@ -189,6 +217,7 @@
       ]}
     >
       <ContextMenu
+        class={menuClass}
         {direction}
         ariaActiveDescendant={$selectedIdStore}
         ariaLabelledBy={buttonId}

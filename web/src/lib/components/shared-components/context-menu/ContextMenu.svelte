@@ -2,6 +2,7 @@
   import { clickOutside } from '$lib/actions/click-outside';
   import { languageManager } from '$lib/managers/language-manager.svelte';
   import type { Snippet } from 'svelte';
+  import type { ClassValue } from 'svelte/elements';
 
   interface Props {
     isVisible?: boolean;
@@ -15,6 +16,8 @@
     menuScrollView?: HTMLDivElement | undefined;
     menuElement?: HTMLUListElement | undefined;
     onClose?: (() => void) | undefined;
+    /** Additional classes for the menu, e.g. its colours in dark mode */
+    class?: ClassValue;
     children?: Snippet;
   }
 
@@ -30,6 +33,7 @@
     menuScrollView = $bindable(),
     menuElement = $bindable(),
     onClose = undefined,
+    class: className = undefined,
     children,
   }: Props = $props();
 
@@ -66,6 +70,7 @@
   class={[
     'fixed z-70 w-max max-w-75 min-w-50 immich-scrollbar rounded-lg bg-slate-100 shadow-lg duration-250 ease-in-out',
     position.needScrollBar ? 'overflow-auto' : 'overflow-hidden',
+    className,
   ]}
   style:left="{position.left}px"
   style:top="{position.top}px"

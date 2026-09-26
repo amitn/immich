@@ -1196,16 +1196,17 @@ describe(BookService.name, () => {
         expect(plannedPages().find((page) => page.map)?.map?.style).toBe('watercolor');
       });
 
-      it('should pick a map style that works for auto', async () => {
+      it('should keep the default map style for auto and warn when it needs a key', async () => {
         const { albumId } = setupAlbum(trip());
 
+        // the default is watercolor, without a key
         const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'auto' });
 
-        expect(result.warnings).toEqual([]);
+        expect(result.warnings).toEqual([expect.stringMatching(/^Watercolor maps need a Stadia Maps API key/)]);
         const styles = plannedPages()
           .filter((page) => page.map)
           .map((page) => page.map!.style);
-        expect(new Set(styles)).toEqual(new Set(['sketch']));
+        expect(new Set(styles)).toEqual(new Set(['watercolor']));
       });
 
       it('should not add maps when they are turned off', async () => {
@@ -1467,7 +1468,7 @@ describe(BookService.name, () => {
       const { albumId } = setupAlbum(rows);
       createImprovedCopy.mockRejectedValue(new BadRequestException('broken'));
 
-      const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true });
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true, mapStyle: 'sketch' });
 
       expect(result.warnings).toEqual([expect.stringContaining('could not be improved (broken)')]);
       const placed = plannedPages().flatMap((page) => page.assets.map((asset) => asset.assetId));

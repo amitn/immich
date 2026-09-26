@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import { getLayout, getSlotRectsMm, toPxRect } from 'src/utils/book/layouts.js';
 import {
   FULL_CROP,
@@ -260,7 +261,8 @@ describe('planPage', () => {
     const plan = planPage(book, page({ layout: 'cover' }), { dpi: 100, mode: 'print', sources });
     expect(plan.spec.overlay).toContain('Summer &lt;2025&gt; &amp; friends');
     expect(plan.spec.overlay).toContain('Italy');
-    expect(plan.spec.overlay).toContain('font-family="serif"');
+    expect(plan.spec.overlay).toContain(`font-family="${escapeXml(getFontStack('serif'))}"`);
+    expect(plan.spec.overlay).toContain('font-family="&apos;Liberation Serif&apos;, ');
   });
 
   it('should use the cover asset for an empty cover slot', () => {

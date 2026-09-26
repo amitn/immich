@@ -73,9 +73,11 @@
   <ButtonContextMenu
     icon={mdiPaletteSwatchOutline}
     title={$t('book_style_current', { values: { name: currentName } })}
+    label={$t('book_style')}
     color="secondary"
     size="small"
     align="top-right"
+    menuClass="dark:bg-neutral-900 dark:ring-1 dark:ring-neutral-700"
     hideContent
   >
     {#if !current}

@@ -96,7 +96,7 @@
     }
 
     onClose();
-    void modalManager.show(BookExportProgressModal, { book, formats });
+    void modalManager.show(BookExportProgressModal, { book, formats, warnings: book.warnings });
   };
 </script>
 

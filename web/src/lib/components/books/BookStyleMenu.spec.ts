@@ -50,6 +50,26 @@ describe('BookStyleMenu component', () => {
     expect(entries.map((entry) => entry.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
   });
 
+  it('should label the button like the other header buttons', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+
+    renderMenu({ book, onUpdated });
+    const button = await screen.findByRole('button', { name: 'book_style_current' });
+
+    expect(button).toHaveTextContent('book_style');
+    expect(button).toHaveAttribute('aria-haspopup', 'true');
+  });
+
+  it('should theme the menu for dark mode', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+
+    renderMenu({ book, onUpdated });
+    const [entry] = await openMenu();
+
+    expect(entry).toHaveClass('dark:bg-neutral-900', 'dark:text-immich-dark-fg');
+    expect(screen.getByRole('menu').parentElement).toHaveClass('dark:bg-neutral-900');
+  });
+
   it('should show a custom style', async () => {
     const book = bookDetailFactory.build({ style: { ...soft.style, marginMm: 15 } });
 

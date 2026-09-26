@@ -18,23 +18,23 @@ export const getTileStyle = (style: BookMapStyle): TileStyle | undefined =>
 
 /** whether a map of this style is drawn as the offline sketch instead, for lack of an API key */
 export const isMapStyleFallback = (style: BookMapStyle, stadiaApiKey: string | undefined) =>
-  style !== 'sketch' && !stadiaApiKey;
+  style !== 'sketch' && !stadiaApiKey?.trim();
 
 export const getMapStyleWarning = (style: BookMapStyle) =>
   `${style[0].toUpperCase()}${style.slice(1)} maps need a Stadia Maps API key (Administration → Settings → Photo ` +
   'books); using the offline sketch style';
 
 /**
- * `auto` is the configured default when it can be drawn, and the offline sketch otherwise. A style that needs tiles
- * is kept when asked for explicitly (it is drawn once a key is configured), with a warning that it is drawn as a
- * sketch for now.
+ * `auto` is the configured default. A style that needs tiles is kept without an API key, whether asked for explicitly
+ * or as the default (it is drawn once a key is configured), with a warning that it is drawn as a sketch for now; the
+ * review of the book reports it too.
  */
 export const resolveMapStyle = (
   style: BookMapStyleOption | undefined,
   config: { defaultStyle: BookMapStyle; stadiaApiKey: string },
 ): { style: BookMapStyle; warning?: string } => {
-  if (!style || style === 'auto') {
-    return { style: isMapStyleFallback(config.defaultStyle, config.stadiaApiKey) ? 'sketch' : config.defaultStyle };
-  }
-  return isMapStyleFallback(style, config.stadiaApiKey) ? { style, warning: getMapStyleWarning(style) } : { style };
+  const resolved = !style || style === 'auto' ? config.defaultStyle : style;
+  return isMapStyleFallback(resolved, config.stadiaApiKey)
+    ? { style: resolved, warning: getMapStyleWarning(resolved) }
+    : { style: resolved };
 };

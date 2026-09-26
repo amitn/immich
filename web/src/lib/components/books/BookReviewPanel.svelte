@@ -231,16 +231,17 @@
         <section aria-labelledby="{uid}-unused" class="flex flex-col gap-2">
           <h3 id="{uid}-unused" class="text-sm font-medium">{$t('book_review_unused_photos')}</h3>
           <p class="text-xs text-gray-600 dark:text-gray-400">{$t('book_review_unused_photos_description')}</p>
-          <ul class="flex immich-scrollbar gap-2 overflow-x-auto pb-1">
+          <!-- a grid that fits the panel, so no thumbnail is cut off at its edge -->
+          <ul class="grid grid-cols-6 gap-2">
             {#each unused as photo (photo.assetId)}
-              <li class="shrink-0">
+              <li class="min-w-0">
                 <img
                   src={getAssetMediaUrl({ id: photo.assetId, size: AssetMediaSize.Thumbnail })}
                   alt={photoLabel(photo)}
                   title={photoLabel(photo)}
                   loading="lazy"
                   draggable="false"
-                  class="size-16 rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
+                  class="aspect-square w-full rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
                 />
               </li>
             {/each}
@@ -262,15 +263,15 @@
         <section aria-labelledby="{uid}-weakest" class="flex flex-col gap-2">
           <h3 id="{uid}-weakest" class="text-sm font-medium">{$t('book_review_weakest_photos')}</h3>
           <p class="text-xs text-gray-600 dark:text-gray-400">{$t('book_review_weakest_photos_description')}</p>
-          <ul class="flex immich-scrollbar gap-2 overflow-x-auto p-1">
+          <ul class="grid grid-cols-6 gap-2">
             {#each weakest as placement (`${placement.page}-${placement.slot}`)}
               {@const label = $t('book_review_go_to_photo', {
                 values: { page: placement.page, slot: placement.slot },
               })}
-              <li class="shrink-0">
+              <li class="min-w-0">
                 <button
                   type="button"
-                  class="block rounded-lg outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
+                  class="block w-full rounded-lg outline-offset-2 focus-visible:outline-2 focus-visible:outline-primary"
                   aria-label={label}
                   title={label}
                   onclick={() => onGoToPage(placement.page, placement.slot)}
@@ -280,7 +281,7 @@
                     alt=""
                     loading="lazy"
                     draggable="false"
-                    class="size-16 rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
+                    class="aspect-square w-full rounded-lg bg-gray-100 object-cover dark:bg-gray-800"
                   />
                 </button>
               </li>
