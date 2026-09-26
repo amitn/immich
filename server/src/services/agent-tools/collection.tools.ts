@@ -13,6 +13,7 @@ import {
 } from 'src/utils/agent/tools.js';
 import { MAX_LOOKUP_RADIUS } from 'src/utils/collections/overpass.js';
 import { CollectionPack } from 'src/utils/collections/pack.js';
+import { getEntriesFocus } from 'src/utils/collections/source.js';
 import { getCollectionPacks } from 'src/utils/collections/registry.js';
 
 const uuid = z.uuidv4();
@@ -182,11 +183,16 @@ export class CollectionAgentTools extends BaseService {
         mutating: false,
         handler: handle(async ({ auth }, { pack: packId, id, zoom }) => {
           const reading = await collections.readSource(auth, packId, id);
+          const source = collections.requirePack(packId);
           // a pack may keep its source photos to itself (e.g. tickets): the entries are redacted, an image is not
           const images =
-            collections.requirePack(packId).privacy?.sourceImages === false
+            source.privacy?.sourceImages === false
               ? []
-              : await collections.getSourceImages(auth, id, { zoom: zoom ?? reading.items.length < 3 });
+              : await collections.getSourceImages(auth, id, {
+                  zoom: zoom ?? reading.items.length < 3,
+                  // a label on a bottle: the zoom is on the label
+                  ...(source.source.onSubjects && { focus: getEntriesFocus(reading.items) }),
+                });
           return withImages(
             {
               id,
@@ -252,7 +258,8 @@ export class CollectionAgentTools extends BaseService {
             return toolJson(details);
           }
 
-          const { entry } = collections.requirePack(packId).names;
+          const pack = collections.requirePack(packId);
+          const { entry } = pack.names;
           const rows = await this.assetJobRepository.getForAgent(
             result.subjects.map(({ assetIds }) => assetIds[0]),
             auth.user.id,
@@ -260,8 +267,19 @@ export class CollectionAgentTools extends BaseService {
           const previews = new Map(rows.map((row) => [row.id, row.previewPath]));
           // a travel document passed as a subject is never shown
           const hidden = await collections.getPrivateSourceIds(rows.map(({ id }) => id));
+          // subjects that carry their source (bottles) are shown by the crop of their label, to read it
+          const crops = pack.source.onSubjects
+            ? await collections.getEntryCrops(
+                auth,
+                packId,
+                result.subjects.slice(0, 36).flatMap(({ assetIds }) => assetIds.slice(0, 2)),
+              )
+            : new Map<string, Buffer>();
+          const cropOf = (assetIds: string[]) => assetIds.map((id) => crops.get(id)).find(Boolean);
           const tiles = result.subjects.slice(0, 36).map((subject, index) => ({
-            input: hidden.has(subject.assetIds[0]) ? null : (previews.get(subject.assetIds[0]) ?? null),
+            input: hidden.has(subject.assetIds[0])
+              ? null
+              : (cropOf(subject.assetIds) ?? previews.get(subject.assetIds[0]) ?? null),
             label: String(index + 1),
             caption:
               subject.suggestions.length === 0
@@ -271,7 +289,7 @@ export class CollectionAgentTools extends BaseService {
                     .map(({ name, score }) => `${name} ${percent(score)}`)
                     .join('\n'),
           }));
-          const image = await this.mediaRepository.createContactSheet(tiles, { tileSize: 320 });
+          const image = await this.mediaRepository.createContactSheet(tiles, { tileSize: crops.size > 0 ? 400 : 320 });
           const sheet = Object.fromEntries(
             result.subjects.slice(0, 36).map((subject, index) => [index + 1, subject.assetIds[0]]),
           );

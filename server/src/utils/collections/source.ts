@@ -56,24 +56,70 @@ export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]):
 /**
  * The OCR of a photo whose every word counts (a bottle label): the tiled full-resolution reading, with the words of
  * the stored OCR that it missed (the stored OCR runs on the whole preview, and sometimes reads a large script word
- * that the tiles cut). A stored box whose center is in a tiled box was read by the tiles too.
+ * that the tiles cut). A stored box whose center is in a tiled box with some of the same letters was read by the
+ * tiles too.
  */
 export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): OcrBoxInput[] => {
   const tiled = toTextBoxes(detailed);
+  const letters = (text: string) => entryKey(text);
+  const pairs = (text: string) => new Set(Array.from({ length: text.length - 1 }, (_, i) => text.slice(i, i + 2)));
+  const isSameText = (a: string, b: string) => {
+    const [x, y] = [letters(a), letters(b)];
+    if (x.includes(y) || y.includes(x)) {
+      return true;
+    }
+    const [p, q] = [pairs(x), pairs(y)];
+    const shared = [...p].filter((pair) => q.has(pair)).length;
+    return p.size > 0 && q.size > 0 && (2 * shared) / (p.size + q.size) >= 0.3;
+  };
   const missed = stored.filter((box) => {
-    const { left, right, top, bottom } = toTextBoxes([box])[0] ?? {};
-    if (left === undefined) {
+    const [read] = toTextBoxes([box]);
+    if (!read) {
       return false;
     }
-    const x = (left + right) / 2;
-    const y = (top + bottom) / 2;
+    const x = (read.left + read.right) / 2;
+    const y = (read.top + read.bottom) / 2;
     const margin = (other: { height: number }) => 0.25 * other.height;
     return !tiled.some(
       (other) =>
-        x >= other.left && x <= other.right && y >= other.top - margin(other) && y <= other.bottom + margin(other),
+        x >= other.left &&
+        x <= other.right &&
+        y >= other.top - margin(other) &&
+        y <= other.bottom + margin(other) &&
+        isSameText(read.text, other.text),
     );
   });
   return [...detailed, ...missed];
+};
+
+/** a part of a photo, normalized 0..1 */
+export type FocusRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * The part of a photo to zoom on to read its entries: where they were read (e.g. the text of a bottle's label), with
+ * room around it (a label is larger than the text OCR read on it), at least `min` of the photo on each side; undefined
+ * when nothing was read, or the entries have no place on the photo.
+ */
+export const getEntriesFocus = (items: Array<Pick<SourceEntry, 'box'>>, { pad = 0.4, min = 0.3 } = {}) => {
+  const boxes = items
+    .map(({ box }) => box)
+    .filter(([left, top, right, bottom]) => right - left < 1 || bottom - top < 1);
+  if (boxes.length === 0) {
+    return;
+  }
+  const left = Math.min(...boxes.map((box) => box[0]));
+  const top = Math.min(...boxes.map((box) => box[1]));
+  const right = Math.max(...boxes.map((box) => box[2]));
+  const bottom = Math.max(...boxes.map((box) => box[3]));
+  const side = (from: number, to: number) => {
+    const size = Math.min(1, Math.max(min, (to - from) * (1 + 2 * pad)));
+    const start = Math.min(Math.max(0, (from + to) / 2 - size / 2), 1 - size);
+    return [start, size] as const;
+  };
+  const [x, width] = side(left, right);
+  const [y, height] = side(top, bottom);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  return { x: round(x), y: round(y), width: round(width), height: round(height) } satisfies FocusRect;
 };
 
 /** the CLIP text of the title of a reading, compared with the subject photos */
