@@ -4056,6 +4056,18 @@ export type SessionUpdateDto = {
     /** Reset pending sync state */
     isPendingSyncReset?: boolean;
 };
+export type SharedLinkBookResponseDto = {
+    /** Whether the PDF has been exported */
+    hasPdf: boolean;
+    /** Book ID */
+    id: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+};
 export type SharedLinkResponseDto = {
     album?: AlbumResponseDto;
     /** Allow downloads */
@@ -4063,6 +4075,7 @@ export type SharedLinkResponseDto = {
     /** Allow uploads */
     allowUpload: boolean;
     assets: AssetResponseDto[];
+    book?: SharedLinkBookResponseDto;
     /** Creation date */
     createdAt: string;
     /** Link description */
@@ -4092,6 +4105,8 @@ export type SharedLinkCreateDto = {
     allowUpload?: boolean;
     /** Asset IDs (for individual assets) */
     assetIds?: string[];
+    /** Book ID (for sharing a photo book) */
+    bookId?: string;
     /** Link description */
     description?: string | null;
     /** Expiration date */
@@ -6749,16 +6764,20 @@ export function moveBookPage({ id, pageId, bookPageMoveDto }: {
 /**
  * Render a book page
  */
-export function renderBookPage({ id, pageId, size }: {
+export function renderBookPage({ id, key, pageId, size, slug }: {
     id: string;
+    key?: string;
     pageId: string;
     size?: number;
+    slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
         data: Blob;
     }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/render${QS.query(QS.explode({
-        size
+        key,
+        size,
+        slug
     }))}`, {
         ...opts
     }));
@@ -6818,26 +6837,36 @@ export function setBookSlot({ id, pageId, slot, bookSlotUpdateDto }: {
 /**
  * Download a book PDF
  */
-export function downloadBookPdf({ id }: {
+export function downloadBookPdf({ id, key, slug }: {
     id: string;
+    key?: string;
+    slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
         data: Blob;
-    }>(`/books/${encodeURIComponent(id)}/pdf`, {
+    }>(`/books/${encodeURIComponent(id)}/pdf${QS.query(QS.explode({
+        key,
+        slug
+    }))}`, {
         ...opts
     }));
 }
 /**
  * Preview a book
  */
-export function previewBook({ id }: {
+export function previewBook({ id, key, slug }: {
     id: string;
+    key?: string;
+    slug?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchBlob<{
         status: 200;
         data: Blob;
-    }>(`/books/${encodeURIComponent(id)}/preview`, {
+    }>(`/books/${encodeURIComponent(id)}/preview${QS.query(QS.explode({
+        key,
+        slug
+    }))}`, {
         ...opts
     }));
 }
@@ -8596,8 +8625,9 @@ export function lockSession({ id }: {
 /**
  * Retrieve all shared links
  */
-export function getAllSharedLinks({ albumId, id }: {
+export function getAllSharedLinks({ albumId, bookId, id }: {
     albumId?: string;
+    bookId?: string;
     id?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -8605,6 +8635,7 @@ export function getAllSharedLinks({ albumId, id }: {
         data: SharedLinkResponseDto[];
     }>(`/shared-links${QS.query(QS.explode({
         albumId,
+        bookId,
         id
     }))}`, {
         ...opts
@@ -9821,6 +9852,7 @@ export enum Permission {
     BookUpdate = "book.update",
     BookDelete = "book.delete",
     BookDownload = "book.download",
+    BookShare = "book.share",
     ClusterGroupRead = "clusterGroup.read",
     ClusterGroupLeave = "clusterGroup.leave",
     ClusterGroupRequestCreate = "clusterGroupRequest.create",
@@ -10018,13 +10050,17 @@ export enum BookExportStatus {
 }
 export enum BookStyleTheme {
     Plain = "plain",
-    Food = "food"
+    Food = "food",
+    Cookbook = "cookbook",
+    Travel = "travel"
 }
 export enum BookStylePreset {
     Classic = "classic",
     Soft = "soft",
     Bold = "bold",
-    Food = "food"
+    Food = "food",
+    Cookbook = "cookbook",
+    Travel = "travel"
 }
 export enum BookMapStyle {
     Sketch = "sketch",
@@ -10268,7 +10304,8 @@ export enum SearchSuggestionType {
 }
 export enum SharedLinkType {
     Album = "ALBUM",
-    Individual = "INDIVIDUAL"
+    Individual = "INDIVIDUAL",
+    Book = "BOOK"
 }
 export enum AssetIdErrorReason {
     Duplicate = "duplicate",
