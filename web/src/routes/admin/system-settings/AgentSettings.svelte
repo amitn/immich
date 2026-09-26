@@ -9,7 +9,7 @@
   import { systemConfigManager } from '$lib/managers/system-config-manager.svelte';
   import { formatArgs, parseArgs, parseNameList, validateAgentConfig } from '$lib/utils/agent-config';
   import type { AdminConfigAgentProfileDto } from '@immich/sdk';
-  import { Alert, Button, Field, IconButton, Input, PasswordInput, Text, toastManager } from '@immich/ui';
+  import { Alert, Button, Field, HelperText, IconButton, Input, PasswordInput, Text, toastManager } from '@immich/ui';
   import { mdiPlus, mdiShieldAlertOutline, mdiTrashCanOutline } from '@mdi/js';
   import { isEqual } from 'lodash-es';
   import { t } from 'svelte-i18n';
@@ -114,13 +114,16 @@
           isEdited={configToEdit.agent.idleTimeoutMinutes !== config.agent.idleTimeoutMinutes}
         />
 
-        <SettingSwitch
-          title={$t('admin.agent_auto_approve_writes')}
-          subtitle={$t('admin.agent_auto_approve_writes_description')}
-          disabled={disabled || !configToEdit.agent.enabled}
-          bind:checked={configToEdit.agent.autoApproveWrites}
-          isEdited={configToEdit.agent.autoApproveWrites !== config.agent.autoApproveWrites}
-        />
+        <!-- inputs and selects carry their own bottom margin, so give the switch the same spacing -->
+        <div class="mb-4">
+          <SettingSwitch
+            title={$t('admin.agent_auto_approve_writes')}
+            subtitle={$t('admin.agent_auto_approve_writes_description')}
+            disabled={disabled || !configToEdit.agent.enabled}
+            bind:checked={configToEdit.agent.autoApproveWrites}
+            isEdited={configToEdit.agent.autoApproveWrites !== config.agent.autoApproveWrites}
+          />
+        </div>
 
         <SettingInputField
           inputType={SettingInputFieldType.TEXT}
@@ -179,32 +182,44 @@
                     oninput={(event) => renameProfile(profile, event.currentTarget.value)}
                   />
                 </Field>
-                <Field
-                  label={$t('admin.agent_command')}
-                  description={$t('admin.agent_command_description')}
-                  required
-                  {disabled}
-                >
-                  <Input bind:value={profile.command} placeholder="claude-agent-acp" class="font-mono" />
+                <!-- help text goes below the inputs so the Name and Command inputs line up -->
+                <Field label={$t('admin.agent_command')} required {disabled}>
+                  <Input
+                    bind:value={profile.command}
+                    placeholder="claude-agent-acp"
+                    class="font-mono"
+                    aria-describedby="agent-command-description-{index}"
+                  />
+                  <HelperText>
+                    <span id="agent-command-description-{index}">{$t('admin.agent_command_description')}</span>
+                  </HelperText>
                 </Field>
               </div>
 
-              <Field label={$t('admin.agent_args')} description={$t('admin.agent_args_description')} {disabled}>
+              <Field label={$t('admin.agent_args')} {disabled}>
                 <Input
                   value={formatArgs(profile.args)}
                   placeholder="--model sonnet"
                   class="font-mono"
+                  aria-describedby="agent-args-description-{index}"
                   onchange={(event) => (profile.args = parseArgs(event.currentTarget.value))}
                 />
+                <HelperText>
+                  <span id="agent-args-description-{index}">{$t('admin.agent_args_description')}</span>
+                </HelperText>
               </Field>
 
-              <Field label={$t('admin.agent_pass_env')} description={$t('admin.agent_pass_env_description')} {disabled}>
+              <Field label={$t('admin.agent_pass_env')} {disabled}>
                 <Input
                   value={profile.passEnv.join(' ')}
                   placeholder="ANTHROPIC_API_KEY"
                   class="font-mono"
+                  aria-describedby="agent-pass-env-description-{index}"
                   onchange={(event) => (profile.passEnv = parseNameList(event.currentTarget.value))}
                 />
+                <HelperText>
+                  <span id="agent-pass-env-description-{index}">{$t('admin.agent_pass_env_description')}</span>
+                </HelperText>
               </Field>
 
               <div class="flex flex-col gap-2">
