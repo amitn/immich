@@ -290,6 +290,16 @@ The **Food** style (_Like a printed menu: warm paper, small-caps headings, thin 
 - **Dish captions.** The name of each dish is set below its photo, from its food tag. A page of other photos is captioned with their place, as in the other styles.
 - **Review.** **Dish without its name** is a named dish shown without its caption. **Restaurant without its menu** is a restaurant whose dishes are in the book but whose menu, which is in the album, isn't.
 
+## Cookbook
+
+The cookbook works like [Food](#food), for the dishes you cook at home. Photograph the recipe (a handwritten card or a page of a cookbook) along with the cooking, and choose **Name the recipe steps…** from the menu of an album or a selection, or ask the assistant.
+
+- **Cooking sessions.** The photos of the ingredients, the steps and the finished dish are grouped by time; the recipe may be photographed up to a day later. Labels such as the brand of the oven don't make a photo a recipe.
+- **Reading the recipe.** The title, the serves and time line, the ingredients and the steps are read, even on a page photographed at an angle. Fractions that OCR misreads are repaired where it is clear, such as _11/2 cups_ for 1½ cups. When the page shows other recipes, such as a variant beside it, the one whose title fits the photos is kept and the others are offered as alternatives. A step whose text is off the photo is kept by its number.
+- **Matching.** Each photo is matched with a step, in the order of the steps, or with **Result**, the finished dish. The other dishes of the meal are marked as not from this recipe.
+- **Tags.** `Recipes/<Recipe>/Step 2: Whisk the eggs` on a step photo, `Recipes/<Recipe>/Result` on the finished dish and `Recipes/<Recipe>/Recipe` on the recipe photo. Step photos without a description get one, such as _2. Whisk the eggs · Quiche_.
+- **Cookbook books.** The **Cookbook** style lays out a chapter per recipe, opened by a recipe page: the photo of the recipe with its ingredients and steps typeset below it, read from the photo when the book is laid out (edit the page caption to correct them). The steps are captioned below their photos and the finished dish as _Finished dish_. The review lists recipes without a photo of the finished dish and steps without a photo.
+
 ## Tags
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:
