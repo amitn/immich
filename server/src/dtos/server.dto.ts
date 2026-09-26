@@ -149,6 +149,9 @@ const ServerFeaturesSchema = z
     realtimeTranscoding: z.boolean().describe('Whether real-time transcoding is enabled'),
     assistant: z.boolean().describe('Whether the AI assistant is enabled'),
     artisticStyles: z.boolean().describe('Whether AI artistic style transforms are enabled'),
+    restaurantLookup: z
+      .boolean()
+      .describe("Whether the assistant may look up restaurant names on OpenStreetMap, with the user's approval"),
   })
   .meta({ id: 'ServerFeaturesDto' });
 

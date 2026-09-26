@@ -1,6 +1,5 @@
 <script lang="ts">
   import FoodDishEditor from '$lib/components/food/FoodDishEditor.svelte';
-  import { authManager } from '$lib/managers/auth-manager.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { sidebarTagsManager } from '$lib/managers/sidebar-tags-manager.svelte';
   import AlbumBookExportModal from '$lib/modals/AlbumBookExportModal.svelte';
@@ -27,7 +26,6 @@
     BookStylePreset,
     findMeals,
     FoodRestaurantSource,
-    getConfig,
     matchMeal,
     setDishNames,
     type AlbumResponseDto,
@@ -95,7 +93,8 @@
   let enlarged = $state<string>();
   let isSaving = $state(false);
   let savedAny = $state(false);
-  let openStreetMap = $state(false);
+  // the lookup runs through the assistant, which asks the user first
+  const openStreetMap = $derived(featureFlagsManager.value.restaurantLookup);
   /** the meals whose dishes were matched, or are being matched */
   const opened = new SvelteSet<number>();
 
@@ -169,19 +168,6 @@
     }
   };
 
-  const loadOpenStreetMap = async () => {
-    // the setting is only readable by admins; others are just asked to type the name in
-    if (!featureFlagsManager.value.assistant || !authManager.authenticated || !authManager.user.isAdmin) {
-      return;
-    }
-    try {
-      const config = await getConfig();
-      openStreetMap = config.food.openStreetMap.enabled;
-    } catch {
-      openStreetMap = false;
-    }
-  };
-
   const openMeal = (value: FoodMealResponseDto) => {
     current = value.index;
     enlarged = undefined;
@@ -195,9 +181,6 @@
         warnings: [],
       };
       void match(value);
-    }
-    if (value.restaurant.source === FoodRestaurantSource.Fallback) {
-      void loadOpenStreetMap();
     }
   };
 

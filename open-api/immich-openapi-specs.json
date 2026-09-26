@@ -32999,6 +32999,10 @@
             "description": "Whether real-time transcoding is enabled",
             "type": "boolean"
           },
+          "restaurantLookup": {
+            "description": "Whether the assistant may look up restaurant names on OpenStreetMap, with the user's approval",
+            "type": "boolean"
+          },
           "reverseGeocoding": {
             "description": "Whether reverse geocoding is enabled",
             "type": "boolean"
@@ -33034,6 +33038,7 @@
           "ocr",
           "passwordLogin",
           "realtimeTranscoding",
+          "restaurantLookup",
           "reverseGeocoding",
           "search",
           "sidecar",

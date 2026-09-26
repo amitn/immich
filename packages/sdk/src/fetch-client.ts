@@ -3700,6 +3700,8 @@ export type ServerFeaturesDto = {
     passwordLogin: boolean;
     /** Whether real-time transcoding is enabled */
     realtimeTranscoding: boolean;
+    /** Whether the assistant may look up restaurant names on OpenStreetMap, with the user's approval */
+    restaurantLookup: boolean;
     /** Whether reverse geocoding is enabled */
     reverseGeocoding: boolean;
     /** Whether search is enabled */

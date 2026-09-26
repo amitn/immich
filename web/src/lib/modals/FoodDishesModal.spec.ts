@@ -12,7 +12,7 @@ import { foodBreadMatch, foodMatchFactory, foodMealFactory } from '@test-data/fa
 import FoodDishesModal from './FoodDishesModal.svelte';
 
 const { flags, user } = vi.hoisted(() => ({
-  flags: { assistant: true, smartSearch: true },
+  flags: { assistant: true, smartSearch: true, restaurantLookup: false },
   user: { isAdmin: false },
 }));
 
@@ -70,6 +70,7 @@ describe('FoodDishesModal component', () => {
     sdkMock.getAllTags.mockResolvedValue([]);
     flags.assistant = true;
     user.isAdmin = false;
+    flags.restaurantLookup = false;
   });
 
   afterAll(async () => {
@@ -289,12 +290,10 @@ describe('FoodDishesModal component', () => {
     expect(screen.getByRole('textbox', { name: /food_restaurant/ })).toHaveValue('Dinner in Taormina');
     expect(screen.getByText('food_no_menu')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'food_all_meals' })).not.toBeInTheDocument();
-    expect(sdkMock.getConfig).not.toHaveBeenCalled();
   });
 
   it('should suggest the OpenStreetMap lookup when the admin turned it on', async () => {
-    user.isAdmin = true;
-    sdkMock.getConfig.mockResolvedValue({ food: { openStreetMap: { enabled: true } } } as never);
+    flags.restaurantLookup = true;
     sdkMock.findMeals.mockResolvedValue(findResult([dinner]));
     sdkMock.matchMeal.mockResolvedValue(foodMatchFactory({ items: [], dishes: [] }));
 
