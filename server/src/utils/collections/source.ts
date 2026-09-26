@@ -51,6 +51,29 @@ const readText = (boxes: OcrBoxInput[]) =>
 export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
   readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
 
+/**
+ * The OCR of a photo whose every word counts (a bottle label): the tiled full-resolution reading, with the words of
+ * the stored OCR that it missed (the stored OCR runs on the whole preview, and sometimes reads a large script word
+ * that the tiles cut). A stored box whose center is in a tiled box was read by the tiles too.
+ */
+export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): OcrBoxInput[] => {
+  const tiled = toTextBoxes(detailed);
+  const missed = stored.filter((box) => {
+    const { left, right, top, bottom } = toTextBoxes([box])[0] ?? {};
+    if (left === undefined) {
+      return false;
+    }
+    const x = (left + right) / 2;
+    const y = (top + bottom) / 2;
+    const margin = (other: { height: number }) => 0.25 * other.height;
+    return !tiled.some(
+      (other) =>
+        x >= other.left && x <= other.right && y >= other.top - margin(other) && y <= other.bottom + margin(other),
+    );
+  });
+  return [...detailed, ...missed];
+};
+
 /** the CLIP text of the title of a reading, compared with the subject photos */
 export const getTitlePrompt = (title: string) => `a photo of ${title}`;
 
