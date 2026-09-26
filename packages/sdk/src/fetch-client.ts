@@ -2278,6 +2278,224 @@ export type ClusterGroupRequestCreateDto = {
     /** User to invite into the cluster group */
     userId: string;
 };
+export type CollectionNamesDto = {
+    /** Plural of entry */
+    entries: string;
+    /** An entry of the source, e.g. menu item */
+    entry: string;
+    /** The place of a visit, e.g. restaurant */
+    place: string;
+    /** The text-source photo, e.g. menu */
+    source: string;
+    /** Plural of source */
+    sources: string;
+    /** A photographed thing, e.g. dish */
+    subject: string;
+    /** Plural of subject */
+    subjects: string;
+    /** A visit, e.g. meal */
+    visit: string;
+    /** Plural of visit */
+    visits: string;
+};
+export type CollectionPackResponseDto = {
+    /** The book style preset of the pack */
+    bookStylePreset: string;
+    /** What the pack is for */
+    description: string;
+    /** Pack ID, e.g. food */
+    id: string;
+    names: CollectionNamesDto;
+    /** Whether places can be looked up on OpenStreetMap when the admin enables it */
+    placeLookup: boolean;
+    /** The tag leaf that marks a source photo, e.g. Menu */
+    sourceLeaf: string;
+    /** First level of the tags of the pack, e.g. Food */
+    tagRoot: string;
+    /** Pack title, e.g. Food */
+    title: string;
+};
+export type CollectionEntryNameDto = {
+    /** Name of the entry; the source leaf (e.g. "menu") marks a source */
+    entry?: string;
+    /** Asset ID */
+    id: string;
+    /** The photo shows the source */
+    source?: boolean;
+};
+export type CollectionEntriesDto = {
+    /** The photos to name */
+    photos: CollectionEntryNameDto[];
+    /** Name of the place */
+    place: string;
+};
+export type CollectionEntryResultDto = {
+    /** The description set on the photo, when it had none */
+    description?: string;
+    /** Why the photo was not tagged */
+    error?: string;
+    /** Asset ID */
+    id: string;
+    /** Tags of the pack the photo had before, now removed */
+    previousTags?: string[];
+    /** Whether the photo was tagged */
+    success: boolean;
+    /** The tag of the photo */
+    tag?: string;
+};
+export type CollectionEntriesResponseDto = {
+    /** Name of the place as it is used in the tags */
+    place: string;
+    /** One result per photo */
+    results: CollectionEntryResultDto[];
+};
+export type CollectionEntryInputDto = {
+    /** Description of the entry */
+    description?: string;
+    /** Name of the entry, as printed */
+    name: string;
+};
+export type CollectionMatchDto = {
+    /** Entries to match instead of the ones read on the source photos */
+    entries?: CollectionEntryInputDto[];
+    /** Photos of the source of the visit */
+    sourceIds?: string[];
+    /** Photos of the subjects of one visit */
+    subjectIds: string[];
+};
+export type CollectionEntryDto = {
+    /** Description of the entry */
+    description?: string;
+    /** Index of the entry */
+    index: number;
+    /** Name of the entry, as printed */
+    name: string;
+    /** Price as printed */
+    price?: string;
+    /** Section of the source, e.g. "Primi piatti" */
+    section?: string;
+    /** Source photo the entry was read on */
+    sourceId?: string;
+};
+export type CollectionSuggestionDto = {
+    /** Index of the entry */
+    index: number;
+    /** Name of the entry */
+    name: string;
+    /** Probability among the entries, 0-1 */
+    score: number;
+};
+export type CollectionSubjectMatchDto = {
+    /** Photos of the same subject */
+    assetIds: string[];
+    /** Index of the matched entry */
+    index?: number;
+    /** Name of the matched entry */
+    name?: string;
+    /** Probability that the subject is not an entry of the source, 0-1 */
+    offList?: number;
+    /** Probability of the match, 0-1 */
+    score: number;
+    /** The entry is matched to other subjects too */
+    shared?: boolean;
+    /** Best entries for the photos */
+    suggestions: CollectionSuggestionDto[];
+    /** The match is weak or not the favourite of the photos: check it */
+    unsure: boolean;
+};
+export type CollectionMatchResponseDto = {
+    /** The entries */
+    entries: CollectionEntryDto[];
+    /** Subject photos that could not be matched because smart search has not run */
+    noEmbedding: string[];
+    /** The subjects were matched in the order of the source; the scores are over all such alignments */
+    ordered?: boolean;
+    /** The subjects, with their matches */
+    subjects: CollectionSubjectMatchDto[];
+    /** Why matching may be incomplete */
+    warnings: string[];
+};
+export type CollectionVisitsDto = {
+    /** Find visits among the photos of this album */
+    albumId?: string;
+    /** Find visits among these photos */
+    assetIds?: string[];
+    /** A photo further from the place of the visit starts a new visit */
+    maxDistanceMeters?: number;
+    /** A longer gap between photos starts a new visit */
+    maxGapMinutes?: number;
+    /** Only photos taken after this date (ISO 8601) */
+    takenAfter?: string;
+    /** Only photos taken before this date (ISO 8601) */
+    takenBefore?: string;
+};
+export type CollectionPlaceCandidateDto = {
+    /** Photos the name was read on */
+    assetIds: string[];
+    /** Confidence, 0-1 */
+    confidence: number;
+    /** Place name */
+    name: string;
+    source: CollectionPlaceSource;
+};
+export type CollectionSavedEntryDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Entry of the tag, absent for a source photo */
+    entry?: string;
+    /** Place of the tag */
+    place: string;
+    /** Whether the photo is tagged as the source */
+    source: boolean;
+};
+export type CollectionVisitResponseDto = {
+    /** Other names read on the photos */
+    candidates: CollectionPlaceCandidateDto[];
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    day: string;
+    /** Local date-time of the last photo */
+    end: string;
+    /** Position of the visit, in time order */
+    index: number;
+    /** Latitude of the visit (average of its located photos) */
+    latitude?: number;
+    /** Longitude of the visit (average of its located photos) */
+    longitude?: number;
+    /** The best name for the place */
+    place: CollectionPlaceCandidateDto;
+    /** Photos of a receipt or a ticket */
+    receiptIds: string[];
+    /** Tags of the pack already on the photos of the visit */
+    saved: CollectionSavedEntryDto[];
+    /** Photos of a sign of the place, e.g. a storefront */
+    signIds: string[];
+    /** Photos of the source, e.g. the menu */
+    sourceIds: string[];
+    /** Local date-time of the first photo */
+    start: string;
+    /** Photos of the subjects, e.g. dishes and drinks */
+    subjectIds: string[];
+    /** Kind of visit by local time, e.g. Lunch, for packs that have kinds */
+    "type"?: string;
+};
+export type CollectionVisitsResponseDto = {
+    /** Photos considered */
+    count: number;
+    /** Collection pack */
+    pack: string;
+    /** Photos found to belong to the collection: subjects, sources, signs and receipts */
+    photos: number;
+    /** Whether more than 5000 photos matched and the rest were left out */
+    truncated: boolean;
+    /** Visits, in time order */
+    visits: CollectionVisitResponseDto[];
+    /** Why the search may be incomplete, e.g. smart search is disabled */
+    warnings: string[];
+};
 export type UserConfigFFmpegRealtimeDto = {
     /** Enable real-time HLS transcoding (alpha) */
     enabled: boolean;
@@ -6734,6 +6952,65 @@ export function getClusterGroupUsers({ id }: {
     }));
 }
 /**
+ * List collection packs
+ */
+export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionPackResponseDto[];
+    }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Name the entries of a visit
+ */
+export function saveCollectionEntries({ pack, collectionEntriesDto }: {
+    pack: string;
+    collectionEntriesDto: CollectionEntriesDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionEntriesResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/entries`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: collectionEntriesDto
+    })));
+}
+/**
+ * Match the subjects of a visit
+ */
+export function matchCollectionVisit({ pack, collectionMatchDto }: {
+    pack: string;
+    collectionMatchDto: CollectionMatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionMatchResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/match`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collectionMatchDto
+    })));
+}
+/**
+ * Find the visits of a collection
+ */
+export function findCollectionVisits({ pack, collectionVisitsDto }: {
+    pack: string;
+    collectionVisitsDto: CollectionVisitsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionVisitsResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/visits`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collectionVisitsDto
+    })));
+}
+/**
  * Get the configuration with user visibility
  */
 export function getUserConfig(opts?: Oazapfts.RequestOpts) {
@@ -9806,6 +10083,13 @@ export enum Type {
     CouldLookBetter = "could-look-better",
     MissingDishName = "missing-dish-name",
     MissingMenuPage = "missing-menu-page"
+}
+export enum CollectionPlaceSource {
+    Tag = "tag",
+    Sign = "sign",
+    Source = "source",
+    Receipt = "receipt",
+    Fallback = "fallback"
 }
 export enum SourceType {
     MachineLearning = "machine-learning",

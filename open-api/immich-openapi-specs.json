@@ -8719,6 +8719,256 @@
         "x-immich-permission": "clusterGroup.read"
       }
     },
+    "/collections": {
+      "get": {
+        "description": "Retrieve the collection packs (food is the first): the theme of each, the words of its domain, the root of its tags and its book style.",
+        "operationId": "getCollectionPacks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CollectionPackResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List collection packs",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collections/{pack}/entries": {
+      "put": {
+        "description": "Tag each photo with <Root>/<Place>/<Entry>, or <Root>/<Place>/<SourceLeaf> for a photo of the source (e.g. Food/<Restaurant>/Menu), replacing the tag of the pack it had, and describe subject photos without a description in the words of the pack (e.g. \"<Dish> · <Restaurant>\").",
+        "operationId": "saveCollectionEntries",
+        "parameters": [
+          {
+            "name": "pack",
+            "required": true,
+            "in": "path",
+            "description": "Collection pack, e.g. food",
+            "schema": {
+              "pattern": "^[a-z][\\da-z-]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionEntriesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionEntriesResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Name the entries of a visit",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collections/{pack}/match": {
+      "post": {
+        "description": "Suggest which entry each subject photo of a visit shows, from the entries read on its source photos (at full resolution) or the entries given. Photos of the same subject are grouped; weak matches are marked unsure, and subjects that are probably not on the source get no match.",
+        "operationId": "matchCollectionVisit",
+        "parameters": [
+          {
+            "name": "pack",
+            "required": true,
+            "in": "path",
+            "description": "Collection pack, e.g. food",
+            "schema": {
+              "pattern": "^[a-z][\\da-z-]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionMatchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionMatchResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Match the subjects of a visit",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collections/{pack}/visits": {
+      "post": {
+        "description": "Find the visits of a collection pack (e.g. the restaurant meals of food) among the photos of an album, a list of assets or a date range: photos of subjects, sources, signs and receipts are recognized with CLIP and the text read on them, and grouped into visits by time and place. Each visit comes with the best name for its place (from the tags of the pack, read on a sign, source or receipt, or made up from the visit and the city) and the tags of the pack already on its photos.",
+        "operationId": "findCollectionVisits",
+        "parameters": [
+          {
+            "name": "pack",
+            "required": true,
+            "in": "path",
+            "description": "Collection pack, e.g. food",
+            "schema": {
+              "pattern": "^[a-z][\\da-z-]*$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollectionVisitsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionVisitsResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Find the visits of a collection",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/config": {
       "get": {
         "description": "Retrieve the system configuration properties that are visible to logged in users.",
@@ -20384,6 +20634,10 @@
       "description": "The system configuration properties that are visible to logged in users."
     },
     {
+      "name": "Collections",
+      "description": "Collections are themed photos named by a pack (food is the first): photos of subjects, such as dishes, are matched with the entries read on a source photo, such as a menu, and saved as <Root>/<Place>/<Entry> tags; these endpoints list the packs, find the visits among assets, match their subjects with the entries and save the names."
+    },
+    {
       "name": "Config (admin)",
       "description": "Endpoints to view and modify the full system configuration."
     },
@@ -26228,6 +26482,698 @@
           "createdAt",
           "id",
           "userId"
+        ],
+        "type": "object"
+      },
+      "CollectionEntriesDto": {
+        "properties": {
+          "photos": {
+            "description": "The photos to name",
+            "items": {
+              "$ref": "#/components/schemas/CollectionEntryNameDto"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          },
+          "place": {
+            "description": "Name of the place",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "photos",
+          "place"
+        ],
+        "type": "object"
+      },
+      "CollectionEntriesResponseDto": {
+        "properties": {
+          "place": {
+            "description": "Name of the place as it is used in the tags",
+            "type": "string"
+          },
+          "results": {
+            "description": "One result per photo",
+            "items": {
+              "$ref": "#/components/schemas/CollectionEntryResultDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "place",
+          "results"
+        ],
+        "type": "object"
+      },
+      "CollectionEntryDto": {
+        "properties": {
+          "description": {
+            "description": "Description of the entry",
+            "type": "string"
+          },
+          "index": {
+            "description": "Index of the entry",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the entry, as printed",
+            "type": "string"
+          },
+          "price": {
+            "description": "Price as printed",
+            "type": "string"
+          },
+          "section": {
+            "description": "Section of the source, e.g. \"Primi piatti\"",
+            "type": "string"
+          },
+          "sourceId": {
+            "description": "Source photo the entry was read on",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CollectionEntryInputDto": {
+        "properties": {
+          "description": {
+            "description": "Description of the entry",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the entry, as printed",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "CollectionEntryNameDto": {
+        "properties": {
+          "entry": {
+            "description": "Name of the entry; the source leaf (e.g. \"menu\") marks a source",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "source": {
+            "description": "The photo shows the source",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "CollectionEntryResultDto": {
+        "properties": {
+          "description": {
+            "description": "The description set on the photo, when it had none",
+            "type": "string"
+          },
+          "error": {
+            "description": "Why the photo was not tagged",
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "previousTags": {
+            "description": "Tags of the pack the photo had before, now removed",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether the photo was tagged",
+            "type": "boolean"
+          },
+          "tag": {
+            "description": "The tag of the photo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "success"
+        ],
+        "type": "object"
+      },
+      "CollectionMatchDto": {
+        "properties": {
+          "entries": {
+            "description": "Entries to match instead of the ones read on the source photos",
+            "items": {
+              "$ref": "#/components/schemas/CollectionEntryInputDto"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "sourceIds": {
+            "description": "Photos of the source of the visit",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          "subjectIds": {
+            "description": "Photos of the subjects of one visit",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "subjectIds"
+        ],
+        "type": "object"
+      },
+      "CollectionMatchResponseDto": {
+        "properties": {
+          "entries": {
+            "description": "The entries",
+            "items": {
+              "$ref": "#/components/schemas/CollectionEntryDto"
+            },
+            "type": "array"
+          },
+          "noEmbedding": {
+            "description": "Subject photos that could not be matched because smart search has not run",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ordered": {
+            "description": "The subjects were matched in the order of the source; the scores are over all such alignments",
+            "type": "boolean"
+          },
+          "subjects": {
+            "description": "The subjects, with their matches",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSubjectMatchDto"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "description": "Why matching may be incomplete",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "noEmbedding",
+          "subjects",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "CollectionNamesDto": {
+        "properties": {
+          "entries": {
+            "description": "Plural of entry",
+            "type": "string"
+          },
+          "entry": {
+            "description": "An entry of the source, e.g. menu item",
+            "type": "string"
+          },
+          "place": {
+            "description": "The place of a visit, e.g. restaurant",
+            "type": "string"
+          },
+          "source": {
+            "description": "The text-source photo, e.g. menu",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Plural of source",
+            "type": "string"
+          },
+          "subject": {
+            "description": "A photographed thing, e.g. dish",
+            "type": "string"
+          },
+          "subjects": {
+            "description": "Plural of subject",
+            "type": "string"
+          },
+          "visit": {
+            "description": "A visit, e.g. meal",
+            "type": "string"
+          },
+          "visits": {
+            "description": "Plural of visit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entries",
+          "entry",
+          "place",
+          "source",
+          "sources",
+          "subject",
+          "subjects",
+          "visit",
+          "visits"
+        ],
+        "type": "object"
+      },
+      "CollectionPackResponseDto": {
+        "properties": {
+          "bookStylePreset": {
+            "description": "The book style preset of the pack",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the pack is for",
+            "type": "string"
+          },
+          "id": {
+            "description": "Pack ID, e.g. food",
+            "type": "string"
+          },
+          "names": {
+            "$ref": "#/components/schemas/CollectionNamesDto"
+          },
+          "placeLookup": {
+            "description": "Whether places can be looked up on OpenStreetMap when the admin enables it",
+            "type": "boolean"
+          },
+          "sourceLeaf": {
+            "description": "The tag leaf that marks a source photo, e.g. Menu",
+            "type": "string"
+          },
+          "tagRoot": {
+            "description": "First level of the tags of the pack, e.g. Food",
+            "type": "string"
+          },
+          "title": {
+            "description": "Pack title, e.g. Food",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookStylePreset",
+          "description",
+          "id",
+          "names",
+          "placeLookup",
+          "sourceLeaf",
+          "tagRoot",
+          "title"
+        ],
+        "type": "object"
+      },
+      "CollectionPlaceCandidateDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos the name was read on",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confidence": {
+            "description": "Confidence, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "description": "Place name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CollectionPlaceSource"
+          }
+        },
+        "required": [
+          "assetIds",
+          "confidence",
+          "name",
+          "source"
+        ],
+        "type": "object"
+      },
+      "CollectionPlaceSource": {
+        "description": "Where the place name comes from: the tags of the pack already on the photos, text read on a sign, a source (e.g. a menu) or a receipt, or a name made up from the visit and the city",
+        "enum": [
+          "tag",
+          "sign",
+          "source",
+          "receipt",
+          "fallback"
+        ],
+        "type": "string"
+      },
+      "CollectionSavedEntryDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "entry": {
+            "description": "Entry of the tag, absent for a source photo",
+            "type": "string"
+          },
+          "place": {
+            "description": "Place of the tag",
+            "type": "string"
+          },
+          "source": {
+            "description": "Whether the photo is tagged as the source",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assetId",
+          "place",
+          "source"
+        ],
+        "type": "object"
+      },
+      "CollectionSubjectMatchDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos of the same subject",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "index": {
+            "description": "Index of the matched entry",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the matched entry",
+            "type": "string"
+          },
+          "offList": {
+            "description": "Probability that the subject is not an entry of the source, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "score": {
+            "description": "Probability of the match, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "shared": {
+            "description": "The entry is matched to other subjects too",
+            "type": "boolean"
+          },
+          "suggestions": {
+            "description": "Best entries for the photos",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSuggestionDto"
+            },
+            "type": "array"
+          },
+          "unsure": {
+            "description": "The match is weak or not the favourite of the photos: check it",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assetIds",
+          "score",
+          "suggestions",
+          "unsure"
+        ],
+        "type": "object"
+      },
+      "CollectionSuggestionDto": {
+        "properties": {
+          "index": {
+            "description": "Index of the entry",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the entry",
+            "type": "string"
+          },
+          "score": {
+            "description": "Probability among the entries, 0-1",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "score"
+        ],
+        "type": "object"
+      },
+      "CollectionVisitResponseDto": {
+        "properties": {
+          "candidates": {
+            "description": "Other names read on the photos",
+            "items": {
+              "$ref": "#/components/schemas/CollectionPlaceCandidateDto"
+            },
+            "type": "array"
+          },
+          "city": {
+            "description": "City",
+            "type": "string"
+          },
+          "country": {
+            "description": "Country",
+            "type": "string"
+          },
+          "day": {
+            "description": "Local day of the visit",
+            "type": "string"
+          },
+          "end": {
+            "description": "Local date-time of the last photo",
+            "type": "string"
+          },
+          "index": {
+            "description": "Position of the visit, in time order",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "latitude": {
+            "description": "Latitude of the visit (average of its located photos)",
+            "format": "double",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude of the visit (average of its located photos)",
+            "format": "double",
+            "type": "number"
+          },
+          "place": {
+            "$ref": "#/components/schemas/CollectionPlaceCandidateDto",
+            "description": "The best name for the place"
+          },
+          "receiptIds": {
+            "description": "Photos of a receipt or a ticket",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "saved": {
+            "description": "Tags of the pack already on the photos of the visit",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSavedEntryDto"
+            },
+            "type": "array"
+          },
+          "signIds": {
+            "description": "Photos of a sign of the place, e.g. a storefront",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceIds": {
+            "description": "Photos of the source, e.g. the menu",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "start": {
+            "description": "Local date-time of the first photo",
+            "type": "string"
+          },
+          "subjectIds": {
+            "description": "Photos of the subjects, e.g. dishes and drinks",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": {
+            "description": "Kind of visit by local time, e.g. Lunch, for packs that have kinds",
+            "type": "string"
+          }
+        },
+        "required": [
+          "candidates",
+          "day",
+          "end",
+          "index",
+          "place",
+          "receiptIds",
+          "saved",
+          "signIds",
+          "sourceIds",
+          "start",
+          "subjectIds"
+        ],
+        "type": "object"
+      },
+      "CollectionVisitsDto": {
+        "properties": {
+          "albumId": {
+            "description": "Find visits among the photos of this album",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "assetIds": {
+            "description": "Find visits among these photos",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "type": "array"
+          },
+          "maxDistanceMeters": {
+            "description": "A photo further from the place of the visit starts a new visit",
+            "maximum": 5000,
+            "minimum": 20,
+            "type": "integer"
+          },
+          "maxGapMinutes": {
+            "description": "A longer gap between photos starts a new visit",
+            "maximum": 240,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "takenAfter": {
+            "description": "Only photos taken after this date (ISO 8601)",
+            "type": "string"
+          },
+          "takenBefore": {
+            "description": "Only photos taken before this date (ISO 8601)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CollectionVisitsResponseDto": {
+        "properties": {
+          "count": {
+            "description": "Photos considered",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pack": {
+            "description": "Collection pack",
+            "type": "string"
+          },
+          "photos": {
+            "description": "Photos found to belong to the collection: subjects, sources, signs and receipts",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "Whether more than 5000 photos matched and the rest were left out",
+            "type": "boolean"
+          },
+          "visits": {
+            "description": "Visits, in time order",
+            "items": {
+              "$ref": "#/components/schemas/CollectionVisitResponseDto"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "description": "Why the search may be incomplete, e.g. smart search is disabled",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "pack",
+          "photos",
+          "truncated",
+          "visits",
+          "warnings"
         ],
         "type": "object"
       },
