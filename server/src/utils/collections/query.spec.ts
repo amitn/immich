@@ -207,6 +207,20 @@ describe(queryCollectionVisits.name, () => {
     expect(queryCollectionVisits(photos(), { place: ['musee dorsay'] }).total.visits).toBe(1);
   });
 
+  it('should find the visits the people were at, from any photo taken during them', () => {
+    const anna = { name: 'Anna', times: [new Date('2014-01-11T15:00:00Z').getTime()] };
+    const ben = { name: 'Ben', times: [new Date('2014-01-11T12:00:00Z').getTime(), new Date('2030-01-01Z').getTime()] };
+    const result = queryCollectionVisits(photos(), { people: [anna, ben] });
+    expect(result.visits!.map(({ place, people }) => [place, people])).toEqual([
+      ['The French Laundry', ['Anna', 'Ben']],
+    ]);
+    // an hour after the menu photographed at 16:08 is still the visit, two hours is not
+    const late = (time: string) => ({ name: 'Anna', times: [new Date(time).getTime()] });
+    expect(queryCollectionVisits(photos(), { people: [late('2014-01-11T17:00:00Z')] }).total.visits).toBe(1);
+    expect(queryCollectionVisits(photos(), { people: [late('2014-01-11T18:10:00Z')] }).total.visits).toBe(0);
+    expect(queryCollectionVisits(photos(), { people: [{ name: 'Carl', times: [] }] }).total.visits).toBe(0);
+  });
+
   it('should cap the entries and the photos, with counts', () => {
     const rows = [
       ...Array.from({ length: 5 }, (_, index) => row('Food/Chez Panisse/Salad', `2020-01-01T12:0${index}:00`)),

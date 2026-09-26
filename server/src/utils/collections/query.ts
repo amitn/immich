@@ -53,7 +53,18 @@ export type CollectionQueryFilters = {
   text?: string[];
   city?: string[];
   country?: string[];
+  /**
+   * people who were there: each has to be on a photo taken during the visit (give or take an hour), tagged or not,
+   * as the photos of dishes or artworks rarely show anyone
+   */
+  people?: CollectionPersonTimes[];
 };
+
+/** a person asked about, with the local times in ms of the photos that show them */
+export type CollectionPersonTimes = { name: string; times: number[] };
+
+/** a person on a photo this close to a visit was there */
+export const PERSON_MARGIN_MINUTES = 60;
 
 export type CollectionQueryOptions = {
   /** return visits (default) or places */
@@ -174,12 +185,30 @@ type MatchedVisit = CollectionVisit & {
   /** the entry photos that answer the question */
   entries: CollectionPhoto[];
   sources: CollectionPhoto[];
+  /** the people asked about, seen during the visit */
+  seen: string[];
+};
+
+/** whether a sorted list of times has one within [from, to] */
+const hasTimeWithin = (times: number[], from: number, to: number) => {
+  let low = 0;
+  let high = times.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (times[middle] < from) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low < times.length && times[low] <= to;
 };
 
 /**
  * The visits that answer the filters, with the entries that do: a place filter keeps the visits of matching places, an
  * entry filter the matching entries, and a text filter either (a matching place counts whole, like a recipe named
- * "Quiche Lorraine" for "quiche"). City and country match any photo of the visit.
+ * "Quiche Lorraine" for "quiche"). City and country match any photo of the visit, and the people asked about have to be
+ * on a photo taken during it.
  */
 export const filterCollectionVisits = (visits: CollectionVisit[], filters: CollectionQueryFilters): MatchedVisit[] => {
   const matchPlace = createMatcher(filters.place);
@@ -192,6 +221,9 @@ export const filterCollectionVisits = (visits: CollectionVisit[], filters: Colle
   const hasCityFilter = !!filters.city?.some((value) => normalizeName(value));
   const hasCountryFilter = !!filters.country?.some((value) => normalizeName(value));
 
+  const margin = PERSON_MARGIN_MINUTES * 60_000;
+  const people = (filters.people ?? []).map(({ name, times }) => ({ name, times: times.toSorted((a, b) => a - b) }));
+
   const matched: MatchedVisit[] = [];
   for (const visit of visits) {
     if (!matchPlace(visit.place)) {
@@ -201,6 +233,10 @@ export const filterCollectionVisits = (visits: CollectionVisit[], filters: Colle
       continue;
     }
     if (hasCountryFilter && visit.photos.every(({ country }) => !matchCountry(country))) {
+      continue;
+    }
+    const seen = people.filter(({ times }) => hasTimeWithin(times, visit.start - margin, visit.end + margin));
+    if (seen.length < people.length) {
       continue;
     }
     const placeAnswers = hasTextFilter && matchText(visit.place);
@@ -214,7 +250,7 @@ export const filterCollectionVisits = (visits: CollectionVisit[], filters: Colle
     if (entries.length === 0 && (narrowed || sources.length === 0)) {
       continue;
     }
-    matched.push({ ...visit, entries, sources });
+    matched.push({ ...visit, entries, sources, seen: seen.map(({ name }) => name) });
   }
   return matched;
 };
@@ -245,7 +281,7 @@ const compactVisit = (
   options: Required<Omit<CollectionQueryOptions, 'detail' | 'order' | 'limit'>>,
 ) => {
   const entries = groupEntries(visit.entries);
-  const people = unique(visit.photos.flatMap((photo) => photo.people)).toSorted();
+  const people = unique([...visit.photos.flatMap((photo) => photo.people), ...visit.seen]).toSorted();
   const type = visit.pack.visits.type?.(visit.start);
   const startDay = toLocalDay(visit.start);
   const endDay = toLocalDay(visit.end);
@@ -325,7 +361,21 @@ const compactPlaces = (visits: MatchedVisit[], options: { order: 'desc' | 'asc';
     .map(({ result }) => result);
 };
 
-export type CollectionQueryResult = ReturnType<typeof queryCollectionVisits>;
+export type CollectionVisitResult = ReturnType<typeof compactVisit>;
+export type CollectionPlaceResult = ReturnType<typeof compactPlaces>[number];
+export type CollectionOccurrence = ReturnType<typeof describeOccurrence>;
+
+export type CollectionQueryResult = {
+  /** what matched: visits, places, distinct entries and the photos of the entries */
+  total: { visits: number; places: number; entries: number; photos: number };
+  packs?: string[];
+  first?: CollectionOccurrence;
+  last?: CollectionOccurrence;
+  visits?: CollectionVisitResult[];
+  moreVisits?: number;
+  places?: CollectionPlaceResult[];
+  morePlaces?: number;
+};
 
 /**
  * Answers a question about the collections: the matching visits (or places), newest first by default, with totals and
@@ -335,7 +385,7 @@ export const queryCollectionVisits = (
   photos: CollectionPhoto[],
   filters: CollectionQueryFilters,
   options: CollectionQueryOptions = {},
-) => {
+): CollectionQueryResult => {
   const order = options.order ?? 'desc';
   const limit = options.limit ?? COLLECTION_QUERY_DEFAULTS.limit;
   const settings = {

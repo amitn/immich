@@ -12,6 +12,7 @@ import {
   CollectionPackResponseDto,
   CollectionPlaceCandidate,
   CollectionSavedEntry,
+  CollectionSummaryResponseDto,
   CollectionVisitResponse,
   CollectionVisitsDto,
   CollectionVisitsResponseDto,
@@ -46,6 +47,17 @@ import {
   redactText,
 } from 'src/utils/collections/pack.js';
 import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
+import {
+  CollectionPersonTimes,
+  CollectionQueryFilters,
+  CollectionQueryOptions,
+  CollectionQueryResult,
+  PERSON_MARGIN_MINUTES,
+  parseDateBound,
+  queryCollectionVisits,
+  readCollectionRows,
+  summarizeCollections,
+} from 'src/utils/collections/query.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
 import {
   ParsedSource,
@@ -163,6 +175,31 @@ export type NearbyPlaces =
 
 export type PlaceLookupInput = { assetIds?: string[]; latitude?: number; longitude?: number; radius?: number };
 
+/** a question about the collections: which pack, when, who, and the filters and options of `queryCollectionVisits` */
+export type CollectionQueryInput = Omit<CollectionQueryFilters, 'people'> &
+  CollectionQueryOptions & {
+    pack?: string;
+    /** a year, month, day or local date-time: 2025, 2025-06, 2016-10-04 */
+    from?: string;
+    to?: string;
+    /** person ids or names */
+    people?: string[];
+  };
+
+export type CollectionQueryResponse = CollectionQueryResult & {
+  /** the most recent tagged photos were read, and older ones left out */
+  truncated?: boolean;
+  /** the people asked about, as they were found */
+  people?: Array<{ id: string; name: string }>;
+};
+
+/** tagged photos read for one question or summary; the most recent are kept */
+export const COLLECTION_QUERY_ROWS = 20_000;
+/** photos of the people asked about read for one question */
+const COLLECTION_PERSON_ROWS = 50_000;
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
 /**
  * The collections engine: finds the photos of a pack (e.g. food) in a library and groups them into visits, reads the
  * sources (menus) into entries, matches the subjects (dishes) with the entries and saves their names as the pack's
@@ -193,6 +230,122 @@ export class CollectionService extends BaseService {
       );
     }
     return pack;
+  }
+
+  /**
+   * What the library holds per pack, read from the pack's tags on the user's own photos: visits, places, entries and
+   * the years covered, with the places visited most recently
+   */
+  async getSummary(auth: AuthDto): Promise<CollectionSummaryResponseDto> {
+    const packs = getCollectionPacks();
+    const { photos, truncated } = await this.readCollectionPhotos(auth, packs, {});
+    return { packs: summarizeCollections(photos, packs), truncated };
+  }
+
+  /**
+   * Answers a question about the collections ("which wine did we have at Noma?", "when did we last make the
+   * quiche?") from the tags of every pack, or one: the matching visits (or places) with their entries and photos, the
+   * first and last time, and totals. Only the user's own photos are read, and the names of packs that hide private
+   * text are redacted before they are matched or returned.
+   */
+  async queryCollections(auth: AuthDto, input: CollectionQueryInput): Promise<CollectionQueryResponse> {
+    const packs = input.pack ? [this.requirePack(input.pack)] : getCollectionPacks();
+    const range = {
+      takenAfter: this.parseBound(input.from, 'from'),
+      takenBefore: this.parseBound(input.to, 'to'),
+    };
+    if (range.takenAfter && range.takenBefore && range.takenAfter >= range.takenBefore) {
+      throw new BadRequestException(`The range ${input.from} to ${input.to} is empty`);
+    }
+
+    const people = input.people?.length ? await this.resolvePeople(auth, input.people) : [];
+    const { photos, truncated } = await this.readCollectionPhotos(auth, packs, range);
+
+    let personTimes: CollectionPersonTimes[] | undefined;
+    if (people.length > 0 && photos.length > 0) {
+      const margin = PERSON_MARGIN_MINUTES * 60_000;
+      let first = Infinity;
+      let last = -Infinity;
+      for (const { time } of photos) {
+        first = Math.min(first, time);
+        last = Math.max(last, time);
+      }
+      const rows = await this.assetJobRepository.getPersonTimesForAgent({
+        userId: auth.user.id,
+        personIds: people.map(({ id }) => id),
+        takenAfter: new Date(first - margin),
+        takenBefore: new Date(last + margin + 1),
+        limit: COLLECTION_PERSON_ROWS,
+      });
+      personTimes = people.map(({ id, name }) => ({
+        name,
+        times: rows.filter((row) => row.personId === id).map((row) => row.localDateTime.getTime()),
+      }));
+    }
+
+    const { pack: _pack, from: _from, to: _to, people: _people, place, entry, text, city, country, ...options } = input;
+    const result = queryCollectionVisits(
+      photos,
+      { place, entry, text, city, country, ...(people.length > 0 && { people: personTimes ?? [] }) },
+      options,
+    );
+    return {
+      ...result,
+      ...(people.length > 0 && { people }),
+      ...(truncated && { truncated }),
+    };
+  }
+
+  private parseBound(value: string | undefined, bound: 'from' | 'to') {
+    if (value === undefined || value.trim() === '') {
+      return;
+    }
+    const date = parseDateBound(value, bound);
+    if (!date) {
+      throw new BadRequestException(`Invalid date: ${value} (use 2025, 2025-06, 2025-06-01 or 2025-06-01T18:00)`);
+    }
+    return date;
+  }
+
+  /** person ids or names to the user's people; a name is matched loosely, like find_people */
+  private async resolvePeople(auth: AuthDto, values: string[]) {
+    const people = await Promise.all(
+      unique(values.map((value) => value.trim()).filter(Boolean)).map(async (value) => {
+        if (UUID.test(value)) {
+          const person = await this.personRepository.getByGroupId({ ownerId: auth.user.id, personGroupId: value });
+          if (!person) {
+            throw new BadRequestException(`Unknown person ${value}: look people up with find_people`);
+          }
+          return { id: value, name: person.name || value };
+        }
+        const [person] = await this.personRepository.getByName(auth.user.id, value, { withHidden: false });
+        if (!person) {
+          throw new BadRequestException(`No person named "${value}": look people up with find_people`);
+        }
+        return { id: person.personGroupId, name: person.name };
+      }),
+    );
+    return people.filter((person, index) => people.findIndex(({ id }) => id === person.id) === index);
+  }
+
+  /** the tagged photos of the packs on the user's own photos, read by their packs (redacted) */
+  private async readCollectionPhotos(
+    auth: AuthDto,
+    packs: CollectionPack[],
+    range: { takenAfter?: Date; takenBefore?: Date },
+  ) {
+    const rows = await this.tagRepository.getCollectionTags({
+      userId: auth.user.id,
+      tagRoots: packs.map(({ tagRoot }) => tagRoot),
+      ...range,
+      limit: COLLECTION_QUERY_ROWS + 1,
+    });
+    const truncated = rows.length > COLLECTION_QUERY_ROWS;
+    const photos = readCollectionRows(
+      rows.slice(0, COLLECTION_QUERY_ROWS).map((row) => ({ ...row, people: row.people.map(({ name }) => name) })),
+      packs,
+    );
+    return { photos, truncated };
   }
 
   async findVisits(auth: AuthDto, packId: string, dto: CollectionVisitsDto): Promise<CollectionVisitsResponseDto> {
