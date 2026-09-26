@@ -1,5 +1,6 @@
 import { CollectionPack } from 'src/utils/collections/pack.js';
 import { assignTravelPhotos } from 'src/utils/collections/packs/travel/assign.js';
+import { getLegChapterTitle, getTicketStubPage, reviewTravelBook } from 'src/utils/collections/packs/travel/book.js';
 import { TRAVEL_CLASSIFY_RULES, TRAVEL_PROMPTS } from 'src/utils/collections/packs/travel/classify.js';
 import { formatMonth } from 'src/utils/collections/packs/travel/dates.js';
 import { redactTravelText } from 'src/utils/collections/packs/travel/privacy.js';
@@ -135,7 +136,12 @@ export const travelPack: CollectionPack = {
       look: 'printed',
     },
     caption: (leg) => leg,
-    review: { unnamedEntries: false, missingSourcePage: false },
+    review: { unnamedEntries: false, missingSourcePage: false, check: reviewTravelBook },
+    // a chapter per leg, titled with the leg: its photos are laid out as any photos, not named one by one
+    chapters: 'entry',
+    namedEntries: false,
+    chapterTitle: getLegChapterTitle,
+    sourcePage: getTicketStubPage,
   },
 
   agent: {
