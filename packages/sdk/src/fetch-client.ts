@@ -2315,6 +2315,50 @@ export type CollectionPackResponseDto = {
     /** Pack title, e.g. Food */
     title: string;
 };
+export type CollectionPlaceSummaryDto = {
+    /** Local day of the last visit, e.g. 2016-03-23 */
+    last: string;
+    /** Name of the place, as in the tags (redacted for packs that hide private text) */
+    name: string;
+    /** Visits of the place */
+    visits: number;
+};
+export type CollectionPackSummaryDto = {
+    /** Distinct entries of the places, e.g. dishes */
+    entries: number;
+    /** The word for the entries of the pack, e.g. menu items */
+    entry: string;
+    /** Local day of the first visit */
+    first?: string;
+    /** Local day of the last visit */
+    last?: string;
+    /** Pack ID, e.g. food */
+    pack: string;
+    /** Photos tagged with the pack */
+    photos: number;
+    /** The word for a place of the pack, e.g. restaurant */
+    place: string;
+    /** Distinct places */
+    places: number;
+    /** The places visited most recently, up to 5 */
+    recentPlaces: CollectionPlaceSummaryDto[];
+    /** Photos of the sources, e.g. menus */
+    sources: number;
+    /** Pack title, e.g. Food */
+    title: string;
+    /** The word for the visits of the pack, e.g. meals */
+    visit: string;
+    /** Visits: the photos of a place grouped by time */
+    visits: number;
+    /** Years with visits, in order */
+    years: number[];
+};
+export type CollectionSummaryResponseDto = {
+    /** Every pack, with zeros when it has no tagged photos */
+    packs: CollectionPackSummaryDto[];
+    /** Whether the library has more tagged photos than were read */
+    truncated: boolean;
+};
 export type CollectionEntryNameDto = {
     /** Name of the entry; the source leaf (e.g. "menu") marks a source */
     entry?: string;
@@ -6959,6 +7003,17 @@ export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: CollectionPackResponseDto[];
     }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Summarize the collections
+ */
+export function getCollectionSummary(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSummaryResponseDto;
+    }>("/collections/summary", {
         ...opts
     }));
 }

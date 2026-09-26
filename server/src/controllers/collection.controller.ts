@@ -9,6 +9,7 @@ import {
   CollectionMatchResponseDto,
   CollectionPackParamDto,
   CollectionPackResponseDto,
+  CollectionSummaryResponseDto,
   CollectionVisitsDto,
   CollectionVisitsResponseDto,
 } from 'src/dtos/collection.dto.js';
@@ -33,6 +34,18 @@ export class CollectionController {
   })
   getCollectionPacks(): CollectionPackResponseDto[] {
     return this.service.getPacks();
+  }
+
+  @Get('summary')
+  @Authenticated({ permission: Permission.AssetRead })
+  @Endpoint({
+    summary: 'Summarize the collections',
+    description:
+      "Retrieve what the collections of the user hold, per pack: the photos, visits, places and entries named with the tags of the pack, the years covered and the places visited most recently. Only the user's own photos are counted, and the names of packs that hide private text are redacted.",
+    history: history(),
+  })
+  getCollectionSummary(@Auth() auth: AuthDto): Promise<CollectionSummaryResponseDto> {
+    return this.service.getSummary(auth);
   }
 
   @Post(':pack/visits')
