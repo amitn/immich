@@ -62,6 +62,18 @@ select
 from
   "created_tag"
 
+-- TagRepository.getAssetTagsByPrefix
+select
+  "tag_asset"."assetId",
+  "tag"."id" as "tagId",
+  "tag"."value"
+from
+  "tag_asset"
+  inner join "tag" on "tag"."id" = "tag_asset"."tagId"
+where
+  "tag_asset"."assetId" = any ($1::uuid[])
+  and "tag"."value" like $2
+
 -- TagRepository.getAll
 select
   "tag"."id",

@@ -9432,6 +9432,174 @@
         "x-immich-state": "Stable"
       }
     },
+    "/food/dishes": {
+      "put": {
+        "description": "Tag each photo with Food/<Restaurant>/<Dish>, or Food/<Restaurant>/Menu for a photo of the menu, replacing the food tag it had, and describe dish photos without a description as \"<Dish> · <Restaurant>\".",
+        "operationId": "setDishNames",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodDishesDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodDishesResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Name dishes",
+        "tags": [
+          "Food"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/food/meals": {
+      "post": {
+        "description": "Find the restaurant meals among the photos of an album, a list of assets or a date range: photos of dishes and drinks, menus, restaurant signs and receipts are recognized with CLIP and the text read on them, and grouped into visits by time and place. Each meal comes with the best name for its restaurant (from its food tags, or read on a sign, menu or receipt, or made up from the meal and the city) and the food tags already on its photos.",
+        "operationId": "findMeals",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodMealsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodMealsResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Find meals",
+        "tags": [
+          "Food"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/food/meals/match": {
+      "post": {
+        "description": "Suggest which menu item each dish photo of a meal shows, from the items read on its menu photos (at full resolution) or the items given. Photos of the same dish are grouped; weak matches are marked unsure, and dishes that are probably not on the menu get no match.",
+        "operationId": "matchMeal",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FoodMatchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodMatchResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Match the dishes of a meal",
+        "tags": [
+          "Food"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/jobs": {
       "get": {
         "deprecated": true,
@@ -20244,6 +20412,10 @@
       "description": "A face is a detected human face within an asset, which can be associated with a person. Faces are normally detected via machine learning, but can also be created manually."
     },
     {
+      "name": "Food",
+      "description": "Food photos are organized by restaurant and dish with Food/<Restaurant>/<Dish> tags; these endpoints find the meals among assets, match their dishes with menu items and save the names."
+    },
+    {
       "name": "Integrity (admin)",
       "description": "Endpoints for viewing and managing integrity reports."
     },
@@ -20704,6 +20876,9 @@
           "ffmpeg": {
             "$ref": "#/components/schemas/AdminConfigFFmpegDto"
           },
+          "food": {
+            "$ref": "#/components/schemas/AdminConfigFoodDto"
+          },
           "image": {
             "$ref": "#/components/schemas/AdminConfigImageDto"
           },
@@ -20770,6 +20945,7 @@
           "backup",
           "books",
           "ffmpeg",
+          "food",
           "image",
           "integrityChecks",
           "job",
@@ -21019,6 +21195,36 @@
           "minFaces",
           "minScore",
           "modelName"
+        ],
+        "type": "object"
+      },
+      "AdminConfigFoodDto": {
+        "description": "Food photos config",
+        "properties": {
+          "openStreetMap": {
+            "$ref": "#/components/schemas/AdminConfigFoodOpenStreetMapDto"
+          }
+        },
+        "required": [
+          "openStreetMap"
+        ],
+        "type": "object"
+      },
+      "AdminConfigFoodOpenStreetMapDto": {
+        "properties": {
+          "enabled": {
+            "description": "Let the assistant look up restaurants near the location of a meal on OpenStreetMap (sends the location to the Overpass API)",
+            "type": "boolean"
+          },
+          "overpassUrl": {
+            "description": "URL of the Overpass API interpreter",
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "overpassUrl"
         ],
         "type": "object"
       },
@@ -24410,12 +24616,13 @@
         "type": "object"
       },
       "BookCaptionMode": {
-        "description": "Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time) or people (place and the names of the people); default place",
+        "description": "Captions drafted from facts only: none, place (the place when it changes), place-time (place and local time), people (place and the names of the people) or dish (the name of the dish below every dish photo, from its Food/<Restaurant>/<Dish> tag, and place for the other photos); default dish for the food style or photos with food tags, otherwise place",
         "enum": [
           "none",
           "place",
           "place-time",
-          "people"
+          "people",
+          "dish"
         ],
         "type": "string"
       },
@@ -24767,6 +24974,10 @@
             "description": "Layout description",
             "type": "string"
           },
+          "food": {
+            "description": "Whether the layout is made for food books (menu pages, dishes with their names)",
+            "type": "boolean"
+          },
           "fullBleed": {
             "description": "Whether the layout ignores the page margins",
             "type": "boolean"
@@ -24809,14 +25020,21 @@
                   "type": "number"
                 },
                 "kind": {
-                  "description": "Text shown in the area",
+                  "description": "Text shown in the area; slotCaption is the caption of one photo, drawn beside it",
                   "enum": [
                     "title",
                     "subtitle",
                     "sectionTitle",
-                    "caption"
+                    "caption",
+                    "slotCaption"
                   ],
                   "type": "string"
+                },
+                "slot": {
+                  "description": "Zero-based slot whose caption a slotCaption area shows",
+                  "maximum": 9007199254740991,
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "width": {
                   "description": "Width, as a fraction of the layout area",
@@ -24848,6 +25066,7 @@
         },
         "required": [
           "description",
+          "food",
           "fullBleed",
           "id",
           "name",
@@ -25294,7 +25513,9 @@
               "too-many-pairs",
               "repeated-layout",
               "missing-captions",
-              "could-look-better"
+              "could-look-better",
+              "missing-dish-name",
+              "missing-menu-page"
             ],
             "type": "string"
           }
@@ -25570,6 +25791,11 @@
       "BookStyle": {
         "description": "Visual style of a book",
         "properties": {
+          "accentColor": {
+            "description": "Color of the rules, ornaments and small-caps lines of the food theme (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
           "background": {
             "description": "Page background color (hex)",
             "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
@@ -25607,6 +25833,9 @@
             "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
             "type": "string"
           },
+          "theme": {
+            "$ref": "#/components/schemas/BookStyleTheme"
+          },
           "titleSizePt": {
             "description": "Title font size in points",
             "format": "double",
@@ -25625,11 +25854,12 @@
         "type": "object"
       },
       "BookStylePreset": {
-        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif) or bold (small margins, tight gutters, sans-serif; suits full-bleed photos). The style options override its values",
+        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos) or food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit). The style options override its values",
         "enum": [
           "classic",
           "soft",
-          "bold"
+          "bold",
+          "food"
         ],
         "type": "string"
       },
@@ -25658,9 +25888,22 @@
         ],
         "type": "object"
       },
+      "BookStyleTheme": {
+        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos)",
+        "enum": [
+          "plain",
+          "food"
+        ],
+        "type": "string"
+      },
       "BookStyleUpdate": {
         "description": "Style changes; omitted properties keep their current value",
         "properties": {
+          "accentColor": {
+            "description": "Color of the rules, ornaments and small-caps lines of the food theme (hex)",
+            "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
+            "type": "string"
+          },
           "background": {
             "description": "Page background color (hex)",
             "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
@@ -25697,6 +25940,9 @@
             "description": "Caption and title color (hex)",
             "pattern": "^#([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$",
             "type": "string"
+          },
+          "theme": {
+            "$ref": "#/components/schemas/BookStyleTheme"
           },
           "titleSizePt": {
             "description": "Title font size in points",
@@ -27135,6 +27381,600 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "FoodDishMatchDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos of the same dish",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "index": {
+            "description": "Index of the matched menu item",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the matched menu item",
+            "type": "string"
+          },
+          "offMenu": {
+            "description": "Probability that the dish is not on the menu (bread, coffee, an amuse-bouche), 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "score": {
+            "description": "Probability of the match, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "shared": {
+            "description": "The menu item is matched to other dishes too",
+            "type": "boolean"
+          },
+          "suggestions": {
+            "description": "Best menu items for the photos",
+            "items": {
+              "$ref": "#/components/schemas/FoodDishSuggestionDto"
+            },
+            "type": "array"
+          },
+          "unsure": {
+            "description": "The match is weak or not the favourite of the photos: check it",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assetIds",
+          "score",
+          "suggestions",
+          "unsure"
+        ],
+        "type": "object"
+      },
+      "FoodDishNameDto": {
+        "properties": {
+          "dish": {
+            "description": "Name of the dish; \"menu\" marks a photo of the menu",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "menu": {
+            "description": "The photo shows the menu",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "FoodDishResultDto": {
+        "properties": {
+          "description": {
+            "description": "The description set on the photo, when it had none",
+            "type": "string"
+          },
+          "error": {
+            "description": "Why the photo was not tagged",
+            "type": "string"
+          },
+          "id": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "previousTags": {
+            "description": "Food tags the photo had before, now removed",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "success": {
+            "description": "Whether the photo was tagged",
+            "type": "boolean"
+          },
+          "tag": {
+            "description": "The food tag of the photo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "success"
+        ],
+        "type": "object"
+      },
+      "FoodDishSuggestionDto": {
+        "properties": {
+          "index": {
+            "description": "Index of the menu item",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "name": {
+            "description": "Name of the menu item",
+            "type": "string"
+          },
+          "score": {
+            "description": "Probability among the items, 0-1",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "score"
+        ],
+        "type": "object"
+      },
+      "FoodDishesDto": {
+        "properties": {
+          "photos": {
+            "description": "The photos to name",
+            "items": {
+              "$ref": "#/components/schemas/FoodDishNameDto"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          },
+          "restaurant": {
+            "description": "Name of the restaurant",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "photos",
+          "restaurant"
+        ],
+        "type": "object"
+      },
+      "FoodDishesResponseDto": {
+        "properties": {
+          "restaurant": {
+            "description": "Name of the restaurant as it is used in the tags",
+            "type": "string"
+          },
+          "results": {
+            "description": "One result per photo",
+            "items": {
+              "$ref": "#/components/schemas/FoodDishResultDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "restaurant",
+          "results"
+        ],
+        "type": "object"
+      },
+      "FoodMatchDto": {
+        "properties": {
+          "dishIds": {
+            "description": "Photos of the dishes of one meal",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "items": {
+            "description": "Menu items to match instead of the ones read on the menu photos",
+            "items": {
+              "$ref": "#/components/schemas/FoodMenuItemInputDto"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "menuIds": {
+            "description": "Photos of the menu of the meal",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "type": "array"
+          }
+        },
+        "required": [
+          "dishIds"
+        ],
+        "type": "object"
+      },
+      "FoodMatchResponseDto": {
+        "properties": {
+          "dishes": {
+            "description": "The dishes, with their matches",
+            "items": {
+              "$ref": "#/components/schemas/FoodDishMatchDto"
+            },
+            "type": "array"
+          },
+          "items": {
+            "description": "The menu items",
+            "items": {
+              "$ref": "#/components/schemas/FoodMenuItemDto"
+            },
+            "type": "array"
+          },
+          "noEmbedding": {
+            "description": "Dish photos that could not be matched because smart search has not run",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "description": "Why matching may be incomplete",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "dishes",
+          "items",
+          "noEmbedding",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "FoodMealResponseDto": {
+        "properties": {
+          "candidates": {
+            "description": "Other names read on the photos",
+            "items": {
+              "$ref": "#/components/schemas/FoodRestaurantCandidateDto"
+            },
+            "type": "array"
+          },
+          "city": {
+            "description": "City",
+            "type": "string"
+          },
+          "country": {
+            "description": "Country",
+            "type": "string"
+          },
+          "day": {
+            "description": "Local day of the meal",
+            "type": "string"
+          },
+          "dishIds": {
+            "description": "Photos of dishes and drinks",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "end": {
+            "description": "Local date-time of the last photo",
+            "type": "string"
+          },
+          "index": {
+            "description": "Position of the meal, in time order",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "latitude": {
+            "description": "Latitude of the meal (average of its located photos)",
+            "format": "double",
+            "type": "number"
+          },
+          "longitude": {
+            "description": "Longitude of the meal (average of its located photos)",
+            "format": "double",
+            "type": "number"
+          },
+          "menuIds": {
+            "description": "Photos of the menu",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "receiptIds": {
+            "description": "Photos of the receipt",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "restaurant": {
+            "$ref": "#/components/schemas/FoodRestaurantCandidateDto",
+            "description": "The best name for the restaurant"
+          },
+          "saved": {
+            "description": "Food tags already on the photos of the meal",
+            "items": {
+              "$ref": "#/components/schemas/FoodSavedDishDto"
+            },
+            "type": "array"
+          },
+          "signIds": {
+            "description": "Photos of the restaurant sign or storefront",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "start": {
+            "description": "Local date-time of the first photo",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/FoodMealType"
+          }
+        },
+        "required": [
+          "candidates",
+          "day",
+          "dishIds",
+          "end",
+          "index",
+          "menuIds",
+          "receiptIds",
+          "restaurant",
+          "saved",
+          "signIds",
+          "start",
+          "type"
+        ],
+        "type": "object"
+      },
+      "FoodMealType": {
+        "description": "Meal by local time",
+        "enum": [
+          "Breakfast",
+          "Lunch",
+          "Dinner"
+        ],
+        "type": "string"
+      },
+      "FoodMealsDto": {
+        "properties": {
+          "albumId": {
+            "description": "Find meals among the photos of this album",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "assetIds": {
+            "description": "Find meals among these photos",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 2000,
+            "type": "array"
+          },
+          "maxDistanceMeters": {
+            "description": "A photo further from the place of the meal starts a new meal",
+            "maximum": 5000,
+            "minimum": 20,
+            "type": "integer"
+          },
+          "maxGapMinutes": {
+            "description": "A longer gap between food photos starts a new meal",
+            "maximum": 240,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "takenAfter": {
+            "description": "Only photos taken after this date (ISO 8601)",
+            "type": "string"
+          },
+          "takenBefore": {
+            "description": "Only photos taken before this date (ISO 8601)",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FoodMealsResponseDto": {
+        "properties": {
+          "count": {
+            "description": "Photos considered",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "foodPhotos": {
+            "description": "Photos found to show food, a menu, a restaurant sign or a receipt",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "meals": {
+            "description": "Restaurant visits, in time order",
+            "items": {
+              "$ref": "#/components/schemas/FoodMealResponseDto"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "description": "Whether more than 5000 photos matched and the rest were left out",
+            "type": "boolean"
+          },
+          "warnings": {
+            "description": "Why the search may be incomplete, e.g. smart search is disabled",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "foodPhotos",
+          "meals",
+          "truncated",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "FoodMenuItemDto": {
+        "properties": {
+          "description": {
+            "description": "Description of the item",
+            "type": "string"
+          },
+          "index": {
+            "description": "Index of the item",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "menuId": {
+            "description": "Menu photo the item was read on",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the item, as printed",
+            "type": "string"
+          },
+          "price": {
+            "description": "Price as printed",
+            "type": "string"
+          },
+          "section": {
+            "description": "Section of the menu, e.g. \"Primi piatti\"",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name"
+        ],
+        "type": "object"
+      },
+      "FoodMenuItemInputDto": {
+        "properties": {
+          "description": {
+            "description": "Description of the item",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the item, as printed",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "FoodRestaurantCandidateDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos the name was read on",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confidence": {
+            "description": "Confidence, 0-1",
+            "format": "double",
+            "type": "number"
+          },
+          "name": {
+            "description": "Restaurant name",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FoodRestaurantSource"
+          }
+        },
+        "required": [
+          "assetIds",
+          "confidence",
+          "name",
+          "source"
+        ],
+        "type": "object"
+      },
+      "FoodRestaurantSource": {
+        "description": "Where the restaurant name comes from: the food tags already on the photos, text read on a sign, menu or receipt, or a name made up from the meal and the city",
+        "enum": [
+          "tag",
+          "sign",
+          "menu",
+          "receipt",
+          "fallback"
+        ],
+        "type": "string"
+      },
+      "FoodSavedDishDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "dish": {
+            "description": "Dish of the food tag, absent for a menu",
+            "type": "string"
+          },
+          "menu": {
+            "description": "Whether the photo is tagged as the menu",
+            "type": "boolean"
+          },
+          "restaurant": {
+            "description": "Restaurant of the food tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetId",
+          "menu",
+          "restaurant"
+        ],
         "type": "object"
       },
       "HlsVideoResolution": {

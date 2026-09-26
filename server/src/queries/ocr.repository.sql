@@ -17,6 +17,26 @@ where
   "asset_ocr"."assetId" = $1
   and "asset_ocr"."isVisible" = $2
 
+-- OcrRepository.getByAssetIds
+select
+  "asset_ocr"."assetId",
+  "asset_ocr"."x1",
+  "asset_ocr"."y1",
+  "asset_ocr"."x2",
+  "asset_ocr"."y2",
+  "asset_ocr"."x3",
+  "asset_ocr"."y3",
+  "asset_ocr"."x4",
+  "asset_ocr"."y4",
+  "asset_ocr"."text",
+  "asset_ocr"."boxScore",
+  "asset_ocr"."textScore"
+from
+  "asset_ocr"
+where
+  "asset_ocr"."assetId" = any ($1::uuid[])
+  and "asset_ocr"."isVisible" = $2
+
 -- OcrRepository.upsert
 with
   "deleted_ocr" as (

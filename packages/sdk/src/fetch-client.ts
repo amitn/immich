@@ -155,6 +155,15 @@ export type AdminConfigFFmpegDto = {
     /** Two pass */
     twoPass: boolean;
 };
+export type AdminConfigFoodOpenStreetMapDto = {
+    /** Let the assistant look up restaurants near the location of a meal on OpenStreetMap (sends the location to the Overpass API) */
+    enabled: boolean;
+    /** URL of the Overpass API interpreter */
+    overpassUrl: string;
+};
+export type AdminConfigFoodDto = {
+    openStreetMap: AdminConfigFoodOpenStreetMapDto;
+};
 export type AdminConfigGeneratedFullsizeImageDto = {
     /** Enabled */
     enabled: boolean;
@@ -454,6 +463,7 @@ export type AdminConfigDto = {
     backup: AdminConfigBackupsDto;
     books: AdminConfigBooksDto;
     ffmpeg: AdminConfigFFmpegDto;
+    food: AdminConfigFoodDto;
     image: AdminConfigImageDto;
     integrityChecks: AdminConfigIntegrityChecksDto;
     job: AdminConfigJobDto;
@@ -1793,6 +1803,8 @@ export type ValidateAccessTokenResponseDto = {
     authStatus: boolean;
 };
 export type BookStyle = {
+    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
+    accentColor?: string;
     /** Page background color (hex) */
     background: string;
     /** Caption font size in points */
@@ -1805,6 +1817,7 @@ export type BookStyle = {
     marginMm: number;
     /** Caption and title color (hex) */
     textColor: string;
+    theme?: BookStyleTheme;
     /** Title font size in points */
     titleSizePt?: number;
 };
@@ -1848,6 +1861,8 @@ export type BookResponseDto = {
     updatedAt: string;
 };
 export type BookStyleUpdate = {
+    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
+    accentColor?: string;
     /** Page background color (hex) */
     background?: string;
     /** Caption font size in points */
@@ -1860,6 +1875,7 @@ export type BookStyleUpdate = {
     marginMm?: number;
     /** Caption and title color (hex) */
     textColor?: string;
+    theme?: BookStyleTheme;
     /** Title font size in points */
     titleSizePt?: number;
 };
@@ -2060,6 +2076,8 @@ export type BookLayoutRect = {
 export type BookLayoutResponseDto = {
     /** Layout description */
     description: string;
+    /** Whether the layout is made for food books (menu pages, dishes with their names) */
+    food: boolean;
     /** Whether the layout ignores the page margins */
     fullBleed: boolean;
     /** Layout ID */
@@ -2076,8 +2094,10 @@ export type BookLayoutResponseDto = {
     textAreas: {
         /** Height, as a fraction of the layout area */
         height: number;
-        /** Text shown in the area */
+        /** Text shown in the area; slotCaption is the caption of one photo, drawn beside it */
         kind: Kind2;
+        /** Zero-based slot whose caption a slotCaption area shows */
+        slot?: number;
         /** Width, as a fraction of the layout area */
         width: number;
         /** Left edge, as a fraction of the layout area */
@@ -2459,6 +2479,182 @@ export type AssetFaceDeleteDto = {
 export type FaceDto = {
     /** Face ID */
     id: string;
+};
+export type FoodDishNameDto = {
+    /** Name of the dish; "menu" marks a photo of the menu */
+    dish?: string;
+    /** Asset ID */
+    id: string;
+    /** The photo shows the menu */
+    menu?: boolean;
+};
+export type FoodDishesDto = {
+    /** The photos to name */
+    photos: FoodDishNameDto[];
+    /** Name of the restaurant */
+    restaurant: string;
+};
+export type FoodDishResultDto = {
+    /** The description set on the photo, when it had none */
+    description?: string;
+    /** Why the photo was not tagged */
+    error?: string;
+    /** Asset ID */
+    id: string;
+    /** Food tags the photo had before, now removed */
+    previousTags?: string[];
+    /** Whether the photo was tagged */
+    success: boolean;
+    /** The food tag of the photo */
+    tag?: string;
+};
+export type FoodDishesResponseDto = {
+    /** Name of the restaurant as it is used in the tags */
+    restaurant: string;
+    /** One result per photo */
+    results: FoodDishResultDto[];
+};
+export type FoodMealsDto = {
+    /** Find meals among the photos of this album */
+    albumId?: string;
+    /** Find meals among these photos */
+    assetIds?: string[];
+    /** A photo further from the place of the meal starts a new meal */
+    maxDistanceMeters?: number;
+    /** A longer gap between food photos starts a new meal */
+    maxGapMinutes?: number;
+    /** Only photos taken after this date (ISO 8601) */
+    takenAfter?: string;
+    /** Only photos taken before this date (ISO 8601) */
+    takenBefore?: string;
+};
+export type FoodRestaurantCandidateDto = {
+    /** Photos the name was read on */
+    assetIds: string[];
+    /** Confidence, 0-1 */
+    confidence: number;
+    /** Restaurant name */
+    name: string;
+    source: FoodRestaurantSource;
+};
+export type FoodSavedDishDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Dish of the food tag, absent for a menu */
+    dish?: string;
+    /** Whether the photo is tagged as the menu */
+    menu: boolean;
+    /** Restaurant of the food tag */
+    restaurant: string;
+};
+export type FoodMealResponseDto = {
+    /** Other names read on the photos */
+    candidates: FoodRestaurantCandidateDto[];
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the meal */
+    day: string;
+    /** Photos of dishes and drinks */
+    dishIds: string[];
+    /** Local date-time of the last photo */
+    end: string;
+    /** Position of the meal, in time order */
+    index: number;
+    /** Latitude of the meal (average of its located photos) */
+    latitude?: number;
+    /** Longitude of the meal (average of its located photos) */
+    longitude?: number;
+    /** Photos of the menu */
+    menuIds: string[];
+    /** Photos of the receipt */
+    receiptIds: string[];
+    /** The best name for the restaurant */
+    restaurant: FoodRestaurantCandidateDto;
+    /** Food tags already on the photos of the meal */
+    saved: FoodSavedDishDto[];
+    /** Photos of the restaurant sign or storefront */
+    signIds: string[];
+    /** Local date-time of the first photo */
+    start: string;
+    "type": FoodMealType;
+};
+export type FoodMealsResponseDto = {
+    /** Photos considered */
+    count: number;
+    /** Photos found to show food, a menu, a restaurant sign or a receipt */
+    foodPhotos: number;
+    /** Restaurant visits, in time order */
+    meals: FoodMealResponseDto[];
+    /** Whether more than 5000 photos matched and the rest were left out */
+    truncated: boolean;
+    /** Why the search may be incomplete, e.g. smart search is disabled */
+    warnings: string[];
+};
+export type FoodMenuItemInputDto = {
+    /** Description of the item */
+    description?: string;
+    /** Name of the item, as printed */
+    name: string;
+};
+export type FoodMatchDto = {
+    /** Photos of the dishes of one meal */
+    dishIds: string[];
+    /** Menu items to match instead of the ones read on the menu photos */
+    items?: FoodMenuItemInputDto[];
+    /** Photos of the menu of the meal */
+    menuIds?: string[];
+};
+export type FoodDishSuggestionDto = {
+    /** Index of the menu item */
+    index: number;
+    /** Name of the menu item */
+    name: string;
+    /** Probability among the items, 0-1 */
+    score: number;
+};
+export type FoodDishMatchDto = {
+    /** Photos of the same dish */
+    assetIds: string[];
+    /** Index of the matched menu item */
+    index?: number;
+    /** Name of the matched menu item */
+    name?: string;
+    /** Probability that the dish is not on the menu (bread, coffee, an amuse-bouche), 0-1 */
+    offMenu?: number;
+    /** Probability of the match, 0-1 */
+    score: number;
+    /** The menu item is matched to other dishes too */
+    shared?: boolean;
+    /** Best menu items for the photos */
+    suggestions: FoodDishSuggestionDto[];
+    /** The match is weak or not the favourite of the photos: check it */
+    unsure: boolean;
+};
+export type FoodMenuItemDto = {
+    /** Description of the item */
+    description?: string;
+    /** Index of the item */
+    index: number;
+    /** Menu photo the item was read on */
+    menuId?: string;
+    /** Name of the item, as printed */
+    name: string;
+    /** Price as printed */
+    price?: string;
+    /** Section of the menu, e.g. "Primi piatti" */
+    section?: string;
+};
+export type FoodMatchResponseDto = {
+    /** The dishes, with their matches */
+    dishes: FoodDishMatchDto[];
+    /** The menu items */
+    items: FoodMenuItemDto[];
+    /** Dish photos that could not be matched because smart search has not run */
+    noEmbedding: string[];
+    /** Why matching may be incomplete */
+    warnings: string[];
 };
 export type QueueStatisticsDto = {
     /** Number of active jobs */
@@ -6701,6 +6897,51 @@ export function reassignFacesById({ id, faceDto }: {
     })));
 }
 /**
+ * Name dishes
+ */
+export function setDishNames({ foodDishesDto }: {
+    foodDishesDto: FoodDishesDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodDishesResponseDto;
+    }>("/food/dishes", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: foodDishesDto
+    })));
+}
+/**
+ * Find meals
+ */
+export function findMeals({ foodMealsDto }: {
+    foodMealsDto: FoodMealsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodMealsResponseDto;
+    }>("/food/meals", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: foodMealsDto
+    })));
+}
+/**
+ * Match the dishes of a meal
+ */
+export function matchMeal({ foodMatchDto }: {
+    foodMatchDto: FoodMatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodMatchResponseDto;
+    }>("/food/meals/match", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: foodMatchDto
+    })));
+}
+/**
  * Retrieve queue counts and status
  */
 export function getQueuesLegacy(opts?: Oazapfts.RequestOpts) {
@@ -9494,10 +9735,15 @@ export enum BookExportStatus {
     Completed = "completed",
     Failed = "failed"
 }
+export enum BookStyleTheme {
+    Plain = "plain",
+    Food = "food"
+}
 export enum BookStylePreset {
     Classic = "classic",
     Soft = "soft",
-    Bold = "bold"
+    Bold = "bold",
+    Food = "food"
 }
 export enum BookMapStyle {
     Sketch = "sketch",
@@ -9509,7 +9755,8 @@ export enum BookCaptionMode {
     None = "none",
     Place = "place",
     PlaceTime = "place-time",
-    People = "people"
+    People = "people",
+    Dish = "dish"
 }
 export enum BookMapStyleOption {
     Auto = "auto",
@@ -9527,7 +9774,8 @@ export enum Kind2 {
     Title = "title",
     Subtitle = "subtitle",
     SectionTitle = "sectionTitle",
-    Caption = "caption"
+    Caption = "caption",
+    SlotCaption = "slotCaption"
 }
 export enum BookExportFormat {
     Pdf = "pdf",
@@ -9551,12 +9799,26 @@ export enum Type {
     TooManyPairs = "too-many-pairs",
     RepeatedLayout = "repeated-layout",
     MissingCaptions = "missing-captions",
-    CouldLookBetter = "could-look-better"
+    CouldLookBetter = "could-look-better",
+    MissingDishName = "missing-dish-name",
+    MissingMenuPage = "missing-menu-page"
 }
 export enum SourceType {
     MachineLearning = "machine-learning",
     Exif = "exif",
     Manual = "manual"
+}
+export enum FoodRestaurantSource {
+    Tag = "tag",
+    Sign = "sign",
+    Menu = "menu",
+    Receipt = "receipt",
+    Fallback = "fallback"
+}
+export enum FoodMealType {
+    Breakfast = "Breakfast",
+    Lunch = "Lunch",
+    Dinner = "Dinner"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
