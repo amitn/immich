@@ -13,9 +13,11 @@
     book: BookDetailResponseDto;
     /** Called with the book after its style changed */
     onUpdated: (book: BookDetailResponseDto) => void;
+    /** Called with the name of the style being applied, and without one when applying it failed */
+    onApplying?: (name?: string) => void;
   };
 
-  const { book, onUpdated }: Props = $props();
+  const { book, onUpdated, onApplying }: Props = $props();
 
   let presets = $state<BookStylePresetResponseDto[]>([]);
   let saving = $state(false);
@@ -49,11 +51,15 @@
     }
 
     saving = true;
+    onApplying?.(presetName(preset));
     try {
       const updated = await updateBook({ id: book.id, bookUpdateDto: { stylePreset: preset.id } });
       onUpdated(updated);
-      toastManager.success($t('book_style_changed', { values: { name: presetName(preset) } }));
+      if (!onApplying) {
+        toastManager.success($t('book_style_changed', { values: { name: presetName(preset) } }));
+      }
     } catch (error) {
+      onApplying?.();
       handleError(error, $t('errors.unable_to_update_book'));
     } finally {
       saving = false;

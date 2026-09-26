@@ -1024,6 +1024,7 @@
   "book_spread": "Spread",
   "book_style": "Style",
   "book_style_apply": "Apply style",
+  "book_style_applying": "Applying the {name} style…",
   "book_style_changed": "Style changed to {name}",
   "book_style_current": "Style: {name}",
   "book_style_custom": "Custom",

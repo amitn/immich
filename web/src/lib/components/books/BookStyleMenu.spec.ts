@@ -101,6 +101,34 @@ describe('BookStyleMenu component', () => {
     expect(modalManager.showDialog).not.toHaveBeenCalled();
   });
 
+  it('should say which style is being applied and leave the confirmation to the viewer', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+    const onApplying = vi.fn();
+    sdkMock.updateBook.mockResolvedValue({ ...book, style: { ...classic.style } });
+
+    renderMenu({ book, onUpdated, onApplying });
+    await openMenu();
+    await fireEvent.click(screen.getByRole('menuitemradio', { name: /book_style_preset_classic/ }));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalled());
+    expect(onApplying).toHaveBeenCalledWith('book_style_preset_classic');
+    expect(toastManager.success).not.toHaveBeenCalled();
+  });
+
+  it('should stop applying a style that could not be saved', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+    const onApplying = vi.fn();
+    sdkMock.updateBook.mockRejectedValue(new Error('offline'));
+    vi.spyOn(toastManager, 'danger').mockImplementation(() => {});
+
+    renderMenu({ book, onUpdated, onApplying });
+    await openMenu();
+    await fireEvent.click(screen.getByRole('menuitemradio', { name: /book_style_preset_classic/ }));
+
+    await waitFor(() => expect(onApplying).toHaveBeenLastCalledWith());
+    expect(onUpdated).not.toHaveBeenCalled();
+  });
+
   it('should apply the food preset and mark it', async () => {
     const book = bookDetailFactory.build({ style: { ...soft.style } });
     const updated = { ...book, style: { ...food.style } };

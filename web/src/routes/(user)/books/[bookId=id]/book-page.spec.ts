@@ -1,5 +1,5 @@
 import { AgentMessageKind, BookStylePreset, Orientation, Severity, type BookPageResponseDto } from '@immich/sdk';
-import { modalManager } from '@immich/ui';
+import { modalManager, toastManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { ComponentProps } from 'svelte';
 import { goto } from '$app/navigation';
@@ -306,6 +306,16 @@ describe('book page', () => {
         id: book.id,
         bookUpdateDto: { stylePreset: BookStylePreset.Classic },
       });
+
+      // the old render stays visible under a spinner until the new one has loaded
+      expect(screen.getByText('book_style_applying')).toBeInTheDocument();
+      expect(screen.getByTestId('book-page-loading')).toBeInTheDocument();
+      const success = vi.spyOn(toastManager, 'success').mockImplementation(() => {});
+      await fireEvent.load(screen.getByRole('img', { name: 'book_page_image' }));
+
+      await waitFor(() => expect(screen.queryByText('book_style_applying')).not.toBeInTheDocument());
+      expect(screen.queryByTestId('book-page-loading')).not.toBeInTheDocument();
+      expect(success).toHaveBeenCalledWith('book_style_changed');
     });
   });
 });

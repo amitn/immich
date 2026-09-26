@@ -364,10 +364,32 @@
     }
   };
 
+  /** the style being applied; the pages show the old style until their new renders have loaded */
+  let applyingStyle = $state<string>();
+  /** the version of the book before the new style, whose pages don't count as done */
+  let styleFrom = $state<string>();
+
+  const startApplyingStyle = (name?: string) => {
+    applyingStyle = name;
+    styleFrom = name ? book.updatedAt : undefined;
+  };
+
   const handleStyleUpdated = (updated: BookDetailResponseDto) => {
     book = updated;
     loaded.clear();
   };
+
+  $effect(() => {
+    if (
+      applyingStyle &&
+      book.updatedAt !== styleFrom &&
+      current.length > 0 &&
+      current.every((page) => loaded.has(page.id))
+    ) {
+      toastManager.success($t('book_style_changed', { values: { name: applyingStyle } }));
+      applyingStyle = undefined;
+    }
+  });
 
   const toggleReview = () => {
     if (reviewOpen) {
@@ -503,7 +525,7 @@
         <span class="hidden sm:inline">{$t('book_relayout')}</span>
         <span class="sr-only sm:hidden">{$t('book_relayout')}</span>
       </Button>
-      <BookStyleMenu {book} onUpdated={handleStyleUpdated} />
+      <BookStyleMenu {book} onUpdated={handleStyleUpdated} onApplying={startApplyingStyle} />
       {#if pages.length > 0}
         <Button
           id={REVIEW_BUTTON_ID}
@@ -613,6 +635,9 @@
             {#if editor.isSaving}
               <LoadingSpinner size="small" />
               <span>{$t('book_saving')}</span>
+            {:else if applyingStyle}
+              <LoadingSpinner size="small" />
+              <span>{$t('book_style_applying', { values: { name: applyingStyle } })}</span>
             {/if}
           </div>
         </div>
@@ -676,9 +701,6 @@
                 style:aspect-ratio={ratio}
                 style:width="min({current.length === 1 ? '100%' : '50%'}, calc(65dvh * {ratio}))"
               >
-                {#if !loaded.has(page.id)}
-                  <div class="absolute inset-0 flex items-center justify-center"><LoadingSpinner /></div>
-                {/if}
                 <img
                   src={renderUrl(page, 1200)}
                   alt={pageImageLabel(page)}
@@ -687,6 +709,15 @@
                   onload={() => loaded.add(page.id)}
                   onerror={() => loaded.add(page.id)}
                 />
+                {#if !loaded.has(page.id)}
+                  <!-- over the page: while it is rendered again (e.g. in a new style) the old render stays visible -->
+                  <div
+                    class="absolute inset-0 z-10 flex items-center justify-center bg-gray-100/60 dark:bg-gray-900/60"
+                    data-testid="book-page-loading"
+                  >
+                    <LoadingSpinner />
+                  </div>
+                {/if}
                 <BookSlotHighlight {book} {page} slot={highlight?.pageId === page.id ? highlight.slot : undefined} />
                 {#if editing}
                   <BookPageEditor {editor} {page} pageNumber={pageNumber(page)} />
