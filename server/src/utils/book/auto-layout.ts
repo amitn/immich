@@ -61,6 +61,8 @@ export type AutoLayoutPhoto = {
   embedding?: Float32Array | null;
   /** the dish or the menu of a restaurant, from the `Food/<Restaurant>/<Dish>` tags (see `src/utils/food/tags.ts`) */
   food?: FoodTag | null;
+  /** lines of text read in the photo (OCR); of several menu photos, the one that reads best gets the menu page */
+  textLines?: number;
 };
 
 export type AutoLayoutOptions = {
@@ -1251,7 +1253,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     // one menu page per visit; the other photos of the menu are left out
     let menu: SectionPlan['menu'];
     if (restaurant) {
-      for (const photo of section.filter((unit) => !unit.pair && isMenuPhoto(unit)).toSorted(byImportance)) {
+      const byLegibility = (a: Candidate, b: Candidate) =>
+        (b.textLines ?? 0) - (a.textLines ?? 0) || byImportance(a, b);
+      for (const photo of section.filter((unit) => !unit.pair && isMenuPhoto(unit)).toSorted(byLegibility)) {
         const layout = menu ? undefined : getMenuLayout(photo);
         if (layout) {
           menu = { photo, layout };

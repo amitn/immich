@@ -1662,6 +1662,15 @@ export class BookService extends BaseService {
         food: getFoodTag((tagValues.get(row.id) ?? []).map(({ value }) => value)) ?? null,
       };
     });
+    // the menu photo that reads best gets the menu page
+    const menuIds = photos.filter((photo) => photo.food?.kind === 'menu').map((photo) => photo.id);
+    if (menuIds.length > 1) {
+      const lines = Map.groupBy(await this.ocrRepository.getByAssetIds(menuIds), ({ assetId }) => assetId);
+      for (const photo of photos) {
+        photo.textLines = lines.get(photo.id)?.length ?? 0;
+      }
+    }
+
     // a copy of a dish (e.g. an improved one) is still that dish
     return shareFoodTagsInStacks(photos);
   }

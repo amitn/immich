@@ -285,6 +285,21 @@ describe('planAutoLayout in a food book', () => {
     expect(Object.values(result.dropReasons)).toEqual(['duplicate']);
   });
 
+  it('should give the menu page to the menu photo that reads best', () => {
+    const blurry = menu(nino, { takenAt: start, textLines: 2, score: 0.9 });
+    const sharp = menu(nino, { takenAt: start + 2 * HOUR, textLines: 31, score: 0.2 });
+    const photos = [
+      photo({ takenAt: start - DAY }),
+      ...dinner(nino, start, ['Caponata', 'Cannoli']).slice(1),
+      blurry,
+      sharp,
+    ];
+    const result = plan(photos);
+
+    expect(result.pages.find((page) => page.layout.startsWith('menu'))?.slots[0].assetId).toBe(sharp.id);
+    expect(result.dropReasons).toEqual({ [blurry.id]: 'duplicate' });
+  });
+
   it('should give two visits of a restaurant on one day different titles', () => {
     const photos = [
       photo({ takenAt: start - DAY }),
