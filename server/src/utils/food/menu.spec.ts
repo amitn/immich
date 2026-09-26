@@ -487,6 +487,25 @@ describe('parseMenu', () => {
     const menu = parseMenu([box("CHEF'S", 0.1, 0.1), box('Bologna', 0.1, 0.2), price('11.95', 0.6, 0.2)]);
     expect(menu.items.map(({ name }) => name)).toEqual(['Bologna']);
   });
+
+  it('should read two lines set tight in a spaced list of courses as one name', () => {
+    const courses = [
+      'Seafood platter and crocodile fat',
+      'PIE: dried scallops and nasturtium flowers',
+      'Truffle and Avocado',
+    ];
+    const menu = parseMenu([
+      ...courses.slice(0, 2).map((course, i) => box(course, 0.2, 0.2 + i * 0.05, 0.02)),
+      box("BBQ'd milk 'dumpling'", 0.2, 0.3, 0.02),
+      box('Marron and Magpie goose', 0.2, 0.325, 0.02),
+      box(courses[2], 0.2, 0.37, 0.02),
+    ]);
+    expect(menu.items.map(({ name }) => name)).toEqual([
+      ...courses.slice(0, 2),
+      "BBQ'd milk 'dumpling' Marron and Magpie goose",
+      courses[2],
+    ]);
+  });
 });
 
 describe('chooseMenuOcr', () => {
