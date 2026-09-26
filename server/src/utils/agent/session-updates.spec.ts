@@ -258,6 +258,32 @@ describe('collection tool refs', () => {
     expect(refsOf('find_visits', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
   });
 
+  it('should find the photos of the answers of query_collections, but not the people', () => {
+    const result = {
+      total: { visits: 1, places: 1, entries: 2, photos: 3 },
+      last: { pack: 'food', place: 'Noma Australia', date: '2016-03-23', entries: ['Rum lamington'], photoIds: [id1] },
+      visits: [
+        {
+          pack: 'food',
+          place: 'Noma Australia',
+          date: '2016-03-23',
+          entries: [
+            { name: 'Rum lamington', photoIds: [id1, id2], n: 4 },
+            { name: 'Golden petits fours', photoIds: [id3] },
+          ],
+          sourcePhotoIds: [id4],
+        },
+      ],
+      people: [{ id: id5, name: 'Anna' }],
+      notes: ['Only photos named with a collection pack count.'],
+    };
+    expect(refsOf('query_collections', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
+    expect(refsOf('query_collections', { total: {}, places: [{ place: 'Noma Australia', photoIds: [id5] }] })).toEqual({
+      ...none,
+      assetIds: [id5],
+    });
+  });
+
   it('should find the source of read_source from its input and result', () => {
     expect(
       extractToolCallRefs('read_source', { input: { pack: 'food', id: id1 }, output: [{ id: id1, entries: [] }] }),

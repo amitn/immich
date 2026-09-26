@@ -6,7 +6,8 @@ type RefKind = keyof AgentRefs;
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const MAX_REFS = 500;
 /**
- * keys of asset ids besides `*AssetId(s)` and `*PhotoId(s)`: `ids` (select_best, cluster_similar), `sampleIds`, and
+ * keys of asset ids besides `*AssetId(s)` and `*PhotoId(s)` (e.g. the `photoIds` and `sourcePhotoIds` of the answers
+ * of query_collections): `ids` (select_best, cluster_similar), `sampleIds`, and
  * the photos of a visit of a collection (find_visits, match_subjects; and find_meals, match_dishes before them)
  */
 const ASSET_ID_KEYS = new Set([
