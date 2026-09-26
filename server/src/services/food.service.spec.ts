@@ -519,7 +519,21 @@ describe(FoodService.name, () => {
       );
       await expect(
         sut.setDishNames(auth, { restaurant: ' / ', photos: [{ id: newUuid(), menu: true }] }),
-      ).rejects.toThrow();
+      ).rejects.toThrow('The restaurant needs a name');
+    });
+
+    it('should report photos without permission without tagging anything', async () => {
+      const partners = newUuid();
+      mocks.assetJob.getForAgent.mockResolvedValue([]);
+
+      const result = await sut.setDishNames(auth, {
+        restaurant: 'Nino',
+        photos: [{ id: partners, dish: 'Carbonara' }],
+      });
+
+      expect(result.results).toEqual([{ id: partners, success: false, error: 'no_permission' }]);
+      expect(addAssets).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
     });
   });
 });

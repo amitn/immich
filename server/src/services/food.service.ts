@@ -391,7 +391,7 @@ export class FoodService extends BaseService {
    */
   async setDishNames(auth: AuthDto, dto: FoodDishesDto): Promise<FoodDishesResponseDto> {
     const restaurant = getRestaurantTag(dto.restaurant).slice(FOOD_TAG_ROOT.length + 1);
-    if (!restaurant) {
+    if (!/[\p{L}\d]/u.test(restaurant)) {
       throw new BadRequestException('The restaurant needs a name');
     }
 
