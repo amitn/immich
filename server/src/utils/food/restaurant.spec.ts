@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OcrBoxInput } from 'src/utils/food/ocr.js';
-import { cleanRestaurantName, findRestaurantNames, toTitleCase } from 'src/utils/food/restaurant.js';
+import { cleanRestaurantName, findRestaurantNames, isGarbled, toTitleCase } from 'src/utils/food/restaurant.js';
 
 const box = (text: string, left: number, top: number, height = 0.022): OcrBoxInput => {
   const right = left + text.length * height * 0.45;
@@ -57,6 +57,16 @@ describe('cleanRestaurantName', () => {
     'A very long line of text that cannot be a name at all',
   ])('should reject %s', (text) => {
     expect(cleanRestaurantName(text)).toBeUndefined();
+  });
+});
+
+describe('isGarbled', () => {
+  it.each(['MZSDGUICAT', 'Trattoria Brndl'])('should take %s for letters OCR made up', (name) => {
+    expect(isGarbled(name)).toBe(true);
+  });
+
+  it.each(["Katz's Delicatessen", 'noma', 'Schnitzelhaus', 'The Rench Aundry'])('should keep %s', (name) => {
+    expect(isGarbled(name)).toBe(false);
   });
 });
 
@@ -117,6 +127,30 @@ describe('findRestaurantNames', () => {
       expect(candidates[0]).toMatchObject({ name: 'The French Laundry', assetIds: ['menu', 'outside'] });
       expect(candidates.map(({ name }) => name)).not.toContain('Relais& Chateaux');
     });
+  });
+
+  it('should be less sure of a garbled reading than of a clean one', () => {
+    const read = (text: string, textScore = 0.97) =>
+      findRestaurantNames([
+        { assetId: 'sign', kind: 'sign', ocr: [{ ...box(text, 0.2, 0.3, 0.1), textScore }] },
+        { assetId: 'menu', kind: 'menu', ocr: [box('Spaghetti alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+      ])[0]?.confidence ?? 0;
+    const clean = read('TRATTORIA SAVOIA');
+    expect(read('TRATTORIA SVZDGOIA')).toBeLessThan(clean);
+    expect(read('TRATTORIA SAVOIA', 0.82)).toBeLessThan(clean);
+  });
+
+  it('should count a name its photos support for more than a word no other photo has', () => {
+    const sign = { assetId: 'sign', kind: 'sign' as const, ocr: [box('Trattoria Savoia', 0.2, 0.3, 0.1)] };
+    const supported = findRestaurantNames([
+      sign,
+      { assetId: 'menu', kind: 'menu', ocr: [box('Pasta Savoia', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+    ])[0];
+    const alone = findRestaurantNames([
+      sign,
+      { assetId: 'menu', kind: 'menu', ocr: [box('Pasta alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+    ])[0];
+    expect(supported.confidence).toBeGreaterThan(alone.confidence);
   });
 
   it('should find nothing in text that names no place', () => {
