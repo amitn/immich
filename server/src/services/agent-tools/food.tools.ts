@@ -278,7 +278,9 @@ export class FoodAgentTools extends BaseService {
           'for a menu photo, with menu: true or dish "menu"), replacing the food tag it had, and a dish photo with ' +
           'no description gets "<dish> · <restaurant>". Running it again replaces the names, so it is safe to ' +
           'correct them. Use the names as printed on the menu (in its language), or a short clear name for dishes ' +
-          'that are not on it. Photo books and albums can then be built from the Food tags (a book with ' +
+          'that are not on it. Only name photos of food and drinks, plus the menu: leave out signs, storefronts, ' +
+          'receipts and table or people shots, which books show as they are. Photo books and albums can then be ' +
+          'built from the Food tags (a book with ' +
           'stylePreset "food"). Returns {restaurant, photos: [{id, tag, description, previousTags}], failed}.',
         input: z.object({
           restaurant: z.string().min(1).max(100).describe('Name of the restaurant'),
