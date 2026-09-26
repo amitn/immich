@@ -81,7 +81,7 @@ export const DEFAULT_MATCH_OPTIONS: MatchOptions = {
   centerDishes: 4,
   offMenuBias: 0,
   order: 'auto',
-  orderEvidence: 0.1,
+  orderEvidence: 0.15,
   skipPenalty: 0,
   asidePenalty: 2,
   pacePenalty: 10,
@@ -549,7 +549,8 @@ export const matchCourses = (
   let alignment: Alignment | undefined;
   if (settings.order !== 'none' && courses.length >= 2 && groups.length >= 2) {
     const candidate = alignCourses(logs, courses, aside, alignOptions);
-    const tasting = priced < 0.3 * courses.length;
+    // few prices, and about as many courses as dishes (not a long list to choose from)
+    const tasting = priced < 0.3 * courses.length && courses.length <= 2 * groups.length + 3;
     if (
       settings.order === 'menu' ||
       (tasting && getOrderRank(logs, courses, aside, alignOptions, candidate.total) <= settings.orderEvidence)
