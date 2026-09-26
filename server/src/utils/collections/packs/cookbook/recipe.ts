@@ -1003,11 +1003,14 @@ export const chooseRecipe = (page: RecipePage, title?: string) => {
   );
 };
 
-/** text OCR ran together or made up: long runs of letters without a space, few letters */
+/** text OCR ran together or made up: words run together, stray capitals, few letters */
 const isGarbled = (text: string) => {
   const tokens = words(text);
-  const joined = tokens.filter((token) => /\p{L}{15,}/u.test(token)).length;
-  return tokens.length === 0 || joined > Math.max(1, 0.15 * tokens.length) || letters(text) < 0.6 * text.length;
+  // words run together ("untilknife", "10minutesbefore", "ven.Reduce") or read with a stray capital ("folL")
+  const suspicious = tokens.filter((token) =>
+    /\p{L}{10,}|\d\p{L}{3,}|\p{L}[.,]\p{Lu}|\p{Ll}\p{Lu}/u.test(token.replace(/^\p{L}+['’]\p{L}+$/u, '')),
+  ).length;
+  return tokens.length === 0 || suspicious > 0.12 * tokens.length || letters(text) < 0.6 * text.length;
 };
 
 /** the step of a book page: "1. Preheat the oven to 350 degrees.", "3. … until a knife inserted near the center" */
