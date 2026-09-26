@@ -211,6 +211,22 @@ describe(CollectionAgentTools.name, () => {
     });
   });
 
+  it('should keep the source photos of a private pack from the assistant', async () => {
+    registerCollectionPack({ ...labelsPack, privacy: { ...labelsPack.privacy, sourceImages: false } });
+    try {
+      const id = newUuid();
+      vi.spyOn(CollectionService.prototype, 'readSource').mockResolvedValue(reading([]));
+      const images = vi.spyOn(CollectionService.prototype, 'getSourceImages');
+
+      const result = await call('read_source', { pack: 'labels', id });
+
+      expect(images).not.toHaveBeenCalled();
+      expect(result.content.filter(({ type }) => type === 'image')).toEqual([]);
+    } finally {
+      unregisterCollectionPack(labelsPack.id);
+    }
+  });
+
   describe('match_subjects', () => {
     it('should return the suggestions and a captioned contact sheet', async () => {
       const [carbonara, bread] = [newUuid(), newUuid()];

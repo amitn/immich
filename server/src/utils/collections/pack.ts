@@ -99,6 +99,11 @@ export type CollectionPack = {
      * e.g. to hide booking codes and passenger names
      */
     redact?: (text: string) => string;
+    /**
+     * whether read_source shows the source photos to the assistant, default true; off for pages whose private text
+     * the redaction can't hide from an image (a boarding pass)
+     */
+    sourceImages?: boolean;
   };
 };
 

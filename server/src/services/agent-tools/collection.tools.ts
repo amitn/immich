@@ -182,7 +182,11 @@ export class CollectionAgentTools extends BaseService {
         mutating: false,
         handler: handle(async ({ auth }, { pack: packId, id, zoom }) => {
           const reading = await collections.readSource(auth, packId, id);
-          const images = await collections.getSourceImages(auth, id, { zoom: zoom ?? reading.items.length < 3 });
+          // a pack may keep its source photos to itself (e.g. tickets): the entries are redacted, an image is not
+          const images =
+            collections.requirePack(packId).privacy?.sourceImages === false
+              ? []
+              : await collections.getSourceImages(auth, id, { zoom: zoom ?? reading.items.length < 3 });
           return withImages(
             {
               id,
