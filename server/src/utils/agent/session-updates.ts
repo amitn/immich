@@ -162,9 +162,10 @@ const getBlockTexts = (blocks: unknown[]) =>
 /**
  * The result of a tool call from a `tool_call` or `tool_call_update`: its text blocks and their parsed JSON.
  *
- * claude-agent-acp sends an MCP result as `content` (`{type: 'content', content: {type: 'text', text}}`) and as
- * `rawOutput` (the MCP content blocks, or a string). Other adapters may send `rawOutput` as an MCP `CallToolResult`
- * (`content` and maybe `structuredContent`) or as plain JSON.
+ * claude-agent-acp sends an MCP result twice in the final update: as `content` (`{type: 'content', content: {type:
+ * 'text', text}}`) and as `rawOutput` (the MCP content blocks, or a string). So `rawOutput` is only read when there is
+ * no text content, or the output would be stored twice. Other adapters may send `rawOutput` as an MCP
+ * `CallToolResult` (`content` and maybe `structuredContent`) or as plain JSON.
  */
 export const getToolCallResult = ({
   content,
@@ -196,7 +197,7 @@ export const getToolCallResult = ({
     }
   }
 
-  const texts = [...contentTexts, ...rawTexts];
+  const texts = [...new Set(contentTexts.length > 0 ? contentTexts : rawTexts)];
   return { texts, values: [...parseJson(texts), ...rawValues] };
 };
 

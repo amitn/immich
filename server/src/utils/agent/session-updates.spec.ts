@@ -145,9 +145,21 @@ describe('tool result refs', () => {
 });
 
 describe('getToolCallResult', () => {
-  it('should read the result of a claude-agent-acp tool_call_update', () => {
-    const { values } = getToolCallResult(claudeToolResult('select_best', { ids: [id1] }));
-    expect(values).toContainEqual({ ids: [id1] });
+  it('should read the result of a claude-agent-acp tool_call_update once', () => {
+    // the same text is sent as content and as rawOutput
+    expect(getToolCallResult(claudeToolResult('select_best', { ids: [id1] }))).toEqual({
+      texts: [JSON.stringify({ ids: [id1] })],
+      values: [{ ids: [id1] }],
+    });
+  });
+
+  it('should read an error of claude-agent-acp once', () => {
+    expect(
+      getToolCallResult({
+        rawOutput: [{ type: 'text', text: 'Could not create album: Not found' }],
+        content: [{ type: 'content', content: { type: 'text', text: '```\nCould not create album: Not found\n```' } }],
+      }),
+    ).toEqual({ texts: ['```\nCould not create album: Not found\n```'], values: [] });
   });
 
   it('should read a string rawOutput', () => {

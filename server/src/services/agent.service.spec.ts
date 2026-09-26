@@ -494,6 +494,30 @@ describe(AgentService.name, () => {
 
       const toolCall = messages().find((message) => message.kind === AgentMessageKind.ToolCall);
       expect(toolCall?.content).toMatchObject({ toolName: 'create_album', albumIds: [albumId], assetIds });
+      // claude-agent-acp sends the result as content and as rawOutput
+      expect(toolCall?.content.output).toBe(text);
+    });
+
+    it('should store the output once when the MCP call finished before the agent reported it', async () => {
+      const session = newSession();
+      await startTurn(session.id);
+      await sut.runTool({ auth, sessionId: session.id }, readTool, { query: 'beach' });
+
+      const text = '{"assets":[{"id":"5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10"}]}';
+      for (const status of ['in_progress', 'completed'] as const) {
+        await send({
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'toolu_02',
+          title: 'mcp__immich__search_photos',
+          status,
+          rawOutput: [{ type: 'text', text }],
+          content: [{ type: 'content', content: { type: 'text', text } }],
+        });
+      }
+
+      const toolCalls = messages().filter((message) => message.kind === AgentMessageKind.ToolCall);
+      expect(toolCalls).toHaveLength(1);
+      expect(toolCalls[0].content).toMatchObject({ toolCallId: 'toolu_02', status: 'completed', output: text });
     });
   });
 
