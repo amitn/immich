@@ -601,7 +601,11 @@
       </div>
     </div>
   {:else}
-    <div class="flex flex-col gap-4 pb-6">
+    <!-- from md up the review panel sits beside the pages (see BookReviewPanel), so they shrink to stay in view -->
+    <div
+      class="flex flex-col gap-4 pb-6 transition-[padding] duration-200 {reviewOpen ? 'md:pe-96' : ''}"
+      data-testid="book-viewer"
+    >
       <div class="flex items-center justify-between gap-2 px-2 pt-2">
         <div class="flex items-center gap-3">
           <p class="text-sm text-gray-600 dark:text-gray-400" aria-live="polite">{pageLabel}</p>

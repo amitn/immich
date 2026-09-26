@@ -217,6 +217,18 @@ describe('book page', () => {
       expect(await screen.findByTestId('book-slot-highlight')).toBeInTheDocument();
     });
 
+    it('should make room for the review panel instead of covering the pages', async () => {
+      renderPage();
+      const viewer = screen.getByTestId('book-viewer');
+      expect(viewer).not.toHaveClass('md:pe-96');
+
+      await fireEvent.click(screen.getByRole('button', { name: /book_review/ }));
+      expect(viewer).toHaveClass('md:pe-96');
+
+      await fireEvent.click(await screen.findByRole('button', { name: 'book_review_close' }));
+      expect(viewer).not.toHaveClass('md:pe-96');
+    });
+
     it('should close the review with Escape and focus the review button', async () => {
       renderPage();
       const button = screen.getByRole('button', { name: /book_review/ });
