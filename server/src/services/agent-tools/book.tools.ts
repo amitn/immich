@@ -763,7 +763,15 @@ export class BookAgentTools extends BaseService {
           this.run(async () => {
             const page = await this.resolvePage(ctx, input.bookId, input.page);
             // travel documents (and other private sources) on the page are blurred
-            const { data, warnings, hidden } = await this.books.renderPage(ctx.auth, input.bookId, page.id, {}, true);
+            const { data, warnings, hidden } = await this.books.renderPage(
+              ctx.auth,
+              input.bookId,
+              page.id,
+              {},
+              {
+                hidePrivate: true,
+              },
+            );
             return toolImage(data, 'image/jpeg', {
               page: page.position + 1,
               warnings: summarizeWarnings(warnings),

@@ -14,12 +14,13 @@ import {
 import { Permission, SharedLinkType } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { OpenGraphTags, findOrFail, getExternalDomain } from 'src/utils/misc.js';
+import { asSharedLinkToken } from 'src/utils/shared-link.js';
 
 @Injectable()
 export class SharedLinkService extends BaseService {
-  async getAll(auth: AuthDto, { id, albumId }: SharedLinkSearchDto): Promise<SharedLinkResponseDto[]> {
+  async getAll(auth: AuthDto, { id, albumId, bookId }: SharedLinkSearchDto): Promise<SharedLinkResponseDto[]> {
     return this.sharedLinkRepository
-      .getAll({ userId: auth.user.id, id, albumId })
+      .getAll({ userId: auth.user.id, id, albumId, bookId })
 
       .then((links) => links.map((link) => mapSharedLink(link, { stripAssetMetadata: false })));
   }
@@ -85,20 +86,32 @@ export class SharedLinkService extends BaseService {
 
         break;
       }
+
+      case SharedLinkType.Book: {
+        if (!dto.bookId) {
+          throw new BadRequestException('Invalid bookId');
+        }
+        await this.requireAccess({ auth, permission: Permission.BookShare, ids: [dto.bookId] });
+        break;
+      }
     }
+
+    const isBook = dto.type === SharedLinkType.Book;
 
     try {
       const sharedLink = await this.sharedLinkRepository.create({
         key: this.cryptoRepository.randomBytes(50),
         userId: auth.user.id,
         type: dto.type,
-        albumId: dto.albumId || null,
-        assetIds: dto.assetIds,
+        albumId: isBook ? null : dto.albumId || null,
+        bookId: isBook ? dto.bookId : undefined,
+        assetIds: isBook ? undefined : dto.assetIds,
         description: dto.description || null,
         password: dto.password,
         expiresAt: dto.expiresAt || null,
-        allowUpload: dto.allowUpload ?? true,
-        allowDownload: dto.showMetadata === false ? false : (dto.allowDownload ?? true),
+        // nobody uploads to a book; and its PDF is rendered from the pages, without the photos' metadata
+        allowUpload: isBook ? false : (dto.allowUpload ?? true),
+        allowDownload: dto.showMetadata === false && !isBook ? false : (dto.allowDownload ?? true),
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
       });
@@ -118,7 +131,7 @@ export class SharedLinkService extends BaseService {
   }
 
   async update(auth: AuthDto, id: string, dto: SharedLinkEditDto) {
-    await this.findOrFail(auth.user.id, id);
+    const { type } = await this.findOrFail(auth.user.id, id);
     try {
       const sharedLink = await this.sharedLinkRepository.update({
         id,
@@ -126,7 +139,7 @@ export class SharedLinkService extends BaseService {
         description: dto.description,
         password: dto.password,
         expiresAt: dto.expiresAt,
-        allowUpload: dto.allowUpload,
+        allowUpload: type === SharedLinkType.Book ? false : dto.allowUpload,
         allowDownload: dto.allowDownload,
         showExif: dto.showMetadata,
         slug: dto.slug || null,
@@ -219,6 +232,24 @@ export class SharedLinkService extends BaseService {
 
     const config = await this.getConfig({ withCache: true });
     const sharedLink = await this.findOrFail(auth.sharedLink.userId, auth.sharedLink.id);
+    if (sharedLink.book) {
+      const { book } = sharedLink;
+      // the cover is a render of the first page, which only the book link itself can read
+      const bookWithPages = await this.bookRepository.get(book.id);
+      const firstPageId = bookWithPages?.firstPageId;
+      const imagePath = firstPageId
+        ? `/api/books/${book.id}/pages/${firstPageId}/render?size=1200&key=${sharedLink.key.toString('base64url')}`
+        : '/feature-panel.png';
+      return {
+        title: book.title,
+        description:
+          sharedLink.description ||
+          book.subtitle ||
+          `A photo book of ${book.pageCount} ${book.pageCount === 1 ? 'page' : 'pages'}`,
+        imageUrl: new URL(imagePath, getExternalDomain(config.server, defaultDomain)).href,
+      };
+    }
+
     const assetId = sharedLink.album?.albumThumbnailAssetId || sharedLink.assets[0]?.id;
     const assetCount = sharedLink.assets.length > 0 ? sharedLink.assets.length : sharedLink.album?.assets?.length || 0;
     const imagePath = assetId
@@ -233,6 +264,6 @@ export class SharedLinkService extends BaseService {
   }
 
   private asToken(sharedLink: { id: string; password: string }) {
-    return this.cryptoRepository.hashSha256(`${sharedLink.id}-${sharedLink.password}`).toString('base64');
+    return asSharedLinkToken(this.cryptoRepository, sharedLink);
   }
 }

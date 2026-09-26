@@ -63,7 +63,14 @@ export class SharedLinkFactory {
     this.value.albumId = null;
     this.value.bookId = dto.id ?? this.value.bookId ?? newUuid();
     this.value.allowUpload = false;
-    this.#book = { title: 'Summer in Rome', subtitle: null, pageCount: 12, hasPdf: true, ...dto, id: this.value.bookId };
+    this.#book = {
+      title: 'Summer in Rome',
+      subtitle: null,
+      pageCount: 12,
+      hasPdf: true,
+      ...dto,
+      id: this.value.bookId,
+    };
     return this;
   }
 

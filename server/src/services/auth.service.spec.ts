@@ -4,7 +4,7 @@ import type { UserMetadataItem } from 'src/types.js';
 import { SALT_ROUNDS } from 'src/constants.js';
 import { UserAdmin } from 'src/database.js';
 import { AuthDto, SignUpDto } from 'src/dtos/auth.dto.js';
-import { AuthType, Permission } from 'src/enum.js';
+import { AuthType, Permission, SharedLinkType } from 'src/enum.js';
 import { AuthService } from 'src/services/auth.service.js';
 import { ApiKeyFactory } from 'test/factories/api-key.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
@@ -406,6 +406,24 @@ describe(AuthService.name, () => {
           headers: { 'x-immich-share-key': 'key' },
           queryParams: {},
           metadata: { adminRoute: false, sharedLinkRoute: true, uri: 'test' },
+        }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    });
+
+    it('should not accept an expired key to a book', async () => {
+      const user = UserFactory.create();
+      mocks.sharedLink.getByKey.mockResolvedValue({
+        ...sharedLinkStub.expired,
+        type: SharedLinkType.Book,
+        bookId: newUuid(),
+        user,
+      } as any);
+
+      await expect(
+        sut.authenticate({
+          headers: { 'x-immich-share-key': 'key' },
+          queryParams: {},
+          metadata: { adminRoute: false, sharedLinkRoute: true, uri: '/api/books/id/preview' },
         }),
       ).rejects.toBeInstanceOf(UnauthorizedException);
     });

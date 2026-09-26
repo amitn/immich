@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,6 +24,11 @@ describe(BookController.name, () => {
     service.resetAllMocks();
     ctx.reset();
   });
+
+  const isSharedLinkRoute = (sharedLinkRoute: boolean) =>
+    expect(ctx.authenticate).toHaveBeenCalledWith(
+      expect.objectContaining({ metadata: expect.objectContaining({ sharedLinkRoute }) }),
+    );
 
   describe('POST /books', () => {
     it('should require a title', async () => {
@@ -234,7 +240,7 @@ describe(BookController.name, () => {
 
       expect(status).toBe(200);
       expect(headers['content-type']).toBe('image/jpeg');
-      expect(service.renderPage).toHaveBeenCalledWith(undefined, id, pageId, { size: 800 });
+      expect(service.renderPage).toHaveBeenCalledWith(undefined, id, pageId, { size: 800 }, { sharedLinkTokens: [] });
     });
 
     it('should validate the size', async () => {
@@ -278,7 +284,7 @@ describe(BookController.name, () => {
       const { status, headers, text } = await request(ctx.getHttpServer()).get(`/books/${id}/preview`);
 
       expect(status).toBe(200);
-      expect(service.previewHtml).toHaveBeenCalledWith(undefined, id);
+      expect(service.previewHtml).toHaveBeenCalledWith(undefined, id, []);
       expect(headers['content-type']).toMatch(/^text\/html/);
       expect(headers['content-disposition']).toBeUndefined();
       expect(headers['content-security-policy']).toBe("sandbox allow-scripts; frame-ancestors 'self'");
@@ -289,6 +295,35 @@ describe(BookController.name, () => {
     it('should require a valid id', async () => {
       const { status } = await request(ctx.getHttpServer()).get('/books/not-a-uuid/preview');
       expect(status).toBe(400);
+    });
+  });
+
+  describe('shared links', () => {
+    it('should serve the web book, the page images and the PDF to a shared link', async () => {
+      const id = factory.uuid();
+      service.previewHtml.mockResolvedValue('<!doctype html>');
+      service.renderPage.mockResolvedValue({ data: Buffer.from('jpeg'), warnings: [] });
+      service.downloadPdf.mockRejectedValue(new BadRequestException('The book has not been exported yet'));
+
+      for (const path of [`/books/${id}/preview`, `/books/${id}/pages/${factory.uuid()}/render`, `/books/${id}/pdf`]) {
+        ctx.reset();
+        await request(ctx.getHttpServer()).get(path);
+        isSharedLinkRoute(true);
+      }
+    });
+
+    it.each([
+      ['get', '/books'],
+      ['get', '/books/:id'],
+      ['get', '/books/:id/review'],
+      ['get', '/books/:id/html'],
+      ['post', '/books/:id/export'],
+      ['patch', '/books/:id'],
+      ['delete', '/books/:id'],
+    ] as const)('should not open %s %s to shared links', async (method, route) => {
+      service.downloadHtml.mockRejectedValue(new BadRequestException('The book has not been exported as HTML yet'));
+      await request(ctx.getHttpServer())[method](route.replace(':id', () => factory.uuid()));
+      isSharedLinkRoute(false);
     });
   });
 
