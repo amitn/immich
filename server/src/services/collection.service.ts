@@ -274,6 +274,34 @@ export class CollectionService extends BaseService {
   }
 
   /**
+   * The text a pack typesets on the book page of a source photo (see `CollectionPack.book.sourceText`), e.g. the
+   * ingredients and steps of a recipe of `place`, read at full resolution when OCR is enabled (cached like
+   * `readSource`); undefined for a pack without it. The caller checks access to the photo.
+   */
+  async getSourceText(packId: string, id: string, place: string): Promise<string | undefined> {
+    const pack = getCollectionPack(packId);
+    const asset = pack?.book.sourceText ? await this.assetRepository.getById(id, { exifInfo: true }) : undefined;
+    if (!pack?.book.sourceText || !asset || asset.deletedAt) {
+      return;
+    }
+    const stored = await this.ocrRepository.getByAssetId(id);
+    let boxes: OcrBoxInput[] = stored;
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    const exifInfo = asset.exifInfo;
+    if (isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
+      try {
+        const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
+        boxes = chooseSourceOcr(stored, detailed) === 'tiles' ? detailed : stored;
+      } catch (error) {
+        this.logger.warn(`Unable to read ${pack.names.source} ${id} at full resolution: ${error}`);
+      }
+    }
+    const { width, height } = exifInfo ? getDimensions(exifInfo) : { width: 0, height: 0 };
+    const text = pack.book.sourceText(boxes, { aspectRatio: width && height ? width / height : undefined, place });
+    return text === undefined ? undefined : redactText(pack, text);
+  }
+
+  /**
    * Images of a source photo for a reader: the preview, and with `zoom` the original cut in two (or four) overlapping
    * parts at a readable resolution, for small print.
    */

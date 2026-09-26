@@ -1,4 +1,9 @@
-import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
+import {
+  CollectionChapter,
+  CollectionChapterIssue,
+  CollectionPack,
+  getDefaultFallbackName,
+} from 'src/utils/collections/pack.js';
 import { COOKBOOK_CLASSIFY_RULES, COOKBOOK_PROMPTS } from 'src/utils/collections/packs/cookbook/classify.js';
 import {
   RESULT_ENTRY,
@@ -13,9 +18,8 @@ import {
 import { SourceEntry } from 'src/utils/collections/source.js';
 import { DEFAULT_VISIT_OPTIONS } from 'src/utils/collections/visits.js';
 
-/** words of the names of dishes, which make a line of a recipe card its title */
-export const DISH_WORDS =
-  /(?<!\p{L})(?:casserole|quiche|cupcakes?|cake|pie|tart|soup|stew|chili|curry|bread|rolls|muffins?|cookies|brownies|pancakes|waffles|salad|lasagna|risotto|pasta|sauce|roast|chicken|soufflé|souffle|gratin|frittata|omelet(?:te)?|pudding|cobbler|crumble|biscuits|scones|loaf|pizza|dumplings|meatballs|burgers?|tacos|enchiladas|stir-fry|dip|jam|pickles)(?!\p{L})/iu;
+/** no word names a kind of recipe the way "Trattoria" names a restaurant */
+const NO_PLACE_WORDS = /(?!)/;
 
 /** texts for photos of a cooking session that are not of the recipe: the other dishes of the meal or the party */
 export const OFF_RECIPE_PROMPTS = [
@@ -49,6 +53,56 @@ export const getStepCaption = (entry: string) => {
   }
   const [, section, n, action] = match;
   return action ? `${section ? `${section} ` : ''}${n}. ${action}` : `${section ? `${section} step` : 'Step'} ${n}`;
+};
+
+const formatList = (values: string[]) =>
+  values.length <= 1 ? values.join('') : `${values.slice(0, -1).join(', ')} and ${values.at(-1)}`;
+
+/**
+ * The checks of a recipe's chapter in a book: a photo of the finished dish, and a photo of every step up to the last
+ * one shown (from the album, when it has them)
+ */
+export const reviewRecipeChapter = ({ place, placed, available }: CollectionChapter): CollectionChapterIssue[] => {
+  const issues: CollectionChapterIssue[] = [];
+  if (placed.every(({ entry }) => entry !== RESULT_ENTRY)) {
+    const result = available.find(({ entry }) => entry === RESULT_ENTRY);
+    issues.push(
+      result
+        ? {
+            severity: 'medium',
+            message: `The chapter of ${place} has no photo of the finished dish, which is in the album; add it, large, at the end of the chapter`,
+            assetIds: result.assetIds.slice(0, 3),
+          }
+        : { severity: 'low', message: `The chapter of ${place} has no photo of the finished dish` },
+    );
+  }
+
+  const steps = (list: CollectionChapter['placed']) =>
+    list.flatMap(({ entry, assetIds }) => {
+      const match = /^(?:(.+?)\s+)?[Ss]tep\s+(\d+)\b/.exec(entry);
+      return match ? [{ section: match[1] ?? '', n: Number(match[2]), assetIds }] : [];
+    });
+  const shown = steps(placed);
+  const album = steps(available);
+  for (const [section, members] of Map.groupBy(shown, ({ section }) => section)) {
+    const numbers = new Set(members.map(({ n }) => n));
+    const missing = Array.from({ length: Math.max(...numbers) }, (_, index) => index + 1).filter(
+      (n) => !numbers.has(n),
+    );
+    if (missing.length === 0) {
+      continue;
+    }
+    const inAlbum = album.filter((step) => step.section === section && missing.includes(step.n));
+    const names = missing.map((n) => `${section ? `${section} step` : 'step'} ${n}`);
+    issues.push({
+      severity: inAlbum.length > 0 ? 'medium' : 'low',
+      message:
+        `The chapter of ${place} shows no photo of ${formatList(names)}` +
+        (inAlbum.length > 0 ? '; the album has some: add them in the order of the steps' : ''),
+      ...(inAlbum.length > 0 && { assetIds: inAlbum.flatMap(({ assetIds }) => assetIds).slice(0, 6) }),
+    });
+  }
+  return issues;
 };
 
 /**
@@ -85,10 +139,13 @@ export const cookbookPack: CollectionPack = {
   source: { parse: parseRecipe, prompt: recipeEntryPrompt, minEntries: 2 },
 
   place: {
-    words: DISH_WORDS,
+    // a recipe is named by its title, the largest print at the top of the page, not by a word like "Trattoria"
+    words: NO_PLACE_WORDS,
     blocked: /^(?:ingredients?|method|directions|preparation|serves|makes|nutrition facts|low fat|best loved|recipe)$/i,
     isNotName: (text) => isMetaLine(text) || isIngredientLine(text) || isFurniture(text),
+    // the place of a recipe is its title
     title: (ocr) => readRecipes(ocr).recipes[0]?.title,
+    titleBonus: 0.35,
     fallbackName: getDefaultFallbackName({ visit: 'cooking' }),
   },
 
@@ -144,7 +201,10 @@ export const cookbookPack: CollectionPack = {
       look: 'printed',
     },
     caption: (entry) => getStepCaption(entry),
-    review: { unnamedEntries: true, missingSourcePage: true },
+    review: { unnamedEntries: true, missingSourcePage: true, chapter: reviewRecipeChapter },
+    // a chapter per recipe: its photos over a couple of days (the recipe photographed the morning after, the dish
+    // served the next day)
+    visitGapHours: 48,
     sourceText: (ocr, { aspectRatio, place }) => formatRecipeText(readRecipes(ocr, { aspectRatio }), place),
   },
 

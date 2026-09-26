@@ -183,6 +183,24 @@ describe('cookbook pack', () => {
     ]);
   });
 
+  it('should typeset the tagged recipe of the page for a book', async () => {
+    const recipe = newUuid();
+    mocks.asset.getById.mockResolvedValue({
+      id: recipe,
+      type: AssetType.Image,
+      deletedAt: null,
+      exifInfo: null,
+    } as never);
+    mocks.ocr.getByAssetId.mockResolvedValue(recipeBoxes as never);
+
+    const text = await sut.getSourceText('cookbook', recipe, 'Spinach Quiche');
+    expect(text).toBe(
+      ['Ingredients:\n8 beaten eggs\n6 slices bacon, chopped', 'Method:\n1. Cook the bacon in a skillet.'].join('\n\n'),
+    );
+    expect(await sut.getSourceText('cookbook', recipe, 'Quiche')).toContain('1. Preheat the oven to 450 degrees.');
+    expect(await sut.getSourceText('food', recipe, 'Quiche')).toBeUndefined();
+  });
+
   it('should tag the steps, the finished dish and the recipe', async () => {
     const [recipe, bowl, done] = [newUuid(), newUuid(), newUuid()];
     mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([recipe, bowl, done]));

@@ -16,6 +16,7 @@ import {
   mmToPx,
   toPxRect,
 } from 'src/utils/book/layouts.js';
+import { getRecipeBlocks } from 'src/utils/book/recipe-page.js';
 
 /** thumbnail: contact sheets from thumbnail files; review: ~1200px pages from previews; print: 300 dpi from originals */
 export type BookRenderMode = 'thumbnail' | 'review' | 'print';
@@ -674,7 +675,21 @@ export const planPage = (
       }
       case 'caption': {
         hasCaptionArea = true;
-        if (page.caption) {
+        if (page.caption && layout.id === 'recipe') {
+          // the recipe typeset below the photo of the card: meta, ingredients and method
+          const recipe = getRecipeBlocks(page.caption, rect, {
+            fontPx: captionPx * 1.05,
+            ink,
+            accent: food ? accent : (style.accentColor ?? ink),
+            pxPerMm: mmToPx(1, dpi),
+            wrap: wrapText,
+            lineHeight: LINE_HEIGHT,
+            charWidth: CHAR_WIDTH,
+            smallCapsCharWidth: SMALL_CAPS_CHAR_WIDTH,
+          });
+          blocks.push(...recipe.blocks);
+          decorations.push(...recipe.decorations);
+        } else if (page.caption) {
           // text-only pages read like a story, so the caption is a little larger there
           blocks.push({
             ...base,

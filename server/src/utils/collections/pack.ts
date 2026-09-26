@@ -95,6 +95,8 @@ export type CollectionPack = {
      * lists the entries shown in the chapter
      */
     sourceText?: (ocr: OcrBoxInput[], context: { aspectRatio?: number; place: string }) => string | undefined;
+    /** photos of one place further apart than this many hours are different chapters of a book, default 3 */
+    visitGapHours?: number;
   };
 
   agent: {

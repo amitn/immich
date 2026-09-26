@@ -240,6 +240,22 @@ export const bookLayouts: readonly BookLayout[] = [
     collection: true,
   },
   {
+    id: 'recipe',
+    name: 'Recipe',
+    description:
+      'Opens a recipe chapter (or any visit whose source text is typeset): the photo of the recipe card or page ' +
+      '(slot 1) beside the section title, and the caption below them typeset as a recipe: an optional first line ' +
+      'of meta (serves, times), then blocks under headings that end with a colon ("Ingredients:", one line per ' +
+      'ingredient; "Method:", numbered steps "1. ..."; a sub-recipe such as "Frosting:"), separated by blank lines.',
+    slots: [{ x: 0, y: 0, width: 0.56, height: 0.38 }],
+    text: [
+      { kind: 'sectionTitle', x: 0.59, y: 0, width: 0.41, height: 0.38, align: 'center' },
+      { kind: 'caption', x: 0, y: 0.41, width: 1, height: 0.59, align: 'left' },
+    ],
+    orientation: 'landscape',
+    collection: true,
+  },
+  {
     id: 'dish-opener',
     name: 'Dish opener',
     description:

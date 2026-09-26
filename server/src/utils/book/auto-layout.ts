@@ -67,6 +67,11 @@ export type AutoLayoutPhoto = {
   collection?: BookCollectionTag | null;
   /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
+  /**
+   * the text its pack typesets on the source page of the photo (see `CollectionPack.book.sourceText`), e.g. the
+   * ingredients and steps of a recipe: the page gets the recipe layout with the text as its caption
+   */
+  sourceText?: string;
 };
 
 export type AutoLayoutOptions = {
@@ -179,9 +184,11 @@ const COPY_MARGIN = 0.05;
 const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
-const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide']);
+const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', 'recipe']);
 /** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
 const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
+/** the source page of a source whose text a pack typesets beside its photo (see `AutoLayoutPhoto.sourceText`) */
+const SOURCE_TEXT_LAYOUT = 'recipe';
 /** the entries of a source page are listed one per line up to this many */
 const SOURCE_LIST_MAX = 7;
 const OPENER_LAYOUTS = new Set(['cover', 'text', 'map', 'map-photo', ...TITLE_LAYOUTS]);
@@ -1263,15 +1270,26 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     menu?: { photo: Candidate; layout: BookLayout };
   };
 
-  /** the source page layout that keeps most of the photo and prints it sharp enough */
+  /**
+   * the source page layout that keeps most of the photo and prints it sharp enough; the recipe layout for a source
+   * whose text is typeset beside it
+   */
   const getMenuLayout = (photo: Candidate) =>
-    SOURCE_LAYOUTS.map((id) => layouts.find((layout) => layout.id === id))
-      .filter((layout): layout is BookLayout => !!layout && planner.isSharpEnough(photo, planner.getShapes(layout)[0]))
-      .toSorted(
-        (a, b) =>
-          planner.getCrop(photo, planner.getShapes(b)[0].aspect).kept -
-          planner.getCrop(photo, planner.getShapes(a)[0].aspect).kept,
-      )[0];
+    [...(photo.sourceText ? [[SOURCE_TEXT_LAYOUT]] : []), SOURCE_LAYOUTS]
+      .map((ids) =>
+        ids
+          .map((id) => layouts.find((layout) => layout.id === id))
+          .filter(
+            (layout): layout is BookLayout => !!layout && planner.isSharpEnough(photo, planner.getShapes(layout)[0]),
+          )
+          .toSorted(
+            (a, b) =>
+              planner.getCrop(photo, planner.getShapes(b)[0].aspect).kept -
+              planner.getCrop(photo, planner.getShapes(a)[0].aspect).kept,
+          )
+          .at(0),
+      )
+      .find((layout) => layout !== undefined);
 
   const sectionPlans: SectionPlan[] = sections.map(({ photos: units, visit }) => {
     let section = units;
@@ -1581,6 +1599,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       if (dishes.length > 0) {
         // a short list beside a menu, or a run of names below a wide one or when there are many
         page.caption = dishes.join(page.layout === 'menu' && dishes.length <= SOURCE_LIST_MAX ? '\n' : ' · ');
+      }
+      // the text the pack typesets beside the source, e.g. the ingredients and steps of a recipe
+      const sourceText = page.layout === SOURCE_TEXT_LAYOUT ? pagePhotos.get(page)?.[0]?.sourceText : undefined;
+      if (sourceText) {
+        page.caption = sourceText;
       }
       for (const place of getPlaces(visitPhotos.get(page.section!) ?? [])) {
         visited.add(place);

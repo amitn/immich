@@ -57,6 +57,7 @@ import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { BookPageWithPlacements, BookRepository } from 'src/repositories/book.repository.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
@@ -83,7 +84,12 @@ import {
   getPhotoKind,
   planAutoLayout,
 } from 'src/utils/book/auto-layout.js';
-import { getCollectionTag, getCollectionTagPrefixes, shareCollectionTagsInStacks } from 'src/utils/book/collections.js';
+import {
+  getCollectionTag,
+  getCollectionTagPrefixes,
+  getPhotoPack,
+  shareCollectionTagsInStacks,
+} from 'src/utils/book/collections.js';
 import {
   HTML_EXPORT_QUALITY,
   HTML_LARGE_FILE_BYTES,
@@ -203,6 +209,9 @@ export const getMapArtPrompt = (title?: string) =>
     `and keep the compass rose and the scale bar${title ? ` and the title "${title}"` : ''}.`,
     'Do not add, remove or translate any text, and keep the aspect ratio of the map.',
   ].join(' ');
+
+/** the most source photos whose text is read for their pages (each is read at full resolution) */
+const MAX_SOURCE_TEXTS = 24;
 
 const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>) => {
   const results: R[] = Array.from({ length: items.length });
@@ -1676,6 +1685,19 @@ export class BookService extends BaseService {
       for (const photo of photos) {
         photo.textLines = lines.get(photo.id)?.length ?? 0;
       }
+    }
+    // the text a pack typesets on the page of a source, e.g. the ingredients and steps of a recipe
+    const textSources = photos
+      .filter((photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourceText)
+      .slice(0, MAX_SOURCE_TEXTS);
+    if (textSources.length > 0) {
+      const collections = BaseService.create(CollectionService, this);
+      await mapLimit(textSources, 2, async (photo) => {
+        const text = await collections.getSourceText(photo.collection!.pack, photo.id, photo.collection!.place);
+        if (text) {
+          photo.sourceText = text;
+        }
+      });
     }
 
     // a copy of a dish (e.g. an improved one) is still that dish
