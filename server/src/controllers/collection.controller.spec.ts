@@ -32,6 +32,42 @@ describe(CollectionController.name, () => {
     });
   });
 
+  describe('GET /collections/summary', () => {
+    it('should be an authenticated route', async () => {
+      await request(ctx.getHttpServer()).get('/collections/summary');
+      expect(ctx.authenticate).toHaveBeenCalled();
+    });
+
+    it('should summarize the collections', async () => {
+      const summary = {
+        packs: [
+          {
+            pack: 'food',
+            title: 'Food',
+            place: 'restaurant',
+            entry: 'menu items',
+            visit: 'meals',
+            photos: 36,
+            visits: 3,
+            places: 3,
+            entries: 32,
+            sources: 4,
+            years: [2013, 2014, 2016],
+            first: '2013-06-15',
+            last: '2016-03-23',
+            recentPlaces: [{ name: 'Noma Australia', visits: 1, last: '2016-03-23' }],
+          },
+        ],
+        truncated: false,
+      };
+      service.getSummary.mockResolvedValue(summary);
+      const { status, body } = await request(ctx.getHttpServer()).get('/collections/summary');
+      expect(status).toBe(200);
+      expect(body).toEqual(summary);
+      expect(service.getSummary).toHaveBeenCalledWith(undefined);
+    });
+  });
+
   describe('POST /collections/:pack/visits', () => {
     it('should be an authenticated route', async () => {
       await request(ctx.getHttpServer()).post('/collections/food/visits').send({});

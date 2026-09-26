@@ -23,6 +23,7 @@ With its tools, the assistant can:
 - design, review, edit and export [photo books](#photo-books);
 - create [artistic versions](#artistic-styles) of photos;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
+- [answer questions about your library](#asking-about-your-library), such as _"when did we last make the quiche?"_, from the dishes, recipes, artworks and trips it named;
 - list and use your tags.
 
 ### Where to find it
@@ -48,6 +49,28 @@ To skip the prompts, turn on **Auto-approve** at the top of a chat. It only appl
 ### Stopping a run
 
 Select **Stop** next to the message box to cancel the current run. Any pending approval is denied. You can send a new message afterwards.
+
+### Asking about your library
+
+Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits) and the legs of your [trips](#travel-documents), with the dates, places (the city and country of the photos) and people of their photos. For example:
+
+- _"What did I eat at The French Laundry?"_
+- _"When did we last make the quiche?"_
+- _"Which museums did we visit in 2025?"_
+- _"Show me every dessert we photographed in restaurants"_
+- _"Which wine did we have at Noma?"_
+- _"Where were we on 4 October 2016?"_
+
+The assistant answers briefly with the dates and places, and shows the photos. Names are matched loosely: _noma_ finds _Noma Australia_, and accents, case and plurals don't matter. A person counts as there when they appear on any photo taken during the visit, not only on the photos of the dishes. When you open the assistant, it suggests questions about your own collections, such as the last restaurants you named.
+
+Keep in mind:
+
+- **Only named photos count.** The answers come from the tags of the collections, so a meal whose dishes were never named isn't in them. The assistant then searches your other photos by meaning, date and place, and says when the answer may be incomplete, such as _"only named dishes are counted"_.
+- **Names, not meanings.** _Dessert_ finds _Citrus Pre-Dessert_, but not _Rum lamington_. The assistant asks with synonyms, and can search the photos by what they show.
+- **Only your own photos**, in the timeline and the archive, are read; locked, hidden and trashed photos, and the photos of partners and shared albums, are not.
+- **Travel stays private.** The names of legs are redacted as everywhere else, and travel documents are never shown.
+
+The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
 
 ## Photos are never changed
 

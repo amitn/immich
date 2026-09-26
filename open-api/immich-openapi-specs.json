@@ -8768,6 +8768,52 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/collections/summary": {
+      "get": {
+        "description": "Retrieve what the collections of the user hold, per pack: the photos, visits, places and entries named with the tags of the pack, the years covered and the places visited most recently. Only the user's own photos are counted, and the names of packs that hide private text are redacted.",
+        "operationId": "getCollectionSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionSummaryResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Summarize the collections",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/collections/{pack}/entries": {
       "put": {
         "description": "Tag each photo with <Root>/<Place>/<Entry>, or <Root>/<Place>/<SourceLeaf> for a photo of the source (e.g. Food/<Restaurant>/Menu), replacing the tag of the pack it had, and describe subject photos without a description in the words of the pack (e.g. \"<Dish> · <Restaurant>\").",
@@ -26834,6 +26880,99 @@
         ],
         "type": "object"
       },
+      "CollectionPackSummaryDto": {
+        "properties": {
+          "entries": {
+            "description": "Distinct entries of the places, e.g. dishes",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "entry": {
+            "description": "The word for the entries of the pack, e.g. menu items",
+            "type": "string"
+          },
+          "first": {
+            "description": "Local day of the first visit",
+            "type": "string"
+          },
+          "last": {
+            "description": "Local day of the last visit",
+            "type": "string"
+          },
+          "pack": {
+            "description": "Pack ID, e.g. food",
+            "type": "string"
+          },
+          "photos": {
+            "description": "Photos tagged with the pack",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "place": {
+            "description": "The word for a place of the pack, e.g. restaurant",
+            "type": "string"
+          },
+          "places": {
+            "description": "Distinct places",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "recentPlaces": {
+            "description": "The places visited most recently, up to 5",
+            "items": {
+              "$ref": "#/components/schemas/CollectionPlaceSummaryDto"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "description": "Photos of the sources, e.g. menus",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "description": "Pack title, e.g. Food",
+            "type": "string"
+          },
+          "visit": {
+            "description": "The word for the visits of the pack, e.g. meals",
+            "type": "string"
+          },
+          "visits": {
+            "description": "Visits: the photos of a place grouped by time",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "years": {
+            "description": "Years with visits, in order",
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "entry",
+          "pack",
+          "photos",
+          "place",
+          "places",
+          "recentPlaces",
+          "sources",
+          "title",
+          "visit",
+          "visits",
+          "years"
+        ],
+        "type": "object"
+      },
       "CollectionPlaceCandidateDto": {
         "properties": {
           "assetIds": {
@@ -26876,6 +27015,30 @@
           "fallback"
         ],
         "type": "string"
+      },
+      "CollectionPlaceSummaryDto": {
+        "properties": {
+          "last": {
+            "description": "Local day of the last visit, e.g. 2016-03-23",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the place, as in the tags (redacted for packs that hide private text)",
+            "type": "string"
+          },
+          "visits": {
+            "description": "Visits of the place",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "last",
+          "name",
+          "visits"
+        ],
+        "type": "object"
       },
       "CollectionSavedEntryDto": {
         "properties": {
@@ -26982,6 +27145,26 @@
           "index",
           "name",
           "score"
+        ],
+        "type": "object"
+      },
+      "CollectionSummaryResponseDto": {
+        "properties": {
+          "packs": {
+            "description": "Every pack, with zeros when it has no tagged photos",
+            "items": {
+              "$ref": "#/components/schemas/CollectionPackSummaryDto"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "description": "Whether the library has more tagged photos than were read",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "packs",
+          "truncated"
         ],
         "type": "object"
       },
