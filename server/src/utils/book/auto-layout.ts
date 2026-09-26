@@ -332,11 +332,16 @@ export const getPlaces = (photos: Array<Pick<AutoLayoutPhoto, 'city' | 'takenAt'
   return names.toSorted(byVisit);
 };
 
-/** the places of the photos (see `formatPlaces`), falling back to the country and then to the dates */
-export const getSectionTitle = (photos: AutoLayoutPhoto[]) => {
+/**
+ * The places of the photos, falling back to the country and then to the dates. Titles name at most three places, and
+ * a chapter is named after the places it adds to the `earlier` chapters, so chapters that pass through the same towns
+ * still get different titles
+ */
+export const getSectionTitle = (photos: AutoLayoutPhoto[], earlier: ReadonlySet<string> = new Set()) => {
   const places = getPlaces(photos);
   if (places.length > 0) {
-    return formatPlaces(places);
+    const added = places.filter((place) => !earlier.has(place));
+    return formatPlaces((added.length > 0 ? added : places).slice(0, MAX_LISTED_PLACES));
   }
 
   const countries = countValues(photos.map((photo) => photo.country)).map(([country]) => country);
@@ -1300,6 +1305,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     page.section !== undefined && (!!page.map || page.layout === 'section-opener' || isMapLayout(page.layout));
   let chapterTitle: string | undefined;
   let previousCaption: string | undefined;
+  const visited = new Set<string>();
   for (const [index, page] of pages.entries()) {
     if (page.map?.assetIds || page.layout === 'cover') {
       chapterTitle = undefined;
@@ -1321,7 +1327,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         continue;
       }
 
-      const title = getSectionTitle(covered);
+      const title = getSectionTitle(covered, visited);
+      for (const place of getPlaces(covered)) {
+        visited.add(place);
+      }
       const times = covered.map((photo) => photo.takenAt);
       const range = formatDateRange(Math.min(...times), Math.max(...times));
       const dates = singleDay ? `${range} · ${formatTime(Math.min(...times))}` : range;

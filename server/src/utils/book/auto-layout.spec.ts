@@ -352,7 +352,7 @@ describe('getSectionTitle', () => {
     );
   });
 
-  it('should shorten more than three places to the two main ones and a count', () => {
+  it('should name at most the three main places in a title', () => {
     const photos = [
       photo({ city: 'Mazzeo' }),
       photo({ city: 'Taormina' }),
@@ -363,8 +363,20 @@ describe('getSectionTitle', () => {
       photo({ city: 'Milo' }),
       photo({ city: 'Catania' }),
     ];
-    expect(getSectionTitle(photos)).toBe('Taormina, Catania & 3 more');
+    expect(getSectionTitle(photos)).toBe('Taormina, Catania & Mazzeo');
     expect(formatPlaces(['Catania', 'Taormina', 'Avola', 'Milo'])).toBe('Catania, Taormina & 2 more');
+  });
+
+  it('should name a chapter after the places it adds to the earlier chapters', () => {
+    const photos = [
+      photo({ city: 'Taormina' }),
+      photo({ city: 'Milo' }),
+      photo({ city: 'Taormina' }),
+      photo({ city: 'Mazzeo' }),
+      photo({ city: 'Avola' }),
+    ];
+    expect(getSectionTitle(photos, new Set(['Taormina', 'Mazzeo']))).toBe('Milo & Avola');
+    expect(getSectionTitle(photos, new Set(['Taormina', 'Mazzeo', 'Milo', 'Avola']))).toBe('Taormina, Milo & Mazzeo');
   });
 
   it('should fall back to the country and then the date', () => {
