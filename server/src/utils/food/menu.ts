@@ -256,7 +256,8 @@ const FURNITURE = [
 export const isPageFurniture = (text: string) => FURNITURE.some((pattern) => pattern.test(text));
 
 /** month names (in full, and abbreviations that aren't words) in English, Italian, French, Spanish, Portuguese, German */
-const MONTHS = String.raw`(?:january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|aug|sept?|oct|nov|dec|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|dicembre|janvier|f[ée]vrier|avril|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre|enero|febrero|abril|mayo|junio|julio|septiembre|octubre|noviembre|diciembre|januar|februar|m[äa]rz|juni|juli|oktober|dezember|janeiro|fevereiro|mar[çc]o|maio|junho|julho|setembro|outubro|dezembro)`;
+const MONTHS =
+  '(?:january|february|march|april|june|july|august|september|october|november|december|jan|feb|apr|aug|sept?|oct|nov|dec|gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|dicembre|janvier|f[ée]vrier|avril|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre|enero|febrero|abril|mayo|junio|julio|septiembre|octubre|noviembre|diciembre|januar|februar|m[äa]rz|juni|juli|oktober|dezember|janeiro|fevereiro|mar[çc]o|maio|junho|julho|setembro|outubro|dezembro)';
 /** "January 11, 2014", "11 gennaio", "11/01/2014"; OCR reads zeros as the letter O */
 const DATE = new RegExp(
   String.raw`(?<!\p{L})${MONTHS}\.?\s+[\dOo]{1,4}(?!\p{L})|(?<!\p{L})\d{1,2}(?:st|nd|rd|th|er|º)?\.?\s+(?:de\s+)?${MONTHS}(?!\p{L})|\b\d{1,2}[./-]\d{1,2}[./-](?:\d{4}|\d{2})\b`,
@@ -844,7 +845,7 @@ export const mergeMenuItems = <T extends { items: MenuItem[] }>(
       }
       seen.push(key);
       const course = courses.findIndex((other) => isSameKey(other, key));
-      items.push({ menuId: reading.assetId, item, ...(course >= 0 && { course }) });
+      items.push({ menuId: reading.assetId, item, ...(course !== -1 && { course }) });
     }
   }
   return items;

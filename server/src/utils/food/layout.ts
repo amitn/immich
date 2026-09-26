@@ -144,12 +144,13 @@ export const findColumns = (boxes: TextBox[], aspectRatio = 1): Layout => {
         best = { line: lower, gap };
       }
     }
-    if (best) {
-      nearestBelow.set(upper, best.line);
-      const above = nearestAbove.get(best.line);
-      if (!above || best.gap < above.gap) {
-        nearestAbove.set(best.line, { line: upper, gap: best.gap });
-      }
+    if (!best) {
+      continue;
+    }
+    nearestBelow.set(upper, best.line);
+    const above = nearestAbove.get(best.line);
+    if (!above || best.gap < above.gap) {
+      nearestAbove.set(best.line, { line: upper, gap: best.gap });
     }
   }
   const chains: Chain[] = [];

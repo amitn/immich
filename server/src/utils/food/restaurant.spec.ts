@@ -60,6 +60,13 @@ describe('cleanRestaurantName', () => {
   });
 });
 
+/** the confidence of a sign read as `text`, next to a menu */
+const readSign = (text: string, textScore = 0.97) =>
+  findRestaurantNames([
+    { assetId: 'sign', kind: 'sign', ocr: [{ ...box(text, 0.2, 0.3, 0.1), textScore }] },
+    { assetId: 'menu', kind: 'menu', ocr: [box('Spaghetti alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
+  ])[0]?.confidence ?? 0;
+
 describe('isGarbled', () => {
   it.each(['MZSDGUICAT', 'Trattoria Brndl'])('should take %s for letters OCR made up', (name) => {
     expect(isGarbled(name)).toBe(true);
@@ -130,14 +137,9 @@ describe('findRestaurantNames', () => {
   });
 
   it('should be less sure of a garbled reading than of a clean one', () => {
-    const read = (text: string, textScore = 0.97) =>
-      findRestaurantNames([
-        { assetId: 'sign', kind: 'sign', ocr: [{ ...box(text, 0.2, 0.3, 0.1), textScore }] },
-        { assetId: 'menu', kind: 'menu', ocr: [box('Spaghetti alla Norma', 0.1, 0.5), box('12,00', 0.8, 0.5)] },
-      ])[0]?.confidence ?? 0;
-    const clean = read('TRATTORIA SAVOIA');
-    expect(read('TRATTORIA SVZDGOIA')).toBeLessThan(clean);
-    expect(read('TRATTORIA SAVOIA', 0.82)).toBeLessThan(clean);
+    const clean = readSign('TRATTORIA SAVOIA');
+    expect(readSign('TRATTORIA SVZDGOIA')).toBeLessThan(clean);
+    expect(readSign('TRATTORIA SAVOIA', 0.82)).toBeLessThan(clean);
   });
 
   it('should count a name its photos support for more than a word no other photo has', () => {

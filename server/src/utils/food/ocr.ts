@@ -33,8 +33,8 @@ export const MIN_TEXT_SCORE = 0.5;
 /** "ＪＡＮＵＡＲＹ ２０１４" → "JANUARY 2014": OCR models trained on CJK text read some Latin print as full-width forms */
 const toHalfWidth = (text: string) =>
   text
-    .replaceAll(/[\uFF01-\uFF5E]/g, (char) => String.fromCodePoint(char.codePointAt(0)! - 0xfe_e0))
-    .replaceAll('\u3000', ' ');
+    .replaceAll(/[\u{FF01}-\u{FF5E}]/gu, (char) => String.fromCodePoint(char.codePointAt(0)! - 0xfe_e0))
+    .replaceAll('\u{3000}', ' ');
 
 export const toTextBox = (box: OcrBoxInput): TextBox => {
   const xs = [box.x1, box.x2, box.x3, box.x4];
@@ -166,13 +166,21 @@ export const groupLines = (boxes: TextBox[], minOverlap = 0.5): TextLine[] => {
       if (row.some((other) => horizontalOverlap(other, box) > 0.3 * Math.min(other.width, box.width))) {
         continue;
       }
-      const nearest = row.reduce((a, b) => (horizontalGap(a, box) <= horizontalGap(b, box) ? a : b));
+      // the box of the row beside the box
+      let nearest = row[0];
+      for (const other of row) {
+        if (horizontalGap(other, box) < horizontalGap(nearest, box)) {
+          nearest = other;
+        }
+      }
       const overlap = verticalOverlap(nearest, box);
       const similar = Math.max(nearest.height, box.height) <= 2.5 * Math.min(nearest.height, box.height);
-      if (overlap >= minOverlap && similar && overlap > bestOverlap) {
-        best = row;
-        bestOverlap = overlap;
+      if (!(overlap >= minOverlap && similar && overlap > bestOverlap)) {
+        continue;
       }
+
+      best = row;
+      bestOverlap = overlap;
     }
     if (best) {
       best.push(box);

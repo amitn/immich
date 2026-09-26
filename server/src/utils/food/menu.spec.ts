@@ -517,9 +517,10 @@ describe('chooseMenuOcr', () => {
   });
 });
 
+const item = (name: string) => ({ name, column: 0, box: [0, 0, 1, 1] as [number, number, number, number] });
+
 describe('mergeMenuItems', () => {
   it('should list the items of the pages of a menu once, in order', () => {
-    const item = (name: string) => ({ name, column: 0, box: [0, 0, 1, 1] as [number, number, number, number] });
     const merged = mergeMenuItems([
       { assetId: 'a', items: [item('Oysters and Pearls'), item('Salad')] },
       { assetId: 'b', items: [item('"OYSTERS AND PEARLS"'), item('Salad'), item('Lamb')] },

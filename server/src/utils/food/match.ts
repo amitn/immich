@@ -356,10 +356,12 @@ export const alignCourses = (
         continue;
       }
       for (const { to, weight, choice } of steps(dish, state)) {
-        if (best[state] + weight > next[to]) {
-          next[to] = best[state] + weight;
-          from[to] = { from: state, choice };
+        if (!(best[state] + weight > next[to])) {
+          continue;
         }
+
+        next[to] = best[state] + weight;
+        from[to] = { from: state, choice };
       }
     }
     best = next;
@@ -435,7 +437,9 @@ const shuffle = <T>(values: T[], next: () => number) => {
   const result = [...values];
   for (let i = result.length - 1; i > 0; i--) {
     const j = Math.floor(next() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
+    const value = result[i];
+    result[i] = result[j];
+    result[j] = value;
   }
   return result;
 };

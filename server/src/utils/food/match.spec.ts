@@ -155,6 +155,9 @@ describe('matchDishes', () => {
 const axis = (size: number, index: number, weight = 1, noise: number[] = []) =>
   vector(...Array.from({ length: size }, (_, i) => (i === index ? weight : (noise[i] ?? 0))));
 
+/** a plated dish on a white tablecloth, leaning a little towards one side */
+const plate = (lean: number) => vector(1, lean, 0.2);
+
 describe('groupDishPhotos', () => {
   const options = { sameDishDistance: 0.03, sameDishMinutes: 5 };
 
@@ -172,7 +175,6 @@ describe('groupDishPhotos', () => {
 
   it('should keep courses that look alike apart', () => {
     // plated courses on white tablecloths: 0.95 alike, 12 minutes apart
-    const plate = (lean: number) => vector(1, lean, 0.2);
     const groups = groupDishPhotos(
       [
         { id: 'trout', time: 0, embedding: plate(0.3) },
@@ -276,6 +278,19 @@ describe('matchCourses', () => {
   it('should not follow the order of a menu with prices', () => {
     const priced = courses.map((course) => ({ ...course, priced: true }));
     expect(matchCourses(photos, priced, { baselines }).ordered).toBe(false);
+  });
+
+  it('should not follow the order of a long list of items without prices', () => {
+    // an à la carte menu read without its prices: many more items than dishes
+    const list = Array.from({ length: 20 }, (_, index) => ({ embedding: axis(24, index), course: index }));
+    const dishes = [0, 3, 7, 12].map((index, position) => ({
+      id: `dish-${index}`,
+      time: minutes(position * 10),
+      embedding: axis(24, index, 0.6, { 23: 0.7 } as unknown as number[]),
+    }));
+    const { matches, ordered } = matchCourses(dishes, list);
+    expect(ordered).toBe(false);
+    expect(matches.map(({ item }) => item)).toEqual([0, 3, 7, 12]);
   });
 
   it('should not follow the order when the photos are not in it', () => {

@@ -239,14 +239,16 @@ export const mergeOcrPasses = (width: number, height: number, passes: OcrPass[])
     }
   }
   // a line cut twice (three tiles wide) is joined once more
-  for (const a of [...stitched]) {
+  const twice: Candidate[] = [];
+  for (const a of stitched) {
     for (const b of candidates) {
       const joined = stitch(a, b) ?? stitch(b, a);
       if (joined) {
-        stitched.push(joined);
+        twice.push(joined);
       }
     }
   }
+  stitched.push(...twice);
 
   const ranked = [...candidates, ...stitched].toSorted(
     (a, b) =>

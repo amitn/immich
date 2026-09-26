@@ -41,8 +41,10 @@ export const decode = (base64: string) => {
   return vector.map((value) => value / norm);
 };
 
-const encode = (values: number[]) =>
-  Buffer.from(Int16Array.from(values, (value) => Math.round(value * 32_767)).buffer).toString('base64');
+const encode = (values: number[]) => {
+  const vector = Int16Array.from(values, (value) => Math.round(value * 32_767));
+  return Buffer.from(vector.buffer, vector.byteOffset, vector.byteLength).toString('base64');
+};
 
 /**
  * Adds the missing text embeddings to the fixture, from the machine learning server, and drops the ones no longer
@@ -93,10 +95,12 @@ export const isSameItem = (expected: string, read: string) => {
   let shared = 0;
   for (const gram of x) {
     const index = pool.indexOf(gram);
-    if (index >= 0) {
-      shared++;
-      pool.splice(index, 1);
+    if (index === -1) {
+      continue;
     }
+
+    shared++;
+    pool.splice(index, 1);
   }
   return (2 * shared) / (x.length + y.length) >= 0.6;
 };

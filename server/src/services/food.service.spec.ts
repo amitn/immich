@@ -84,6 +84,9 @@ const mlOcr = (boxes: OcrBoxInput[]) => ({
   textScore: boxes.map(() => 0.95),
 });
 
+/** a unit vector along an axis */
+const unit = (index: number, size = 8) => Array.from({ length: size }, (_, i) => (i === index ? 1 : 0));
+
 describe(FoodService.name, () => {
   let sut: FoodService;
   let mocks: ServiceMocks;
@@ -270,10 +273,9 @@ describe(FoodService.name, () => {
     it('should match the courses of a tasting menu in the order they were served', async () => {
       // six courses that CLIP tells apart only a little: each photo is almost as close to the course two later
       const courses = ['Oysters', 'Salad', 'Trout', 'Crab', 'Lamb', 'Desserts'];
-      const unit = (index: number, size = 8) => Array.from({ length: size }, (_, i) => (i === index ? 1 : 0));
       mocks.machineLearning.encodeText.mockImplementation((text: string) => {
         const index = courses.findIndex((course) => text === `a photo of ${course}`);
-        return Promise.resolve(JSON.stringify(unit(index >= 0 ? index : 6)));
+        return Promise.resolve(JSON.stringify(unit(index === -1 ? 6 : index)));
       });
       const ids = courses.map(() => newUuid());
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(ids));
