@@ -250,11 +250,12 @@ export class AgentService extends BaseService {
         kind: AgentMessageKind.Text,
         content: { text: dto.text, ...(dto.assetIds?.length && { assetIds: dto.assetIds }) },
       });
-      this.emit(run, AgentSessionStatus.Running, message);
+      // the title is set before the update is sent, so a client that reloads the chats on it gets the title too
       await this.agentRepository.updateSession(id, {
         status: AgentSessionStatus.Running,
-        ...(!session.title && { title: truncateText(dto.text.replaceAll(/\s+/g, ' '), 80) }),
+        ...(!session.title && { title: truncateText(dto.text.replaceAll(/\s+/g, ' ').trim(), 80) }),
       });
+      this.emit(run, AgentSessionStatus.Running, message);
 
       if (!run.ready) {
         run.ready = this.startAgent(run, session, config, message.id);

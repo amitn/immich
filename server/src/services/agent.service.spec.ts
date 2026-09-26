@@ -254,6 +254,19 @@ describe(AgentService.name, () => {
       expect(second[0].text).toBe('thanks');
     });
 
+    it('should title an untitled chat after the first message before announcing it', async () => {
+      const session = newSession();
+      await startTurn(session.id, '  Make an album of\n our best  Sicily photos ');
+
+      expect(mocks.agent.updateSession).toHaveBeenCalledWith(session.id, {
+        status: AgentSessionStatus.Running,
+        title: 'Make an album of our best Sicily photos',
+      });
+      const [titled] = mocks.agent.updateSession.mock.invocationCallOrder;
+      const [announced] = mocks.websocket.clientSend.mock.invocationCallOrder;
+      expect(titled).toBeLessThan(announced);
+    });
+
     it('should use a stdio bridge when the agent has no MCP over HTTP', async () => {
       fake = newFakeAgent({});
       const session = newSession();

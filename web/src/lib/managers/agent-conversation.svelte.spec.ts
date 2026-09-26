@@ -5,7 +5,13 @@ import {
   type AgentMessageDto,
   type AgentSessionDetailResponseDto,
 } from '@immich/sdk';
-import { AgentConversation, AgentPermissionStatus, AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
+import {
+  AgentConversation,
+  AgentPermissionStatus,
+  AgentToolCallStatus,
+  applySessionUpdate,
+  toChatTitle,
+} from '$lib/managers/agent-conversation.svelte';
 
 const message = (overrides: Partial<AgentMessageDto> & { id: string }): AgentMessageDto => ({
   sessionId: 'session-1',
@@ -303,5 +309,59 @@ describe(AgentConversation.name, () => {
 
       expect(sut.messages[0].content.status).toBe(AgentPermissionStatus.Expired);
     });
+  });
+});
+
+describe(toChatTitle.name, () => {
+  it('should use the first message on one line', () => {
+    expect(toChatTitle('  Make an album of\n our best  Sicily photos ')).toBe(
+      'Make an album of our best Sicily photos',
+    );
+  });
+
+  it('should cut long messages', () => {
+    expect(toChatTitle('x'.repeat(100))).toBe(`${'x'.repeat(80)}…`);
+  });
+});
+
+describe(applySessionUpdate.name, () => {
+  const session = {
+    id: 'session-1',
+    title: null,
+    profile: 'claude',
+    status: AgentSessionStatus.Idle,
+    autoApprove: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+  const now = '2026-01-01T00:05:00.000Z';
+
+  it('should title an untitled chat from its first message and record the activity', () => {
+    const update = {
+      sessionId: 'session-1',
+      status: AgentSessionStatus.Running,
+      message: message({ id: 'm1', role: AgentMessageRole.User, content: { text: 'Best of\nSicily' } }),
+    };
+    expect(applySessionUpdate(session, update, now)).toEqual({
+      ...session,
+      title: 'Best of Sicily',
+      status: AgentSessionStatus.Running,
+      updatedAt: now,
+    });
+  });
+
+  it('should keep the title and not take one from agent messages', () => {
+    const update = {
+      sessionId: 'session-1',
+      status: AgentSessionStatus.Running,
+      message: message({ id: 'm2', content: { text: 'Searching' } }),
+    };
+    expect(applySessionUpdate(session, update, now).title).toBeNull();
+    expect(applySessionUpdate({ ...session, title: 'Trip' }, update, now).title).toBe('Trip');
+  });
+
+  it('should not go back in time', () => {
+    const update = { sessionId: 'session-1', status: AgentSessionStatus.Idle };
+    expect(applySessionUpdate({ ...session, updatedAt: now }, update, session.updatedAt).updatedAt).toBe(now);
   });
 });

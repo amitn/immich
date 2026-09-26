@@ -4,6 +4,7 @@ import {
   AgentSessionStatus,
   type AgentMessageDto,
   type AgentSessionDetailResponseDto,
+  type AgentSessionResponseDto,
   type AgentUpdateDto,
 } from '@immich/sdk';
 
@@ -39,6 +40,34 @@ const sameAssets = (a: string[] | undefined, b: string[] | undefined) => {
 };
 
 const isFinalStatus = (status: string | undefined) => !!status && status !== AgentPermissionStatus.Pending;
+
+const TITLE_LENGTH = 80;
+
+/** The title of a chat from its first message, the same way the server titles an untitled chat */
+export const toChatTitle = (text: string) => {
+  const title = text.replaceAll(/\s+/g, ' ').trim();
+  return title.length > TITLE_LENGTH ? `${title.slice(0, TITLE_LENGTH)}…` : title;
+};
+
+/**
+ * A chat of the chat list after a websocket update of it: the update is its latest activity, and an untitled chat
+ * gets its title from the first message right away (the server sets the same title, but the update doesn't carry it).
+ */
+export const applySessionUpdate = (
+  session: AgentSessionResponseDto,
+  update: AgentUpdateDto,
+  now = nowIso(),
+): AgentSessionResponseDto => {
+  const { message } = update;
+  const text =
+    message?.role === AgentMessageRole.User && message.kind === AgentMessageKind.Text && message.content.text;
+  return {
+    ...session,
+    status: update.status,
+    updatedAt: Date.parse(now) > Date.parse(session.updatedAt) ? now : session.updatedAt,
+    title: session.title || (text ? toChatTitle(text) : session.title),
+  };
+};
 
 /**
  * Keyed list of the messages of one assistant chat session.
