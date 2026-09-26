@@ -10018,13 +10018,21 @@ export enum BookExportStatus {
 }
 export enum BookStyleTheme {
     Plain = "plain",
-    Food = "food"
+    Food = "food",
+    Gallery = "gallery",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel"
 }
 export enum BookStylePreset {
     Classic = "classic",
     Soft = "soft",
     Bold = "bold",
-    Food = "food"
+    Food = "food",
+    Museum = "museum",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel"
 }
 export enum BookMapStyle {
     Sketch = "sketch",

@@ -26108,12 +26108,16 @@
         "type": "object"
       },
       "BookStylePreset": {
-        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos) or food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit). The style options override its values",
+        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos), food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit), museum (an exhibition catalogue: white pages, artworks shown whole with museum-label captions and catalogue numbers; lays out one chapter per museum visit), wine (a tasting notebook: cream paper, burgundy ink, a tasting-note page per bottle with its fiche and the note from its description; lays out one chapter per tasting), cookbook (a family recipe book: warm paper, serif headings, a typeset recipe page (ingredients and steps) beside the photo of the recipe, step captions; lays out one chapter per recipe) or travel (a travel journal: cream paper, passport-blue ink, stamps and ticket stubs typeset from the legs (never the documents themselves); lays out one chapter per leg of the trip). The style options override its values",
         "enum": [
           "classic",
           "soft",
           "bold",
-          "food"
+          "food",
+          "museum",
+          "wine",
+          "cookbook",
+          "travel"
         ],
         "type": "string"
       },
@@ -26143,10 +26147,14 @@
         "type": "object"
       },
       "BookStyleTheme": {
-        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos)",
+        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos), or gallery (an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title in italics, then the artist, the date and the medium) and catalogue numbers), or wine (a tasting notebook: small-caps headings, thin rules, and a typeset fiche beside each bottle with room for the tasting note), or cookbook (a family recipe book: serif headings, thin rules, the recipe typeset on its page, and the steps captioned below their photos), or travel (a travel journal: small-caps headings, thin rules, and ticket stubs with a route line and a date stamp for the legs)",
         "enum": [
           "plain",
-          "food"
+          "food",
+          "gallery",
+          "wine",
+          "cookbook",
+          "travel"
         ],
         "type": "string"
       },
