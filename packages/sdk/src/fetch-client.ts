@@ -2653,6 +2653,8 @@ export type FoodMatchResponseDto = {
     items: FoodMenuItemDto[];
     /** Dish photos that could not be matched because smart search has not run */
     noEmbedding: string[];
+    /** The dishes were matched in the order of the courses of a tasting menu; the scores are then the probabilities over all such alignments */
+    ordered?: boolean;
     /** Why matching may be incomplete */
     warnings: string[];
 };

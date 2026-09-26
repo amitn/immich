@@ -27630,6 +27630,10 @@
             },
             "type": "array"
           },
+          "ordered": {
+            "description": "The dishes were matched in the order of the courses of a tasting menu; the scores are then the probabilities over all such alignments",
+            "type": "boolean"
+          },
           "warnings": {
             "description": "Why matching may be incomplete",
             "items": {
