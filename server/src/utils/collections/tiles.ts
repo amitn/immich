@@ -77,11 +77,79 @@ const intersection = (a: Candidate, b: Candidate) =>
     bottom: Math.min(a.bottom, b.bottom),
   });
 
+/** a tilt of the text below this many radians (about 3 degrees) is measured on the photo's axes */
+const TILTED = 0.05;
+
+/** the corners of a box in pixels */
+const corners = ({ box }: Candidate, width: number, height: number) => [
+  [box.x1 * width, box.y1 * height],
+  [box.x2 * width, box.y2 * height],
+  [box.x3 * width, box.y3 * height],
+  [box.x4 * width, box.y4 * height],
+];
+
+/**
+ * The share of the smaller box that the other covers, measured along the lines of the text: on a photo of a tilted
+ * page, the bounding boxes of neighbouring lines overlap, their text does not.
+ */
+const orientedOverlap = (a: Candidate, b: Candidate, width: number, height: number) => {
+  const [a1, a2] = corners(a, width, height);
+  const angle = Math.atan2(a2[1] - a1[1], a2[0] - a1[0]);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const extent = (candidate: Candidate) => {
+    const points = corners(candidate, width, height);
+    const along = points.map(([x, y]) => x * cos + y * sin);
+    const across = points.map(([x, y]) => -x * sin + y * cos);
+    return {
+      left: Math.min(...along),
+      right: Math.max(...along),
+      top: Math.min(...across),
+      bottom: Math.max(...across),
+    };
+  };
+  const x = extent(a);
+  const y = extent(b);
+  const overlap = area({
+    left: Math.max(x.left, y.left),
+    top: Math.max(x.top, y.top),
+    right: Math.min(x.right, y.right),
+    bottom: Math.min(x.bottom, y.bottom),
+  });
+  const smaller = Math.min(area(x), area(y));
+  return smaller > 0 ? overlap / smaller : 0;
+};
+
+const tilt = ({ box }: Candidate, width: number, height: number) =>
+  Math.abs(Math.atan2((box.y2 - box.y1) * height, (box.x2 - box.x1) * width));
+
 /** whether two boxes are (mostly) the same text read twice */
-const isDuplicate = (a: Candidate, b: Candidate) => {
+const isDuplicate = (a: Candidate, b: Candidate, width = 1, height = 1) => {
+  if (tilt(a, width, height) > TILTED && tilt(a, width, height) < 1.3) {
+    return orientedOverlap(a, b, width, height) > 0.5;
+  }
   const overlap = intersection(a, b);
   const smaller = Math.min(area(a), area(b));
   return smaller > 0 && overlap / smaller > 0.5;
+};
+
+const compact = (text: string) => text.toLowerCase().replaceAll(/[^\p{L}\d]/gu, '');
+
+/**
+ * Whether a box read with confidence holds the whole text of which another pass, at a higher resolution, only read a
+ * part: faint print (the small caps of a title) that a tile read from its second letter, "UPCAKES" of "SIMPLE
+ * CUPCAKES".
+ */
+const readsMore = (candidate: Candidate, other: Candidate) => {
+  const whole = compact(candidate.box.text);
+  const part = compact(other.box.text);
+  return (
+    !candidate.clipped &&
+    (candidate.box.textScore ?? 0) >= 0.9 &&
+    part.length >= 4 &&
+    whole.length >= 1.4 * part.length &&
+    whole.includes(part)
+  );
 };
 
 /**
@@ -247,8 +315,11 @@ export const mergeOcrPasses = (width: number, height: number, passes: OcrPass[])
   );
   const kept: Candidate[] = [];
   for (const candidate of ranked) {
-    if (kept.every((other) => !isDuplicate(other, candidate))) {
+    const duplicates = kept.filter((other) => isDuplicate(other, candidate, width, height));
+    if (duplicates.length === 0) {
       kept.push(candidate);
+    } else if (duplicates.length === 1 && readsMore(candidate, duplicates[0])) {
+      kept[kept.indexOf(duplicates[0])] = candidate;
     }
   }
   return kept.map(({ box }) => box).toSorted((a, b) => a.y1 - b.y1 || a.x1 - b.x1);
