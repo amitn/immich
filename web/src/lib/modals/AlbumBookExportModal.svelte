@@ -19,6 +19,7 @@
     BookExportFormat,
     BookExportStatus,
     BookMapStyleOption,
+    BookStylePreset,
     createBookFromAlbum,
     exportBook,
     type AlbumResponseDto,
@@ -30,16 +31,19 @@
 
   type Props = {
     album: AlbumResponseDto;
+    /** the style chosen when the dialog opens, e.g. food after naming the dishes of the album */
+    stylePreset?: BookStylePreset;
     onClose: () => void;
   };
 
-  const { album, onClose }: Props = $props();
+  const { album, stylePreset: initialStylePreset = DEFAULT_BOOK_STYLE_PRESET, onClose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let title = $state(album.albumName);
   let subtitle = $state('');
   let pageSize = $state<BookPageSizePresetId>(DEFAULT_BOOK_PAGE_SIZE);
-  let stylePreset = $state(DEFAULT_BOOK_STYLE_PRESET);
+  // svelte-ignore state_referenced_locally
+  let stylePreset = $state<BookStylePreset>(initialStylePreset);
   let targetPageCount = $state<number>();
   let includeMaps = $state(true);
   let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);

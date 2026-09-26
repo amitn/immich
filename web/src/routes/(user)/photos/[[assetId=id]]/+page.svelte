@@ -26,6 +26,7 @@
   import { Route } from '$lib/route';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAssistantBulkActions } from '$lib/services/assistant.service';
+  import { getFoodBulkActions } from '$lib/services/food.service';
   import { getStackBulkActions } from '$lib/services/stack.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import { type OnLink, type OnUnlink } from '$lib/utils/actions';
@@ -114,6 +115,7 @@
     {@const Actions = getAssetBulkActions($t)}
     {@const StackActions = getStackBulkActions($t)}
     {@const AssistantActions = getAssistantBulkActions($t)}
+    {@const FoodActions = getFoodBulkActions($t)}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
     <CreateSharedLink />
@@ -149,6 +151,7 @@
         {#if authManager.preferences.tags.enabled}
           <TagAction menuItem />
         {/if}
+        <ActionMenuItem action={FoodActions.NameDishes} />
         <DeleteAssets
           menuItem
           onAssetDelete={(assetIds) => timelineManager.removeAssets(assetIds)}
