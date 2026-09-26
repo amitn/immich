@@ -58,6 +58,33 @@ describe(MediaRepository.name, () => {
     sut = new MediaRepository(automock(LoggingRepository, { args: [, { getEnv: () => ({}) }], strict: false }));
   });
 
+  describe('getJpegCrops', () => {
+    it('should cut crops of a bitmap into JPEGs', async () => {
+      const { data, info } = await solid(400, 200, { r: 0, g: 0, b: 255 })
+        .composite([{ input: await solid(200, 200, { r: 255, g: 0, b: 0 }).png().toBuffer(), left: 0, top: 0 }])
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const bitmap = { data, info: { width: info.width, height: info.height, channels: info.channels } } as never;
+
+      const [left, right, small] = await sut.getJpegCrops(
+        bitmap,
+        [
+          { x: 0, y: 0, width: 200, height: 200 },
+          { x: 250, y: 50, width: 500, height: 100 },
+          { x: 0, y: 0, width: 400, height: 200 },
+        ],
+        { maxSize: 100 },
+      );
+
+      expect(await sharp(left).metadata()).toMatchObject({ format: 'jpeg', width: 100, height: 100 });
+      expectColor(await pixelAt(left, 50, 50), [255, 0, 0]);
+      // clamped to the image
+      expect(await sharp(right).metadata()).toMatchObject({ width: 100, height: 67 });
+      expectColor(await pixelAt(right, 50, 30), [0, 0, 255]);
+      expect(await sharp(small).metadata()).toMatchObject({ width: 100, height: 50 });
+    });
+  });
+
   describe('resizeToJpeg', () => {
     it('should fit the image in the size', async () => {
       const image = await solid(2000, 1000, { r: 10, g: 20, b: 30 }).png().toBuffer();
@@ -102,6 +129,27 @@ describe(MediaRepository.name, () => {
       const [plainR] = await pixelAt(plain, 100, 100);
       expect(plainR).toBeGreaterThan(200);
       expect(r).toBeLessThan(120);
+    });
+
+    it('should draw a caption at the bottom of a tile', async () => {
+      const plain = await sut.createContactSheet([{ input: red, label: '' }], { tileSize: 200, gap: 0 });
+      const captioned = await sut.createContactSheet(
+        [
+          {
+            input: red,
+            label: '',
+            caption: '1. Spaghetti alle vongole veraci di Sicilia 0.62\n2. Pasta alla Norma 0.21',
+          },
+        ],
+        { tileSize: 200, gap: 0 },
+      );
+      expect(await sharp(captioned).metadata()).toMatchObject({ width: 200, height: 200 });
+      const [bottomR] = await pixelAt(captioned, 195, 195);
+      const [plainR] = await pixelAt(plain, 195, 195);
+      const [topR] = await pixelAt(captioned, 100, 60);
+      expect(plainR).toBeGreaterThan(200);
+      expect(bottomR).toBeLessThan(120);
+      expect(topR).toBeGreaterThan(200);
     });
 
     it('should respect the column count', async () => {

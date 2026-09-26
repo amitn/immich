@@ -353,6 +353,31 @@ export class SearchRepository {
       .execute();
   }
 
+  /**
+   * The cosine similarity of the CLIP embedding of each asset with each of the given (text) embeddings, in their
+   * order; assets without an embedding are left out.
+   */
+  @GenerateSql({ params: [[DummyValue.UUID], [DummyValue.VECTOR, DummyValue.VECTOR]] })
+  getEmbeddingSimilarities(assetIds: string[], embeddings: string[]) {
+    if (assetIds.length === 0 || embeddings.length === 0) {
+      return Promise.resolve([]);
+    }
+    if (embeddings.length > 500) {
+      throw new Error(`Too many embeddings: ${embeddings.length}`);
+    }
+
+    return this.db
+      .selectFrom('smart_search')
+      .select('assetId')
+      .select(
+        sql<number[]>`array[${sql.join(
+          embeddings.map((embedding) => sql`1 - (smart_search.embedding <=> ${embedding})`),
+        )}]::float8[]`.as('similarities'),
+      )
+      .where('assetId', '=', anyUuid(assetIds))
+      .execute();
+  }
+
   @GenerateSql({
     params: [
       {

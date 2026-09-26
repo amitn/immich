@@ -61,6 +61,8 @@ const probe = (input: string, options: string[]): Promise<FfprobeData> =>
 
 const pascalCase = (str: string) => upperFirst(camelCase(str.toLowerCase()));
 
+const escapeXml = (text: string) => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
 type ProgressEvent = {
   frames: number;
   currentFps: number;
@@ -278,6 +280,33 @@ export class MediaRepository {
       .raw()
       .toBuffer({ resolveWithObject: true });
     return { data, info: info as RawImageInfo };
+  }
+
+  /**
+   * JPEGs of crops (in pixels) of a decoded image, e.g. tiles of a menu for OCR at full resolution; each fits in
+   * `maxSize` x `maxSize` when given
+   */
+  async getJpegCrops(
+    image: Bitmap,
+    crops: CropParameters[],
+    { quality = 92, maxSize }: { quality?: number; maxSize?: number } = {},
+  ) {
+    const results: Buffer[] = [];
+    for (const crop of crops) {
+      const left = Math.min(Math.max(Math.round(crop.x), 0), image.info.width - 1);
+      const top = Math.min(Math.max(Math.round(crop.y), 0), image.info.height - 1);
+      let pipeline = this.raw(image).extract({
+        left,
+        top,
+        width: Math.max(1, Math.min(Math.round(crop.width), image.info.width - left)),
+        height: Math.max(1, Math.min(Math.round(crop.height), image.info.height - top)),
+      });
+      if (maxSize) {
+        pipeline = pipeline.resize(maxSize, maxSize, { fit: 'inside', withoutEnlargement: true });
+      }
+      results.push(await pipeline.jpeg({ quality }).toBuffer());
+    }
+    return results;
   }
 
   /** An 8-bit sRGB copy of an image that fits in `size` x `size`, e.g. to try out corrections on a preview */
@@ -778,9 +807,36 @@ export class MediaRepository {
       .toBuffer();
   }
 
-  /** a grid of letterboxed tiles, each labelled in its top-left corner; unreadable inputs become blank tiles */
+  /** up to three lines of text on a dark band at the bottom of a contact sheet tile, each cut to fit */
+  private getCaptionOverlay(caption: string, tileSize: number, left: number, top: number) {
+    const fontSize = Math.max(11, Math.round(tileSize * 0.055));
+    const maxChars = Math.max(4, Math.floor(tileSize / (fontSize * 0.56)));
+    const lines = caption
+      .split('\n')
+      .filter((line) => line.trim())
+      .slice(0, 3)
+      .map((line) => (line.length > maxChars ? `${line.slice(0, maxChars - 1)}…` : line));
+    const lineHeight = Math.round(fontSize * 1.3);
+    const height = lines.length * lineHeight + Math.round(fontSize * 0.5);
+    const texts = lines
+      .map(
+        (line, index) =>
+          `<text x="${Math.round(fontSize * 0.4)}" y="${Math.round(fontSize * 0.25) + (index + 1) * lineHeight - Math.round(fontSize * 0.3)}" ` +
+          `font-family="sans-serif" font-size="${fontSize}" fill="#fff">${escapeXml(line)}</text>`,
+      )
+      .join('');
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${tileSize}" height="${height}">` +
+      `<rect width="100%" height="100%" fill="#000" fill-opacity="0.72"/>${texts}</svg>`;
+    return { input: Buffer.from(svg), left, top: top + tileSize - height };
+  }
+
+  /**
+   * a grid of letterboxed tiles, each labelled in its top-left corner and optionally captioned at the bottom;
+   * unreadable inputs become blank tiles
+   */
   async createContactSheet(
-    tiles: Array<{ input: string | Buffer | null; label: string }>,
+    tiles: Array<{ input: string | Buffer | null; label: string; caption?: string }>,
     options: { tileSize?: number; columns?: number; gap?: number; background?: string; quality?: number } = {},
   ): Promise<Buffer> {
     const { tileSize = 256, gap = 4, background = '#1c1c1c', quality = 80 } = options;
@@ -789,7 +845,7 @@ export class MediaRepository {
     const fontSize = Math.max(12, Math.round(tileSize * 0.09));
 
     const composites = await Promise.all(
-      tiles.map(async ({ input, label }, i) => {
+      tiles.map(async ({ input, label, caption }, i) => {
         const left = gap + (i % columns) * (tileSize + gap);
         const top = gap + Math.floor(i / columns) * (tileSize + gap);
 
@@ -823,6 +879,7 @@ export class MediaRepository {
         return [
           { input: tile, left, top },
           { input: Buffer.from(svg), left: left + 2, top: top + 2 },
+          ...(caption ? [this.getCaptionOverlay(caption, tileSize, left, top)] : []),
         ];
       }),
     );
