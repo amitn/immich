@@ -965,6 +965,7 @@
   "book_reset_crop": "Reset crop",
   "book_review": "Review",
   "book_review_badge": "{count, plural, one {# problem to fix} other {# problems to fix}}",
+  "book_review_checked_at": "Checked at {time}",
   "book_review_close": "Close review",
   "book_review_fix": "Fix with assistant",
   "book_review_fix_all": "Fix all with assistant",

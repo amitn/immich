@@ -192,6 +192,20 @@ describe('BookReviewPanel component', () => {
     expect(screen.queryByText('book_review_no_issues')).not.toBeInTheDocument();
   });
 
+  it('should show that a review already shown is being checked again', () => {
+    renderPanel({ loading: true, checkedAt: new Date(2026, 8, 26, 20, 41, 5).getTime() });
+
+    expect(screen.getByTestId('book-review-status')).toHaveTextContent('book_review_loading');
+    expect(screen.getByRole('button', { name: 'book_review_refresh' })).toBeDisabled();
+  });
+
+  it('should say when the review was last checked', () => {
+    renderPanel({ checkedAt: new Date(2026, 8, 26, 20, 41, 5).getTime() });
+
+    expect(screen.getByTestId('book-review-status')).toHaveTextContent('book_review_checked_at');
+    expect(screen.getByRole('button', { name: 'book_review_refresh' })).toBeEnabled();
+  });
+
   it('should offer to try again when the review failed', async () => {
     renderPanel({ review: undefined, failed: true });
 
