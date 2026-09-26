@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { classifyPhoto, getPromptList, summarizeText } from 'src/utils/collections/classify.js';
-import { MatchOptions, SubjectMatch, matchSubjects } from 'src/utils/collections/match.js';
+import { DEFAULT_MATCH_OPTIONS, MatchOptions, SubjectMatch } from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import { parseArtwork } from 'src/utils/collections/packs/museum/artwork.js';
 import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
@@ -235,8 +235,9 @@ const runVisit = (visit: Visit, texts: Map<string, Float32Array>, options: Parti
   const merged = readLabels(visit);
   const entries = merged.map(({ item }) => item);
   const candidates = merged.map(({ item, sourceId }) => ({
+    name: item.name,
     embedding: embed(museumPack.source.prompt(item)),
-    time: visit.photos[Number(sourceId)].time,
+    sourceTime: visit.photos[Number(sourceId)].time,
   }));
   const baselines = museumPack.match.offListPrompts.map((text) => embed(text));
 
@@ -245,7 +246,14 @@ const runVisit = (visit: Visit, texts: Map<string, Float32Array>, options: Parti
       ? [{ index, photo, id: String(index), time: photo.time, embedding: decode(photo.embedding) }]
       : [],
   );
-  const { matches } = matchSubjects(artworks, candidates, { ...museumPack.match.options, baselines, ...options });
+  // as `CollectionService.matchVisit` does: the pack's own assignment, with the times of the label photos
+  const { matches } = museumPack.match.assign!(artworks, candidates, {
+    ...DEFAULT_MATCH_OPTIONS,
+    ...museumPack.match.options,
+    ...options,
+    baselines,
+    suggestions: 3,
+  });
   const byPhoto = new Map<string, SubjectMatch>();
   for (const match of matches) {
     for (const id of match.ids) {

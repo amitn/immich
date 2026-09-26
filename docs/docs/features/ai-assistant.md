@@ -290,6 +290,29 @@ The **Food** style (_Like a printed menu: warm paper, small-caps headings, thin 
 - **Dish captions.** The name of each dish is set below its photo, from its food tag. A page of other photos is captioned with their place, as in the other styles.
 - **Review.** **Dish without its name** is a named dish shown without its caption. **Restaurant without its menu** is a restaurant whose dishes are in the book but whose menu, which is in the album, isn't.
 
+## Cookbook
+
+The cookbook works like [Food](#food), for the dishes you cook at home. Photograph the recipe (a handwritten card or a page of a cookbook) along with the cooking, and choose **Name the recipe steps…** from the menu of an album or a selection, or ask the assistant.
+
+- **Cooking sessions.** The photos of the ingredients, the steps and the finished dish are grouped by time; the recipe may be photographed up to a day later. Labels such as the brand of the oven don't make a photo a recipe.
+- **Reading the recipe.** The title, the serves and time line, the ingredients and the steps are read, even on a page photographed at an angle. Fractions that OCR misreads are repaired where it is clear, such as _11/2 cups_ for 1½ cups. When the page shows other recipes, such as a variant beside it, the one whose title fits the photos is kept and the others are offered as alternatives. A step whose text is off the photo is kept by its number.
+- **Matching.** Each photo is matched with a step, in the order of the steps, or with **Result**, the finished dish. The other dishes of the meal are marked as not from this recipe.
+- **Tags.** `Recipes/<Recipe>/Step 2: Whisk the eggs` on a step photo, `Recipes/<Recipe>/Result` on the finished dish and `Recipes/<Recipe>/Recipe` on the recipe photo. Step photos without a description get one, such as _2. Whisk the eggs · Quiche_.
+- **Cookbook books.** The **Cookbook** style lays out a chapter per recipe, opened by a recipe page: the photo of the recipe with its ingredients and steps typeset below it, read from the photo when the book is laid out (edit the page caption to correct them). The steps are captioned below their photos and the finished dish as _Finished dish_. The review lists recipes without a photo of the finished dish and steps without a photo.
+
+## Travel documents
+
+Photograph your boarding passes and tickets on a trip, and Immich matches the photos of the trip with its legs. Choose **Name the legs of a trip…** from the menu of an album or of selected photos, or ask the assistant. It uses the same smart search and OCR models as [Food](#food), locally.
+
+- **Documents.** Boarding passes, bus, train, ferry and monorail tickets, park and museum tickets and fare receipts are read into legs: the mode, the carrier, the flight or train number, from → to, the date and time, the seat and the class, in English, Greek, Japanese and Chinese. What can't be read is said, such as a date printed vertically, a year that isn't printed or a time written over by hand.
+- **Legs.** A leg runs from a little before its departure (the wait at the station or the airport) until the next leg, or the end of its day; the photos between two legs belong to the destination of the earlier one. A document with only a date covers its day, one without a date the day it was photographed. The places and look a photo shares with a leg, such as a ferry's name on its hull, can move it to that leg. Days without documents stay unassigned: name them yourself, such as _Chania day_.
+- **Tags.** Photos are tagged `Travel/<Trip>/<Leg>`, such as `Travel/Crete, October 2016/Bus Chania → Sougia, 4 Oct 2016`, and the documents `Travel/<Trip>/Tickets`. Name the trip after its destinations and month.
+- **Travel books.** The **Travel** style is a travel journal: a chapter per leg, opened by a ticket stub typeset from the fields of its document, with a route line and a date stamp, then the photos of the leg. Review reports legs without photos, photos no document covers, documents without a date, and a page that prints a document itself.
+
+:::info Travel documents and privacy
+Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields: the tools that show it photos, contact sheets and book pages leave the documents out or blur them, whether they are tagged as tickets or only read as one. Ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
+:::
+
 ## Museum & gallery visits
 
 Immich can also find your museum visits: the photos of artworks (paintings, sculptures, objects), the wall labels you photographed next to them, and the museum's signs and tickets. Open an album or select photos and choose **Name the artworks…**. It works like [naming dishes](#name-the-dishes), with the same local models:

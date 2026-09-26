@@ -60,11 +60,11 @@ describe('pairing artworks with the labels photographed next to them', () => {
     ];
     const items = [
       // the label of the painting, 4 s after it
-      { embedding: vector(4), time: 4 * SECOND },
+      { embedding: vector(4), sourceTime: 4 * SECOND },
       // a label photographed before its artwork
-      { embedding: vector(5), time: 60 * SECOND },
+      { embedding: vector(5), sourceTime: 60 * SECOND },
       // a label between two details of one painting
-      { embedding: vector(6), time: 220 * SECOND },
+      { embedding: vector(6), sourceTime: 220 * SECOND },
     ];
     const { matches, ordered } = matchSubjects(photos, items, MUSEUM_MATCH_OPTIONS);
     expect(ordered).toBe(false);
@@ -85,8 +85,8 @@ describe('pairing artworks with the labels photographed next to them', () => {
       { id: 'portrait', time: 1100 * SECOND, embedding: vector(2) },
     ];
     const items = [
-      { embedding: vector(0, 3, 0.2), time: 3 * SECOND },
-      { embedding: vector(2, 3, 0.2), time: 1102 * SECOND },
+      { embedding: vector(0, 3, 0.2), sourceTime: 3 * SECOND },
+      { embedding: vector(2, 3, 0.2), sourceTime: 1102 * SECOND },
     ];
     const baselines = [vector(3)];
     const { matches } = matchSubjects(photos, items, { ...MUSEUM_MATCH_OPTIONS, baselines });

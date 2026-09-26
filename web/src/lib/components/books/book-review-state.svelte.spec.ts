@@ -18,6 +18,20 @@ describe('BookReviewState', () => {
     expect(sdkMock.getBookReview).toHaveBeenCalledWith({ id: 'book-1' });
     expect(state.review).toEqual(review);
     expect(state.loading).toBe(false);
+    expect(state.checkedAt).toEqual(expect.any(Number));
+  });
+
+  it('should keep loading long enough to be seen', async () => {
+    sdkMock.getBookReview.mockResolvedValue(buildBookReview());
+    const state = new BookReviewState(() => 'error');
+    const started = Date.now();
+
+    const loading = state.load('book-1');
+    expect(state.loading).toBe(true);
+    await loading;
+
+    expect(Date.now() - started).toBeGreaterThanOrEqual(350);
+    expect(state.loading).toBe(false);
   });
 
   it('should keep the newest review when requests overlap', async () => {

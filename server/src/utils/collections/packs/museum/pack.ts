@@ -2,8 +2,10 @@ import { ClassifyRules, CollectionPrompts, OcrSummary, scoreText } from 'src/uti
 import { MatchOptions } from 'src/utils/collections/match.js';
 import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
 import { captionArtwork, describeArtwork, getArtworkPrompt } from 'src/utils/collections/packs/museum/artwork.js';
+import { GALLERY_THEME, reviewMuseumBook } from 'src/utils/collections/packs/museum/book.js';
 import { parseWallLabel } from 'src/utils/collections/packs/museum/label.js';
 import { MUSEUM_NAME_RULES, MUSEUM_OSM_FILTERS } from 'src/utils/collections/packs/museum/museum.js';
+import { assignArtworks } from 'src/utils/collections/packs/museum/pairing.js';
 import { DEFAULT_VISIT_OPTIONS, VisitOptions } from 'src/utils/collections/visits.js';
 
 /**
@@ -144,7 +146,12 @@ export const museumPack: CollectionPack = {
 
   visits: { options: MUSEUM_VISIT_OPTIONS },
 
-  match: { options: MUSEUM_MATCH_OPTIONS, offListPrompts: NO_LABEL_PROMPTS, reportUnmatched: true },
+  match: {
+    options: MUSEUM_MATCH_OPTIONS,
+    offListPrompts: NO_LABEL_PROMPTS,
+    assign: assignArtworks,
+    reportUnmatched: true,
+  },
 
   describe: (entry, museum) => describeArtwork(entry, museum),
 
@@ -166,21 +173,22 @@ export const museumPack: CollectionPack = {
         fontFamily: 'sans-serif',
         titleSizePt: 26,
         captionSizePt: 8.5,
-        theme: 'gallery',
+        theme: GALLERY_THEME,
         accentColor: '#8a8580',
       },
     },
     theme: {
-      id: 'gallery',
+      id: GALLERY_THEME,
       summary:
         'an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title ' +
         'in italics, then the artist, the date and the medium) and catalogue numbers',
       look: 'gallery',
     },
     caption: (entry) => captionArtwork(entry),
-    sourcePages: false,
+    // the captions of the artworks say what their wall labels say
+    sourcePage: false,
     numbered: true,
-    review: { unnamedEntries: true, missingSourcePage: false, croppedEntries: true },
+    review: { unnamedEntries: true, missingSourcePage: false, check: reviewMuseumBook },
   },
 
   agent: {

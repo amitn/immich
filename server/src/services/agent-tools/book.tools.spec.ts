@@ -71,6 +71,9 @@ describe(BookAgentTools.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookAgentTools));
+    // no photo is a private source (a travel document) unless a test says so
+    mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+    mocks.ocr.getByAssetIds.mockResolvedValue([]);
     mocks.tag.getAssetTagValues.mockResolvedValue([]);
     tools = new Map(sut.getTools().map((tool) => [tool.name, tool]));
     ctx = { auth: authStub.admin, sessionId: newUuid() };

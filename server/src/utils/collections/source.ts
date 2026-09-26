@@ -29,6 +29,13 @@ export type ParsedSource = {
   columns: number;
   /** text lines read from the photo */
   lines: number;
+  /** what the parser could not read or found ambiguous, e.g. a date printed vertically */
+  warnings?: string[];
+  /**
+   * other readings of the photo that the parser can't choose from by the text alone, e.g. the neighbouring recipes of
+   * a cookbook page (see `chooseReading`)
+   */
+  alternatives?: Array<Omit<ParsedSource, 'alternatives'>>;
 };
 
 export type SourceParseOptions = { minScore?: number; aspectRatio?: number };
@@ -45,6 +52,37 @@ const readText = (boxes: OcrBoxInput[]) =>
  */
 export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
   readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
+
+/** the CLIP text of the title of a reading, compared with the subject photos */
+export const getTitlePrompt = (title: string) => `a photo of ${title}`;
+
+/**
+ * The reading of a source photo that fits its subjects best: the parser's own (its main reading) or one of its
+ * alternatives (e.g. the neighbouring recipes of a cookbook page), by the `fit` of each title (e.g. the CLIP
+ * similarity of the subject photos with it), when it fits clearly better, by `margin`: CLIP tells two variants of a
+ * dish (a quiche and a spinach quiche) apart by less than that, and the main reading is the one with the most text.
+ * The others become its alternatives; a reading without alternatives is returned as it is.
+ */
+export const chooseReading = <T extends ParsedSource>(reading: T, fit: (title: string) => number, margin = 0.02): T => {
+  const candidates = [reading, ...(reading.alternatives ?? [])].filter(({ title }) => title);
+  if (!reading.alternatives?.length || candidates.length < 2) {
+    return reading;
+  }
+  const scored = candidates.map((candidate) => ({
+    candidate,
+    score: fit(candidate.title!) + (candidate === reading ? margin : 0),
+  }));
+  const best = scored.toSorted((a, b) => b.score - a.score)[0].candidate;
+  if (best === reading) {
+    return reading;
+  }
+  const { alternatives, ...main } = reading;
+  return {
+    ...reading,
+    ...best,
+    alternatives: [main, ...(alternatives ?? []).filter((alternative) => alternative !== best)],
+  };
+};
 
 const entryKey = (name: string) =>
   stripAccents(name)

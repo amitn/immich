@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
-import { chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import { ParsedSource, chooseReading, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
 const box = (text: string, left: number, top: number, height = 0.022, width?: number): OcrBoxInput => {
@@ -44,5 +44,29 @@ describe('mergeSourceEntries', () => {
       ['Lamb', 2],
       ['Juice', undefined],
     ]);
+  });
+});
+
+const reading = (title: string): ParsedSource => ({
+  items: [item(`${title} step`)],
+  title,
+  sections: [],
+  columns: 1,
+  lines: 5,
+});
+
+describe('chooseReading', () => {
+  it('should keep the main reading unless an alternative clearly fits better', () => {
+    const page = { ...reading('Quiche'), alternatives: [reading('Spinach Quiche')] };
+    expect(chooseReading(page, (title) => (title === 'Quiche' ? 0.3 : 0.305)).title).toBe('Quiche');
+    const chosen = chooseReading(page, (title) => (title === 'Quiche' ? 0.2 : 0.3));
+    expect(chosen.title).toBe('Spinach Quiche');
+    expect(chosen.items[0].name).toBe('Spinach Quiche step');
+    expect(chosen.alternatives?.map(({ title }) => title)).toEqual(['Quiche']);
+  });
+
+  it('should return a reading without alternatives as it is', () => {
+    const page = reading('Quiche');
+    expect(chooseReading(page, () => 1)).toBe(page);
   });
 });

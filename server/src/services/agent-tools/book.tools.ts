@@ -16,6 +16,7 @@ import {
 import { BookExportFormat, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
+import { PRIVATE_SOURCE_BLURRED } from 'src/services/collection.service.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
 import {
   AgentTool,
@@ -761,8 +762,13 @@ export class BookAgentTools extends BaseService {
         handler: (ctx, input) =>
           this.run(async () => {
             const page = await this.resolvePage(ctx, input.bookId, input.page);
-            const { data, warnings } = await this.books.renderPage(ctx.auth, input.bookId, page.id);
-            return toolImage(data, 'image/jpeg', { page: page.position + 1, warnings: summarizeWarnings(warnings) });
+            // travel documents (and other private sources) on the page are blurred
+            const { data, warnings, hidden } = await this.books.renderPage(ctx.auth, input.bookId, page.id, {}, true);
+            return toolImage(data, 'image/jpeg', {
+              page: page.position + 1,
+              warnings: summarizeWarnings(warnings),
+              ...(hidden?.length && { hidden, note: PRIVATE_SOURCE_BLURRED }),
+            });
           }),
       }),
 
@@ -840,13 +846,16 @@ export class BookAgentTools extends BaseService {
         mutating: false,
         handler: (ctx, input) =>
           this.run(async () => {
-            const { data, warnings, pages } = await this.books.renderContactSheet(ctx.auth, input.bookId, {
-              from: input.fromPage,
-              to: input.toPage,
-            });
+            const { data, warnings, pages, hidden } = await this.books.renderContactSheet(
+              ctx.auth,
+              input.bookId,
+              { from: input.fromPage, to: input.toPage },
+              true,
+            );
             return toolImage(data, 'image/jpeg', {
               pages: `${pages[0]}-${pages.at(-1)}`,
               warnings: summarizeWarnings(warnings),
+              ...(hidden?.length && { hidden, note: PRIVATE_SOURCE_BLURRED }),
             });
           }),
       }),

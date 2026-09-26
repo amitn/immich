@@ -2,7 +2,7 @@ import { HttpException, Injectable } from '@nestjs/common';
 import z from 'zod';
 import { COLLECTION_LIMITS, CollectionMatchResponseDto, CollectionVisitsResponseDto } from 'src/dtos/collection.dto.js';
 import { BaseService } from 'src/services/base.service.js';
-import { CollectionService } from 'src/services/collection.service.js';
+import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import {
   AgentTool,
   AgentToolContext,
@@ -202,6 +202,13 @@ export class CollectionAgentTools extends BaseService {
                 ...(price && { price }),
                 ...(section && { section }),
               })),
+              // other readings of the page, e.g. the neighbouring recipes of a cookbook page
+              ...(reading.alternatives?.length && {
+                alternatives: reading.alternatives.map(({ title, items }) => ({
+                  title,
+                  entries: items.map(({ name }) => name),
+                })),
+              }),
               ocr: reading.ocr,
               ...(reading.warnings.length > 0 && { warnings: reading.warnings }),
             },
@@ -251,8 +258,10 @@ export class CollectionAgentTools extends BaseService {
             auth.user.id,
           );
           const previews = new Map(rows.map((row) => [row.id, row.previewPath]));
+          // a travel document passed as a subject is never shown
+          const hidden = await collections.getPrivateSourceIds(rows.map(({ id }) => id));
           const tiles = result.subjects.slice(0, 36).map((subject, index) => ({
-            input: previews.get(subject.assetIds[0]) ?? null,
+            input: hidden.has(subject.assetIds[0]) ? null : (previews.get(subject.assetIds[0]) ?? null),
             label: String(index + 1),
             caption:
               subject.suggestions.length === 0
@@ -266,7 +275,8 @@ export class CollectionAgentTools extends BaseService {
           const sheet = Object.fromEntries(
             result.subjects.slice(0, 36).map((subject, index) => [index + 1, subject.assetIds[0]]),
           );
-          return withImages({ ...details, sheet }, [image]);
+          const privacy = hidden.size > 0 ? { hidden: [...hidden], note: PRIVATE_SOURCE_NOTE } : {};
+          return withImages({ ...details, sheet, ...privacy }, [image]);
         }),
       }),
 

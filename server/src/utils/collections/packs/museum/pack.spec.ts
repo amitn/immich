@@ -221,6 +221,10 @@ describe(`${CollectionService.name} with the museum pack`, () => {
     mocks.assetJob.getForAgent.mockImplementation((requested: string[]) =>
       Promise.resolve(requested.flatMap((id) => (rows[id] ? [rows[id]] : [])) as never),
     );
+    // the capture times of the label photos, for the pack's own assignment
+    mocks.asset.getByIds.mockImplementation((requested: string[]) =>
+      Promise.resolve(requested.flatMap((id) => (rows[id] ? [rows[id]] : [])) as never),
+    );
     // CLIP can't tell the artworks apart: the sequence of the photos does
     mocks.machineLearning.encodeText.mockResolvedValue('[1,0,0,0]');
     mocks.search.getEmbeddings.mockResolvedValue([
@@ -234,7 +238,7 @@ describe(`${CollectionService.name} with the museum pack`, () => {
     });
 
     // the times of the labels
-    expect(mocks.assetJob.getForAgent).toHaveBeenCalledWith([virginLabel, calvaryLabel, lionLabel], auth.user.id);
+    expect(mocks.asset.getByIds).toHaveBeenCalledWith([virginLabel, calvaryLabel, lionLabel]);
     expect(result.entries.map(({ name, description, sourceId }) => ({ name, description, sourceId }))).toEqual([
       {
         name: 'Virgin and Child — Nicolau Chanterene, 1535-1540, marble',

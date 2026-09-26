@@ -26,8 +26,8 @@ export type EntryCandidate = {
   course?: number;
   /** the item has a price on the menu */
   priced?: boolean;
-  /** capture time in ms of the source photo the entry was read on, for `MatchOptions.sequence` */
-  time?: number;
+  /** local capture time in ms of the source photo the entry was read on, e.g. for `MatchOptions.sequence` */
+  sourceTime?: number;
 };
 
 /**
@@ -96,7 +96,7 @@ export type MatchOptions = {
   temperature: number;
   /**
    * subjects follow their sources in the sequence of the photos (see `SequenceOptions`); none by default (a menu is
-   * photographed once for all the dishes). It applies when every entry has the `time` of its source photo.
+   * photographed once for all the dishes). It applies when every entry has the `sourceTime` of its source photo.
    */
   sequence?: SequenceOptions;
 };
@@ -544,10 +544,10 @@ export const matchSubjects = (
       settings.temperature,
     ),
   );
-  if (settings.sequence && items.length > 0 && items.every((item) => item.time !== undefined)) {
+  if (settings.sequence && items.length > 0 && items.every((item) => item.sourceTime !== undefined)) {
     probabilities = applySequencePrior(
       groups.map((members) => members.map((member) => photos[member].time)),
-      items.map((item) => item.time!),
+      items.map((item) => item.sourceTime!),
       probabilities,
       settings.sequence,
     );
@@ -651,6 +651,28 @@ export const applySequencePrior = (
     return sum > 0 ? weighted.map((value) => value / sum) : row;
   });
 };
+/** a subject photo for a pack's own assignment: the text read on it (OCR) too */
+export type AssignPhoto = SubjectPhoto & { text?: string };
+
+/** an entry for a pack's own assignment: its name and description as read, and when its source photo was taken */
+export type AssignEntry = Omit<EntryCandidate, 'embedding'> & {
+  name: string;
+  description?: string;
+  /** L2-normalized CLIP text embedding of the entry, when smart search is enabled */
+  embedding?: Float32Array;
+};
+
+export type AssignOptions = MatchOptions & {
+  /** text embeddings of subjects that are usually not on the sources, see `matchSubjects` */
+  baselines: Float32Array[];
+  suggestions: number;
+};
+
+/**
+ * A pack's own way of assigning the subjects of a visit to its entries, in place of `matchSubjects` (which matches
+ * them by what CLIP sees), e.g. by time for the legs of a trip. Photos without an embedding have an empty one.
+ */
+export type SubjectAssigner = (photos: AssignPhoto[], entries: AssignEntry[], options: AssignOptions) => MatchResult;
 
 /** the matches of `matchSubjects` */
 export const getSubjectMatches = (...args: Parameters<typeof matchSubjects>): SubjectMatch[] =>

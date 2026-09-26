@@ -64,6 +64,9 @@ describe(CropAgentTools.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(CropAgentTools));
+    // no photo is a private source (a travel document) unless a test says so
+    mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+    mocks.ocr.getByAssetIds.mockResolvedValue([]);
     auth = AuthFactory.create();
     mocks.person.getFaces.mockResolvedValue([]);
     mocks.media.decodeImage.mockResolvedValue({

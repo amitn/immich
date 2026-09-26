@@ -3,6 +3,7 @@ import z from 'zod';
 import { ArtJobStatus, AssetFileType } from 'src/enum.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { artStyles } from 'src/utils/agent/art-styles.js';
 import { AgentTool, defineTool, toolImage, toolJson } from 'src/utils/agent/tools.js';
 
@@ -78,6 +79,11 @@ export class ArtAgentTools extends BaseService {
 
           if (job.status !== ArtJobStatus.Completed || !job.resultAssetId) {
             return toolJson(details);
+          }
+          // the artwork of a travel document (or another private source) may still show its text: never shown
+          const hidden = await BaseService.create(CollectionService, this).getPrivateSourceIds([job.sourceAssetId]);
+          if (hidden.size > 0) {
+            return toolJson({ ...details, note: PRIVATE_SOURCE_NOTE });
           }
 
           // the new asset's thumbnails may not exist yet, so resize the generated original

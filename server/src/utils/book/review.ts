@@ -15,10 +15,11 @@ import {
   isRightPage,
   isSinglePhotoPage,
 } from 'src/utils/book/auto-layout.js';
-import { getEntryName, getPhotoPack, isGalleryTheme, isSourcePhoto } from 'src/utils/book/collections.js';
+import { getEntryName, getPhotoPack, isSourcePhoto } from 'src/utils/book/collections.js';
 import { PageSize, getLayout, getSlotRectsMm } from 'src/utils/book/layouts.js';
 import { isMapStyleFallback } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI } from 'src/utils/book/render.js';
+import { CollectionChapter } from 'src/utils/collections/pack.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 export type BookReviewSeverity = (typeof bookReviewSeverities)[number];
@@ -38,7 +39,12 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection'>> & {
+  Partial<
+    Pick<
+      AutoLayoutPhoto,
+      'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection' | 'sourcePage'
+    >
+  > & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
     gain?: number;
   };
@@ -474,49 +480,53 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     });
   }
 
-  // entries cropped in their slots, for the packs whose entries are shown whole (an artwork): by their crop, and by
-  // the slot a crop of another shape is trimmed to (the gallery look fits the slot to the crop instead)
-  const cropped = new Map<string, Array<{ page: number; assetId: string; entry: string }>>();
-  for (const [index, page] of pages.entries()) {
-    const layout = getLayout(page.layout);
-    if (!layout || page.layout === 'cover') {
-      continue;
+  // the packs' own checks, with the chapters of their places: e.g. a recipe without its finished dish, a leg of a trip
+  // without photos
+  const chapters = new Map<string, CollectionChapter & { pack: string }>();
+  const chapterOf = (packId: string, place: string) => {
+    const key = sourceKey(packId, place);
+    const chapter = chapters.get(key) ?? { pack: packId, place, placed: [], available: [], pages: [] };
+    chapters.set(key, chapter);
+    return chapter;
+  };
+  const addEntry = (list: CollectionChapter['placed'], entry: string, assetId: string) => {
+    const item = list.find((other) => other.entry === entry);
+    if (item) {
+      item.assetIds.push(assetId);
+    } else {
+      list.push({ entry, assetIds: [assetId] });
     }
-    const rects = getSlotRectsMm(layout, size, style);
+  };
+  for (const index of pages.keys()) {
     for (const asset of placements[index]) {
       const photo = photos.get(asset.assetId);
       const entry = photo && getEntryName(photo);
-      const pack = photo && getPhotoPack(photo);
-      const rect = rects[asset.slot];
-      if (!photo || !entry || !pack?.book.review.croppedEntries || !rect) {
+      if (!entry || !getPhotoPack(photo)?.book.review.check) {
         continue;
       }
-      const crop = asset.crop ?? FULL_CROP;
-      let kept = crop.width * crop.height;
-      if (!isGalleryTheme(style.theme) && photo.width > 0 && photo.height > 0 && rect.height > 0) {
-        const ratio = (crop.width * photo.width) / (crop.height * photo.height) / (rect.width / rect.height);
-        kept *= Math.min(ratio, 1 / ratio);
-      }
-      if (kept < 0.97) {
-        cropped.set(pack.id, [...(cropped.get(pack.id) ?? []), { page: index + 1, assetId: asset.assetId, entry }]);
-      }
+      const chapter = chapterOf(photo.collection!.pack, photo.collection!.place);
+      addEntry(chapter.placed, entry, photo.id);
+      chapter.pages = [...new Set([...chapter.pages, index + 1])];
     }
   }
-  for (const [packId, entries] of cropped) {
-    const pack = getCollectionPack(packId)!;
-    const { subject, subjects } = pack.names;
-    const numbers = [...new Set(entries.map(({ page }) => page))];
-    add({
-      severity: 'medium',
-      type: 'could-look-better',
-      message:
-        `${formatPages(numbers)} ${numbers.length === 1 ? 'crops' : 'crop'} ` +
-        `${entries.length === 1 ? article(subject) : `${entries.length} ${subjects}`} ` +
-        `(e.g. ${entries[0].entry}); ${subjects} are shown whole: use the ${pack.book.preset.id} style preset, whose ` +
-        `slots fit the photos, or clear the crops`,
-      pages: numbers,
-      assetIds: entries.map(({ assetId }) => assetId),
-    });
+  for (const photo of input.photos) {
+    const entry = getEntryName(photo);
+    const key = photo.collection ? sourceKey(photo.collection.pack, photo.collection.place) : '';
+    if (entry && chapters.has(key)) {
+      addEntry(chapters.get(key)!.available, entry, photo.id);
+    }
+  }
+  const packs = new Set(input.photos.flatMap((photo) => (photo.collection ? [photo.collection.pack] : [])));
+  for (const packId of packs) {
+    const check = getCollectionPack(packId)?.book.review.check;
+    const own = chapters
+      .values()
+      .filter((chapter) => chapter.pack === packId)
+      .map(({ pack: _, ...chapter }) => chapter)
+      .toArray();
+    for (const issue of check?.({ pages, photos: input.photos, chapters: own, size, style }) ?? []) {
+      add(issue);
+    }
   }
 
   // repeated layouts and missing captions

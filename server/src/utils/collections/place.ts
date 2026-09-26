@@ -39,6 +39,8 @@ export type PlaceNameRules = {
    * artist and the title of a wall label, repeated on every label of a museum)
    */
   sourceNameNeedsWord?: boolean;
+  /** how much more a name scores for being that title, default 0.15; more for a pack whose place is its title */
+  titleBonus?: number;
 };
 
 /** a candidate needs at least this score to be the name of the place */
@@ -169,10 +171,16 @@ const scorePhoto = (photo: PlacePhoto, rules: PlaceNameRules): Scored[] => {
     return [];
   }
   const clean = (text: string) => cleanPlaceName(text, rules);
-  const names = lines.map((line) => clean(line.text));
+  const title = photo.kind === 'source' ? rules.title?.(photo.ocr) : undefined;
+  const titleName = title ? clean(title) : undefined;
+  // the title the pack's parser read on a source, where OCR read it on one row with the text beside it (the titles
+  // of two recipes side by side): the row names the place by the title
+  const names = lines.map((line) => {
+    const name = clean(line.text);
+    return titleName && normalize(line.text).includes(normalize(titleName)) ? titleName : name;
+  });
   // the largest text that can be a name: labels such as "Relais & Châteaux" don't count
   const largest = Math.max(0, ...lines.filter((_, index) => names[index]).map((line) => line.height));
-  const title = photo.kind === 'source' ? rules.title?.(photo.ocr) : undefined;
 
   const results: Scored[] = [];
   for (const [index, line] of lines.entries()) {
@@ -212,7 +220,7 @@ const scorePhoto = (photo: PlacePhoto, rules: PlaceNameRules): Scored[] => {
       score += 0.15;
     }
     if (title && normalize(title) === normalize(name)) {
-      score += 0.15;
+      score += rules.titleBonus ?? 0.15;
     }
     score *= textConfidence(line) * (isGarbled(name) ? 0.5 : 1);
     results.push({ name, score: score * KIND_WEIGHT[photo.kind], source: photo.kind, assetId: photo.assetId });

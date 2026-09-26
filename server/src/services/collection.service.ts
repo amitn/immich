@@ -27,9 +27,10 @@ import {
   CollectionPrompt,
   classifyPhoto,
   getPromptList,
+  scoreText,
   summarizeText,
 } from 'src/utils/collections/classify.js';
-import { EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
+import { DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -39,13 +40,20 @@ import {
 } from 'src/utils/collections/overpass.js';
 import {
   CollectionPack,
+  CollectionSourcePage,
   getCollectionMessages,
   getCollectionTagRules,
   redactText,
 } from 'src/utils/collections/pack.js';
 import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
-import { ParsedSource, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import {
+  ParsedSource,
+  chooseReading,
+  chooseSourceOcr,
+  getTitlePrompt,
+  mergeSourceEntries,
+} from 'src/utils/collections/source.js';
 import {
   getEntryTag,
   getSourceTag,
@@ -58,6 +66,16 @@ import { VisitOptions, getFallbackVisitNames, groupVisits, summarizeVisit } from
 import { decodeOriginal } from 'src/utils/image-decode.js';
 import { isOcrEnabled, isSmartSearchEnabled } from 'src/utils/misc.js';
 import { upsertTags } from 'src/utils/tag.js';
+
+/** what tools say instead of showing a private source, see `CollectionService.getPrivateSourceIds` */
+export const PRIVATE_SOURCE_NOTE =
+  'Not shown: travel documents and other private sources carry names and booking references. read_source gives ' +
+  'their redacted text.';
+
+/** what book renders for the assistant say about the private sources they blur */
+export const PRIVATE_SOURCE_BLURRED =
+  'Blurred: travel documents and other private sources carry names and booking references. Use a ticket-stub page ' +
+  'instead of their photo.';
 
 /** CLIP text embeddings of the classification prompts and entries, by model and text */
 const textEmbeddingCache = new LRUMap<string, string>(5000);
@@ -268,6 +286,37 @@ export class CollectionService extends BaseService {
   }
 
   /**
+   * The page a pack typesets from the text of a source photo in books (see `CollectionPack.book.sourcePage`), e.g.
+   * the ingredients and steps of a recipe of `place`, or the fields of a ticket, read at full resolution when OCR is
+   * enabled (cached like `readSource`) and redacted; undefined for a pack without it. The caller checks access to the
+   * photo.
+   */
+  async getSourcePage(packId: string, id: string, place: string): Promise<CollectionSourcePage | undefined> {
+    const pack = getCollectionPack(packId);
+    const asset = pack?.book.sourcePage ? await this.assetRepository.getById(id, { exifInfo: true }) : undefined;
+    if (!pack?.book.sourcePage || !asset || asset.deletedAt) {
+      return;
+    }
+    const stored = await this.ocrRepository.getByAssetId(id);
+    let boxes: OcrBoxInput[] = stored;
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    const exifInfo = asset.exifInfo;
+    if (isOcrEnabled(machineLearning) && asset.type === AssetType.Image && exifInfo) {
+      try {
+        const detailed = await this.getDetailedOcr({ ...asset, exifInfo });
+        boxes = chooseSourceOcr(stored, detailed) === 'tiles' ? detailed : stored;
+      } catch (error) {
+        this.logger.warn(`Unable to read ${pack.names.source} ${id} at full resolution: ${error}`);
+      }
+    }
+    const { width, height } = exifInfo ? getDimensions(exifInfo) : { width: 0, height: 0 };
+    const page = pack.book.sourcePage.read(boxes, { aspectRatio: width && height ? width / height : undefined, place });
+    return page
+      ? { text: redactText(pack, page.text), ...(page.entry && { entry: redactText(pack, page.entry) }) }
+      : undefined;
+  }
+
+  /**
    * Images of a source photo for a reader: the preview, and with `zoom` the original cut in two (or four) overlapping
    * parts at a readable resolution, for small print.
    */
@@ -312,9 +361,8 @@ export class CollectionService extends BaseService {
 
     const warnings: string[] = [];
     let entries: CollectionEntryResponse[];
-    // where each entry is in the order of the source (e.g. the courses of a menu), whether it has a price, and when
-    // its source was photographed (for the packs whose subjects follow their sources, e.g. the wall labels of a museum)
-    let courses: Array<Pick<EntryCandidate, 'course' | 'priced' | 'time'>>;
+    // where each entry is in the order of the source (e.g. the courses of a menu), and whether it has a price
+    let courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>;
     if (dto.entries && dto.entries.length > 0) {
       entries = dto.entries.map(({ name, description }, index) => {
         const text = description?.trim() ? redactText(pack, description.trim()) : undefined;
@@ -327,8 +375,7 @@ export class CollectionService extends BaseService {
       for (const reading of readings) {
         warnings.push(...reading.warnings);
       }
-      const merged = mergeSourceEntries(readings);
-      const sourceTimes = pack.match.options?.sequence ? await this.getPhotoTimes(auth, sourceIds) : undefined;
+      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
         name: item.name,
@@ -337,11 +384,7 @@ export class CollectionService extends BaseService {
         ...(item.section && { section: item.section }),
         sourceId,
       }));
-      courses = merged.map(({ item, course, sourceId }) => ({
-        course,
-        priced: item.price !== undefined,
-        ...(sourceTimes?.has(sourceId) && { time: sourceTimes.get(sourceId) }),
-      }));
+      courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
     }
     if (entries.length === 0) {
       warnings.push(sourceIds.length > 0 ? messages.noEntriesRead : messages.noSource);
@@ -367,13 +410,15 @@ export class CollectionService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
-    const { matches, ordered } = matchSubjects(
-      photos,
-      entryEmbeddings.length === entries.length
-        ? entryEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
-        : [],
-      { ...pack.match.options, baselines },
-    );
+    const { matches, ordered } = pack.match.assign
+      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines)
+      : matchSubjects(
+          photos,
+          entryEmbeddings.length === entries.length
+            ? entryEmbeddings.map((embedding, index) => ({ embedding, ...courses[index] }))
+            : [],
+          { ...pack.match.options, baselines },
+        );
 
     if (pack.match.reportUnmatched && matches.length > 0 && entryEmbeddings.length === entries.length) {
       // an entry is matched, or another entry of its source is (a case of objects under one label, one photographed)
@@ -404,10 +449,44 @@ export class CollectionService extends BaseService {
     };
   }
 
-  /** the capture times (local, in ms) of photos, by id */
-  private async getPhotoTimes(auth: AuthDto, ids: string[]) {
-    const rows = ids.length > 0 ? await this.assetJobRepository.getForAgent(ids, auth.user.id) : [];
-    return new Map(rows.map((row) => [row.id, row.localDateTime.getTime()]));
+  /**
+   * The pack's own assignment of the subjects to the entries (e.g. by time, for the legs of a trip), with the text read
+   * on the subject photos and the capture times of the source photos; photos without an embedding take part too
+   */
+  private async assignSubjects(
+    pack: CollectionPack,
+    rows: Array<{ id: string; localDateTime: Date }>,
+    embeddings: Map<string, Float32Array>,
+    entries: CollectionEntryResponse[],
+    courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
+    entryEmbeddings: Float32Array[],
+    baselines: Float32Array[],
+  ) {
+    const ocr = new Map<string, string[]>();
+    for (const chunk of chunks(rows.map(({ id }) => id))) {
+      for (const { assetId, text } of await this.ocrRepository.getByAssetIds(chunk)) {
+        ocr.set(assetId, [...(ocr.get(assetId) ?? []), text]);
+      }
+    }
+    const sourceIds = unique(entries.flatMap(({ sourceId }) => (sourceId ? [sourceId] : [])));
+    const sources = sourceIds.length > 0 ? await this.assetRepository.getByIds(sourceIds) : [];
+    const sourceTimes = new Map(sources.map((source) => [source.id, source.localDateTime.getTime()]));
+    return pack.match.assign!(
+      rows.map((row) => ({
+        id: row.id,
+        time: row.localDateTime.getTime(),
+        embedding: embeddings.get(row.id) ?? new Float32Array(0),
+        ...(ocr.has(row.id) && { text: redactText(pack, ocr.get(row.id)!.join('\n')) }),
+      })),
+      entries.map((entry, index) => ({
+        name: entry.name,
+        ...(entry.description && { description: entry.description }),
+        ...courses[index],
+        ...(entryEmbeddings.length === entries.length && { embedding: entryEmbeddings[index] }),
+        ...(entry.sourceId && sourceTimes.has(entry.sourceId) && { sourceTime: sourceTimes.get(entry.sourceId) }),
+      })),
+      { ...DEFAULT_MATCH_OPTIONS, ...pack.match.options, baselines, suggestions: 3 },
+    );
   }
 
   /** Named places of the pack (e.g. restaurants) near a visit on OpenStreetMap, when the admin enabled the lookup */
@@ -573,6 +652,99 @@ export class CollectionService extends BaseService {
     }
 
     return { place, results: ids.map((id) => results.get(id)!) };
+  }
+
+  /**
+   * The reading of each source that fits the subjects best, when its parser read more than one (the neighbouring
+   * recipes of a cookbook page): the title the subject photos look most like, by CLIP (the mean of the best third of
+   * the photos, as the finished dish looks more like it than the steps do)
+   */
+  private async chooseReadings(
+    pack: CollectionPack,
+    readings: SourceReading[],
+    subjectIds: string[],
+    warnings: string[],
+  ): Promise<SourceReading[]> {
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (readings.every((reading) => !reading.alternatives?.length) || !isSmartSearchEnabled(machineLearning)) {
+      return readings;
+    }
+    const stored = await this.searchRepository.getEmbeddings(subjectIds);
+    const photos = stored.map(({ embedding }) => parseEmbedding(embedding));
+    if (photos.length === 0) {
+      return readings;
+    }
+    const titles = unique(
+      readings.flatMap((reading) =>
+        [reading, ...(reading.alternatives ?? [])].flatMap(({ title }) => (title ? [title] : [])),
+      ),
+    );
+    const embeddings = await this.encodeTexts(titles.map((title) => getTitlePrompt(title)));
+    const vectors = new Map(titles.map((title, index) => [title, parseEmbedding(embeddings[index])]));
+    const fit = (title: string) => {
+      const text = vectors.get(title)!;
+      const similarities = photos
+        .map((photo) => photo.reduce((sum, value, index) => sum + value * text[index], 0))
+        .toSorted((a, b) => b - a);
+      const best = similarities.slice(0, Math.max(1, Math.ceil(similarities.length / 3)));
+      return best.reduce((sum, value) => sum + value, 0) / best.length;
+    };
+    return readings.map((reading) => {
+      const chosen = chooseReading(reading, fit);
+      if (chosen.alternatives?.length) {
+        const others = chosen.alternatives.flatMap(({ title }) => (title ? [title] : []));
+        warnings.push(
+          `The ${pack.names.source} photo also shows ${others.join(', ')}: the ${pack.names.entries} of ` +
+            `${chosen.title} fit the photos best`,
+        );
+      }
+      return chosen;
+    });
+  }
+
+  /**
+   * The photos among `ids` that are sources of a pack that keeps them from the assistant (`privacy.sourceImages` off,
+   * e.g. travel documents, which carry names and booking references): tagged as its sources, or read as one by their
+   * text (the OCR stored for them, scored as the pack scores the text of its sources). Tools that return images leave
+   * them out or blur them.
+   */
+  async getPrivateSourceIds(ids: string[]): Promise<Set<string>> {
+    const packs = getCollectionPacks().filter((pack) => pack.privacy?.sourceImages === false);
+    const found = new Set<string>();
+    if (packs.length === 0 || ids.length === 0) {
+      return found;
+    }
+    for (const pack of packs) {
+      const rules = getCollectionTagRules(pack);
+      for (const chunk of chunks(unique(ids))) {
+        for (const { assetId, value } of await this.tagRepository.getAssetTagsByPrefix(chunk, getTagPrefix(rules))) {
+          if (parseCollectionTag(rules, value)?.kind === 'source') {
+            found.add(assetId);
+          }
+        }
+      }
+    }
+    const rest = unique(ids).filter((id) => !found.has(id));
+    const ocr = new Map<string, OcrBoxInput[]>();
+    for (const chunk of chunks(rest)) {
+      for (const { assetId, ...box } of await this.ocrRepository.getByAssetIds(chunk)) {
+        ocr.set(assetId, [...(ocr.get(assetId) ?? []), box]);
+      }
+    }
+    for (const [id, boxes] of ocr) {
+      const isSource = packs.some((pack) => {
+        const summary = summarizeText(boxes, {
+          parse: pack.source.parse,
+          receiptWords: pack.classify.receiptWords,
+          placeWords: pack.place.words,
+        });
+        return (pack.classify.scoreText ?? scoreText)(summary).source >= pack.classify.thresholds.source;
+      });
+      if (isSource) {
+        found.add(id);
+      }
+    }
+    return found;
   }
 
   private redactPlaces<T extends { name: string }>(pack: CollectionPack, candidates: T[]): T[] {
@@ -770,6 +942,8 @@ export class CollectionService extends BaseService {
     if (parsed.items.length < (pack.source.minEntries ?? 3)) {
       warnings.push(messages.fewEntries);
     }
+    // what the parser could not read, or found ambiguous
+    warnings.push(...(parsed.warnings ?? []));
     return {
       ...parsed,
       assetId: id,
@@ -798,6 +972,10 @@ export class CollectionService extends BaseService {
       })),
       ...(parsed.title !== undefined && { title: redact(parsed.title) }),
       sections: parsed.sections.map((section) => redact(section)),
+      ...(parsed.warnings && { warnings: parsed.warnings.map((warning) => redact(warning)) }),
+      ...(parsed.alternatives && {
+        alternatives: parsed.alternatives.map((alternative) => this.redactSource(pack, alternative)),
+      }),
     };
   }
 
