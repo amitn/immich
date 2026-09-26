@@ -60,7 +60,22 @@ describe('AlbumBookExportModal component', () => {
     expect(modalManager.show).toHaveBeenCalledWith(BookExportProgressModal, {
       book: expect.objectContaining({ id: book.id, exportStatus: BookExportStatus.Pending }),
       formats: [BookExportFormat.Pdf],
+      warnings: [],
     });
+  });
+
+  it('should pass the notes from laying out the book to the progress dialog', async () => {
+    const warning = 'Watercolor maps need a Stadia Maps API key; using the offline sketch style';
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build(), warnings: [warning] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(modalManager.show).toHaveBeenCalledWith(
+      BookExportProgressModal,
+      expect.objectContaining({ warnings: [warning] }),
+    );
   });
 
   it('should create the book with the chosen style preset', async () => {

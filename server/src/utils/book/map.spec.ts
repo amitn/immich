@@ -266,10 +266,23 @@ describe('parsePolygon', () => {
 });
 
 describe('resolveMapStyle', () => {
-  it('should resolve auto to the default style, or to sketch without a key', () => {
+  it('should resolve auto to the default style', () => {
     expect(resolveMapStyle('auto', { defaultStyle: 'toner', stadiaApiKey: 'key' })).toEqual({ style: 'toner' });
-    expect(resolveMapStyle(undefined, { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({ style: 'sketch' });
+    expect(resolveMapStyle('auto', { defaultStyle: 'sketch', stadiaApiKey: '' })).toEqual({ style: 'sketch' });
     expect(resolveMapStyle('sketch', { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({ style: 'sketch' });
+  });
+
+  it('should keep a default style that needs a key, and warn that it is drawn as a sketch', () => {
+    for (const style of ['auto', undefined] as const) {
+      expect(resolveMapStyle(style, { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({
+        style: 'watercolor',
+        warning: expect.stringMatching(/^Watercolor maps need a Stadia Maps API key/),
+      });
+    }
+    expect(resolveMapStyle('auto', { defaultStyle: 'terrain', stadiaApiKey: '  ' })).toEqual({
+      style: 'terrain',
+      warning: expect.any(String),
+    });
   });
 
   it('should keep a style asked for without a key and warn that it is drawn as a sketch', () => {
@@ -281,6 +294,12 @@ describe('resolveMapStyle', () => {
     expect(resolveMapStyle('terrain', { defaultStyle: 'sketch', stadiaApiKey: 'key' })).toEqual({ style: 'terrain' });
   });
 });
+
+/** how much bluer than red an image is on average */
+const blueness = async (data: Buffer) => {
+  const { channels } = await sharp(data).stats();
+  return channels[2].mean - channels[0].mean;
+};
 
 describe('renderMap', () => {
   const trip = [rome, florence, venice];
@@ -311,7 +330,7 @@ describe('renderMap', () => {
     expect(result.warnings).toEqual([expect.stringMatching(/GPS/)]);
   });
 
-  it('should draw country outlines for long trips only', async () => {
+  it('should draw the land and the sea when the map is wide enough for the country outlines', async () => {
     const getCountries = vi.fn().mockResolvedValue([
       {
         name: 'Portugal',
@@ -326,7 +345,9 @@ describe('renderMap', () => {
       },
     ]);
 
-    await renderMap({ points: trip.slice(0, 2), getCountries }, { map }, { width: 200, height: 200 });
+    // a walk through a town: the outlines are too coarse for it
+    const colosseum = { lat: 41.8902, lon: 12.4922, time: 2, city: 'Rome' };
+    await renderMap({ points: [rome, colosseum], getCountries }, { map }, { width: 200, height: 200 });
     expect(getCountries).not.toHaveBeenCalled();
 
     const result = await renderMap({ points: [lisbon, rome], getCountries }, { map }, { width: 200, height: 200 });
@@ -340,6 +361,16 @@ describe('renderMap', () => {
     expect(bounds.west).toBeLessThan(lisbon.lon);
     expect(bounds.east).toBeGreaterThan(rome.lon);
     expect(result.source).toBe('sketch');
+
+    // most of the map is sea, which is bluer than the paper
+    const paper = await renderMap({ points: [lisbon, rome] }, { map }, { width: 200, height: 200 });
+    expect(await blueness(result.data)).toBeGreaterThan((await blueness(paper.data)) + 10);
+  });
+
+  it('should draw the same sketch every time', async () => {
+    const first = await renderMap({ points: trip }, { map }, { width: 300, height: 200, format: 'png' });
+    const second = await renderMap({ points: trip }, { map }, { width: 300, height: 200, format: 'png' });
+    expect(second.data.equals(first.data)).toBe(true);
   });
 
   it('should fall back to a sketch without a Stadia API key', async () => {

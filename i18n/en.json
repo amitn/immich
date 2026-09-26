@@ -905,6 +905,7 @@
   "book_layout_photo_count": "{count, plural, =0 {No photos} one {# photo} other {# photos}}",
   "book_layout_removes_photos": "Removes {count, plural, one {# photo} other {# photos}}",
   "book_layout_show_all": "Also show layouts with fewer than {count, plural, one {# photo} other {# photos}}",
+  "book_layout_warnings": "Notes about the layout",
   "book_layouts": "Layouts",
   "book_map_page": "Map",
   "book_map_page_image": "Page {page}, map",

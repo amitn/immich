@@ -303,10 +303,15 @@
     if (!updated) {
       return;
     }
-    book = updated;
+    const { warnings, ...laidOut } = updated;
+    book = laidOut;
     loaded.clear();
     void goToView(0);
     toastManager.success($t('book_relayout_done'));
+    // e.g. maps drawn as sketches for lack of a Stadia Maps key; the review lists them too
+    for (const warning of warnings) {
+      toastManager.warning(warning);
+    }
   };
 
   const handlePreview = () => modalManager.show(BookPreviewModal, { book: { ...book, pageCount: pages.length } });

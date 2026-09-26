@@ -484,7 +484,7 @@ describe(BookAgentTools.name, () => {
       expect(result.warnings).toBeUndefined();
     });
 
-    it('should pick the sketch style for auto without a Stadia Maps API key', async () => {
+    it('should keep the default style for auto and warn without a Stadia Maps API key', async () => {
       const { book } = await createBook();
       mocks.book.addPage.mockImplementation((bookId, values) =>
         Promise.resolve(BookPageFactory.create({ bookId, layout: values.layout, map: values.map })),
@@ -492,8 +492,8 @@ describe(BookAgentTools.name, () => {
 
       const result = JSON.parse(text(await call('add_map_page', { bookId: book.id, style: 'auto' })));
 
-      expect(result.map).toEqual({ style: 'sketch' });
-      expect(result.warnings).toBeUndefined();
+      expect(result.map).toEqual({ style: 'watercolor' });
+      expect(result.warnings).toEqual([expect.stringMatching(/^Watercolor maps need a Stadia Maps API key/)]);
     });
 
     it('should warn when the map style needs a Stadia Maps API key', async () => {

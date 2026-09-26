@@ -2,7 +2,6 @@ import { minBy } from 'lodash-es';
 import { LRUMap } from 'mnemonist';
 import sharp, { type Sharp } from 'sharp';
 import type { BookMap } from 'src/dtos/book.dto.js';
-import { haversineKm } from 'src/utils/agent/events.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import { isMapLayout } from 'src/utils/book/layouts.js';
 import { TileStyle, getTileStyle } from 'src/utils/book/map-styles.js';
@@ -53,7 +52,11 @@ const MAX_LAT = 85.05112878;
 /** the smallest area a map shows, in world units (~3 km at the equator) */
 const MIN_SPAN = 0.00008;
 const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
-const COUNTRY_OUTLINES_KM = 300;
+/**
+ * the country outlines (Natural Earth 1:10m) are only accurate to about a kilometre, so they are drawn on maps at least
+ * this wide
+ */
+export const MIN_OUTLINE_VIEW_KM = 30;
 const MAX_LABELS = 14;
 
 const tileCache = new LRUMap<string, Buffer>(400);
@@ -482,7 +485,7 @@ const renderScaleBar = (viewport: Viewport, u: number, theme: Theme, fontFamily:
     `<g opacity="0.85">`,
     `<rect x="${fmt(x)}" y="${fmt(y - h)}" width="${fmt(half)}" height="${fmt(h)}" fill="${theme.ink}"/>`,
     `<rect x="${fmt(x + half)}" y="${fmt(y - h)}" width="${fmt(half)}" height="${fmt(h)}" fill="${theme.halo}" stroke="${theme.ink}" stroke-width="${fmt(u)}"/>`,
-    `<text x="${fmt(x)}" y="${fmt(y - h - 5 * u)}" font-family="${escapeXml(fontFamily)}" font-size="${fmt(13 * u)}" fill="${theme.ink}">${escapeXml(bar.label)}</text>`,
+    `<text x="${fmt(x)}" y="${fmt(y - h - 5 * u)}" font-family="${escapeXml(fontFamily)}" font-size="${fmt(18 * u)}" fill="${theme.ink}">${escapeXml(bar.label)}</text>`,
     `</g>`,
   ].join('');
 };
@@ -500,7 +503,10 @@ const renderTitle = (title: string, width: number, u: number, fontFamily: string
   ].join('');
 };
 
-const renderCountries = (countries: CountryOutline[], viewport: Viewport, u: number, lonShift: boolean) => {
+const SEA = '#cfdcd6';
+const LAND = '#f4ead0';
+
+const getOutlinePath = (countries: CountryOutline[], viewport: Viewport, u: number, lonShift: boolean) => {
   const paths: string[] = [];
   for (const country of countries) {
     for (const ring of country.rings) {
@@ -519,12 +525,19 @@ const renderCountries = (countries: CountryOutline[], viewport: Viewport, u: num
       }
     }
   }
-  return paths.length > 0
-    ? `<path d="${paths.join(' ')}" fill="#ece0c2" fill-opacity="0.8" stroke="#a8977a" stroke-width="${fmt(1.2 * u)}" stroke-linejoin="round"/>`
-    : '';
+  return paths.join(' ');
 };
 
-const renderSketchBackground = (width: number, height: number, u: number) => {
+/** the sea as a wash, the land as paper with a hand-inked coast, rippled on the sea side */
+const renderLand = (path: string, width: number, height: number, u: number) =>
+  [
+    `<rect width="${width}" height="${height}" fill="${SEA}" fill-opacity="0.85"/>`,
+    `<path d="${path}" fill="none" stroke="#7f9f9f" stroke-opacity="0.18" stroke-width="${fmt(26 * u)}" stroke-linejoin="round"/>`,
+    `<path d="${path}" fill="none" stroke="#6f9294" stroke-opacity="0.35" stroke-width="${fmt(9 * u)}" stroke-linejoin="round" stroke-dasharray="${fmt(2 * u)} ${fmt(5 * u)}"/>`,
+    `<path d="${path}" fill="${LAND}" stroke="#7c6a4c" stroke-width="${fmt(1.6 * u)}" stroke-linejoin="round"/>`,
+  ].join('');
+
+const renderSketchBackground = (width: number, height: number, u: number, land: string) => {
   const lines: string[] = [];
   const step = 90 * u;
   for (let x = step; x < width; x += step) {
@@ -534,14 +547,77 @@ const renderSketchBackground = (width: number, height: number, u: number) => {
     lines.push(`M0,${fmt(y)}H${fmt(width)}`);
   }
   return [
-    `<defs><radialGradient id="paper" cx="50%" cy="45%" r="75%"><stop offset="0%" stop-color="#f7f0de"/><stop offset="70%" stop-color="#f0e5cb"/><stop offset="100%" stop-color="#dfcca5"/></radialGradient></defs>`,
+    `<defs><radialGradient id="paper" cx="50%" cy="45%" r="75%"><stop offset="0%" stop-color="#f7f0de"/><stop offset="70%" stop-color="#f0e5cb"/><stop offset="100%" stop-color="#dfcca5"/></radialGradient>`,
+    `<radialGradient id="vignette" cx="50%" cy="45%" r="75%"><stop offset="60%" stop-color="#8a6d3b" stop-opacity="0"/><stop offset="100%" stop-color="#8a6d3b" stop-opacity="0.28"/></radialGradient></defs>`,
     `<rect width="${width}" height="${height}" fill="url(#paper)"/>`,
-    `<path d="${lines.join('')}" stroke="#b9a37c" stroke-opacity="0.18" stroke-width="${fmt(u)}"/>`,
+    land,
+    `<path d="${lines.join('')}" stroke="#9c8660" stroke-opacity="0.16" stroke-width="${fmt(u)}"/>`,
+    `<rect width="${width}" height="${height}" fill="url(#vignette)"/>`,
   ].join('');
+};
+
+/** grey noise around 128, from the seeded random sequence so that maps look the same every time */
+const greyNoise = (width: number, height: number, sigma: number, next: () => number) => {
+  const data = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < width * height; i++) {
+    // the sum of three uniform values is close enough to a normal distribution
+    const value = clamp(Math.round(128 + (next() + next() + next() - 1.5) * 2 * sigma), 0, 255);
+    data.fill(value, i * 3, i * 3 + 3);
+  }
+  return sharp(data, { raw: { width, height, channels: 3 } });
+};
+
+const GRAIN_TILE = 256;
+
+/** Paper grain, fine noise and soft blotches, as mid-grey layers blended with soft light (grey keeps the colours) */
+const renderPaperTexture = async (width: number, height: number, u: number, seed: number) => {
+  const next = random(seed);
+  const blotchSize = Math.max(8, Math.max(width, height) / 40);
+  const columns = Math.ceil(width / blotchSize) + 3;
+  const rows = Math.ceil(height / blotchSize) + 3;
+  const blotches = await greyNoise(columns, rows, 16, next)
+    .resize(Math.round(columns * blotchSize), Math.round(rows * blotchSize), { kernel: 'cubic' })
+    .extract({ left: Math.round(blotchSize), top: Math.round(blotchSize), width, height })
+    .blur(Math.max(0.3, blotchSize / 4))
+    .png()
+    .toBuffer();
+
+  // one grain is a pixel on screen and a little more in print
+  const scale = Math.max(1, Math.round(u * 1.2));
+  const tile = { width: Math.min(GRAIN_TILE * scale, width), height: Math.min(GRAIN_TILE * scale, height) };
+  const grainColumns = Math.ceil(tile.width / scale);
+  const grainRows = Math.ceil(tile.height / scale);
+  const grain = await greyNoise(grainColumns, grainRows, 12, next)
+    .resize(grainColumns * scale, grainRows * scale, { kernel: 'nearest' })
+    .extract({ left: 0, top: 0, ...tile })
+    .blur(0.4 * scale)
+    .png()
+    .toBuffer();
+
+  return [
+    { input: blotches, blend: 'soft-light' as const },
+    { input: grain, blend: 'soft-light' as const, tile: true },
+  ];
 };
 
 const renderFrame = (width: number, height: number, u: number) =>
   `<rect x="${fmt(8 * u)}" y="${fmt(8 * u)}" width="${fmt(width - 16 * u)}" height="${fmt(height - 16 * u)}" fill="none" stroke="#5b4a33" stroke-opacity="0.6" stroke-width="${fmt(1.5 * u)}"/>`;
+
+/** label size of the places, in thousandths of the shorter side of the map */
+const LABEL_PX = 30;
+
+/** a map pin whose tip marks the stop, with a soft shadow; the first stop has a filled head */
+const renderPin = (stop: { x: number; y: number }, r: number, theme: Theme, u: number, first: boolean) => {
+  const { x, y } = stop;
+  const cy = y - r * 1.9;
+  const side = r * Math.sin(Math.PI / 3);
+  const shoulder = cy + r * Math.cos(Math.PI / 3);
+  return [
+    `<ellipse cx="${fmt(x)}" cy="${fmt(y)}" rx="${fmt(r * 0.7)}" ry="${fmt(r * 0.25)}" fill="#2b2115" fill-opacity="0.3"/>`,
+    `<path d="M${fmt(x)},${fmt(y)} L${fmt(x - side)},${fmt(shoulder)} A${fmt(r)},${fmt(r)} 0 1 1 ${fmt(x + side)},${fmt(shoulder)} Z" fill="${theme.pin}" stroke="${theme.pinStroke}" stroke-width="${fmt(2 * u)}" stroke-linejoin="round"/>`,
+    `<circle cx="${fmt(x)}" cy="${fmt(cy)}" r="${fmt(r * 0.42)}" fill="${first ? theme.ink : theme.pinStroke}" stroke="${theme.pinStroke}" stroke-width="${fmt(first ? 2 * u : 0)}"/>`,
+  ].join('');
+};
 
 type OverlayInput = {
   viewport: Viewport;
@@ -572,17 +648,12 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
   }
 
   const stops = getStops(points, 14 * u);
-  const radius = (stop: Stop) => (7 + 2.2 * Math.log2(stop.count)) * u;
+  const radius = (stop: Stop) => (11 + 2.5 * Math.log2(stop.count)) * u;
   const obstacles: Box[] = [];
   for (const [index, stop] of stops.entries()) {
     const r = radius(stop);
-    obstacles.push({ x: stop.x - r, y: stop.y - r, width: 2 * r, height: 2 * r });
-    parts.push(
-      `<circle cx="${fmt(stop.x)}" cy="${fmt(stop.y)}" r="${fmt(r)}" fill="${theme.pin}" stroke="${theme.pinStroke}" stroke-width="${fmt(2.5 * u)}"/>`,
-    );
-    if (index === 0) {
-      parts.push(`<circle cx="${fmt(stop.x)}" cy="${fmt(stop.y)}" r="${fmt(r * 0.4)}" fill="${theme.pinStroke}"/>`);
-    }
+    obstacles.push({ x: stop.x - r * 1.1, y: stop.y - r * 2.9, width: r * 2.2, height: r * 3 });
+    parts.push(renderPin(stop, r, theme, u, index === 0));
   }
 
   const titleHeight = map.title ? 22 * u + Math.min(44 * u, width) * 1.8 : 0;
@@ -599,11 +670,13 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
   }
 
   if (map.labels) {
-    const fontPx = 20 * u;
+    const fontPx = LABEL_PX * u;
     // labels sit next to the pin closest to the middle of their photos
+    // next to the head of the pin
     const candidates = getPlaceLabels(points).map((label) => {
       const stop = minBy(stops, (item) => Math.hypot(item.x - label.x, item.y - label.y))!;
-      return { ...label, x: stop.x, y: stop.y, offset: radius(stop) + 5 * u };
+      const r = radius(stop);
+      return { ...label, x: stop.x, y: stop.y - r * 1.9, offset: r + 6 * u };
     });
     const labels = placeLabels(candidates, { width, height, fontPx, obstacles, margin: 14 * u });
     for (const label of labels) {
@@ -614,7 +687,7 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
             ? label.box.x + label.box.width
             : label.box.x + label.box.width / 2;
       parts.push(
-        `<text x="${fmt(x)}" y="${fmt(label.baseline)}" font-family="${escapeXml(labelFont)}" font-size="${fmt(fontPx)}"${theme.italic ? ' font-style="italic"' : ' font-weight="bold"'} fill="${theme.label}" stroke="${theme.halo}" stroke-width="${fmt(4 * u)}" stroke-linejoin="round" paint-order="stroke" text-anchor="${label.anchor}">${escapeXml(label.text)}</text>`,
+        `<text x="${fmt(x)}" y="${fmt(label.baseline)}" font-family="${escapeXml(labelFont)}" font-size="${fmt(fontPx)}"${theme.italic ? ' font-style="italic"' : ' font-weight="bold"'} fill="${theme.label}" stroke="${theme.halo}" stroke-opacity="0.9" stroke-width="${fmt(6 * u)}" stroke-linejoin="round" paint-order="stroke" text-anchor="${label.anchor}">${escapeXml(label.text)}</text>`,
       );
     }
   }
@@ -720,35 +793,34 @@ export const renderMap = async (
     return { data: await encode(image, size), source: 'tiles', warnings };
   }
 
-  let countries = '';
-  if (ctx.getCountries && located.length > 0) {
-    const lats = located.map((point) => point.lat);
-    const lons = located.map((point) => point.lon);
-    const spanKm = haversineKm(
-      { latitude: Math.min(...lats), longitude: Math.min(...lons) },
-      { latitude: Math.max(...lats), longitude: Math.max(...lons) },
-    );
-    if (spanKm > COUNTRY_OUTLINES_KM) {
-      try {
-        const bounds = getViewportBounds(view);
-        const outlines = await ctx.getCountries(
-          lonShift ? { ...bounds, west: bounds.west - 360, east: bounds.east - 360 } : bounds,
-        );
-        countries = renderCountries(outlines, view, u, lonShift);
-      } catch (error: any) {
-        warnings.push(`Country outlines could not be loaded (${error?.message ?? error})`);
-      }
+  let land = '';
+  const viewKm = (getMetersPerPixel(view) * Math.max(width, height)) / 1000;
+  if (ctx.getCountries && located.length > 0 && viewKm >= MIN_OUTLINE_VIEW_KM) {
+    try {
+      const bounds = getViewportBounds(view);
+      const outlines = await ctx.getCountries(
+        lonShift ? { ...bounds, west: bounds.west - 360, east: bounds.east - 360 } : bounds,
+      );
+      const path = getOutlinePath(outlines, view, u, lonShift);
+      land = path ? renderLand(path, width, height, u) : '';
+    } catch (error: any) {
+      warnings.push(`Country outlines could not be loaded (${error?.message ?? error})`);
     }
   }
 
-  const body = [
-    renderSketchBackground(width, height, u),
-    countries,
-    renderFrame(width, height, u),
-    renderOverlay({ viewport: view, points, map, theme: SKETCH_THEME, fontFamily, attribution: false, seed }),
-  ].join('');
-
-  return { data: await encode(sharp(Buffer.from(svg(width, height, body))), size), source: 'sketch', warnings };
+  const background = svg(width, height, renderSketchBackground(width, height, u, land));
+  const overlay = svg(
+    width,
+    height,
+    renderFrame(width, height, u) +
+      renderOverlay({ viewport: view, points, map, theme: SKETCH_THEME, fontFamily, attribution: false, seed }),
+  );
+  const paper = await sharp(Buffer.from(background))
+    .composite(await renderPaperTexture(width, height, u, seed))
+    .png()
+    .toBuffer();
+  const image = sharp(paper).composite([{ input: Buffer.from(overlay), left: 0, top: 0 }]);
+  return { data: await encode(image, size), source: 'sketch', warnings };
 };
 
 /** The map image of a page (JPEG unless `format` is png); see `renderMap` */
