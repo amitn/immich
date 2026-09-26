@@ -7842,6 +7842,14 @@
             }
           },
           {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "pageId",
             "required": true,
             "in": "path",
@@ -7860,6 +7868,14 @@
               "minimum": 100,
               "maximum": 4000,
               "type": "integer"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8154,7 +8170,7 @@
     },
     "/books/{id}/pdf": {
       "get": {
-        "description": "Download the exported PDF of a book.",
+        "description": "Download the exported PDF of a book; through a shared link to the book only if it allows downloads.",
         "operationId": "downloadBookPdf",
         "parameters": [
           {
@@ -8164,6 +8180,22 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           }
@@ -8212,7 +8244,7 @@
     },
     "/books/{id}/preview": {
       "get": {
-        "description": "The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame.",
+        "description": "The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame. This is also what a shared link to the book shows.",
         "operationId": "previewBook",
         "parameters": [
           {
@@ -8222,6 +8254,22 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           }
@@ -16342,6 +16390,28 @@
             "required": false,
             "in": "query",
             "description": "Filter by album ID",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by book ID",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha",
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
@@ -31673,6 +31743,7 @@
           "book.update",
           "book.delete",
           "book.download",
+          "book.share",
           "clusterGroup.read",
           "clusterGroup.leave",
           "clusterGroupRequest.create",
@@ -34571,6 +34642,44 @@
         ],
         "type": "object"
       },
+      "SharedLinkBookResponseDto": {
+        "description": "The shared photo book",
+        "properties": {
+          "hasPdf": {
+            "description": "Whether the PDF has been exported",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Book ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasPdf",
+          "id",
+          "pageCount",
+          "subtitle",
+          "title"
+        ],
+        "type": "object"
+      },
       "SharedLinkCreateDto": {
         "properties": {
           "albumId": {
@@ -34596,6 +34705,23 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "bookId": {
+            "description": "Book ID (for sharing a photo book)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
           },
           "description": {
             "description": "Link description",
@@ -34707,6 +34833,20 @@
             },
             "type": "array"
           },
+          "book": {
+            "$ref": "#/components/schemas/SharedLinkBookResponseDto",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
           "createdAt": {
             "description": "Creation date",
             "example": "2024-01-01T00:00:00.000Z",
@@ -34782,7 +34922,8 @@
         "description": "Shared link type",
         "enum": [
           "ALBUM",
-          "INDIVIDUAL"
+          "INDIVIDUAL",
+          "BOOK"
         ],
         "type": "string"
       },

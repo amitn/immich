@@ -186,7 +186,7 @@ describe('travel documents and the tools that return images', () => {
     mocks.media.resizeToJpeg.mockResolvedValue(Buffer.from('tiny'));
     mocks.media.composeBookPage.mockResolvedValue({ data: Buffer.from('jpeg'), slots: [] });
 
-    const forAssistant = await sut.renderPage(auth, book.id, page.id, {}, true);
+    const forAssistant = await sut.renderPage(auth, book.id, page.id, {}, { hidePrivate: true });
 
     expect(forAssistant.hidden).toEqual([ticket]);
     expect(mocks.media.resizeToJpeg).toHaveBeenCalledWith(`/data/thumbs/${ticket}.jpeg`, 12);

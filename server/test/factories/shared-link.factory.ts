@@ -1,4 +1,5 @@
 import { Selectable } from 'kysely';
+import { SharedLinkBook } from 'src/database.js';
 import { SharedLinkType } from 'src/enum.js';
 import { SharedLinkTable } from 'src/schema/tables/shared-link.table.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
@@ -12,6 +13,7 @@ export class SharedLinkFactory {
   #owner: UserFactory;
   #album?: AlbumFactory;
   #assets: AssetFactory[] = [];
+  #book?: SharedLinkBook;
 
   private constructor(private readonly value: Selectable<SharedLinkTable>) {
     value.userId ??= newUuid();
@@ -33,6 +35,7 @@ export class SharedLinkFactory {
       key: factory.buffer(),
       type,
       albumId,
+      bookId: type === SharedLinkType.Book ? newUuid() : null,
       createdAt: newDate(),
       expiresAt: null,
       allowUpload: true,
@@ -55,6 +58,22 @@ export class SharedLinkFactory {
     return this;
   }
 
+  book(dto: Partial<SharedLinkBook> = {}) {
+    this.value.type = SharedLinkType.Book;
+    this.value.albumId = null;
+    this.value.bookId = dto.id ?? this.value.bookId ?? newUuid();
+    this.value.allowUpload = false;
+    this.#book = {
+      title: 'Summer in Rome',
+      subtitle: null,
+      pageCount: 12,
+      hasPdf: true,
+      ...dto,
+      id: this.value.bookId,
+    };
+    return this;
+  }
+
   asset(dto: AssetLike = {}, builder?: FactoryBuilder<AssetFactory>) {
     const asset = build(AssetFactory.from(dto), builder);
     this.#assets.push(asset);
@@ -67,6 +86,7 @@ export class SharedLinkFactory {
       ...this.value,
       owner: this.#owner.build(),
       album: this.#album?.build() ?? null,
+      book: this.#book ?? null,
       assets: this.#assets.map((asset) => asset.build()),
     };
   }

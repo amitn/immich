@@ -11,12 +11,13 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   StreamableFile,
 } from '@nestjs/common';
 import { ApiBody, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
-import type { NextFunction, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
 import {
@@ -46,6 +47,7 @@ import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js'
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { BookService } from 'src/services/book.service.js';
 import { sendFile } from 'src/utils/file.js';
+import { getSharedLinkAuthTokens } from 'src/utils/shared-link.js';
 import { UUIDParamDto } from 'src/validation.js';
 
 const history = () => new HistoryBuilder().added('v3.0.0').alpha('v3.0.0');
@@ -261,7 +263,7 @@ export class BookController {
   }
 
   @Get(':id/pages/:pageId/render')
-  @Authenticated({ permission: Permission.BookRead })
+  @Authenticated({ permission: Permission.BookRead, sharedLink: true })
   @FileResponse()
   @Endpoint({
     summary: 'Render a book page',
@@ -272,8 +274,11 @@ export class BookController {
     @Auth() auth: AuthDto,
     @Param() { id, pageId }: BookPageParamDto,
     @Query() dto: BookRenderQueryDto,
+    @Req() req: Request,
   ): Promise<StreamableFile> {
-    const { data } = await this.service.renderPage(auth, id, pageId, dto);
+    const { data } = await this.service.renderPage(auth, id, pageId, dto, {
+      sharedLinkTokens: getSharedLinkAuthTokens(req.cookies),
+    });
     return new StreamableFile(data, { type: 'image/jpeg', length: data.length });
   }
 
@@ -298,29 +303,40 @@ export class BookController {
   }
 
   @Get(':id/pdf')
-  @Authenticated({ permission: Permission.BookDownload })
+  @Authenticated({ permission: Permission.BookDownload, sharedLink: true })
   @FileResponse()
-  @Endpoint({ summary: 'Download a book PDF', description: 'Download the exported PDF of a book.', history: history() })
+  @Endpoint({
+    summary: 'Download a book PDF',
+    description: 'Download the exported PDF of a book; through a shared link to the book only if it allows downloads.',
+    history: history(),
+  })
   async downloadBookPdf(
     @Auth() auth: AuthDto,
     @Param() { id }: UUIDParamDto,
+    @Req() req: Request,
     @Res() res: Response,
     @Next() next: NextFunction,
   ): Promise<void> {
-    await sendFile(res, next, () => this.service.downloadPdf(auth, id), this.logger);
+    const tokens = getSharedLinkAuthTokens(req.cookies);
+    await sendFile(res, next, () => this.service.downloadPdf(auth, id, tokens), this.logger);
   }
 
   @Get(':id/preview')
-  @Authenticated({ permission: Permission.BookRead })
+  @Authenticated({ permission: Permission.BookRead, sharedLink: true })
   @FileResponse()
   @Endpoint({
     summary: 'Preview a book',
     description:
-      'The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame.',
+      'The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame. This is also what a shared link to the book shows.',
     history: history(),
   })
-  async previewBook(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto, @Res() res: Response): Promise<void> {
-    const html = await this.service.previewHtml(auth, id);
+  async previewBook(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    const html = await this.service.previewHtml(auth, id, getSharedLinkAuthTokens(req.cookies));
     // the page may run its own navigation script, but in an opaque origin without access to the user's session
     res.header('Content-Security-Policy', "sandbox allow-scripts; frame-ancestors 'self'");
     res.header('Cache-Control', 'private, no-store');

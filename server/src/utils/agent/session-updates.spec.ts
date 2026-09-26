@@ -376,6 +376,12 @@ describe('summarizeToolArgs', () => {
     expect(summarizeToolArgs({ bookId: id3 })).toBe('');
   });
 
+  it('should not show a password', () => {
+    expect(summarizeToolArgs({ bookId: id3, password: 'secret', expiresInDays: 30 })).toBe(
+      'Password: •••• · Expires in days: 30',
+    );
+  });
+
   it('should count the photos of improve_photos once', () => {
     expect(
       summarizeToolArgs({

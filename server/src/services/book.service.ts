@@ -144,6 +144,7 @@ import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
+import { requireNotSharedLink, requireSharedLinkLogin } from 'src/utils/shared-link.js';
 
 type Book = NonNullable<Awaited<ReturnType<BookRepository['get']>>>;
 type BookPage = Awaited<ReturnType<BookRepository['getPages']>>[number];
@@ -348,6 +349,7 @@ export class BookService extends BaseService {
   }
 
   async get(auth: AuthDto, id: string): Promise<BookDetailResponseDto> {
+    requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
     return this.getDetail(id);
   }
@@ -454,6 +456,7 @@ export class BookService extends BaseService {
 
   /** A checklist of what to fix in a book (see `reviewBook`), with the best photos of its album that are not in it */
   async getReview(auth: AuthDto, id: string): Promise<BookReviewResponseDto> {
+    requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const pages = await this.bookRepository.getPages(id);
@@ -675,9 +678,10 @@ export class BookService extends BaseService {
     id: string,
     pageId: string,
     dto: BookRenderQueryDto = {},
-    hidePrivate = false,
+    { hidePrivate = false, sharedLinkTokens = [] }: { hidePrivate?: boolean; sharedLinkTokens?: string[] } = {},
   ): Promise<BookRenderResult> {
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
+    requireSharedLinkLogin(this.cryptoRepository, auth, sharedLinkTokens);
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const pages = await this.bookRepository.getPages(id);
     const index = pages.findIndex((page) => page.id === pageId);
@@ -686,7 +690,7 @@ export class BookService extends BaseService {
     }
 
     const longEdge = dto.size ?? REVIEW_LONG_EDGE_PX;
-    return this.renderBookPage(auth, book, pages[index], index + 1, {
+    return this.renderBookPage(await this.getRenderAuth(auth, book), book, pages[index], index + 1, {
       mode: longEdge <= 400 ? 'thumbnail' : 'review',
       dpi: getDpiForLongEdge(book, longEdge),
       pages,
@@ -704,6 +708,7 @@ export class BookService extends BaseService {
     range: { from?: number; to?: number } = {},
     hidePrivate = false,
   ): Promise<BookRenderResult & { pages: number[] }> {
+    requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const pages = await this.bookRepository.getPages(id);
@@ -740,6 +745,7 @@ export class BookService extends BaseService {
   }
 
   async export(auth: AuthDto, id: string, dto: Partial<BookExportDto> = {}): Promise<BookResponseDto> {
+    requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     if (book.pageCount === 0) {
@@ -759,8 +765,9 @@ export class BookService extends BaseService {
     return mapBook({ ...book, exportStatus: BookExportStatus.Pending });
   }
 
-  async downloadPdf(auth: AuthDto, id: string): Promise<ImmichFileResponse> {
+  async downloadPdf(auth: AuthDto, id: string, sharedLinkTokens: string[] = []): Promise<ImmichFileResponse> {
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
+    requireSharedLinkLogin(this.cryptoRepository, auth, sharedLinkTokens);
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     if (!book.exportPath) {
       throw new BadRequestException('The book has not been exported yet');
@@ -774,24 +781,39 @@ export class BookService extends BaseService {
     });
   }
 
-  /** The book as the single-file HTML web book, built on demand at screen quality, for previewing in the app */
-  async previewHtml(auth: AuthDto, id: string): Promise<string> {
+  /**
+   * The book as the single-file HTML web book, built on demand at screen quality: previewed in the app, and what a
+   * shared link to the book shows. A shared link that hides metadata gets it without the photos' file names and dates.
+   */
+  async previewHtml(auth: AuthDto, id: string, sharedLinkTokens: string[] = []): Promise<string> {
     await this.requireAccess({ auth, permission: Permission.BookRead, ids: [id] });
+    requireSharedLinkLogin(this.cryptoRepository, auth, sharedLinkTokens);
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     if (book.pageCount === 0) {
       throw new BadRequestException('The book has no pages');
     }
 
-    const key = `${book.id}/${book.contentUpdatedAt.toISOString()}`;
+    const stripMetadata = !!auth.sharedLink && !auth.sharedLink.showExif;
+    const version = `${book.id}/${book.contentUpdatedAt.toISOString()}/`;
+    const key = `${version}${stripMetadata ? 'plain' : 'full'}`;
     const cached = previewCache.get(key);
     if (cached) {
       return cached;
     }
 
     const pages = await this.bookRepository.getPages(id);
-    const { html } = await this.createBookHtml(auth, book, pages, HTML_PREVIEW_QUALITY);
+    const { html } = await this.createBookHtml(
+      await this.getRenderAuth(auth, book),
+      book,
+      pages,
+      HTML_PREVIEW_QUALITY,
+      {
+        stripMetadata,
+      },
+    );
     for (const cachedKey of previewCache.keys()) {
-      if (cachedKey.startsWith(`${book.id}/`) || previewCache.size >= PREVIEW_CACHE_SIZE) {
+      const isOutdated = cachedKey.startsWith(`${book.id}/`) && !cachedKey.startsWith(version);
+      if (isOutdated || previewCache.size >= PREVIEW_CACHE_SIZE) {
         previewCache.delete(cachedKey);
       }
     }
@@ -800,6 +822,7 @@ export class BookService extends BaseService {
   }
 
   async downloadHtml(auth: AuthDto, id: string): Promise<ImmichFileResponse> {
+    requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     if (!book.htmlExportPath) {
@@ -933,6 +956,7 @@ export class BookService extends BaseService {
     book: Book,
     pages: BookPage[],
     quality: HtmlImageQuality = HTML_EXPORT_QUALITY,
+    { stripMetadata = false }: { stripMetadata?: boolean } = {},
   ) {
     const assetIds = new Set<string>();
     for (const page of pages) {
@@ -1006,7 +1030,7 @@ export class BookService extends BaseService {
         data: result.data,
         region: request.region,
         ...source.size,
-        alt: source.asset.originalFileName,
+        alt: stripMetadata ? 'Photo' : source.asset.originalFileName,
       });
     }
 
@@ -1028,7 +1052,9 @@ export class BookService extends BaseService {
       .filter((time) => Number.isFinite(time))
       .toArray();
     const dateRange =
-      times.length > 0 ? { start: new Date(Math.min(...times)), end: new Date(Math.max(...times)) } : null;
+      times.length > 0 && !stripMetadata
+        ? { start: new Date(Math.min(...times)), end: new Date(Math.max(...times)) }
+        : null;
 
     return { html: buildBookHtml(book, pages, { images, pageImages, dateRange }), imageCount: images.size };
   }
@@ -1902,6 +1928,14 @@ export class BookService extends BaseService {
       );
     }
     return aspectRatios[slot];
+  }
+
+  /**
+   * Whose photos a page is drawn with: a shared link may read the book, but not the photos in it (they are not shared
+   * one by one), so its pages are drawn as the owner sees them
+   */
+  private async getRenderAuth(auth: AuthDto, book: Book): Promise<AuthDto> {
+    return auth.sharedLink ? this.getOwnerAuth(book) : auth;
   }
 
   private async getOwnerAuth(book: Book): Promise<AuthDto> {

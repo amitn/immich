@@ -260,6 +260,8 @@ export const truncateText = (text: string, length = 2000) => truncate(text, leng
 /** arguments that are photos: counted, since the photos are shown next to the summary */
 const PHOTO_ARGS = new Set(['id', 'ids', 'assetId', 'assetIds', 'photoIds', 'photos']);
 const PEOPLE_ARGS = new Set(['personId', 'personIds']);
+/** never shown in the approval card, which is kept with the chat */
+const SECRET_ARGS = new Set(['password']);
 const ARG_LABELS: Record<string, string> = {
   rect: 'Crop (pixels)',
   rectNormalized: 'Crop',
@@ -329,6 +331,11 @@ export const summarizeToolArgs = (args: Record<string, unknown>) => {
     }
 
     if (isUuid(value) || (Array.isArray(value) && value.every((item) => isUuid(item)))) {
+      continue;
+    }
+
+    if (SECRET_ARGS.has(key)) {
+      parts.push(`${toLabel(key)}: ••••`);
       continue;
     }
 

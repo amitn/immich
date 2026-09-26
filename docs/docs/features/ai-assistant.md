@@ -42,7 +42,7 @@ The assistant can search and look at your photos freely. Actions that change you
 - **Allow all in this chat** runs it and turns on auto-approve for the rest of the chat.
 - **Deny** refuses it. The assistant is told not to retry and asks you what to do instead.
 
-Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
+Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
 
 To skip the prompts, turn on **Auto-approve** at the top of a chat. It only applies to that chat. An administrator can also turn on **Auto-approve changes** in the settings, which skips approvals for every user.
 
@@ -174,6 +174,20 @@ When you replace or add a photo, you can search your library or show **Only phot
 - **HTML (single file)**: one self-contained web page with the photos embedded, which works offline and makes no external requests. It can be shared or emailed, and turns pages like a book. Photos are sized for sharp screens (up to 2000 pixels), not for print. You're warned when the file is over 60 MB, since it may be too large to email.
 
 Both exports run in the background and send a notification when they're done. Download them from **Export → Download PDF** or **Download HTML**.
+
+### Sharing a book
+
+Select **Share** in the book viewer to create a public link to the book, like a shared album link. Choose when the link expires, a password, a custom URL and whether visitors can download the PDF, then copy the link or show it as a QR code.
+
+People with the link see the title of the book and the page-turning web book, full screen and on phones too, with a **Download PDF** button when downloads are allowed and the PDF has been exported. The web book is built from the current pages, so later edits show up without a new link. Turn off **Show metadata** to leave out the file names of the photos and the dates of the book.
+
+A book link shows only that book. Its pages are drawn on your server, and the photos in it aren't shared one by one, so the link doesn't give access to them, to the album, or to any other book. Manage your links under **Sharing → Shared links**, on the **Photo books** tab, where you can edit or delete them. Deleting the book also deletes its links.
+
+You can also ask the assistant to share a book. It uses `share_book`, which asks for approval, can set an expiry and a password, and replies with the link.
+
+:::caution
+Anyone with the link can read the book, so check what the pages show before you share it. A page that prints a travel document shows it to the visitors too.
+:::
 
 ### Map pages
 
