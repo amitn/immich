@@ -4,7 +4,7 @@ import { CollectionPack, validateCollectionPack } from 'src/utils/collections/pa
 // (keep this line)
 import { foodPack } from 'src/utils/collections/packs/food/pack.js';
 // (keep this line)
-// museum: import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
+import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
 // (keep this line)
 // travel: import { travelPack } from 'src/utils/collections/packs/travel/pack.js';
 // (keep this line)
@@ -19,7 +19,7 @@ import { foodPack } from 'src/utils/collections/packs/food/pack.js';
 export const BUILT_IN_COLLECTION_PACKS: readonly CollectionPack[] = [
   foodPack,
   // (keep this line)
-  // museumPack,
+  museumPack,
   // (keep this line)
   // winePack,
   // (keep this line)
