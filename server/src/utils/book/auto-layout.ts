@@ -5,6 +5,7 @@ import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.j
 import {
   BookCollectionTag,
   getEntryCaption,
+  getPhotoPack,
   getPlaceVisits,
   getRunsBetweenVisits,
   isCollectionTheme,
@@ -15,6 +16,7 @@ import {
   BookLayout,
   LayoutRect,
   PageSize,
+  TICKET_STUB_LAYOUT,
   bookLayouts,
   getLayout,
   getSlotRectsMm,
@@ -22,6 +24,8 @@ import {
 } from 'src/utils/book/layouts.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
 import { MIN_PRINT_DPI, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
+import { CollectionSourcePage } from 'src/utils/collections/pack.js';
+import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 /**
  * What an asset is: an original photo, or a copy stacked with it (the original is the primary asset of the stack).
@@ -68,10 +72,11 @@ export type AutoLayoutPhoto = {
   /** lines of text read in the photo (OCR); of several source photos, the one that reads best gets the source page */
   textLines?: number;
   /**
-   * the text its pack typesets on the source page of the photo (see `CollectionPack.book.sourceText`), e.g. the
-   * ingredients and steps of a recipe: the page gets the recipe layout with the text as its caption
+   * the page its pack typesets from the text of the source (see `CollectionPack.book.sourcePage`), and the layout it
+   * is set on: the recipe layout sets the ingredients and steps of a recipe beside the photo of the card, the
+   * ticket-stub layout sets the redacted fields of a boarding pass in place of its photo, which is then never placed
    */
-  sourceText?: string;
+  sourcePage?: (CollectionSourcePage & { layout: string }) | null;
 };
 
 export type AutoLayoutOptions = {
@@ -184,11 +189,9 @@ const COPY_MARGIN = 0.05;
 const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
-const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', 'recipe']);
+const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', 'recipe', TICKET_STUB_LAYOUT]);
 /** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
 const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
-/** the source page of a source whose text a pack typesets beside its photo (see `AutoLayoutPhoto.sourceText`) */
-const SOURCE_TEXT_LAYOUT = 'recipe';
 /** the entries of a source page are listed one per line up to this many */
 const SOURCE_LIST_MAX = 7;
 const OPENER_LAYOUTS = new Set(['cover', 'text', 'map', 'map-photo', ...TITLE_LAYOUTS]);
@@ -1063,6 +1066,12 @@ export const allocatePages = (sizes: number[], total: number) => {
   return pages;
 };
 
+/** a source photo whose pack typesets its text in place of the photo (a ticket stub), which is never printed */
+const isTypesetOnly = (photo: AutoLayoutPhoto) => {
+  const typeset = isSourcePhoto(photo) ? getPhotoPack(photo)?.book.sourcePage : undefined;
+  return !!typeset && getLayout(typeset.layout)?.slots.length === 0;
+};
+
 /**
  * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
  * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
@@ -1129,7 +1138,13 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   // photos too small for every slot, then one photo (or an intentional pair) per stack
   const printable: Candidate[] = [];
   for (const photo of photos) {
-    if (planner.isPrintable(photo)) {
+    // a source whose pack typesets its text in place of it (a ticket stub) is never printed: without that text (it
+    // could not be read), it is left out
+    if (isTypesetOnly(photo) && !photo.sourcePage) {
+      drop(photo, 'duplicate');
+      continue;
+    }
+    if (planner.isPrintable(photo) || isTypesetOnly(photo)) {
       printable.push(photo);
     } else {
       drop(photo, 'resolution');
@@ -1162,6 +1177,8 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   );
 
   const pages: AutoLayoutPage[] = [];
+  /** pages typeset from the text of a source in place of its photo */
+  const typesetPages = new Set<AutoLayoutPage>();
   const used = new Set<string>();
   const pagePhotos = new Map<AutoLayoutPage, Candidate[]>();
   const place = (photo: Candidate, layout: BookLayout, slot = 0): AutoLayoutSlot => {
@@ -1234,12 +1251,15 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
   // a collection book has a chapter for every visit of a place (a restaurant), and the photos between them are split
   // by event as usual
-  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string } }>;
+  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string; entry?: string } }>;
   const { visits, others } = collectionBook ? getPlaceVisits(kept) : { visits: [], others: kept };
   if (visits.length > 0) {
     const otherSections = Math.max(1, maxSections - visits.length);
     sections = [
-      ...visits.map((visit) => ({ photos: visit.photos, visit: { pack: visit.pack, place: visit.place } })),
+      ...visits.map((visit) => ({
+        photos: visit.photos,
+        visit: { pack: visit.pack, place: visit.place, ...(visit.entry && { entry: visit.entry }) },
+      })),
       ...getRunsBetweenVisits(others, visits).flatMap((run) =>
         mergeEvents(
           getEvents(run, options.events),
@@ -1264,18 +1284,23 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
     dates: string;
     opener: 'map' | 'map-photo' | 'section-opener' | 'dish-opener' | null;
     openerPhoto?: Candidate;
-    /** the place of a visit of a collection (a restaurant) and its pack */
-    visit?: { pack: string; place: string };
+    /** the place of a visit of a collection (a restaurant) and its pack; the entry of a chapter per entry (a leg) */
+    visit?: { pack: string; place: string; entry?: string };
     /** the source (menu) of the visit, on a page of its own after the opener (or as the opener) */
     menu?: { photo: Candidate; layout: BookLayout };
   };
 
   /**
-   * the source page layout that keeps most of the photo and prints it sharp enough; the recipe layout for a source
-   * whose text is typeset beside it
+   * the source page layout that keeps most of the photo and prints it sharp enough; the layout of the page the pack
+   * typesets from the text of the source when it has one: beside the photo (a recipe, when the photo prints sharp
+   * enough there) or in place of it (a ticket stub)
    */
-  const getMenuLayout = (photo: Candidate) =>
-    [...(photo.sourceText ? [[SOURCE_TEXT_LAYOUT]] : []), SOURCE_LAYOUTS]
+  const getMenuLayout = (photo: Candidate) => {
+    const typeset = photo.sourcePage ? layouts.find((layout) => layout.id === photo.sourcePage!.layout) : undefined;
+    if (typeset && typeset.slots.length === 0) {
+      return typeset;
+    }
+    return [...(typeset ? [[typeset.id]] : []), SOURCE_LAYOUTS]
       .map((ids) =>
         ids
           .map((id) => layouts.find((layout) => layout.id === id))
@@ -1290,6 +1315,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
           .at(0),
       )
       .find((layout) => layout !== undefined);
+  };
 
   const sectionPlans: SectionPlan[] = sections.map(({ photos: units, visit }) => {
     let section = units;
@@ -1490,7 +1516,19 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       }
     }
 
-    if (section.menu) {
+    if (section.menu && section.menu.layout.slots.length === 0) {
+      // the text of the source, never its photo
+      const page: AutoLayoutPage = {
+        layout: section.menu.layout.id,
+        slots: [],
+        sectionTitle: section.title,
+        caption: section.menu.photo.sourcePage!.text,
+        section: index,
+      };
+      pages.push(page);
+      typesetPages.add(page);
+      drop(section.menu.photo, 'duplicate');
+    } else if (section.menu) {
       const page: AutoLayoutPage = {
         layout: section.menu.layout.id,
         slots: [place(section.menu.photo, section.menu.layout)],
@@ -1560,8 +1598,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         sectionPlans[other].visit!.place.toLowerCase() === place.toLowerCase() &&
         getVisitTitle(place, otherPhotos) === getVisitTitle(place, placed),
     );
-    const title = getVisitTitle(place, placed, sameDay);
-    visitTitles.set(index, { title, place: getVisitPlace(placed), detail: title.slice(place.length + 3) });
+    const { entry } = sectionPlans[index].visit!;
+    const chapterTitle = entry ? getCollectionPack(pack)?.book.chapterTitle : undefined;
+    const title = chapterTitle ? chapterTitle(entry!, place) : getVisitTitle(place, placed, sameDay);
+    const detail = title.includes(' · ') ? title.slice(title.indexOf(' · ') + 3) : '';
+    visitTitles.set(index, { title, place: getVisitPlace(placed), detail });
   }
   /** the entries (dishes) of a visit in the order they are shown, e.g. for its source (menu) page */
   const getDishes = (section: number) => [
@@ -1588,7 +1629,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       // the map is titled with the place (restaurant) and captioned with the city and date; the source lists the
       // entries (the menu page lists the dishes)
       page.sectionTitle = visit.title;
-      delete page.caption;
+      // a page typeset in place of its source (a ticket stub) keeps its text
+      if (!typesetPages.has(page)) {
+        delete page.caption;
+      }
       if (page.map) {
         page.map = { ...page.map, title: sectionPlans[page.section!].visit!.place };
         if (page.layout === 'map') {
@@ -1601,9 +1645,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
         page.caption = dishes.join(page.layout === 'menu' && dishes.length <= SOURCE_LIST_MAX ? '\n' : ' · ');
       }
       // the text the pack typesets beside the source, e.g. the ingredients and steps of a recipe
-      const sourceText = page.layout === SOURCE_TEXT_LAYOUT ? pagePhotos.get(page)?.[0]?.sourceText : undefined;
-      if (sourceText) {
-        page.caption = sourceText;
+      const typeset = pagePhotos.get(page)?.[0]?.sourcePage;
+      if (typeset?.layout === page.layout) {
+        page.caption = typeset.text;
       }
       for (const place of getPlaces(visitPhotos.get(page.section!) ?? [])) {
         visited.add(place);

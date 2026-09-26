@@ -39,7 +39,12 @@ export type BookReviewIssue = {
 };
 
 export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 'score' | 'takenAt'> &
-  Partial<Pick<AutoLayoutPhoto, 'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection'>> & {
+  Partial<
+    Pick<
+      AutoLayoutPhoto,
+      'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection' | 'sourcePage'
+    >
+  > & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */
     gain?: number;
   };
@@ -475,8 +480,8 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     });
   }
 
-  // the packs' own checks of their chapters, e.g. a recipe without its finished dish; reported as the entries of a
-  // collection missing from the book
+  // the packs' own checks, with the chapters of their places: e.g. a recipe without its finished dish, a leg of a trip
+  // without photos
   const chapters = new Map<string, CollectionChapter & { pack: string }>();
   const chapterOf = (packId: string, place: string) => {
     const key = sourceKey(packId, place);
@@ -496,7 +501,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     for (const asset of placements[index]) {
       const photo = photos.get(asset.assetId);
       const entry = photo && getEntryName(photo);
-      if (!entry || !getPhotoPack(photo)?.book.review.chapter) {
+      if (!entry || !getPhotoPack(photo)?.book.review.check) {
         continue;
       }
       const chapter = chapterOf(photo.collection!.pack, photo.collection!.place);
@@ -511,9 +516,16 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       addEntry(chapters.get(key)!.available, entry, photo.id);
     }
   }
-  for (const { pack: packId, ...chapter } of chapters.values()) {
-    for (const issue of getCollectionPack(packId)?.book.review.chapter?.(chapter) ?? []) {
-      add({ ...issue, type: 'missing-dish-name', pages: chapter.pages });
+  const packs = new Set(input.photos.flatMap((photo) => (photo.collection ? [photo.collection.pack] : [])));
+  for (const packId of packs) {
+    const check = getCollectionPack(packId)?.book.review.check;
+    const own = chapters
+      .values()
+      .filter((chapter) => chapter.pack === packId)
+      .map(({ pack: _, ...chapter }) => chapter)
+      .toArray();
+    for (const issue of check?.({ pages, photos: input.photos, chapters: own }) ?? []) {
+      add(issue);
     }
   }
 

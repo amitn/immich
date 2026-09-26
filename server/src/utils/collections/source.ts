@@ -29,6 +29,8 @@ export type ParsedSource = {
   columns: number;
   /** text lines read from the photo */
   lines: number;
+  /** what the parser could not read or found ambiguous, e.g. a date printed vertically */
+  warnings?: string[];
   /**
    * other readings of the photo that the parser can't choose from by the text alone, e.g. the neighbouring recipes of
    * a cookbook page (see `chooseReading`)

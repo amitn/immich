@@ -62,6 +62,9 @@ describe(EnhanceAgentTools.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(EnhanceAgentTools));
+    // no photo is a private source (a travel document) unless a test says so
+    mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+    mocks.ocr.getByAssetIds.mockResolvedValue([]);
     auth = AuthFactory.create();
     mocks.media.decodeImage.mockResolvedValue({
       data: Buffer.from('pixels'),

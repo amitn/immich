@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { EnhanceService } from 'src/services/enhance.service.js';
 import { ImproveService, ImprovedCopyResult } from 'src/services/improve.service.js';
 import { MAX_STRAIGHTEN_DEGREES } from 'src/utils/agent/straighten.js';
@@ -39,6 +40,7 @@ const RecipeSchema = z.object({
 export class EnhanceAgentTools extends BaseService {
   getTools(): AgentTool[] {
     const enhanceService = BaseService.create(EnhanceService, this);
+    const collections = BaseService.create(CollectionService, this);
     const improveService = BaseService.create(ImproveService, this);
 
     return [
@@ -55,6 +57,11 @@ export class EnhanceAgentTools extends BaseService {
         handler: async ({ auth }, { id, strength }) => {
           try {
             const analysis = await enhanceService.analyze(auth, id, { strength });
+            // a travel document (or another private source) is never shown
+            const hidden = await collections.getPrivateSourceIds([id]);
+            if (hidden.size > 0) {
+              return toolJson({ ...analysis, note: PRIVATE_SOURCE_NOTE });
+            }
             const comparison = await enhanceService.renderEnhancePreview(auth, id, { strength });
             return toolImage(comparison, 'image/jpeg', analysis);
           } catch (error) {

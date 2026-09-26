@@ -573,6 +573,31 @@ export const matchSubjects = (
   };
 };
 
+/** a subject photo for a pack's own assignment: the text read on it (OCR) too */
+export type AssignPhoto = SubjectPhoto & { text?: string };
+
+/** an entry for a pack's own assignment: its name and description as read, and when its source photo was taken */
+export type AssignEntry = Omit<EntryCandidate, 'embedding'> & {
+  name: string;
+  description?: string;
+  /** L2-normalized CLIP text embedding of the entry, when smart search is enabled */
+  embedding?: Float32Array;
+  /** local capture time in ms of the source photo the entry was read on */
+  sourceTime?: number;
+};
+
+export type AssignOptions = MatchOptions & {
+  /** text embeddings of subjects that are usually not on the sources, see `matchSubjects` */
+  baselines: Float32Array[];
+  suggestions: number;
+};
+
+/**
+ * A pack's own way of assigning the subjects of a visit to its entries, in place of `matchSubjects` (which matches
+ * them by what CLIP sees), e.g. by time for the legs of a trip. Photos without an embedding have an empty one.
+ */
+export type SubjectAssigner = (photos: AssignPhoto[], entries: AssignEntry[], options: AssignOptions) => MatchResult;
+
 /** the matches of `matchSubjects` */
 export const getSubjectMatches = (...args: Parameters<typeof matchSubjects>): SubjectMatch[] =>
   matchSubjects(...args).matches;

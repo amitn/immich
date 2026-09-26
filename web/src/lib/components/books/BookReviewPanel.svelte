@@ -40,13 +40,31 @@
     review?: BookReviewResponseDto;
     loading?: boolean;
     failed?: boolean;
+    /** when the review last finished, in ms since the epoch */
+    checkedAt?: number;
     onRefresh: () => void;
     /** One-based page, and one-based slot when the issue is about one photo */
     onGoToPage: (page: number, slot?: number) => void;
     onClose: () => void;
   };
 
-  const { id, book, review, loading = false, failed = false, onRefresh, onGoToPage, onClose }: Props = $props();
+  const {
+    id,
+    book,
+    review,
+    loading = false,
+    failed = false,
+    checkedAt,
+    onRefresh,
+    onGoToPage,
+    onClose,
+  }: Props = $props();
+
+  const checkedTime = $derived(
+    checkedAt === undefined
+      ? undefined
+      : new Date(checkedAt).toLocaleTimeString($locale, { hour: 'numeric', minute: '2-digit', second: '2-digit' }),
+  );
 
   const headingId = $derived(`${id}-heading`);
   const uid = generateId();
@@ -126,8 +144,9 @@
       shape="round"
       icon={mdiRefresh}
       disabled={loading}
+      class={loading ? '[&_svg]:animate-spin' : ''}
       aria-label={$t('book_review_refresh')}
-      title={$t('book_review_refresh')}
+      title={loading ? $t('book_review_loading') : $t('book_review_refresh')}
       onclick={onRefresh}
     />
     <IconButton
@@ -142,7 +161,28 @@
     />
   </div>
 
-  <div class="flex grow immich-scrollbar flex-col gap-6 overflow-y-auto p-4" aria-busy={loading}>
+  {#if review && (loading || checkedTime)}
+    <!-- the status of a check that runs over a review already shown; screen readers get it from the summary below -->
+    <div
+      class="flex items-center gap-2 border-b border-gray-200 px-4 py-2 text-xs text-gray-600 dark:border-gray-700 dark:text-gray-400"
+      aria-hidden="true"
+      data-testid="book-review-status"
+    >
+      {#if loading}
+        <LoadingSpinner size="small" />
+        {$t('book_review_loading')}
+      {:else}
+        {$t('book_review_checked_at', { values: { time: checkedTime } })}
+      {/if}
+    </div>
+  {/if}
+
+  <div
+    class="flex grow immich-scrollbar flex-col gap-6 overflow-y-auto p-4 transition-opacity {review && loading
+      ? 'opacity-60'
+      : ''}"
+    aria-busy={loading}
+  >
     {#if !review}
       {#if loading}
         <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400" role="status">

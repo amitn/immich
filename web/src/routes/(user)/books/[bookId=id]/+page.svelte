@@ -750,6 +750,7 @@
       review={review.review}
       loading={review.loading}
       failed={review.failed}
+      checkedAt={review.checkedAt}
       onRefresh={() => review.reload()}
       onGoToPage={handleReviewGoTo}
       onClose={closeReview}

@@ -6,7 +6,7 @@ import { foodPack } from 'src/utils/collections/packs/food/pack.js';
 // (keep this line)
 // museum: import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
 // (keep this line)
-// travel: import { travelPack } from 'src/utils/collections/packs/travel/pack.js';
+import { travelPack } from 'src/utils/collections/packs/travel/pack.js';
 // (keep this line)
 // wine: import { winePack } from 'src/utils/collections/packs/wine/pack.js';
 // (keep this line)
@@ -25,7 +25,7 @@ export const BUILT_IN_COLLECTION_PACKS: readonly CollectionPack[] = [
   // (keep this line)
   cookbookPack,
   // (keep this line)
-  // travelPack,
+  travelPack,
   // (keep this line)
 ];
 
