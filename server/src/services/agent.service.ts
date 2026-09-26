@@ -40,9 +40,10 @@ import { IMMICH_MCP_SERVER_NAME, RecapMessage, buildPromptText, buildRecap } fro
 import {
   compactJson,
   extractRefs,
-  extractRefsFromText,
+  extractToolCallRefs,
   getAgentToolName,
   getImmichToolName,
+  getToolCallResult,
   mergeRefs,
   summarizeToolArgs,
   truncateText,
@@ -249,11 +250,12 @@ export class AgentService extends BaseService {
         kind: AgentMessageKind.Text,
         content: { text: dto.text, ...(dto.assetIds?.length && { assetIds: dto.assetIds }) },
       });
-      this.emit(run, AgentSessionStatus.Running, message);
+      // the title is set before the update is sent, so a client that reloads the chats on it gets the title too
       await this.agentRepository.updateSession(id, {
         status: AgentSessionStatus.Running,
-        ...(!session.title && { title: truncateText(dto.text.replaceAll(/\s+/g, ' '), 80) }),
+        ...(!session.title && { title: truncateText(dto.text.replaceAll(/\s+/g, ' ').trim(), 80) }),
       });
+      this.emit(run, AgentSessionStatus.Running, message);
 
       if (!run.ready) {
         run.ready = this.startAgent(run, session, config, message.id);
@@ -369,7 +371,7 @@ export class AgentService extends BaseService {
 
     if (run && entry) {
       const final = result;
-      await this.enqueue(run, () => this.finishMcpToolCall(run, entry, final));
+      await this.enqueue(run, () => this.finishMcpToolCall(run, entry, tool, input, final));
     }
 
     return result;
@@ -787,12 +789,8 @@ export class AgentService extends BaseService {
       }
     }
 
-    const texts = [
-      ...(update.content ?? []).flatMap((item) =>
-        item.type === 'content' && item.content.type === 'text' ? [item.content.text] : [],
-      ),
-      ...this.getRawOutputTexts(update.rawOutput),
-    ];
+    const { texts, values } = getToolCallResult(update);
+    const refTool = immichTool ?? (entry?.immich ? entry.content.toolName : undefined);
 
     const content: AgentMessageContent = mergeRefs(
       {
@@ -808,7 +806,7 @@ export class AgentService extends BaseService {
         ...(update.rawInput !== undefined && { input: compactJson(update.rawInput) }),
         ...(texts.length > 0 && { output: truncateText(texts.join('\n')) }),
       },
-      mergeRefs(extractRefsFromText(texts), extractRefs(update.rawOutput)),
+      extractToolCallRefs(refTool, { input: update.rawInput, output: values }),
     );
     content.status ??= AgentToolCallStatus.Pending;
 
@@ -821,25 +819,6 @@ export class AgentService extends BaseService {
 
     const message = await this.addMessage(run, AgentMessageKind.ToolCall, content, update.toolCallId);
     run.toolCalls.set(update.toolCallId, { message, content, immich: !!immichTool });
-  }
-
-  private getRawOutputTexts(rawOutput: unknown): string[] {
-    if (typeof rawOutput === 'string') {
-      return [rawOutput];
-    }
-
-    const items = Array.isArray(rawOutput)
-      ? rawOutput
-      : ((rawOutput as { content?: unknown } | null)?.content as unknown[] | undefined);
-    if (!Array.isArray(items)) {
-      return [];
-    }
-
-    return items.flatMap((item) =>
-      item && typeof item === 'object' && typeof (item as { text?: unknown }).text === 'string'
-        ? [(item as { text: string }).text]
-        : [],
-    );
   }
 
   /** Allows calls to Immich MCP tools and rejects every other tool (shell, files, web...). */
@@ -912,9 +891,15 @@ export class AgentService extends BaseService {
     return entry;
   }
 
-  private async finishMcpToolCall(run: RunningAgent, entry: ToolCallEntry, result: AgentToolResult) {
-    const texts = result.content.flatMap((item) => (item.type === 'text' ? [item.text] : []));
-    let content = mergeRefs(entry.content, extractRefsFromText(texts));
+  private async finishMcpToolCall(
+    run: RunningAgent,
+    entry: ToolCallEntry,
+    tool: AgentTool,
+    input: Record<string, unknown>,
+    result: AgentToolResult,
+  ) {
+    const { texts, values } = getToolCallResult({ rawOutput: result });
+    let content = mergeRefs(entry.content, extractToolCallRefs(tool.name, { input, output: values }));
     if (entry.fromMcp) {
       content = {
         ...content,
@@ -941,7 +926,7 @@ export class AgentService extends BaseService {
         { optionId: 'allow_always', name: 'Allow all in this chat', kind: 'allow_always' },
         { optionId: 'deny', name: 'Deny', kind: 'reject_once' },
       ],
-      ...mergeRefs({}, extractRefs(input)),
+      ...mergeRefs({}, extractRefs(input, tool.name)),
     };
     const message = await this.enqueue(run, () =>
       this.addMessage(run, AgentMessageKind.Permission, content, requestId),

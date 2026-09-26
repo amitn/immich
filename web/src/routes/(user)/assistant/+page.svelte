@@ -6,7 +6,13 @@
   import AssistantSessionList from '$lib/components/assistant/AssistantSessionList.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
-  import { AgentConversation, AgentPermissionStatus, type ChatMessage } from '$lib/managers/agent-conversation.svelte';
+  import {
+    AgentConversation,
+    AgentPermissionStatus,
+    applySessionUpdate,
+    toChatTitle,
+    type ChatMessage,
+  } from '$lib/managers/agent-conversation.svelte';
   import { Route } from '$lib/route';
   import { takePendingAssistantAssets } from '$lib/services/assistant.service';
   import { websocketEvents } from '$lib/stores/websocket';
@@ -38,7 +44,6 @@
 
   const { data }: Props = $props();
 
-  const TITLE_LENGTH = 60;
   const BOTTOM_THRESHOLD = 80;
 
   const conversation = new AgentConversation();
@@ -161,11 +166,6 @@
     await focusInput();
   };
 
-  const toTitle = (text: string) => {
-    const line = text.split('\n', 1)[0].trim();
-    return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1)}…` : line;
-  };
-
   const send = async () => {
     const text = draft.trim();
     if (!text || isSending || conversation.isRunning) {
@@ -180,7 +180,7 @@
     if (!sessionId) {
       try {
         const session = await createAgentSession({
-          agentSessionCreateDto: { title: toTitle(text), autoApprove: autoApproveNewChat },
+          agentSessionCreateDto: { title: toChatTitle(text), autoApprove: autoApproveNewChat },
         });
         upsertSession(session);
         conversation.reset(session.id);
@@ -194,6 +194,10 @@
     }
 
     const localId = conversation.addOptimistic(text, assetIds);
+    if (activeSession && !activeSession.title) {
+      // the server titles an untitled chat after its first message the same way
+      upsertSession({ ...activeSession, title: toChatTitle(text) });
+    }
     draft = '';
     contextAssetIds = [];
     conversation.status = AgentSessionStatus.Running;
@@ -307,14 +311,7 @@
     } else {
       const session = sessions[index];
       const wasRunning = session.status === AgentSessionStatus.Running;
-      sessions[index] = {
-        ...session,
-        status: update.status,
-        updatedAt:
-          update.message?.createdAt && update.message.createdAt > session.updatedAt
-            ? update.message.createdAt
-            : session.updatedAt,
-      };
+      sessions[index] = applySessionUpdate(session, update);
       if (wasRunning && update.status !== AgentSessionStatus.Running) {
         // pick up server-side changes such as a generated title
         void refreshSessions();

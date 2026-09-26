@@ -4,6 +4,7 @@
   import { Button, Icon, IconButton, LoadingSpinner } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
   import { DateTime } from 'luxon';
+  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -16,7 +17,29 @@
 
   const { sessions, activeId, onSelect, onNew, onDelete }: Props = $props();
 
-  const relative = (date: string) => DateTime.fromISO(date).toRelative({ locale: $locale }) ?? '';
+  const TICK_MS = 30_000;
+
+  let now = $state(Date.now());
+
+  onMount(() => {
+    const timer = setInterval(() => (now = Date.now()), TICK_MS);
+    return () => clearInterval(timer);
+  });
+
+  /** e.g. "now" or "5 minutes ago", kept up to date */
+  const relative = (date: string) => {
+    const time = DateTime.fromISO(date);
+    // the server clock can be a little ahead
+    const base = DateTime.fromMillis(Math.max(now, time.toMillis()));
+    if (base.diff(time).as('minutes') < 1) {
+      try {
+        return new Intl.RelativeTimeFormat($locale, { numeric: 'auto' }).format(0, 'second');
+      } catch {
+        // unsupported locale
+      }
+    }
+    return time.toRelative({ base, locale: $locale }) ?? '';
+  };
 </script>
 
 <nav class="flex h-full min-h-0 flex-col" aria-label={$t('assistant_chats')}>

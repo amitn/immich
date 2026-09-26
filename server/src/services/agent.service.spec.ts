@@ -254,6 +254,19 @@ describe(AgentService.name, () => {
       expect(second[0].text).toBe('thanks');
     });
 
+    it('should title an untitled chat after the first message before announcing it', async () => {
+      const session = newSession();
+      await startTurn(session.id, '  Make an album of\n our best  Sicily photos ');
+
+      expect(mocks.agent.updateSession).toHaveBeenCalledWith(session.id, {
+        status: AgentSessionStatus.Running,
+        title: 'Make an album of our best Sicily photos',
+      });
+      const [titled] = mocks.agent.updateSession.mock.invocationCallOrder;
+      const [announced] = mocks.websocket.clientSend.mock.invocationCallOrder;
+      expect(titled).toBeLessThan(announced);
+    });
+
     it('should use a stdio bridge when the agent has no MCP over HTTP', async () => {
       fake = newFakeAgent({});
       const session = newSession();
@@ -466,6 +479,59 @@ describe(AgentService.name, () => {
       expect(updates().at(-1)).toEqual({ sessionId: session.id, status: AgentSessionStatus.Idle });
       expect(mocks.agent.updateSession).toHaveBeenLastCalledWith(session.id, { status: AgentSessionStatus.Idle });
     });
+
+    it('should link the album and photos of a create_album call reported by claude-agent-acp', async () => {
+      const albumId = '1d7b2c4e-9f5a-4d3b-8e2c-7a6f5e4d3c2b';
+      const assetIds = ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10', '0b6f4f3e-7c3d-4d8e-9d4c-6f1f1f0e7b5a'];
+      const text = JSON.stringify({ id: albumId, name: 'Best of Sicily', added: 2, duplicate: 0, failed: 0 });
+      const session = newSession();
+      await startTurn(session.id);
+
+      await send({
+        sessionUpdate: 'tool_call',
+        toolCallId: 'toolu_01',
+        title: 'mcp__immich__create_album',
+        kind: 'other',
+        status: 'pending',
+        rawInput: { name: 'Best of Sicily', assetIds },
+        _meta: { claudeCode: { toolName: 'mcp__immich__create_album' } },
+      });
+      await send({
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'toolu_01',
+        status: 'completed',
+        rawOutput: [{ type: 'text', text }],
+        content: [{ type: 'content', content: { type: 'text', text } }],
+        _meta: { claudeCode: { toolName: 'mcp__immich__create_album' } },
+      });
+
+      const toolCall = messages().find((message) => message.kind === AgentMessageKind.ToolCall);
+      expect(toolCall?.content).toMatchObject({ toolName: 'create_album', albumIds: [albumId], assetIds });
+      // claude-agent-acp sends the result as content and as rawOutput
+      expect(toolCall?.content.output).toBe(text);
+    });
+
+    it('should store the output once when the MCP call finished before the agent reported it', async () => {
+      const session = newSession();
+      await startTurn(session.id);
+      await sut.runTool({ auth, sessionId: session.id }, readTool, { query: 'beach' });
+
+      const text = '{"assets":[{"id":"5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10"}]}';
+      for (const status of ['in_progress', 'completed'] as const) {
+        await send({
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'toolu_02',
+          title: 'mcp__immich__search_photos',
+          status,
+          rawOutput: [{ type: 'text', text }],
+          content: [{ type: 'content', content: { type: 'text', text } }],
+        });
+      }
+
+      const toolCalls = messages().filter((message) => message.kind === AgentMessageKind.ToolCall);
+      expect(toolCalls).toHaveLength(1);
+      expect(toolCalls[0].content).toMatchObject({ toolCallId: 'toolu_02', status: 'completed', output: text });
+    });
   });
 
   describe('permission policy', () => {
@@ -577,7 +643,7 @@ describe(AgentService.name, () => {
       expect(permission.content).toMatchObject({
         toolName: 'create_album',
         title: 'Create album',
-        summary: 'name: Italy, assetIds: 5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10',
+        summary: 'Name: Italy · 1 photo',
         status: 'pending',
         assetIds: ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10'],
       });
