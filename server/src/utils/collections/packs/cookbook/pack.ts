@@ -1,7 +1,8 @@
 import {
   CollectionChapter,
-  CollectionChapterIssue,
   CollectionPack,
+  CollectionReviewInput,
+  CollectionReviewIssue,
   getDefaultFallbackName,
 } from 'src/utils/collections/pack.js';
 import { COOKBOOK_CLASSIFY_RULES, COOKBOOK_PROMPTS } from 'src/utils/collections/packs/cookbook/classify.js';
@@ -58,12 +59,15 @@ export const getStepCaption = (entry: string) => {
 const formatList = (values: string[]) =>
   values.length <= 1 ? values.join('') : `${values.slice(0, -1).join(', ')} and ${values.at(-1)}`;
 
+/** an issue of a recipe's chapter, reported on the pages of the chapter */
+export type RecipeChapterIssue = Omit<CollectionReviewIssue, 'type' | 'pages'>;
+
 /**
  * The checks of a recipe's chapter in a book: a photo of the finished dish, and a photo of every step up to the last
  * one shown (from the album, when it has them)
  */
-export const reviewRecipeChapter = ({ place, placed, available }: CollectionChapter): CollectionChapterIssue[] => {
-  const issues: CollectionChapterIssue[] = [];
+export const reviewRecipeChapter = ({ place, placed, available }: CollectionChapter): RecipeChapterIssue[] => {
+  const issues: RecipeChapterIssue[] = [];
   if (placed.every(({ entry }) => entry !== RESULT_ENTRY)) {
     const result = available.find(({ entry }) => entry === RESULT_ENTRY);
     issues.push(
@@ -104,6 +108,16 @@ export const reviewRecipeChapter = ({ place, placed, available }: CollectionChap
   }
   return issues;
 };
+
+/** the checks of every recipe chapter of a book, reported as the entries of a recipe missing from the book */
+export const reviewRecipeBook = ({ chapters }: CollectionReviewInput): CollectionReviewIssue[] =>
+  chapters.flatMap((chapter) =>
+    reviewRecipeChapter(chapter).map((issue) => ({
+      ...issue,
+      type: 'missing-dish-name' as const,
+      pages: chapter.pages,
+    })),
+  );
 
 /**
  * Cookbook: a family cookbook of the dishes cooked at home. The recipe (a handwritten card or a printed cookbook page)
@@ -201,11 +215,18 @@ export const cookbookPack: CollectionPack = {
       look: 'printed',
     },
     caption: (entry) => getStepCaption(entry),
-    review: { unnamedEntries: true, missingSourcePage: true, chapter: reviewRecipeChapter },
+    review: { unnamedEntries: true, missingSourcePage: true, check: reviewRecipeBook },
     // a chapter per recipe: its photos over a couple of days (the recipe photographed the morning after, the dish
     // served the next day)
     visitGapHours: 48,
-    sourceText: (ocr, { aspectRatio, place }) => formatRecipeText(readRecipes(ocr, { aspectRatio }), place),
+    // the ingredients and steps of the recipe typeset below the photo of the card
+    sourcePage: {
+      layout: 'recipe',
+      read: (ocr, { aspectRatio, place }) => {
+        const text = formatRecipeText(readRecipes(ocr, { aspectRatio }), place);
+        return text === undefined ? undefined : { text };
+      },
+    },
   },
 
   agent: {

@@ -72,7 +72,11 @@ describe('the cookbook in books', () => {
 
   it('should open a chapter per recipe with the recipe page, even when the recipe is photographed the day after', () => {
     counter = 0;
-    const recipe = photo(17, { pack: 'cookbook', place: 'Quiche', kind: 'source' }, { sourceText: RECIPE_TEXT });
+    const recipe = photo(
+      17,
+      { pack: 'cookbook', place: 'Quiche', kind: 'source' },
+      { sourcePage: { text: RECIPE_TEXT, layout: 'recipe' } },
+    );
     const photos = [
       entry(0, 'Step 1: Preheat the oven'),
       entry(0.5, 'Step 2: Whisk the eggs'),

@@ -3,6 +3,7 @@ import z from 'zod';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetFileType, AssetType, Colorspace, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import {
   CropRect,
@@ -126,6 +127,11 @@ export class CropAgentTools extends BaseService {
             const suggestion = await this.getCropSuggestion(auth, id, aspectRatio, rotate);
             const tilt = await this.getTilt(auth, id);
             const result = { ...suggestion, ...(tilt && { tilt }) };
+            // a travel document (or another private source) is never shown
+            const hidden = await BaseService.create(CollectionService, this).getPrivateSourceIds([id]);
+            if (hidden.size > 0) {
+              return toolJson({ ...result, note: PRIVATE_SOURCE_NOTE });
+            }
             const preview = await this.renderCropPreview(auth, id, suggestion.rectNormalized, suggestion.rotate);
             return preview ? toolImage(preview, 'image/jpeg', result) : toolJson(result);
           } catch (error) {

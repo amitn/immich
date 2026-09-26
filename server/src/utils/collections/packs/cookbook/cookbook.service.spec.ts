@@ -193,12 +193,13 @@ describe('cookbook pack', () => {
     } as never);
     mocks.ocr.getByAssetId.mockResolvedValue(recipeBoxes as never);
 
-    const text = await sut.getSourceText('cookbook', recipe, 'Spinach Quiche');
-    expect(text).toBe(
+    const page = await sut.getSourcePage('cookbook', recipe, 'Spinach Quiche');
+    expect(page?.text).toBe(
       ['Ingredients:\n8 beaten eggs\n6 slices bacon, chopped', 'Method:\n1. Cook the bacon in a skillet.'].join('\n\n'),
     );
-    expect(await sut.getSourceText('cookbook', recipe, 'Quiche')).toContain('1. Preheat the oven to 450 degrees.');
-    expect(await sut.getSourceText('food', recipe, 'Quiche')).toBeUndefined();
+    const other = await sut.getSourcePage('cookbook', recipe, 'Quiche');
+    expect(other?.text).toContain('1. Preheat the oven to 450 degrees.');
+    expect(await sut.getSourcePage('food', recipe, 'Quiche')).toBeUndefined();
   });
 
   it('should tag the steps, the finished dish and the recipe', async () => {

@@ -49,6 +49,9 @@ describe(CollectionAgentTools.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(CollectionAgentTools));
+    // no photo is a private source (a travel document) unless a test says so
+    mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+    mocks.ocr.getByAssetIds.mockResolvedValue([]);
     auth = AuthFactory.create();
   });
 

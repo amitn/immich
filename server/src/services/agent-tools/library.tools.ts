@@ -4,6 +4,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetOrder, AssetType, AssetVisibility, Permission } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { BaseService } from 'src/services/base.service.js';
+import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { ImproveService, toImproveSource } from 'src/services/improve.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
@@ -569,8 +570,15 @@ export class LibraryAgentTools extends BaseService {
       return toolError('None of the photos were found');
     }
 
+    // travel documents (and other private sources) are never shown
+    const hidden = await BaseService.create(CollectionService, this).getPrivateSourceIds(rows.map(({ id }) => id));
+    const privacy = hidden.size > 0 ? { hidden: [...hidden], note: PRIVATE_SOURCE_NOTE } : {};
+
     if (rows.length === 1) {
       const [row] = rows;
+      if (hidden.has(row.id)) {
+        return toolJson(this.withMissing(input.ids, rows, { ...compactAsset(row), ...privacy }));
+      }
       if (!row.previewPath) {
         return toolError(`Photo ${row.id} has no preview yet`);
       }
@@ -580,7 +588,7 @@ export class LibraryAgentTools extends BaseService {
 
     const tileSize = Math.min(input.size ?? 256, 512);
     const image = await this.mediaRepository.createContactSheet(
-      rows.map((row, index) => ({ input: row.previewPath, label: String(index + 1) })),
+      rows.map((row, index) => ({ input: hidden.has(row.id) ? null : row.previewPath, label: String(index + 1) })),
       { tileSize },
     );
     const sheet = Object.fromEntries(rows.map((row, index) => [index + 1, row.id]));
@@ -588,7 +596,7 @@ export class LibraryAgentTools extends BaseService {
     return toolImage(
       image,
       'image/jpeg',
-      this.withMissing(input.ids, rows, { sheet, ...(noPreview.length > 0 && { noPreview }) }),
+      this.withMissing(input.ids, rows, { sheet, ...(noPreview.length > 0 && { noPreview }), ...privacy }),
     );
   }
 
