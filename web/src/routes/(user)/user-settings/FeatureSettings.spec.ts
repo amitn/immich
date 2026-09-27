@@ -11,6 +11,9 @@ const { auth } = vi.hoisted(() => ({
 }));
 
 vi.mock(import('$lib/managers/auth-manager.svelte'), () => ({ authManager: auth as never }));
+vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
+  featureFlagsManager: { value: { assistant: true } } as never,
+}));
 vi.mock(import('$lib/managers/server-config-manager.svelte'), () => ({
   serverConfigManager: { value: { minFaces: 3 } } as never,
 }));
@@ -50,7 +53,11 @@ describe('FeatureSettings component', () => {
 
     await waitFor(() =>
       expect(sdkMock.updateMyPreferences).toHaveBeenCalledWith({
-        userPreferencesUpdateDto: expect.objectContaining({ collectionNotifications: { enabled: true } }),
+        // beside the other preferences, such as the answers of the assistant
+        userPreferencesUpdateDto: expect.objectContaining({
+          collectionNotifications: { enabled: true },
+          aiAnswers: { enabled: true },
+        }),
       }),
     );
   });
