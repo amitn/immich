@@ -29,9 +29,25 @@ const NAME_LABELS: Record<string, 'producer' | 'wine' | 'vintage'> = {
   beer: 'wine',
   vintage: 'vintage',
   year: 'vintage',
+  // the fiche of a book in a reading journal: its author in small caps, its title in italics
+  author: 'producer',
+  title: 'wine',
 };
 
-const ROW_LABELS = new Set(['region', 'appellation', 'grape', 'grapes', 'style', 'colour', 'color', 'type', 'score']);
+const ROW_LABELS = new Set([
+  'region',
+  'appellation',
+  'grape',
+  'grapes',
+  'style',
+  'colour',
+  'color',
+  'type',
+  'score',
+  'read',
+  'publisher',
+  'published',
+]);
 
 /** Reads the fiche and the note of a caption */
 export const parseTastingNote = (caption: string): TastingNote => {
@@ -85,6 +101,8 @@ export type TastingNoteOptions = {
   lineHeight: number;
   charWidth: number;
   smallCapsCharWidth: number;
+  /** the heading of the note, default "Tasting note" */
+  heading?: string;
 };
 
 type Placed = { blocks: PageTextBlock[]; decorations: PageDecoration[]; bottom: number };
@@ -188,7 +206,15 @@ export const getTastingNoteBlocks = (
     } else {
       y += fontPx * 0.8;
     }
-    const heading = text('Tasting note', left, y, width, fontPx * 0.82, { color: accent, smallCaps: true }, 0.12);
+    const heading = text(
+      options.heading ?? 'Tasting note',
+      left,
+      y,
+      width,
+      fontPx * 0.82,
+      { color: accent, smallCaps: true },
+      0.12,
+    );
     blocks.push(heading.block);
     y += heading.height + fontPx * 0.35;
     if (note.note) {

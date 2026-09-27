@@ -31,7 +31,10 @@ export type CollectionPack = {
   tagRoot: string;
   /** the leaf that marks a photo of the source instead of an entry, e.g. Menu */
   sourceLeaf: string;
-  /** other leaves that mark a source photo of another kind, e.g. Line-up beside Setlist */
+  /**
+   * other leaves that mark a source photo of another kind, e.g. Line-up beside Setlist, or Seed packet beside Tag;
+   * save_entries gives one to a photo whose entry is named like it
+   */
   otherSourceLeaves?: string[];
   /** the words of the domain, used in messages, tool results and reviews */
   names: CollectionNames;
@@ -91,6 +94,11 @@ export type CollectionPack = {
     /** CLIP texts of subjects that are usually not on the source; the best of them is "off the list" */
     offListPrompts: string[];
     /**
+     * CLIP texts each subject photo is compared with, e.g. the growth stages of a plant: their text embeddings go to
+     * `assign` (`AssignOptions.prompts`), and the similarities of a photo with them to `describe`
+     */
+    photoPrompts?: string[];
+    /**
      * whether entries that no subject matched are worth a warning, e.g. a wall label read next to no artwork (the
      * items of a menu that nobody ordered are not)
      */
@@ -103,7 +111,7 @@ export type CollectionPack = {
   };
 
   /** the description a subject photo gets when it has none, e.g. "Caponata · Trattoria da Nino" */
-  describe: (entry: string, place: string) => string;
+  describe: (entry: string, place: string, photo?: CollectionDescribedPhoto) => string;
 
   book: {
     /** the style preset of the pack's books; its id is a `BookStylePreset`, e.g. food */
@@ -187,6 +195,12 @@ export type CollectionPack = {
     minSubjects?: number;
     /** only a visit with a source photo is notified, e.g. a trip with a ticket: its subjects are any photos */
     requireSource?: boolean;
+    /**
+     * only a visit at least this far from the user's home is notified, and only with a place or a city to name it
+     * after: a trip. Home is where the user takes located photos on the most days; a visit without a location, or a
+     * user whose home is not known, is not notified
+     */
+    awayFromHomeKm?: number;
   };
 
   privacy?: {
@@ -200,11 +214,25 @@ export type CollectionPack = {
      * the redaction can't hide from an image (a boarding pass)
      */
     sourceImages?: boolean;
+    /**
+     * whether books show where the pack's photos were taken (map pages, the cities in chapter titles), default true;
+     * off for photos that must not tell where a family lives (a child's artworks)
+     */
+    location?: boolean;
   };
 };
 
-/** where a caption is set: the layout of its page, and the description of its photo */
-export type CollectionCaptionContext = { layout?: string; description?: string | null };
+/**
+ * the photo a description is written for: its CLIP similarities with the pack's `match.photoPrompts`, in their order,
+ * when the pack has them and smart search is enabled
+ */
+export type CollectionDescribedPhoto = { similarities?: number[] };
+
+/**
+ * where a caption is set: the layout of its page, the description of its photo, and when the photo was taken (local
+ * time in ms), e.g. for the date a book was read
+ */
+export type CollectionCaptionContext = { layout?: string; description?: string | null; takenAt?: number };
 
 /** the page of a source typeset from its text: its text, and the entry it is for (e.g. the leg of a ticket) */
 export type CollectionSourcePage = { text: string; entry?: string };
@@ -237,6 +265,8 @@ export type CollectionReviewInput = {
     height?: number;
     collection?: { pack: string; place: string; kind: 'entry' | 'source'; entry?: string } | null;
     sourcePage?: CollectionSourcePage | null;
+    /** the faces found on the photo, e.g. for a pack of artworks that must show no child */
+    faces?: NormalizedRect[];
   }>;
   /** the chapters of the pack's places in the book */
   chapters: CollectionChapter[];
@@ -248,7 +278,7 @@ export type CollectionReviewInput = {
 /** an issue of a pack's own book check, of one of the kinds `review_book` reports */
 export type CollectionReviewIssue = {
   severity: 'high' | 'medium' | 'low';
-  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name' | 'could-look-better';
+  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name' | 'could-look-better' | 'privacy';
   message: string;
   /** one-based page numbers */
   pages: number[];
@@ -289,9 +319,13 @@ export type CollectionBookTheme = {
   summary: string;
   /**
    * how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments); gallery
-   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions)
+   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions); mounted the
+   * look of drawings on a refrigerator door (photos shown whole on a paper mat, taped at the corners, with
+   * handwritten labels)
    */
-  look: 'printed' | 'gallery';
+  look: 'printed' | 'gallery' | 'mounted';
+  /** the heading of the note on the tasting-note layouts, default "Tasting note", e.g. "Notes" in a reading journal */
+  noteHeading?: string;
 };
 
 export type CollectionMessages = {

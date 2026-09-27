@@ -671,6 +671,8 @@ export type AssignPhoto = SubjectPhoto & {
 export type AssignEntry = Omit<EntryCandidate, 'embedding'> & {
   name: string;
   description?: string;
+  /** the source photo the entry was read on */
+  sourceId?: string;
   /** L2-normalized CLIP text embedding of the entry, when smart search is enabled */
   embedding?: Float32Array;
 };
@@ -679,6 +681,13 @@ export type AssignOptions = MatchOptions & {
   /** text embeddings of subjects that are usually not on the sources, see `matchSubjects` */
   baselines: Float32Array[];
   suggestions: number;
+  /**
+   * the source photos of the visit, in the order they were given, whether or not an entry was read on them: e.g. the
+   * plant tags a garden's photos follow, when their embossed metal reads nothing (embeddings may be empty)
+   */
+  sources?: SubjectPhoto[];
+  /** text embeddings of the pack's `match.photoPrompts`, in their order, when smart search is enabled */
+  prompts?: Float32Array[];
 };
 
 /**

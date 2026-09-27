@@ -160,9 +160,8 @@ export const assistantTopLevelDefaults = {
   },
   collections: {
     notifications: {
-      // off until the packs of the other photos (concerts, nature, gardens, reading, children's art) exist: their
-      // photos are found as the visits of the wrong packs
-      enabled: false,
+      // the photos several packs find go to the pack that fits them best (see `arbitrateVisits`)
+      enabled: true,
       maxPerRun: 3,
       windowDays: 14,
     },

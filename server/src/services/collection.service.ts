@@ -31,15 +31,23 @@ import {
 } from 'src/utils/activity-log.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
+import { PackFit } from 'src/utils/collections/arbitration.js';
 import {
   Classification,
+  CollectionPhotoKind,
   CollectionPrompt,
   classifyPhoto,
   getPromptList,
   scoreText,
   summarizeText,
 } from 'src/utils/collections/classify.js';
-import { AssignResult, DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
+import {
+  AssignResult,
+  DEFAULT_MATCH_OPTIONS,
+  EntryCandidate,
+  SubjectPhoto,
+  matchSubjects,
+} from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -118,6 +126,8 @@ const textEmbeddingCache = new LRUMap<string, string>(5000);
 const sourceOcrCache = new LRUMap<string, OcrBoxInput[]>(200);
 
 const CHUNK = 1000;
+/** the prompts of the packs are compared with the photos in batches of at most this many (see `getPackFits`) */
+const FIT_PROMPT_BATCH = 500;
 /** a source is read in tiles as if its long edge were at most this many pixels */
 const SOURCE_DECODE_SIZE = 4096;
 /** the size of the tiles the source is read in */
@@ -412,7 +422,16 @@ export class CollectionService extends BaseService {
     return { photos, truncated };
   }
 
-  async findVisits(auth: AuthDto, packId: string, dto: CollectionVisitsDto): Promise<CollectionVisitsResponseDto> {
+  /**
+   * The visits of a pack in the photos. `foreign` holds, by kind, photos that are another pack's for sure (see
+   * `getForeignPhotos`): a photo the pack takes for one of those kinds is left out, unless the pack named it.
+   */
+  async findVisits(
+    auth: AuthDto,
+    packId: string,
+    dto: CollectionVisitsDto,
+    { foreign }: { foreign?: Map<CollectionPhotoKind, Set<string>> } = {},
+  ): Promise<CollectionVisitsResponseDto> {
     const pack = this.requirePack(packId);
     const messages = getCollectionMessages(pack);
     const { candidates, truncated } = await this.getCandidates(auth, dto);
@@ -422,9 +441,18 @@ export class CollectionService extends BaseService {
       warnings.push(messages.noEmbedding(noEmbedding));
     }
 
+    const foreignIds = candidates.flatMap(({ id }) => {
+      const kind = classifications.get(id)?.kind;
+      return kind && kind !== 'other' && foreign?.get(kind)?.has(id) ? [id] : [];
+    });
+    const namedForeign = await this.getSavedTags(pack, foreignIds);
+    const named = new Set(namedForeign.map(({ assetId }) => assetId));
+    const excluded = new Set(foreignIds.filter((id) => !named.has(id)));
     const classified = candidates.flatMap((candidate) => {
       const classification = classifications.get(candidate.id);
-      return classification && classification.kind !== 'other' ? [{ ...candidate, kind: classification.kind }] : [];
+      return classification && classification.kind !== 'other' && !excluded.has(candidate.id)
+        ? [{ ...candidate, kind: classification.kind }]
+        : [];
     });
     // videos have embeddings of their thumbnail too, but only photos are named
     const images = await this.getImageIds(classified.map(({ id }) => id));
@@ -691,12 +719,22 @@ export class CollectionService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
+    // what the pack's own assignment compares each subject photo with, e.g. the growth stages of a plant
+    const photoPromptTexts =
+      pack.match.assign && pack.match.photoPrompts?.length && isSmartSearchEnabled(machineLearning) && photos.length > 0
+        ? await this.encodeTexts(pack.match.photoPrompts)
+        : [];
+    const photoPrompts = photoPromptTexts.map((text) => parseEmbedding(text));
+
     const {
       matches,
       ordered,
       entries: added = [],
     }: AssignResult = pack.match.assign
-      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines)
+      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines, {
+          sourceIds,
+          ...(photoPrompts.length > 0 && { prompts: photoPrompts }),
+        })
       : matchSubjects(
           photos,
           entryEmbeddings.length === entries.length
@@ -790,6 +828,7 @@ export class CollectionService extends BaseService {
     courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
     entryEmbeddings: Float32Array[],
     baselines: Float32Array[],
+    extra: { sourceIds: string[]; prompts?: Float32Array[] },
   ) {
     const ocr = new Map<string, OcrBoxInput[]>();
     for (const chunk of chunks(rows.map(({ id }) => id))) {
@@ -811,6 +850,7 @@ export class CollectionService extends BaseService {
     const sourceIds = unique(entries.flatMap(({ sourceId }) => (sourceId ? [sourceId] : [])));
     const sources = sourceIds.length > 0 ? await this.assetRepository.getByIds(sourceIds) : [];
     const sourceTimes = new Map(sources.map((source) => [source.id, source.localDateTime.getTime()]));
+    const givenSources = await this.getGivenSources(extra.sourceIds);
     return pack.match.assign!(
       rows.map((row) => ({
         id: row.id,
@@ -835,8 +875,61 @@ export class CollectionService extends BaseService {
         ...courses[index],
         ...(entryEmbeddings.length === entries.length && { embedding: entryEmbeddings[index] }),
         ...(entry.sourceId && sourceTimes.has(entry.sourceId) && { sourceTime: sourceTimes.get(entry.sourceId) }),
+        ...(entry.sourceId && { sourceId: entry.sourceId }),
       })),
-      { ...DEFAULT_MATCH_OPTIONS, ...pack.match.options, baselines, suggestions: 3 },
+      {
+        ...DEFAULT_MATCH_OPTIONS,
+        ...pack.match.options,
+        baselines,
+        suggestions: 3,
+        ...(givenSources.length > 0 && { sources: givenSources }),
+        ...(extra.prompts && { prompts: extra.prompts }),
+      },
+    );
+  }
+
+  /**
+   * The source photos given to match_subjects, in their order, whether an entry was read on them or not (a plant tag
+   * of embossed metal): when each was taken, and its CLIP embedding (empty without one)
+   */
+  private async getGivenSources(ids: string[]): Promise<SubjectPhoto[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const assets = await this.assetRepository.getByIds(ids);
+    const times = new Map(
+      assets.flatMap((asset) => (asset.localDateTime ? [[asset.id, asset.localDateTime.getTime()] as const] : [])),
+    );
+    const stored = await this.searchRepository.getEmbeddings(ids);
+    const embeddings = new Map(stored.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
+    return ids.flatMap((id) =>
+      times.has(id) ? [{ id, time: times.get(id)!, embedding: embeddings.get(id) ?? new Float32Array(0) }] : [],
+    );
+  }
+
+  /**
+   * The CLIP similarities of each photo with the pack's `match.photoPrompts` (e.g. the growth stages of a plant), for
+   * the descriptions of the pack; empty when it has none, smart search is disabled, or a photo has no embedding
+   */
+  private async getPhotoPromptSimilarities(pack: CollectionPack, ids: string[]): Promise<Map<string, number[]>> {
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (!pack.match.photoPrompts?.length || ids.length === 0 || !isSmartSearchEnabled(machineLearning)) {
+      return new Map();
+    }
+    const stored = await this.searchRepository.getEmbeddings(ids);
+    if (stored.length === 0) {
+      return new Map();
+    }
+    const texts = await this.encodeTexts(pack.match.photoPrompts);
+    const prompts = texts.map((text) => parseEmbedding(text));
+    return new Map(
+      stored.map(({ assetId, embedding }) => {
+        const vector = parseEmbedding(embedding);
+        return [
+          assetId,
+          prompts.map((prompt) => prompt.reduce((sum, value, index) => sum + value * vector[index], 0)),
+        ] as const;
+      }),
     );
   }
 
@@ -934,7 +1027,8 @@ export class CollectionService extends BaseService {
     const byId = new Map<string, { entry?: string; source: boolean; leaf?: string }>();
     for (const photo of dto.photos) {
       const entry = photo.entry?.trim();
-      // a source leaf as the entry (e.g. "menu", or another leaf of the pack such as "Line-up") marks a source
+      // a source leaf as the entry (e.g. "menu", or another leaf of the pack such as "Line-up" or "Seed packet") marks
+      // a source
       const leaf = findSourceLeaf(rules, entry);
       const source = photo.source === true || leaf !== undefined;
       if (!source && !entry) {
@@ -1004,6 +1098,11 @@ export class CollectionService extends BaseService {
     // descriptions: only set on subject photos that have none, or still have the one an earlier run wrote
     const rows = await this.assetJobRepository.getForAgent(targets, auth.user.id);
     const descriptions = new Map(rows.map((row) => [row.id, row.description ?? '']));
+    // what a pack's descriptions say of each photo, e.g. the growth stage of a plant
+    const similarities = await this.getPhotoPromptSimilarities(
+      pack,
+      targets.filter((id) => !byId.get(id)!.source),
+    );
     const assetService = BaseService.create(AssetService, this);
     const logged: ActivityCollectionPhoto[] = [];
     for (const id of targets) {
@@ -1019,11 +1118,12 @@ export class CollectionService extends BaseService {
       };
       if (!source) {
         const current = descriptions.get(id)?.trim() ?? '';
+        const photo = similarities.has(id) ? { similarities: similarities.get(id) } : undefined;
         const written = (previous.get(id) ?? []).flatMap((value) => {
           const tag = parseCollectionTag(rules, value);
-          return tag?.kind === 'entry' ? [pack.describe(tag.entry, tag.place)] : [];
+          return tag?.kind === 'entry' ? [pack.describe(tag.entry, tag.place, photo)] : [];
         });
-        const description = pack.describe(entry!, place);
+        const description = pack.describe(entry!, place, photo);
         if ((current === '' || written.includes(current)) && current !== description) {
           await assetService.update(auth, id, { description });
           result.description = description;
@@ -1377,6 +1477,50 @@ export class CollectionService extends BaseService {
       ocr,
       noEmbedding: isSmartSearchEnabled(machineLearning) ? ids.filter((id) => !similarities.has(id)).length : 0,
     };
+  }
+
+  /**
+   * How well the prompts of every pack fit each photo (`PackFit`: the best similarity per pack and kind), from the
+   * photos' CLIP embeddings; photos that smart search has not seen yet have none, and there are none without it
+   */
+  async getPackFits(assetIds: string[]): Promise<Map<string, PackFit>> {
+    const fits = new Map<string, PackFit>();
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (!isSmartSearchEnabled(machineLearning) || assetIds.length === 0) {
+      return fits;
+    }
+
+    const prompts = getCollectionPacks().flatMap((pack) =>
+      getPrompts(pack)
+        .filter(({ kind }) => kind !== 'other')
+        .map(({ kind, text }) => ({ pack: pack.id, kind: kind as CollectionPhotoKind, text })),
+    );
+    const texts = unique(prompts.map(({ text }) => text));
+    const embeddings = await this.encodeTexts(texts);
+    const similarities = new Map<string, number[]>();
+    for (const [batch, textBatch] of chunks(embeddings, FIT_PROMPT_BATCH).entries()) {
+      for (const chunk of chunks(unique(assetIds))) {
+        for (const row of await this.searchRepository.getEmbeddingSimilarities(chunk, textBatch)) {
+          const values = similarities.get(row.assetId) ?? Array.from({ length: texts.length }, () => -1);
+          for (const [index, value] of row.similarities.entries()) {
+            values[batch * FIT_PROMPT_BATCH + index] = value;
+          }
+          similarities.set(row.assetId, values);
+        }
+      }
+    }
+
+    const textIndex = new Map(texts.map((text, index) => [text, index]));
+    for (const [assetId, values] of similarities) {
+      const fit: PackFit = {};
+      for (const { pack, kind, text } of prompts) {
+        const value = values[textIndex.get(text)!];
+        fit[pack] ??= {};
+        fit[pack][kind] = Math.max(fit[pack][kind] ?? -1, value);
+      }
+      fits.set(assetId, fit);
+    }
+    return fits;
   }
 
   /** CLIP text embeddings (pgvector text) of the texts, cached by model */

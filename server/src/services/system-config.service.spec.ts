@@ -122,7 +122,7 @@ const updatedConfig = Object.freeze<SystemConfig>({
   },
   collections: {
     notifications: {
-      enabled: false,
+      enabled: true,
       maxPerRun: 3,
       windowDays: 14,
     },

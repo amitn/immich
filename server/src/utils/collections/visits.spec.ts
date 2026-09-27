@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getDefaultFallbackName } from 'src/utils/collections/pack.js';
 import { foodPack, getMealType } from 'src/utils/collections/packs/food/pack.js';
+import { GARDEN_VISIT_OPTIONS } from 'src/utils/collections/packs/garden/pack.js';
 import {
   DEFAULT_VISIT_OPTIONS,
   VisitPhoto,
@@ -27,6 +28,8 @@ const nino = { latitude: 37.8526, longitude: 15.2869, city: 'Taormina', country:
 const ninoNearby = { latitude: 37.8531, longitude: 15.2874, city: 'Taormina', country: 'Italy' };
 const bar = { latitude: 37.8505, longitude: 15.2905, city: 'Taormina', country: 'Italy' };
 
+const ids = (visits: VisitPhoto[][]) => visits.map((visit) => visit.map(({ id }) => id));
+
 describe('groupVisits', () => {
   it('should keep a meal together', () => {
     const meals = groupVisits([
@@ -37,6 +40,55 @@ describe('groupVisits', () => {
       photo('dessert', '2024-06-12T21:50:00', 'subject', nino),
     ]);
     expect(meals.map((meal) => meal.map(({ id }) => id))).toEqual([['sign', 'menu', 'starter', 'main', 'dessert']]);
+  });
+
+  describe('rounds', () => {
+    const garden = { ...GARDEN_VISIT_OPTIONS };
+
+    it('should join the rounds of a garden over the months, located or not', () => {
+      const visits = groupVisits(
+        [
+          photo('tree-1', '2013-02-01T10:42:00'),
+          photo('tag-1', '2013-02-01T10:43:00', 'source'),
+          photo('tree-2', '2013-05-04T09:42:00'),
+          photo('tree-3', '2014-06-14T09:03:00'),
+          photo('bed-1', '2024-05-01T09:00:00', 'subject', nino),
+          photo('bed-2', '2024-09-01T09:00:00', 'subject', ninoNearby),
+        ],
+        garden,
+      );
+      expect(ids(visits)).toEqual([
+        ['tree-1', 'tag-1', 'tree-2', 'tree-3'],
+        ['bed-1', 'bed-2'],
+      ]);
+    });
+
+    it('should not join a round without a location to a located garden, months away', () => {
+      const visits = groupVisits(
+        [
+          photo('trip', '2009-07-28T13:13:00', 'subject', nino),
+          photo('scan', '2010-08-20T17:47:00'),
+          // the same afternoon, a photo without a location is at the garden
+          photo('bed', '2024-05-01T09:00:00', 'subject', nino),
+          photo('bed-unlocated', '2024-05-01T09:20:00'),
+        ],
+        garden,
+      );
+      expect(ids(visits)).toEqual([['trip'], ['scan'], ['bed', 'bed-unlocated']]);
+    });
+
+    it('should not let a text photographed on its own bridge the months', () => {
+      const visits = groupVisits(
+        [
+          photo('lettuce', '2008-07-31T10:10:00'),
+          photo('recipe', '2009-06-01T10:00:00', 'source'),
+          photo('peach', '2011-04-01T10:00:00'),
+        ],
+        garden,
+      );
+      // the recipe card is a visit of its own, and the lettuce and the peach are more than two years apart
+      expect(ids(visits)).toEqual([['lettuce'], ['recipe'], ['peach']]);
+    });
   });
 
   it('should split meals on a gap', () => {

@@ -32,7 +32,34 @@ const PACK_WORDS: Record<string, string[]> = {
   travel: ['trip', 'trips', 'flight', 'flights', 'flew', 'fly', 'train', 'trains', 'travel', 'traveled', 'travelled'],
   concerts: ['concert', 'concerts', 'festival', 'festivals', 'band', 'bands', 'lineup', 'performer', 'performers'],
   nature: ['plant', 'plants', 'tree', 'trees', 'flower', 'flowers', 'botanical', 'arboretum', 'zoo', 'zoos'],
+  reading: ['book', 'books', 'read', 'reading', 'novel', 'novels', 'library', 'libraries', 'author', 'authors'],
+  'kids-art': ['kids', 'kid', 'children', 'childrens', 'child', 'drawing', 'drawings', 'drew', 'crafts'],
+  garden: [
+    'garden',
+    'gardens',
+    'gardening',
+    'seed',
+    'seeds',
+    'vegetable',
+    'vegetables',
+    'harvest',
+    'harvested',
+    'grew',
+    'grow',
+    'grown',
+    'planted',
+    'lettuce',
+  ],
 };
+
+/**
+ * the packs whose own words claim a word (see `PACK_WORDS`): only they count it, not the other packs whose names
+ * hold it too, e.g. garden is the garden pack's, though the nature pack's place is a (botanical) garden
+ */
+const CLAIMED = Map.groupBy(
+  Object.entries(PACK_WORDS).flatMap(([pack, words]) => words.map((word) => ({ pack, word }))),
+  ({ word }) => word,
+);
 
 const STOPWORDS = new Set([
   // question words and auxiliaries
@@ -178,11 +205,16 @@ const getWords = (text: string) =>
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean);
 
+/**
+ * the words that point to a pack: its id, title and names, but not the small words of its names ("plant photos",
+ * "years") nor a word another pack claims, and its own words
+ */
 const getPackWords = (pack: CollectionPack) =>
   new Set([
-    pack.id,
-    pack.title.toLowerCase(),
-    ...Object.values(pack.names).flatMap((name) => getWords(name)),
+    ...[pack.id, pack.title.toLowerCase(), ...Object.values(pack.names).flatMap((name) => getWords(name))].filter(
+      (word) =>
+        !STOPWORDS.has(word) && (!CLAIMED.has(word) || CLAIMED.get(word)!.some((claim) => claim.pack === pack.id)),
+    ),
     ...(PACK_WORDS[pack.id] ?? []),
   ]);
 

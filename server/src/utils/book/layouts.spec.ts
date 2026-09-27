@@ -60,6 +60,9 @@ describe('book layouts', () => {
       'tasting-note',
       'tasting-note-wide',
       'tasting-notes',
+      // the growth timelines of the garden pack
+      'growth-timeline',
+      'growth-timeline-two',
       // the setlist page of the concerts pack
       'setlist',
     ]);

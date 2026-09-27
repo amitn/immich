@@ -87,6 +87,7 @@ describe.skipIf(!url)('collection notices dry run', () => {
     const auth = { user: { ...user, quotaUsageInBytes: Number(user.quotaUsageInBytes) } };
     const uploads = await notices.getUploads(user.id, new Date(now.getTime() - windowDays * 86_400_000), 2000);
     const visits = await sut.findNewVisits(auth, { windowDays }, now);
+    const home = await notices.getHome(user.id);
 
     // the uploads that no pack found a visit in, by the first words of their file names
     const inVisits = new Set(visits.flatMap(({ assetIds }) => assetIds));
@@ -111,7 +112,9 @@ describe.skipIf(!url)('collection notices dry run', () => {
       }
     }
     const line = (visit: NewVisit) =>
-      `    [${visit.status}] ${visit.pack} ${visit.key} · ${visit.subjects} subjects, ${visit.assetIds.length} photos · ` +
+      `    [${visit.status}] ${visit.pack} ${visit.key} · ${visit.subjects} subjects, ${visit.assetIds.length} photos` +
+      (visit.share === undefined ? '' : `, ${Math.round(visit.share * 100)}% ${visit.pack}`) +
+      ' · ' +
       `“${visit.title}” — ${visit.description}` +
       (visit.status === 'small'
         ? ''
@@ -124,6 +127,7 @@ describe.skipIf(!url)('collection notices dry run', () => {
       [
         `Dry run for ${email} (${user.name}) on ${now.toISOString()}, uploads of the last ${windowDays} days`,
         `  uploads: ${uploads.length} photos`,
+        `  home: ${home ? `${home.latitude}, ${home.longitude} (located photos on ${home.days} days)` : 'unknown'}`,
         `  visits found: ${visits.length} (${[...Map.groupBy(visits, ({ status }) => status)]
           .map(([status, items]) => `${items.length} ${status}`)
           .join(', ')})`,

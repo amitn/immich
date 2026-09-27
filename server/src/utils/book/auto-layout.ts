@@ -12,9 +12,11 @@ import {
   getReservedEntryLayouts,
   getRunsBetweenVisits,
   hasSourcePages,
+  hidesLocation,
   isCollectionTheme,
   isEntryPhoto,
   isGalleryTheme,
+  isMountedTheme,
   isSourcePhoto,
   numberEntryCaptions,
 } from 'src/utils/book/collections.js';
@@ -755,7 +757,7 @@ class LayoutPlanner {
     /** collection books (e.g. food books) also use the layouts made for entries (dishes) */
     collection = false,
   ) {
-    this.contain = isGalleryTheme(style.theme);
+    this.contain = isGalleryTheme(style.theme) || isMountedTheme(style.theme);
     this.contentLayouts = new Map();
     for (const layout of layouts) {
       if (
@@ -1247,7 +1249,11 @@ const getCoverCandidates = (units: Candidate[]): Candidate[] => {
  * repeated layouts, long runs of single photos, artwork back to back and similar photos on neighbouring pages.
  * The result only depends on the input.
  */
-export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOptions): AutoLayoutPlan => {
+export const planAutoLayout = (photosIn: AutoLayoutPhoto[], options: AutoLayoutOptions): AutoLayoutPlan => {
+  // the photos of packs that keep where they were taken out of books (a child's artworks) have no place: no map, no city
+  const input = photosIn.map((photo) =>
+    hidesLocation(photo) ? { ...photo, lat: null, lon: null, city: null, country: null } : photo,
+  );
   const layouts = options.layouts ?? bookLayouts;
   const { unique, photos, mainPersonIds } = rankPhotos(input, options);
   const collectionBook =
@@ -1262,7 +1268,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   /** the name of the entry (dish) below its photo, as its pack sets it on the layout (e.g. a wine's fiche) */
   const dishCaption = (photo: AutoLayoutPhoto, layout: BookLayout) => {
     const dish =
-      captions === 'dish' ? getEntryCaption(photo, { layout: layout.id, description: photo.description }) : undefined;
+      captions === 'dish'
+        ? getEntryCaption(photo, { layout: layout.id, description: photo.description, takenAt: photo.takenAt })
+        : undefined;
     return dish ? { caption: dish } : {};
   };
 

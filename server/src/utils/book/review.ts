@@ -42,7 +42,7 @@ export type BookReviewPhoto = Pick<AutoLayoutPhoto, 'id' | 'width' | 'height' | 
   Partial<
     Pick<
       AutoLayoutPhoto,
-      'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection' | 'sourcePage'
+      'stackId' | 'kind' | 'people' | 'embedding' | 'clusterId' | 'city' | 'collection' | 'sourcePage' | 'faces'
     >
   > & {
     /** how much the simulated fixes (straighten, auto-enhance) raise the score, see `ImproveService.estimate` */

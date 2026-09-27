@@ -40,6 +40,13 @@ describe('BookStyleSwatch component', () => {
     expect(page.querySelector('.italic')).toHaveTextContent('Aa');
   });
 
+  it('should draw the kids art theme as an artwork taped to the page', () => {
+    const page = swatch(BookStyleTheme.KidsArt);
+    expect(page.dataset.look).toBe('mounted');
+    expect(page.querySelector('[data-tape]')).not.toBeNull();
+    expect(page.querySelector('span.absolute.border')).toBeNull();
+  });
+
   it('should show a neutral page while the style loads', () => {
     const { container } = render(BookStyleSwatch, { props: {} });
     const page = container.querySelector<HTMLElement>('span[aria-hidden="true"]')!;

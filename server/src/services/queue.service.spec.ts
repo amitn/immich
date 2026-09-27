@@ -364,6 +364,7 @@ describe(QueueService.name, () => {
         { name: JobName.ActivityLogCleanup },
         { name: JobName.MemoryGenerate },
         { name: JobName.BookDraftsQueueAll },
+        { name: JobName.CollectionNoticesQueueAll },
         { name: JobName.OrientationCheckQueueAll },
         { name: JobName.UserSyncUsage },
         { name: JobName.AssetGenerateThumbnailsQueueAll, data: { force: false } },
@@ -602,13 +603,13 @@ describe(QueueService.name, () => {
       );
     });
 
-    it('should look for new collections only when their notifications are turned on (off by default)', async () => {
-      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: true } } });
+    it('should not look for new collections when their notifications are turned off (on by default)', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: false } } });
 
       await sut.handleNightlyJobs();
 
       expect(mocks.job.queueAll).toHaveBeenCalledWith(
-        expect.arrayContaining([{ name: JobName.CollectionNoticesQueueAll }]),
+        expect.not.arrayContaining([{ name: JobName.CollectionNoticesQueueAll }]),
       );
     });
   });

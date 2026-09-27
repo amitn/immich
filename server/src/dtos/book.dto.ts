@@ -542,6 +542,7 @@ export const bookReviewIssueTypes = [
   'could-look-better',
   'missing-dish-name',
   'missing-menu-page',
+  'privacy',
 ] as const;
 
 const BookReviewIssueSchema = z

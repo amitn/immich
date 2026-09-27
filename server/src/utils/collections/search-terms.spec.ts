@@ -23,6 +23,15 @@ describe(getCollectionSearchTerms.name, () => {
     expect(terms('recipe museum').pack).toBeUndefined();
   });
 
+  it('should send the words of gardens, books and children to their packs, and small words to none', () => {
+    expect(terms('what did we grow in the garden in 2015').pack).toBe('garden');
+    expect(terms('which trees did we see at the botanical garden').pack).toBe('nature');
+    expect(terms('which books did I read last year').pack).toBe('reading');
+    expect(terms("the kids' drawings of 2020").pack).toBe('kids-art');
+    // "photos" and "years" are in the names of packs, but point to none
+    expect(terms('photos of the trips').pack).toBe('travel');
+  });
+
   it('should tell when there is nothing to look for', () => {
     expect(hasSearchTerms(terms('what did we do?'))).toBe(false);
     expect(hasSearchTerms(terms('which museums'))).toBe(true);
