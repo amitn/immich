@@ -1,6 +1,6 @@
 import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
-import { getNoteHeading, isGalleryTheme, isPrintedTheme } from 'src/utils/book/collections.js';
+import { getNoteHeading, isGalleryTheme, isMountedTheme, isPrintedTheme } from 'src/utils/book/collections.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   BookLayout,
@@ -18,6 +18,13 @@ import {
   mmToPx,
   toPxRect,
 } from 'src/utils/book/layouts.js';
+import {
+  MOUNT_MAT_MM,
+  getMountDecorations,
+  getMountedLabel,
+  getSquiggle,
+  insetForMount,
+} from 'src/utils/book/mounted.js';
 import { getRecipeBlocks } from 'src/utils/book/recipe-page.js';
 import { getTastingNoteBlocks } from 'src/utils/book/tasting-note.js';
 import { getTicketStub } from 'src/utils/book/ticket-stub.js';
@@ -832,9 +839,11 @@ export const planPage = (
   // the gallery look shows every photo whole (an artwork is never cropped): the slot shrinks to the photo, or to its
   // crop, at the foot of the slot when its caption is below it, so that the caption hangs under the photo
   const gallery = isGalleryTheme(style.theme);
+  // the mounted look shows every photo whole too, on a paper mat inside its slot (see `mounted.ts`)
+  const mounted = isMountedTheme(style.theme);
   // the captions of photos in slots made without room for one go on a strip under the photo, not over it
   const galleryStrips = new Map<number, PxRect>();
-  if (gallery) {
+  if (gallery || mounted) {
     const stripMm = ((style.captionSizePt * 25.4) / 72) * 4.2;
     for (const slot of slots) {
       const { width, height } = slot.source ?? { width: 0, height: 0 };
@@ -848,6 +857,9 @@ export const planPage = (
       if (slot.caption && captions.length === 0 && box.height > 3 * stripMm) {
         box = { ...box, height: box.height - stripMm };
         galleryStrips.set(slot.index, toPxRect({ ...box, y: box.y + box.height, height: stripMm }, dpi));
+      }
+      if (mounted) {
+        box = insetForMount(box);
       }
       slot.rectMm = getContainedRect(
         box,
@@ -879,13 +891,53 @@ export const planPage = (
   if (food && !layout.fullBleed) {
     decorations.push(...getMenuFrame({ width, height }, mmToPx(style.marginMm, dpi), dpi, accent));
   }
+  if (mounted) {
+    for (const slot of slots) {
+      if (slot.source) {
+        decorations.push(...getMountDecorations(slot.rect, slot.index, dpi));
+      }
+    }
+  }
+  const mountedLabel = (caption: string, rect: PxRect, align: Align, fontPx = captionPx) =>
+    getMountedLabel(caption, rect, align, {
+      captionPx: fontPx,
+      ink,
+      accent: style.accentColor ?? ink,
+      wrap: (text, widthPx, size) => wrapText(text, widthPx, size),
+      lineHeight: LINE_HEIGHT,
+    });
+  /** a heading in the mounted look: bold, with a crayon squiggle under it */
+  const mountedHeading = (text: string, rect: PxRect, align: Align, fontPx: number, kind: PageTextKind) => {
+    const block: PageTextBlock = {
+      kind,
+      rect: { ...rect, height: rect.height * 0.8 },
+      text,
+      fontPx,
+      align,
+      color: ink,
+      bold: true,
+      balance: true,
+      valign: 'bottom',
+    };
+    const { lines, fontPx: fitted } = fitText(text, block.rect, fontPx, getCharWidth(block));
+    const lineWidth = Math.min(rect.width, Math.max(...lines.map((line) => line.length)) * fitted * CHAR_WIDTH * 1.05);
+    const left = alignedLeft(rect, lineWidth, align);
+    return {
+      block,
+      squiggle: getSquiggle(left, rect.top + rect.height * 0.9, lineWidth, dpi, style.accentColor ?? ink),
+    };
+  };
 
   for (const [areaIndex, area] of getTextRectsMm(layout, size, style).entries()) {
     const rect = toPxRect(area, dpi);
     const base = { rect, align: area.align, color: ink };
     switch (area.kind) {
       case 'title': {
-        if (gallery) {
+        if (mounted) {
+          const heading = mountedHeading(book.title, rect, area.align, titlePx, area.kind);
+          blocks.push(heading.block);
+          decorations.push(heading.squiggle);
+        } else if (gallery) {
           blocks.push({ ...base, kind: area.kind, text: book.title, fontPx: titlePx, letterSpacing: 0.02 });
         } else if (food) {
           const text = { ...rect, height: rect.height * 0.78 };
@@ -913,6 +965,12 @@ export const planPage = (
       }
       case 'sectionTitle': {
         if (!page.sectionTitle) {
+          break;
+        }
+        if (mounted) {
+          const heading = mountedHeading(page.sectionTitle, rect, area.align, titlePx * 0.85, area.kind);
+          blocks.push(heading.block);
+          decorations.push(heading.squiggle);
           break;
         }
         if (gallery) {
@@ -992,6 +1050,22 @@ export const planPage = (
           break;
         }
         const slotArea = layout.slots[slot.index];
+        if (mounted) {
+          // a handwritten label: under the mat of the photo, or beside it level with its top
+          const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;
+          const photo = slot.rect;
+          const matPx = mmToPx(MOUNT_MAT_MM, dpi);
+          const labelRect = below
+            ? {
+                left: rect.left,
+                top: photo.top + photo.height + matPx + captionPx * 0.6,
+                width: rect.width,
+                height: Math.max(1, rect.top + rect.height - (photo.top + photo.height + matPx + captionPx * 0.6)),
+              }
+            : { ...rect, top: photo.top, height: Math.max(1, rect.top + rect.height - photo.top) };
+          blocks.push(...mountedLabel(slot.caption, labelRect, area.align));
+          break;
+        }
         if (gallery) {
           // a museum label: the catalogue number, the title in italics, then the artist, the date and the medium
           const below = layout.text[areaIndex].y >= slotArea.y + slotArea.height - 1e-6;
@@ -1087,7 +1161,11 @@ export const planPage = (
         top: strip.top + captionPx * 0.6,
         width: strip.left + strip.width - slot.rect.left,
       };
-      blocks.push(...getGalleryLabel(slot.caption, label, 'left', captionPx * 0.9, ink, style.accentColor, 'top'));
+      blocks.push(
+        ...(mounted
+          ? mountedLabel(slot.caption, { ...label, left: strip.left, width: strip.width }, 'center', captionPx * 0.9)
+          : getGalleryLabel(slot.caption, label, 'left', captionPx * 0.9, ink, style.accentColor, 'top')),
+      );
       continue;
     }
     if (slot.caption && slot.source && !captionedSlots.has(slot.index)) {

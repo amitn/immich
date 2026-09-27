@@ -11043,7 +11043,8 @@ export enum BookStyleTheme {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    Reading = "reading"
+    Reading = "reading",
+    KidsArt = "kids-art"
 }
 export enum BookExportStatus {
     Pending = "pending",
@@ -11064,7 +11065,8 @@ export enum BookStylePreset {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    Reading = "reading"
+    Reading = "reading",
+    KidsArt = "kids-art"
 }
 export enum BookMapLook {
     Wash = "wash",
@@ -11142,7 +11144,8 @@ export enum Type {
     MissingCaptions = "missing-captions",
     CouldLookBetter = "could-look-better",
     MissingDishName = "missing-dish-name",
-    MissingMenuPage = "missing-menu-page"
+    MissingMenuPage = "missing-menu-page",
+    Privacy = "privacy"
 }
 export enum CollageAspectRatio {
     $11 = "1:1",
@@ -11191,7 +11194,8 @@ export enum HighlightStyle {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    Reading = "reading"
+    Reading = "reading",
+    KidsArt = "kids-art"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",

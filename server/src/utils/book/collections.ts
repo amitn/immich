@@ -356,6 +356,16 @@ export const isPrintedTheme = (theme?: string | null) => getPackTheme(theme)?.lo
 /** whether a style theme is drawn like an exhibition catalogue: photos shown whole, never cropped, with labels */
 export const isGalleryTheme = (theme?: string | null) => getPackTheme(theme)?.look === 'gallery';
 
+/**
+ * whether a style theme is drawn like drawings on a refrigerator door: photos shown whole on paper mats, taped at the
+ * corners, with handwritten labels
+ */
+export const isMountedTheme = (theme?: string | null) => getPackTheme(theme)?.look === 'mounted';
+
+/** whether the packs of a book's photos keep where they were taken out of books (see `privacy.location`) */
+export const hidesLocation = (photo: Pick<CollectionPhoto, 'collection'>) =>
+  photo.collection ? getCollectionPack(photo.collection.pack)?.privacy?.location === false : false;
+
 /** the heading of the note of a tasting-note page in a style theme, e.g. "Notes" in a reading journal */
 export const getNoteHeading = (theme?: string | null) => getPackTheme(theme)?.noteHeading;
 
