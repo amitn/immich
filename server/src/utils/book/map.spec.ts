@@ -14,6 +14,7 @@ import {
   getPlaceLabels,
   getRoutePath,
   getScaleBar,
+  getStopRoute,
   getStops,
   getTileRange,
   getTileUrl,
@@ -213,6 +214,21 @@ describe('getStops', () => {
       { x: 2, y: 2 / 3, count: 3 },
       { x: 100, y: 0, count: 1 },
     ]);
+  });
+});
+
+describe('getStopRoute', () => {
+  it('should go from stop to stop in the order of the visits, back to a stop visited again', () => {
+    const a = { x: 0, y: 0, count: 2 };
+    const b = { x: 100, y: 0, count: 1 };
+    const points = [
+      { x: 1, y: 1 },
+      { x: 2, y: 0 },
+      { x: 99, y: 1 },
+      { x: 0, y: 2 },
+    ];
+    expect(getStopRoute(points, [a, b])).toEqual([a, b, a]);
+    expect(getStopRoute(points.slice(0, 2), [a, b])).toEqual([a]);
   });
 });
 

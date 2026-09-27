@@ -445,6 +445,18 @@ export const getStops = (points: Array<{ x: number; y: number }>, radius: number
   return stops.map(({ x, y, count }) => ({ x, y, count }));
 };
 
+/** The route from stop to stop in the order they were visited (revisits included), for numbered pins */
+export const getStopRoute = (points: Array<{ x: number; y: number }>, stops: Stop[]) => {
+  const route: Stop[] = [];
+  for (const point of points) {
+    const stop = minBy(stops, (item) => Math.hypot(item.x - point.x, item.y - point.y));
+    if (stop && route.at(-1) !== stop) {
+      route.push(stop);
+    }
+  }
+  return route;
+};
+
 /** a deterministic pseudo-random sequence, so maps look the same every time */
 const random = (seed: number) => {
   let state = seed >>> 0;
@@ -794,10 +806,13 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
         ? getFontStack('sans-serif')
         : theme.labelFont;
 
-  const route = points.filter(
-    (point, i) => i === 0 || Math.hypot(point.x - points[i - 1].x, point.y - points[i - 1].y) >= 6 * u,
-  );
-  if (map.showRoute && route.length > 1) {
+  // numbered pins are larger: stops closer than a pin head are one stop, so that the numbers stay readable
+  const stops = getStops(points, (theme.pinText ? 34 : 14) * u);
+  const route = theme.pinText
+    ? getStopRoute(points, stops)
+    : points.filter((point, i) => i === 0 || Math.hypot(point.x - points[i - 1].x, point.y - points[i - 1].y) >= 6 * u);
+  // a styled map of a single place has no route to draw
+  if (map.showRoute && route.length > 1 && (!theme.pinText || stops.length > 1)) {
     const path = getRoutePath(route, (theme.routeWobble ?? 2.5) * u, seed);
     const dash = theme.routeDash === false ? '' : ` stroke-dasharray="${fmt(12 * u)} ${fmt(7 * u)}"`;
     parts.push(
@@ -806,7 +821,6 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
     );
   }
 
-  const stops = getStops(points, 14 * u);
   const numbered = !!theme.pinText && stops.length > 1 && stops.length <= MAX_NUMBERED_STOPS;
   const radius = (stop: Stop) => (numbered ? 13 + 2 * Math.log2(stop.count) : 11 + 2.5 * Math.log2(stop.count)) * u;
   const obstacles: Box[] = [];
