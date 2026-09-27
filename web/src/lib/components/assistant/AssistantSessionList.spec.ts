@@ -54,6 +54,31 @@ describe('AssistantSessionList component', () => {
     expect(other.className).toContain('[@media(hover:hover)]:opacity-0');
   });
 
+  it('should show the delete button of the other chats on hover and on keyboard focus', () => {
+    renderList();
+
+    const [, other] = screen.getAllByRole('button', { name: /assistant_delete_chat_named/ });
+    expect(other.className).toContain('[@media(hover:hover)]:group-hover:opacity-100');
+    // focusing the chat, or tabbing to the button itself
+    expect(other.className).toContain('[@media(hover:hover)]:group-focus-within:opacity-100');
+    expect(other.className).toContain('[@media(hover:hover)]:focus-visible:opacity-100');
+  });
+
+  it('should style the open chat apart from a hovered one', () => {
+    renderList();
+
+    const [open, other] = screen.getAllByRole('listitem');
+    expect(open).toHaveAttribute('data-active', 'true');
+    expect(open.className).toContain('border-primary');
+    expect(open.className).not.toContain('hover:bg');
+    expect(other).not.toHaveAttribute('data-active');
+    expect(other.className).toContain('border-transparent');
+    // hovering does not tint a chat like the open one
+    const hover = other.className.split(/\s+/).filter((name) => name.includes('hover:bg'));
+    expect(hover.length).toBeGreaterThan(0);
+    expect(hover.some((name) => name.includes('primary'))).toBe(false);
+  });
+
   it('should delete all chats', async () => {
     renderList();
 

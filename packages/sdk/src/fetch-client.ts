@@ -54,6 +54,59 @@ export type ActivityStatisticsResponseDto = {
     /** Number of likes */
     likes: number;
 };
+export type ActivityLogResponseDto = {
+    action: ActivityLogAction;
+    /** The photos and videos that were changed or created */
+    assetIds: string[];
+    /** Whether the undone change can be applied again */
+    canRedo: boolean;
+    /** Whether the change can be undone (it may still be refused by the safety checks) */
+    canUndo: boolean;
+    /** When the change was made */
+    createdAt: string;
+    /** Group of the change: the changes of one chat turn or one web request */
+    groupId: string;
+    /** Change ID */
+    id: string;
+    /** Assistant chat that made the change */
+    sessionId: string | null;
+    source: ActivityLogSource;
+    /** What changed */
+    summary: string;
+    /** The album, book, style, shared link or highlight video that was changed or created */
+    targetId: string | null;
+    /** Assistant tool that made the change */
+    toolName: string | null;
+    /** When the change was undone */
+    undoneAt: string | null;
+    /** Who undid the change */
+    undoneBy: (ActivityLogSource) | null;
+};
+export type ActivityUndoDto = {
+    /** Undo every change of this group (a chat turn or a web request) */
+    groupId?: string;
+    /** Changes to undo; they are undone newest first */
+    ids?: string[];
+};
+export type ActivityUndoResultDto = {
+    /** Change ID */
+    id: string;
+    /** Why the change was not undone, or not all of it */
+    message?: string;
+    status: ActivityUndoStatus;
+    /** What changed */
+    summary: string;
+    /** What undoing left as it was, e.g. a photo that was already in the trash */
+    warnings: string[];
+};
+export type ActivityUndoResponseDto = {
+    /** Number of changes that were refused or failed */
+    refused: number;
+    /** One result per change, in the order they were undone */
+    results: ActivityUndoResultDto[];
+    /** Number of changes undone (fully or partly) */
+    undone: number;
+};
 export type AdminConfigAgentEnvDto = {
     name: string;
     value: string;
@@ -71,6 +124,8 @@ export type AdminConfigAgentProfileDto = {
     passEnv: string[];
 };
 export type AdminConfigAgentDto = {
+    /** Days the activity log keeps the changes made by the assistant, which can be undone until then */
+    activityRetentionDays: number;
     /** Profile used for artistic transforms (empty to disable) */
     artProfile: string;
     /** Allow the agent to modify the library without asking for approval */
@@ -726,6 +781,10 @@ export type CalendarHeatmapResponseDto = {
     /** Total activity count over the period */
     totalCount: number;
 };
+export type AiAnswersResponse = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled: boolean;
+};
 export type AlbumsResponse = {
     defaultAssetOrder: AssetOrder;
 };
@@ -804,6 +863,7 @@ export type TagsResponse = {
     sidebarWeb: boolean;
 };
 export type UserPreferencesResponseDto = {
+    aiAnswers: AiAnswersResponse;
     albums: AlbumsResponse;
     bookDrafts: BookDraftsResponse;
     cast: CastResponse;
@@ -818,6 +878,10 @@ export type UserPreferencesResponseDto = {
     recentlyAdded: RecentlyAddedResponse;
     sharedLinks: SharedLinksResponse;
     tags: TagsResponse;
+};
+export type AiAnswersUpdate = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled?: boolean;
 };
 export type AlbumsUpdate = {
     defaultAssetOrder?: AssetOrder;
@@ -900,6 +964,7 @@ export type TagsUpdate = {
     sidebarWeb?: boolean;
 };
 export type UserPreferencesUpdateDto = {
+    aiAnswers?: AiAnswersUpdate;
     albums?: AlbumsUpdate;
     avatar?: AvatarUpdate;
     bookDrafts?: BookDraftsUpdate;
@@ -982,6 +1047,8 @@ export type AgentPermissionOptionDto = {
     optionId: string;
 };
 export type AgentMessageContentDto = {
+    /** Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call) */
+    activityIds?: string[];
     /** Albums referenced by tool results */
     albumIds?: string[];
     /** Assets referenced by the message (context or tool results) */
@@ -1052,6 +1119,8 @@ export type AgentPermissionResponseDto = {
     optionId?: string;
 };
 export type AgentPromptDto = {
+    /** A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a "Sources:" line of the photos and tags used */
+    answer?: boolean;
     /** Assets selected by the user, passed as context */
     assetIds?: string[];
     /** Message for the assistant */
@@ -2422,6 +2491,74 @@ export type ClusterGroupRequestCreateDto = {
     /** User to invite into the cluster group */
     userId: string;
 };
+export type CollageCreateDto = {
+    /** Album to add the collage to, e.g. the album the photos were picked in */
+    albumId?: string;
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageResponseDto = {
+    /** The new image asset */
+    assetId: string;
+    /** An identical collage had already been saved, and is returned instead */
+    duplicate: boolean;
+    /** Layout the collage was drawn with */
+    layout: string;
+    /** Tag of the collage, Collages/<title or dates> */
+    tag: string;
+};
+export type CollageDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageLayoutResponseDto = {
+    /** What the layout looks like */
+    description: string;
+    /** Layout ID */
+    id: string;
+    /** Name of the layout */
+    name: string;
+};
+export type CollageLayoutsResponseDto = {
+    /** The layouts for the number of photos, the one that fits them best first */
+    layouts: CollageLayoutResponseDto[];
+};
+export type CollageRenderDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview */
+    full?: boolean;
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
 export type CollectionNamesDto = {
     /** Plural of entry */
     entries: string;
@@ -2458,6 +2595,49 @@ export type CollectionPackResponseDto = {
     tagRoot: string;
     /** Pack title, e.g. Food */
     title: string;
+};
+export type CollectionSearchTermsDto = {
+    /** First year named */
+    "from"?: string;
+    /** The pack the words point to, e.g. food for "what did we eat" */
+    pack?: string;
+    /** Names looked for in the places and entries, e.g. noma */
+    text: string[];
+    /** Last year named */
+    to?: string;
+};
+export type CollectionSearchEntryDto = {
+    /** Name of the entry, e.g. a dish */
+    name: string;
+    /** Photos of the entry */
+    photoIds: string[];
+};
+export type CollectionSearchVisitDto = {
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    date: string;
+    /** Local last day of a visit of several days */
+    endDate?: string;
+    /** Entries named on the visit, up to 6 */
+    entries: CollectionSearchEntryDto[];
+    /** Pack ID */
+    pack: string;
+    /** Photos of the visit, up to 6 */
+    photoIds: string[];
+    /** Name of the place, as in the tags */
+    place: string;
+    /** Tag of the place, e.g. Food/Noma Australia */
+    tag: string;
+};
+export type CollectionSearchResponseDto = {
+    terms: CollectionSearchTermsDto;
+    /** Matching visits in all */
+    total: number;
+    /** Matching visits, newest first */
+    visits: CollectionSearchVisitDto[];
 };
 export type CollectionPlaceSummaryDto = {
     /** Local day of the last visit, e.g. 2016-03-23 */
@@ -3350,6 +3530,37 @@ export type OAuthCallbackDto = {
     state?: string;
     /** OAuth callback URL */
     url: string;
+};
+export type OrientationFixDto = {
+    /** Photos to turn */
+    assetIds: string[];
+    /** Clockwise turn in degrees (90, 180 or 270); default: the suggested one */
+    rotate?: number;
+};
+export type OrientationAssetsDto = {
+    /** Photos */
+    assetIds: string[];
+};
+export type OrientationScanDto = {
+    /** Only the photos of this album */
+    albumId?: string;
+    /** Only the photos taken at or after this date */
+    takenAfter?: string;
+    /** Only the photos taken before this date */
+    takenBefore?: string;
+};
+export type OrientationSuggestionResponseDto = {
+    /** Asset ID */
+    assetId: string;
+    /** When the photo was checked */
+    checkedAt: string;
+    /** How sure the check is, 0 to 1 */
+    confidence: number;
+    /** What the check saw: CLIP, faces, text */
+    reasons: string[];
+    /** Clockwise turn in degrees that makes the photo upright: 90, 180 or 270 */
+    rotate: number;
+    status: OrientationStatus;
 };
 export type PartnerResponseDto = {
     avatarColor: UserAvatarColor;
@@ -5263,6 +5474,80 @@ export function deleteActivity({ id }: {
     return oazapfts.ok(oazapfts.fetchText(`/activities/${encodeURIComponent(id)}`, {
         ...opts,
         method: "DELETE"
+    }));
+}
+/**
+ * Retrieve the activity log
+ */
+export function getActivityLog({ action, $from, groupId, limit, offset, sessionId, source, to, undone }: {
+    action?: ActivityLogAction;
+    $from?: string;
+    groupId?: string;
+    limit?: number;
+    offset?: number;
+    sessionId?: string;
+    source?: ActivityLogSource;
+    to?: string;
+    undone?: boolean;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto[];
+    }>(`/activity${QS.query(QS.explode({
+        action,
+        "from": $from,
+        groupId,
+        limit,
+        offset,
+        sessionId,
+        source,
+        to,
+        undone
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo changes
+ */
+export function undoActivities({ activityUndoDto }: {
+    activityUndoDto: ActivityUndoDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>("/activity/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: activityUndoDto
+    })));
+}
+/**
+ * Redo a change
+ */
+export function redoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/redo`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Undo a change
+ */
+export function undoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/undo`, {
+        ...opts,
+        method: "POST"
     }));
 }
 /**
@@ -7440,6 +7725,51 @@ export function getClusterGroupUsers({ id }: {
     }));
 }
 /**
+ * Save a collage
+ */
+export function createCollage({ collageCreateDto }: {
+    collageCreateDto: CollageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CollageResponseDto;
+    }>("/collages", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageCreateDto
+    })));
+}
+/**
+ * List the layouts of a collage
+ */
+export function getCollageLayouts({ collageDto }: {
+    collageDto: CollageDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollageLayoutsResponseDto;
+    }>("/collages/layouts", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageDto
+    })));
+}
+/**
+ * Render a collage
+ */
+export function renderCollage({ collageRenderDto }: {
+    collageRenderDto: CollageRenderDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>("/collages/render", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageRenderDto
+    })));
+}
+/**
  * List collection packs
  */
 export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
@@ -7447,6 +7777,21 @@ export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: CollectionPackResponseDto[];
     }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Search the collections
+ */
+export function searchCollections({ q }: {
+    q: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSearchResponseDto;
+    }>(`/collections/search${QS.query(QS.explode({
+        q
+    }))}`, {
         ...opts
     }));
 }
@@ -8308,6 +8653,78 @@ export function unlinkOAuthAccount(opts?: Oazapfts.RequestOpts) {
         ...opts,
         method: "POST"
     }));
+}
+/**
+ * Fix the orientation of photos
+ */
+export function fixOrientation({ orientationFixDto }: {
+    orientationFixDto: OrientationFixDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/fix", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationFixDto
+    })));
+}
+/**
+ * Reject orientation suggestions
+ */
+export function rejectOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/reject", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
+}
+/**
+ * Check the orientation of photos
+ */
+export function scanOrientation({ orientationScanDto }: {
+    orientationScanDto: OrientationScanDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/orientation/scan", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationScanDto
+    })));
+}
+/**
+ * List orientation suggestions
+ */
+export function getOrientationSuggestions({ status }: {
+    status?: OrientationStatus;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: OrientationSuggestionResponseDto[];
+    }>(`/orientation/suggestions${QS.query(QS.explode({
+        status
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo orientation fixes
+ */
+export function undoOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
 }
 /**
  * Retrieve partners
@@ -10186,6 +10603,34 @@ export enum UserAvatarColor {
     Gray = "gray",
     Amber = "amber"
 }
+export enum ActivityLogAction {
+    AlbumCreate = "album.create",
+    AlbumAddAssets = "album.addAssets",
+    AlbumRemoveAssets = "album.removeAssets",
+    AssetCopy = "asset.copy",
+    AssetCreate = "asset.create",
+    ArtworkCreate = "artwork.create",
+    ArtStyleCreate = "artStyle.create",
+    BookCreate = "book.create",
+    BookEdit = "book.edit",
+    BookDraftKeep = "bookDraft.keep",
+    BookDraftDiscard = "bookDraft.discard",
+    BookStyleCreate = "bookStyle.create",
+    CollectionEntries = "collection.entries",
+    HighlightCreate = "highlight.create",
+    SharedLinkCreate = "sharedLink.create"
+}
+export enum ActivityLogSource {
+    Assistant = "assistant",
+    Web = "web"
+}
+export enum ActivityUndoStatus {
+    Undone = "undone",
+    Partial = "partial",
+    Refused = "refused",
+    AlreadyUndone = "alreadyUndone",
+    Failed = "failed"
+}
 export enum DefaultStyle {
     Styled = "styled",
     Sketch = "sketch",
@@ -10362,6 +10807,8 @@ export enum Permission {
     ActivityUpdate = "activity.update",
     ActivityDelete = "activity.delete",
     ActivityStatistics = "activity.statistics",
+    ActivityLogRead = "activityLog.read",
+    ActivityLogUndo = "activityLog.undo",
     AgentSessionCreate = "agentSession.create",
     AgentSessionRead = "agentSession.read",
     AgentSessionUpdate = "agentSession.update",
@@ -10720,6 +11167,12 @@ export enum Type {
     MissingDishName = "missing-dish-name",
     MissingMenuPage = "missing-menu-page"
 }
+export enum CollageAspectRatio {
+    $11 = "1:1",
+    $45 = "4:5",
+    $916 = "9:16",
+    $169 = "16:9"
+}
 export enum CollectionPlaceSource {
     Tag = "tag",
     Sign = "sign",
@@ -10822,6 +11275,11 @@ export enum MemoryType {
     OnThisDay = "on_this_day",
     Birthday = "birthday"
 }
+export enum OrientationStatus {
+    Suggested = "suggested",
+    Fixed = "fixed",
+    Rejected = "rejected"
+}
 export enum PartnerDirection {
     SharedBy = "shared-by",
     SharedWith = "shared-with"
@@ -10859,6 +11317,7 @@ export enum JobName {
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
+    ActivityLogCleanup = "ActivityLogCleanup",
     BookDraftsQueueAll = "BookDraftsQueueAll",
     BookDraftsGenerate = "BookDraftsGenerate",
     CollectionNoticesQueueAll = "CollectionNoticesQueueAll",
@@ -10866,6 +11325,8 @@ export enum JobName {
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
+    OrientationCheckQueueAll = "OrientationCheckQueueAll",
+    OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",

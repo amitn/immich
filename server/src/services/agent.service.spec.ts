@@ -9,9 +9,11 @@ import {
   AcpPromptResponse,
   AcpSessionNotification,
 } from 'src/repositories/acp.repository.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { AGENT_APPROVAL_TIMEOUT_MS, AGENT_TEXT_FLUSH_MS, AgentService } from 'src/services/agent.service.js';
-import { ASSISTANT_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
+import { ASSISTANT_INSTRUCTIONS, QUICK_ANSWER_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
 import { defineTool, toolJson } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { factory } from 'test/small.factory.js';
@@ -46,6 +48,13 @@ const writeTool = defineTool({
 });
 
 const deferred = <T>() => Promise.withResolvers<T>();
+
+/** the next call of the write tool records these changes */
+const recordChanges = (...ids: string[]) =>
+  vi.mocked(writeTool.handler).mockImplementationOnce((ctx) => {
+    ctx.activity!.ids.push(...ids);
+    return Promise.resolve(toolJson({ ok: true }));
+  });
 
 /** lets the queued (promise based) session work run */
 const settle = async () => {
@@ -252,6 +261,19 @@ describe(AgentService.name, () => {
       expect(mocks.acp.start).toHaveBeenCalledTimes(1);
       const [, [, second]] = fake.agent.prompt.mock.calls as unknown as [unknown, [string, [{ text: string }]]];
       expect(second[0].text).toBe('thanks');
+    });
+
+    it('should answer a question of the search bar briefly, keeping only the question in the chat', async () => {
+      const session = newSession();
+      await sut.prompt(auth, session.id, { text: 'what did we eat at noma', answer: true });
+      await settle();
+
+      const [[, [block]]] = fake.agent.prompt.mock.calls as unknown as [[string, [{ text: string }]]];
+      expect(block.text).toContain(`<quick-answer>\n${QUICK_ANSWER_INSTRUCTIONS}\n</quick-answer>`);
+      expect(block.text.endsWith('what did we eat at noma')).toBe(true);
+      expect(mocks.agent.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ content: { text: 'what did we eat at noma' } }),
+      );
     });
 
     it('should title an untitled chat after the first message before announcing it', async () => {
@@ -600,6 +622,9 @@ describe(AgentService.name, () => {
   describe('runTool', () => {
     const input = { name: 'Italy', assetIds: ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10'] };
     let sessionId: string;
+    /** the user message of the turn, the group of its changes */
+    const turnId = () =>
+      rows.values().find((row) => row.role === AgentMessageRole.User && row.sessionId === sessionId)!.id;
 
     beforeEach(async () => {
       sessionId = newSession().id;
@@ -653,7 +678,10 @@ describe(AgentService.name, () => {
       const result = await pending;
 
       expect(result.isError).toBeUndefined();
-      expect(writeTool.handler).toHaveBeenCalledWith({ auth, sessionId }, input);
+      expect(writeTool.handler).toHaveBeenCalledWith(
+        { auth, sessionId, activity: expect.any(ActivityRecorder) },
+        input,
+      );
       expect(rows.get(permission.id)?.content.status).toBe('approved');
     });
 
@@ -709,8 +737,63 @@ describe(AgentService.name, () => {
       const result = await sut.runTool({ auth, sessionId }, writeTool, input);
 
       expect(result.isError).toBeUndefined();
-      expect(writeTool.handler).toHaveBeenCalledWith({ auth, sessionId }, input);
+      expect(writeTool.handler).toHaveBeenCalledWith(
+        { auth, sessionId, activity: expect.any(ActivityRecorder) },
+        input,
+      );
       expect(messages().some((message) => message.kind === AgentMessageKind.Permission)).toBe(false);
+    });
+
+    describe('activity log', () => {
+      it('should record the changes of a turn in one group and list them on the tool call', async () => {
+        setConfig({ autoApproveWrites: true });
+        recordChanges('change-1', 'change-2');
+
+        await sut.runTool({ auth, sessionId }, writeTool, input);
+        await settle();
+
+        const [ctx] = vi.mocked(writeTool.handler).mock.calls[0];
+        expect(ctx.activity!.origin).toEqual({
+          source: 'assistant',
+          sessionId,
+          toolName: 'create_album',
+          groupId: turnId(),
+        });
+        const toolCall = messages().find((message) => message.kind === AgentMessageKind.ToolCall);
+        expect(toolCall?.content.activityIds).toEqual(['change-1', 'change-2']);
+      });
+
+      it('should tell the user about several auto-approved changes at the end of the turn', async () => {
+        const notify = vi
+          .spyOn(ActivityLogService.prototype, 'notifyAutoApprovedChanges')
+          .mockReset()
+          .mockResolvedValue();
+        setConfig({ autoApproveWrites: true });
+        recordChanges('change-1', 'change-2');
+
+        await sut.runTool({ auth, sessionId }, writeTool, input);
+        fake.endTurn();
+        await settle();
+
+        expect(notify).toHaveBeenCalledWith(auth.user.id, { sessionId, groupId: turnId() });
+      });
+
+      it('should not notify about changes the user approved', async () => {
+        const notify = vi
+          .spyOn(ActivityLogService.prototype, 'notifyAutoApprovedChanges')
+          .mockReset()
+          .mockResolvedValue();
+        recordChanges('change-1', 'change-2');
+
+        const pending = sut.runTool({ auth, sessionId }, writeTool, input);
+        const permission = await waitForPermission(rows);
+        await sut.respondToPermission(auth, sessionId, permission.content.requestId as string, { optionId: 'allow' });
+        await pending;
+        fake.endTurn();
+        await settle();
+
+        expect(notify).not.toHaveBeenCalled();
+      });
     });
 
     it('should auto-approve the rest of the session when the user allows all', async () => {

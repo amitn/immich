@@ -144,6 +144,8 @@ export const ORIENTATION_TO_SHARP_ROTATION: Record<ExifOrientation, SharpRotatio
 
 export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.Activities]: 'An activity is a like or a comment made by a user on an asset or album.',
+  [ApiTag.ActivityLog]:
+    'The activity log records the changes the AI assistant made to the library (and the changes made with its features in the web app), each with its inverse, so that a change, or all the changes of a chat turn, can be undone.',
   [ApiTag.Albums]: 'An album is a collection of assets that can be shared with other users or via shared links.',
   [ApiTag.ApiKeys]: 'An api key can be used to programmatically access the Immich API.',
   [ApiTag.Assets]: 'An asset is an image or video that has been uploaded to Immich.',
@@ -157,6 +159,8 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.ClusterGroups]:
     'A cluster group is a set of users whose faces are clustered together, so that a person can be shared between them.',
   [ApiTag.ConfigUser]: 'The system configuration properties that are visible to logged in users.',
+  [ApiTag.Collages]:
+    'A collage is 2 to 9 photos on one page at a chosen aspect ratio, laid out and drawn with the book layouts and styles, and saved as a new image asset.',
   [ApiTag.Collections]:
     'Collections are themed photos named by a pack (food is the first): photos of subjects, such as dishes, are matched with the entries read on a source photo, such as a menu, and saved as <Root>/<Place>/<Entry> tags; these endpoints list the packs, find the visits among assets, match their subjects with the entries and save the names.',
   [ApiTag.ConfigAdmin]: 'Endpoints to view and modify the full system configuration.',
@@ -184,6 +188,8 @@ export const endpointTags: Record<ApiTag, string> = {
   [ApiTag.Notifications]:
     'A notification is a specialized message sent to users to inform them of important events. Currently, these notifications are only shown in the Immich web application.',
   [ApiTag.NotificationsAdmin]: 'Notification administrative endpoints.',
+  [ApiTag.Orientation]:
+    'Photos stored sideways or upside down are found by a background check (CLIP, faces and text direction) and fixed with a reversible rotate edit.',
   [ApiTag.Partners]: 'A partner is a link with another user that allows sharing of assets between two users.',
   [ApiTag.People]:
     'A person is a collection of faces, which can be favorited and named. A person can also be merged into another person. People are automatically created via the face recognition job.',

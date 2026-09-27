@@ -63,13 +63,13 @@ export class HighlightAgentTools extends BaseService {
           captions: z.boolean().optional().describe('Lower thirds with names and places, default true'),
         }),
         mutating: true,
-        handler: ({ auth }, { musicId, ...input }) =>
+        handler: ({ auth, activity }, { musicId, ...input }) =>
           this.run(async () => {
             const sources = [input.albumId, input.bookId, input.assetIds].filter((value) => value !== undefined);
             if (sources.length !== 1) {
               return toolError('Pass exactly one of albumId, bookId or assetIds');
             }
-            const job = await highlights.create(auth, { ...input, music: musicId });
+            const job = await highlights.create(auth, { ...input, music: musicId }, activity);
             return toolJson({
               highlightId: job.id,
               title: job.title,

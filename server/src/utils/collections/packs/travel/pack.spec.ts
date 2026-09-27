@@ -227,6 +227,71 @@ describe('the travel pack', () => {
     expect(result.noEmbedding).toEqual([beach, station, ramen, dayOff]);
   });
 
+  it('should correct the places read from Greek lookalikes to the cities of the photos, and ask to check them', async () => {
+    const [ticket, bus, harbour] = [newUuid(), newUuid(), newUuid()];
+    mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { ocr: { enabled: false } } });
+    mocks.access.asset.checkOwnerAccess.mockImplementation((_userId: string, ids: Set<string>) =>
+      Promise.resolve(new Set(ids)),
+    );
+    mocks.asset.getById.mockResolvedValue({
+      id: ticket,
+      type: AssetType.Image,
+      deletedAt: null,
+      exifInfo: null,
+      files: [],
+    } as never);
+    // a bus ticket printed in Greek, which OCR reads as Latin lookalikes: ΣΟΥΓΙΑ as EOYTIA, "Soutia"
+    mocks.ocr.getByAssetId.mockResolvedValue([
+      box('HMEPOMHNIA TPITH 04/10/2016 05:00', 0.2, 0.2),
+      box('ROUTE', 0.2, 0.25),
+      box('ANO-NPOE XANIA-EOYTIA', 0.2, 0.3),
+      box('FROM-TO', 0.2, 0.35),
+      box('BUS 55 PLATFORM SEAT 5', 0.15, 0.5),
+    ] as never);
+    mocks.assetJob.getForAgent.mockResolvedValue([
+      agentRow(bus, '2016-10-04T05:30:00', { city: 'Chaniá', state: 'Crete' }),
+      agentRow(harbour, '2016-10-04T08:40:00', { city: 'Sougia', state: 'Crete' }),
+    ]);
+    mocks.search.getEmbeddings.mockResolvedValue([]);
+    mocks.asset.getByIds.mockResolvedValue([{ id: ticket, localDateTime: new Date('2016-10-04T04:40:00Z') }] as never);
+
+    const result = await sut.matchVisit(auth, 'travel', { subjectIds: [bus, harbour], sourceIds: [ticket] });
+
+    expect(result.entries.map(({ name }) => name)).toEqual(['Bus Chania → Sougia, 4 Oct 2016']);
+    expect(result.warnings).toContain('"Soutia" was read as the closest place of the photos, "Sougia": check it');
+    // the photos of a leg whose places were read from lookalikes are to check
+    expect(result.subjects.filter(({ index }) => index === 0).every(({ unsure }) => unsure)).toBe(true);
+    expect(result.subjects.some(({ index }) => index === 0)).toBe(true);
+  });
+
+  it('should leave a place read from Greek lookalikes as it is when no place of the trip is close', async () => {
+    const [ticket, bus] = [newUuid(), newUuid()];
+    mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { ocr: { enabled: false } } });
+    mocks.access.asset.checkOwnerAccess.mockImplementation((_userId: string, ids: Set<string>) =>
+      Promise.resolve(new Set(ids)),
+    );
+    mocks.asset.getById.mockResolvedValue({
+      id: ticket,
+      type: AssetType.Image,
+      deletedAt: null,
+      exifInfo: null,
+      files: [],
+    } as never);
+    mocks.ocr.getByAssetId.mockResolvedValue([
+      box('HMEPOMHNIA TPITH 04/10/2016 05:00', 0.2, 0.2),
+      box('ANO-NPOE XANIA-EOYTIA', 0.2, 0.3),
+      box('BUS 55 PLATFORM SEAT 5', 0.15, 0.5),
+    ] as never);
+    mocks.assetJob.getForAgent.mockResolvedValue([agentRow(bus, '2016-10-04T05:30:00', { city: 'Heraklion' })]);
+    mocks.search.getEmbeddings.mockResolvedValue([]);
+    mocks.asset.getByIds.mockResolvedValue([{ id: ticket, localDateTime: new Date('2016-10-04T04:40:00Z') }] as never);
+
+    const result = await sut.matchVisit(auth, 'travel', { subjectIds: [bus], sourceIds: [ticket] });
+
+    expect(result.entries.map(({ name }) => name)).toEqual(['Bus Chania → Soutia, 4 Oct 2016']);
+    expect(result.warnings.join(' ')).not.toContain('closest place');
+  });
+
   it('should save the legs as tags and descriptions, redacted', async () => {
     const [photo, pass] = [newUuid(), newUuid()];
     mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([photo, pass]));

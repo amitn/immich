@@ -159,7 +159,7 @@ export class BookStyleAgentTools extends BaseService {
         mutating: true,
         handler: (ctx, input) =>
           this.run(async () => {
-            const saved = await this.styles.create(ctx.auth, input);
+            const saved = await this.styles.create(ctx.auth, input, ctx.activity);
             const { warnings } = checkBookStyle(saved.style);
             return toolJson({
               id: saved.id,
@@ -187,10 +187,12 @@ export class BookStyleAgentTools extends BaseService {
             if (Boolean(input.styleId) === Boolean(input.preset)) {
               return toolError('Pass either a styleId or a preset');
             }
-            const book = await this.books.update(ctx.auth, input.bookId, {
-              styleId: input.styleId,
-              stylePreset: input.preset,
-            });
+            const book = await this.books.update(
+              ctx.auth,
+              input.bookId,
+              { styleId: input.styleId, stylePreset: input.preset },
+              ctx.activity,
+            );
             return toolJson({ bookId: book.id, style: book.style, next: 'render_book to look at the result' });
           }),
       }),

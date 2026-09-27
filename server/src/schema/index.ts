@@ -27,6 +27,7 @@ import {
   user_delete_audit,
   user_metadata_audit,
 } from 'src/schema/functions.js';
+import { ActivityLogTable } from 'src/schema/tables/activity-log.table.js';
 import { ActivityTable } from 'src/schema/tables/activity.table.js';
 import { AgentMessageTable } from 'src/schema/tables/agent-message.table.js';
 import { AgentSessionTable } from 'src/schema/tables/agent-session.table.js';
@@ -56,6 +57,7 @@ import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import { BookRevisionTable } from 'src/schema/tables/book-revision.table.js';
 import { BookStyleTable } from 'src/schema/tables/book-style.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
@@ -112,6 +114,7 @@ import { WorkflowTable } from 'src/schema/tables/workflow.table.js';
 export class ImmichDatabase {
   tables = [
     ActivityTable,
+    ActivityLogTable,
     AgentSessionTable,
     AgentMessageTable,
     AlbumAssetTable,
@@ -141,6 +144,7 @@ export class ImmichDatabase {
     CollectionNoticeTable,
     CollectionNoticeCheckTable,
     BookPageTable,
+    BookRevisionTable,
     BookStyleTable,
     BookPageAssetTable,
     ClusterGroupTable,
@@ -226,6 +230,8 @@ export interface DB {
 
   activity: ActivityTable;
 
+  activity_log: ActivityLogTable;
+
   agent_session: AgentSessionTable;
   agent_message: AgentMessageTable;
 
@@ -266,6 +272,7 @@ export interface DB {
   book_page: BookPageTable;
   book_style: BookStyleTable;
   book_page_asset: BookPageAssetTable;
+  book_revision: BookRevisionTable;
 
   face_search: FaceSearchTable;
 

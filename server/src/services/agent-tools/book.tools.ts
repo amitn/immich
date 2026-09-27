@@ -15,10 +15,12 @@ import {
   defaultBookStyle,
 } from 'src/dtos/book.dto.js';
 import { BookExportFormat, Permission, SharedLinkType } from 'src/enum.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
 import { PRIVATE_SOURCE_BLURRED } from 'src/services/collection.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { ActivityCopy, countPhotos, quote } from 'src/utils/activity-log.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
 import {
   AgentTool,
@@ -112,6 +114,9 @@ const slotNumber = z.int().min(1).describe('Slot number (1-based); slot 1 is the
 const layoutId = z.string().describe(`Layout ID, one of: ${bookLayouts.map((layout) => layout.id).join(', ')}`);
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
+
+/** a page as the activity log names it: "page 3" (by number), or "a page" (by id) */
+const pageName = (ref: number | string) => (typeof ref === 'number' ? `page ${ref}` : 'a page');
 
 const summarizeMap = (map: BookMap) => ({
   style: map.style,
@@ -232,6 +237,8 @@ export class BookAgentTools extends BaseService {
 
   private sharedLinkService?: SharedLinkService;
 
+  private activityLogService?: ActivityLogService;
+
   private get books() {
     this.bookService ??= BaseService.create(BookService, this);
     return this.bookService;
@@ -240,6 +247,11 @@ export class BookAgentTools extends BaseService {
   private get sharedLinks() {
     this.sharedLinkService ??= BaseService.create(SharedLinkService, this);
     return this.sharedLinkService;
+  }
+
+  private get activityLog() {
+    this.activityLogService ??= BaseService.create(ActivityLogService, this);
+    return this.activityLogService;
   }
 
   getTools(): AgentTool[] {
@@ -319,7 +331,9 @@ export class BookAgentTools extends BaseService {
         mutating: false,
         handler: (ctx, input) =>
           this.run(async () => {
+            const change = await this.activityLog.beginBookChange(ctx.activity);
             const book = await this.books.create(ctx.auth, input);
+            await change?.finish(ctx.auth, { bookId: book.id, summary: (title) => `Created the book ${quote(title)}` });
             markEditable(ctx, book.id);
             return toolJson({
               ...summarizeBook(book),
@@ -406,6 +420,7 @@ export class BookAgentTools extends BaseService {
 
           if (albumId) {
             return this.run(async () => {
+              const change = await this.activityLog.beginBookChange(ctx.activity);
               const result = await this.books.createFromAlbumWithPlan(ctx.auth, {
                 albumId,
                 title,
@@ -423,18 +438,30 @@ export class BookAgentTools extends BaseService {
                 considerImprovements: options.considerImprovements,
                 improvePhotos: false,
               });
+              await change?.finish(ctx.auth, {
+                bookId: result.book.id,
+                summary: (title) => `Made the book ${quote(title)} (${result.book.pages.length} pages)`,
+              });
               markEditable(ctx, result.book.id);
               return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
             });
           }
 
-          return this.edit(ctx, bookId!, async () => {
-            if (title !== undefined || subtitle !== undefined || pageWidthMm || pageHeightMm || stylePreset) {
-              await this.books.update(ctx.auth, bookId!, { title, subtitle, pageWidthMm, pageHeightMm, stylePreset });
-            }
-            const result = await this.books.autoLayoutWithPlan(ctx.auth, bookId!, { ...options, improvePhotos: false });
-            return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
-          });
+          return this.edit(
+            ctx,
+            bookId!,
+            (title) => `Laid out ${quote(title)} again`,
+            async () => {
+              if (title !== undefined || subtitle !== undefined || pageWidthMm || pageHeightMm || stylePreset) {
+                await this.books.update(ctx.auth, bookId!, { title, subtitle, pageWidthMm, pageHeightMm, stylePreset });
+              }
+              const result = await this.books.autoLayoutWithPlan(ctx.auth, bookId!, {
+                ...options,
+                improvePhotos: false,
+              });
+              return toolJson(await this.withIllustrationHint(summarizeLayout(result), illustratedMaps));
+            },
+          );
         },
       }),
 
@@ -481,7 +508,12 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, { bookId, ...dto }) =>
-          this.edit(ctx, bookId, async () => toolJson(summarizeBook(await this.books.update(ctx.auth, bookId, dto)))),
+          this.edit(
+            ctx,
+            bookId,
+            (title) => `Changed the title, cover or size of ${quote(title)}`,
+            async () => toolJson(summarizeBook(await this.books.update(ctx.auth, bookId, dto))),
+          ),
       }),
 
       defineTool({
@@ -495,10 +527,15 @@ export class BookAgentTools extends BaseService {
         input: BookStyleUpdateSchema.extend({ bookId, preset: stylePreset.optional() }),
         mutating: false,
         handler: (ctx, { bookId, preset, ...style }) =>
-          this.edit(ctx, bookId, async () => {
-            const book = await this.books.update(ctx.auth, bookId, { style, stylePreset: preset });
-            return toolJson({ style: book.style });
-          }),
+          this.edit(
+            ctx,
+            bookId,
+            (title) => `Changed the style of ${quote(title)}`,
+            async () => {
+              const book = await this.books.update(ctx.auth, bookId, { style, stylePreset: preset });
+              return toolJson({ style: book.style });
+            },
+          ),
       }),
 
       defineTool({
@@ -519,26 +556,31 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, { bookId, layout, position, sectionTitle, caption, assetIds = [] }) =>
-          this.edit(ctx, bookId, async () => {
-            const definition = getLayout(layout);
-            if (definition && assetIds.length > definition.slots.length) {
-              throw new ToolInputError(
-                `Layout "${layout}" has ${definition.slots.length} slot(s) but ${assetIds.length} assetIds were given`,
-              );
-            }
+          this.edit(
+            ctx,
+            bookId,
+            (title) => `Added a page to ${quote(title)}`,
+            async () => {
+              const definition = getLayout(layout);
+              if (definition && assetIds.length > definition.slots.length) {
+                throw new ToolInputError(
+                  `Layout "${layout}" has ${definition.slots.length} slot(s) but ${assetIds.length} assetIds were given`,
+                );
+              }
 
-            let page = await this.books.addPage(ctx.auth, bookId, {
-              layout,
-              position: position === undefined ? undefined : position - 1,
-              sectionTitle,
-              caption,
-            });
-            for (const [index, assetId] of assetIds.entries()) {
-              page = await this.books.setSlot(ctx.auth, bookId, page.id, index, { assetId });
-            }
+              let page = await this.books.addPage(ctx.auth, bookId, {
+                layout,
+                position: position === undefined ? undefined : position - 1,
+                sectionTitle,
+                caption,
+              });
+              for (const [index, assetId] of assetIds.entries()) {
+                page = await this.books.setSlot(ctx.auth, bookId, page.id, index, { assetId });
+              }
 
-            return toolJson(summarizePage(page));
-          }),
+              return toolJson(summarizePage(page));
+            },
+          ),
       }),
 
       defineTool({
@@ -548,11 +590,16 @@ export class BookAgentTools extends BaseService {
         input: z.object({ bookId, page: pageRef }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            await this.books.removePage(ctx.auth, input.bookId, page.id);
-            return toolJson({ removed: page.position + 1 });
-          }),
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Removed ${pageName(input.page)} of ${quote(title)}`,
+            async () => {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              await this.books.removePage(ctx.auth, input.bookId, page.id);
+              return toolJson({ removed: page.position + 1 });
+            },
+          ),
       }),
 
       defineTool({
@@ -562,11 +609,16 @@ export class BookAgentTools extends BaseService {
         input: z.object({ bookId, page: pageRef, toPage: z.int().min(1).describe('New page number (1-based)') }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            const moved = await this.books.movePage(ctx.auth, input.bookId, page.id, { position: input.toPage - 1 });
-            return toolJson({ from: page.position + 1, to: moved.position + 1 });
-          }),
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Moved ${pageName(input.page)} of ${quote(title)} to page ${input.toPage}`,
+            async () => {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              const moved = await this.books.movePage(ctx.auth, input.bookId, page.id, { position: input.toPage - 1 });
+              return toolJson({ from: page.position + 1, to: moved.position + 1 });
+            },
+          ),
       }),
 
       defineTool({
@@ -578,14 +630,19 @@ export class BookAgentTools extends BaseService {
         input: z.object({ bookId, page: pageRef, layout: layoutId }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const current = await this.resolvePage(ctx, input.bookId, input.page);
-            const page = await this.books.updatePage(ctx.auth, input.bookId, current.id, { layout: input.layout });
-            const removed = current.slots
-              .filter((slot) => slot.assetId && slot.slot >= page.slots.length)
-              .map((slot) => ({ slot: slot.slot + 1, assetId: slot.assetId }));
-            return toolJson({ ...summarizePage(page), ...(removed.length > 0 && { removed }) });
-          }),
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Changed the layout of ${pageName(input.page)} of ${quote(title)}`,
+            async () => {
+              const current = await this.resolvePage(ctx, input.bookId, input.page);
+              const page = await this.books.updatePage(ctx.auth, input.bookId, current.id, { layout: input.layout });
+              const removed = current.slots
+                .filter((slot) => slot.assetId && slot.slot >= page.slots.length)
+                .map((slot) => ({ slot: slot.slot + 1, assetId: slot.assetId }));
+              return toolJson({ ...summarizePage(page), ...(removed.length > 0 && { removed }) });
+            },
+          ),
       }),
 
       defineTool({
@@ -606,20 +663,25 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, { bookId, position, photoAssetId, sectionTitle, caption, ...options }) =>
-          this.edit(ctx, bookId, async () => {
-            const { map, warning } = await this.toMap(options);
-            let page = await this.books.addPage(ctx.auth, bookId, {
-              layout: photoAssetId ? 'map-photo' : 'map',
-              position: position === undefined ? undefined : position - 1,
-              sectionTitle,
-              caption,
-              map,
-            });
-            if (photoAssetId) {
-              page = await this.books.setSlot(ctx.auth, bookId, page.id, 0, { assetId: photoAssetId });
-            }
-            return toolJson({ ...summarizePage(page), ...(warning && { warnings: [warning] }) });
-          }),
+          this.edit(
+            ctx,
+            bookId,
+            (title) => `Added a map page to ${quote(title)}`,
+            async () => {
+              const { map, warning } = await this.toMap(options);
+              let page = await this.books.addPage(ctx.auth, bookId, {
+                layout: photoAssetId ? 'map-photo' : 'map',
+                position: position === undefined ? undefined : position - 1,
+                sectionTitle,
+                caption,
+                map,
+              });
+              if (photoAssetId) {
+                page = await this.books.setSlot(ctx.auth, bookId, page.id, 0, { assetId: photoAssetId });
+              }
+              return toolJson({ ...summarizePage(page), ...(warning && { warnings: [warning] }) });
+            },
+          ),
       }),
 
       defineTool({
@@ -638,27 +700,32 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, { bookId, page: ref, layout, remove, ...options }) =>
-          this.edit(ctx, bookId, async () => {
-            const page = await this.resolvePage(ctx, bookId, ref);
-            if (remove) {
-              return toolJson(summarizePage(await this.books.updatePage(ctx.auth, bookId, page.id, { map: null })));
-            }
+          this.edit(
+            ctx,
+            bookId,
+            (title) => `Changed the map of ${pageName(ref)} of ${quote(title)}`,
+            async () => {
+              const page = await this.resolvePage(ctx, bookId, ref);
+              if (remove) {
+                return toolJson(summarizePage(await this.books.updatePage(ctx.auth, bookId, page.id, { map: null })));
+              }
 
-            const current = page.map;
-            const style = options.style ?? current?.style;
-            const { map, warning } = await this.toMap({
-              style,
-              // a look is kept while the map stays styled
-              look: options.look ?? (style === current?.style ? current?.look : undefined),
-              title: options.title ?? current?.title,
-              assetIds: options.assetIds ?? current?.assetIds,
-              showRoute: options.showRoute ?? current?.showRoute,
-              labels: options.labels ?? current?.labels,
-            });
-            const target = layout ?? (getLayout(page.layout)?.map ? undefined : 'map');
-            const updated = await this.books.updatePage(ctx.auth, bookId, page.id, { map, layout: target });
-            return toolJson({ ...summarizePage(updated), ...(warning && { warnings: [warning] }) });
-          }),
+              const current = page.map;
+              const style = options.style ?? current?.style;
+              const { map, warning } = await this.toMap({
+                style,
+                // a look is kept while the map stays styled
+                look: options.look ?? (style === current?.style ? current?.look : undefined),
+                title: options.title ?? current?.title,
+                assetIds: options.assetIds ?? current?.assetIds,
+                showRoute: options.showRoute ?? current?.showRoute,
+                labels: options.labels ?? current?.labels,
+              });
+              const target = layout ?? (getLayout(page.layout)?.map ? undefined : 'map');
+              const updated = await this.books.updatePage(ctx.auth, bookId, page.id, { map, layout: target });
+              return toolJson({ ...summarizePage(updated), ...(warning && { warnings: [warning] }) });
+            },
+          ),
       }),
 
       defineTool({
@@ -674,33 +741,38 @@ export class BookAgentTools extends BaseService {
         input: z.object({ bookId, page: pageRef.optional() }),
         mutating: true,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const next = 'The illustration takes a minute or two; render_page shows it once it is done.';
-            if (input.page !== undefined) {
-              const page = await this.resolvePage(ctx, input.bookId, input.page);
-              const updated = await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
-              return toolJson({ ...summarizePage(updated), next });
-            }
-
-            const book = await this.books.get(ctx.auth, input.bookId);
-            const pages = book.pages.filter(
-              (page) => getLayout(page.layout)?.map && !page.map?.artJobId && !page.map?.illustratedAssetId,
-            );
-            if (pages.length === 0) {
-              throw new ToolInputError('The book has no map pages to illustrate');
-            }
-            const started: number[] = [];
-            const failed: string[] = [];
-            for (const page of pages) {
-              try {
-                await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
-                started.push(page.position + 1);
-              } catch (error: any) {
-                failed.push(`page ${page.position + 1}: ${error?.response?.message ?? error?.message ?? error}`);
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Illustrated the maps of ${quote(title)}`,
+            async () => {
+              const next = 'The illustration takes a minute or two; render_page shows it once it is done.';
+              if (input.page !== undefined) {
+                const page = await this.resolvePage(ctx, input.bookId, input.page);
+                const updated = await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
+                return toolJson({ ...summarizePage(updated), next });
               }
-            }
-            return toolJson({ started, ...(failed.length > 0 && { failed }), next });
-          }),
+
+              const book = await this.books.get(ctx.auth, input.bookId);
+              const pages = book.pages.filter(
+                (page) => getLayout(page.layout)?.map && !page.map?.artJobId && !page.map?.illustratedAssetId,
+              );
+              if (pages.length === 0) {
+                throw new ToolInputError('The book has no map pages to illustrate');
+              }
+              const started: number[] = [];
+              const failed: string[] = [];
+              for (const page of pages) {
+                try {
+                  await this.books.illustratePageMap(ctx.auth, input.bookId, page.id);
+                  started.push(page.position + 1);
+                } catch (error: any) {
+                  failed.push(`page ${page.position + 1}: ${error?.response?.message ?? error?.message ?? error}`);
+                }
+              }
+              return toolJson({ started, ...(failed.length > 0 && { failed }), next });
+            },
+          ),
       }),
 
       defineTool({
@@ -720,15 +792,20 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            const updated = await this.books.setSlot(ctx.auth, input.bookId, page.id, input.slot - 1, {
-              assetId: input.assetId,
-              crop: input.crop,
-              caption: input.caption,
-            });
-            return toolJson(summarizePage(updated));
-          }),
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Placed a photo on ${pageName(input.page)} of ${quote(title)}`,
+            async () => {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              const updated = await this.books.setSlot(ctx.auth, input.bookId, page.id, input.slot - 1, {
+                assetId: input.assetId,
+                crop: input.crop,
+                caption: input.caption,
+              });
+              return toolJson(summarizePage(updated));
+            },
+          ),
       }),
 
       defineTool({
@@ -738,10 +815,17 @@ export class BookAgentTools extends BaseService {
         input: z.object({ bookId, page: pageRef, slot: slotNumber }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            return toolJson(summarizePage(await this.books.clearSlot(ctx.auth, input.bookId, page.id, input.slot - 1)));
-          }),
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Removed a photo from ${pageName(input.page)} of ${quote(title)}`,
+            async () => {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              return toolJson(
+                summarizePage(await this.books.clearSlot(ctx.auth, input.bookId, page.id, input.slot - 1)),
+              );
+            },
+          ),
       }),
 
       defineTool({
@@ -761,21 +845,26 @@ export class BookAgentTools extends BaseService {
         }),
         mutating: false,
         handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const page = await this.resolvePage(ctx, input.bookId, input.page);
-            const caption = input.caption?.trim() || null;
-            const sectionTitle = input.sectionTitle === undefined ? undefined : input.sectionTitle?.trim() || null;
-            if (input.slot === undefined) {
-              const updated = await this.books.updatePage(ctx.auth, input.bookId, page.id, { caption, sectionTitle });
-              return toolJson(summarizePage(updated));
-            }
+          this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Changed a caption on ${pageName(input.page)} of ${quote(title)}`,
+            async () => {
+              const page = await this.resolvePage(ctx, input.bookId, input.page);
+              const caption = input.caption?.trim() || null;
+              const sectionTitle = input.sectionTitle === undefined ? undefined : input.sectionTitle?.trim() || null;
+              if (input.slot === undefined) {
+                const updated = await this.books.updatePage(ctx.auth, input.bookId, page.id, { caption, sectionTitle });
+                return toolJson(summarizePage(updated));
+              }
 
-            if (sectionTitle !== undefined) {
-              await this.books.updatePage(ctx.auth, input.bookId, page.id, { sectionTitle });
-            }
-            const updated = await this.books.updateSlot(ctx.auth, input.bookId, page.id, input.slot - 1, { caption });
-            return toolJson(summarizePage(updated));
-          }),
+              if (sectionTitle !== undefined) {
+                await this.books.updatePage(ctx.auth, input.bookId, page.id, { sectionTitle });
+              }
+              const updated = await this.books.updateSlot(ctx.auth, input.bookId, page.id, input.slot - 1, { caption });
+              return toolJson(summarizePage(updated));
+            },
+          ),
       }),
 
       defineTool({
@@ -823,18 +912,29 @@ export class BookAgentTools extends BaseService {
           assetIds: z.array(z.uuidv4()).min(1).max(500).optional().describe('Placed photos to improve; default all'),
         }),
         mutating: true,
-        handler: (ctx, input) =>
-          this.edit(ctx, input.bookId, async () => {
-            const result = await this.books.applyImprovements(ctx.auth, input.bookId, { assetIds: input.assetIds });
-            return toolJson({
-              improved: result.improved,
-              ...(result.skipped.length > 0 && { skipped: result.skipped }),
-              next:
-                result.improved.length > 0
-                  ? 'Look at the changed pages with render_page (the copies get their previews in a moment).'
-                  : 'Nothing was improved.',
-            });
-          }),
+        handler: (ctx, input) => {
+          const copies: ActivityCopy[] = [];
+          return this.edit(
+            ctx,
+            input.bookId,
+            (title) => `Improved ${countPhotos(copies.length)} of ${quote(title)}`,
+            async () => {
+              const result = await this.books.applyImprovements(ctx.auth, input.bookId, { assetIds: input.assetIds });
+              copies.push(
+                ...result.improved.filter(({ duplicate }) => !duplicate).map(({ id, sourceId }) => ({ id, sourceId })),
+              );
+              return toolJson({
+                improved: result.improved,
+                ...(result.skipped.length > 0 && { skipped: result.skipped }),
+                next:
+                  result.improved.length > 0
+                    ? 'Look at the changed pages with render_page (the copies get their previews in a moment).'
+                    : 'Nothing was improved.',
+              });
+            },
+            () => copies,
+          );
+        },
       }),
 
       defineTool({
@@ -966,15 +1066,19 @@ export class BookAgentTools extends BaseService {
             const expiresAt = input.expiresInDays
               ? new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000)
               : null;
-            const link = await this.sharedLinks.create(ctx.auth, {
-              type: SharedLinkType.Book,
-              bookId: input.bookId,
-              expiresAt,
-              password: input.password ?? null,
-              allowDownload: input.allowDownload ?? true,
-              showMetadata: true,
-              description: input.description ?? null,
-            });
+            const link = await this.sharedLinks.create(
+              ctx.auth,
+              {
+                type: SharedLinkType.Book,
+                bookId: input.bookId,
+                expiresAt,
+                password: input.password ?? null,
+                allowDownload: input.allowDownload ?? true,
+                showMetadata: true,
+                description: input.description ?? null,
+              },
+              ctx.activity,
+            );
 
             const path = `/share/${link.key}`;
             const { server } = await this.getConfig({ withCache: true });
@@ -1049,15 +1153,26 @@ export class BookAgentTools extends BaseService {
     return page;
   }
 
-  private edit(ctx: AgentToolContext, bookId: string, handler: () => Promise<AgentToolResult>) {
+  /**
+   * Runs an edit of a book the agent may edit, and records it in the activity log with a snapshot of the book
+   * before it, so the user can undo it
+   */
+  private async edit(
+    ctx: AgentToolContext,
+    bookId: string,
+    summary: (title: string) => string,
+    handler: () => Promise<AgentToolResult>,
+    copies?: () => ActivityCopy[],
+  ) {
     if (!isEditable(ctx, bookId)) {
-      return Promise.resolve(
-        toolError(
-          `Book ${bookId} was not created in this conversation. Call edit_existing_book first so the user can approve editing it.`,
-        ),
+      return toolError(
+        `Book ${bookId} was not created in this conversation. Call edit_existing_book first so the user can approve editing it.`,
       );
     }
-    return this.run(handler);
+    const change = await this.activityLog.beginBookChange(ctx.activity, bookId);
+    const result = await this.run(handler);
+    await change?.finish(ctx.auth, { summary, copies: copies?.() });
+    return result;
   }
 
   private async run(handler: () => Promise<AgentToolResult>): Promise<AgentToolResult> {

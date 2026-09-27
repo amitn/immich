@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
@@ -50,7 +51,11 @@ describe(BookStyleController.name, () => {
         .post('/book-styles')
         .send({ name: ' Mine ', style: { background: '#ffffff' } });
       expect(status).toBe(201);
-      expect(service.create).toHaveBeenCalledWith(undefined, { name: 'Mine', style: { background: '#ffffff' } });
+      expect(service.create).toHaveBeenCalledWith(
+        undefined,
+        { name: 'Mine', style: { background: '#ffffff' } },
+        expect.any(ActivityRecorder),
+      );
     });
   });
 

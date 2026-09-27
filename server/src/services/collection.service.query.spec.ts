@@ -131,6 +131,44 @@ describe(`${CollectionService.name} questions`, () => {
     });
   });
 
+  describe('searchCollections', () => {
+    it('should find the visits a question of the search bar is about, without AI', async () => {
+      const result = await sut.searchCollections(auth, 'What did we eat at The French Laundry?');
+
+      expect(result.terms).toEqual({ pack: 'food', text: ['french laundry'] });
+      expect(result.total).toBe(1);
+      expect(result.visits).toEqual([
+        expect.objectContaining({
+          pack: 'food',
+          place: 'The French Laundry',
+          tag: 'Food/The French Laundry',
+          date: '2014-01-11',
+        }),
+      ]);
+      const [visit] = result.visits;
+      expect(visit.entries).toHaveLength(6);
+      expect(visit.photoIds.length).toBeGreaterThan(0);
+      expect(visit.photoIds.length).toBeLessThanOrEqual(6);
+    });
+
+    it('should list the visits of a pack', async () => {
+      const result = await sut.searchCollections(auth, 'which restaurants did we go to?');
+      expect(result.terms).toEqual({ pack: 'food', text: [] });
+      expect(result.visits.map(({ place }) => place)).toEqual(
+        expect.arrayContaining(['The French Laundry', 'Noma Australia']),
+      );
+    });
+
+    it('should not read the tags when there is nothing to look for', async () => {
+      await expect(sut.searchCollections(auth, 'what did we do?')).resolves.toEqual({
+        terms: { text: [] },
+        visits: [],
+        total: 0,
+      });
+      expect(mocks.tag.getCollectionTags).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getSummary', () => {
     it('should summarize every pack', async () => {
       const { packs, truncated } = await sut.getSummary(auth);

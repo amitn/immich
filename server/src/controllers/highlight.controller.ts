@@ -23,6 +23,7 @@ import {
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
 import { HighlightService, MAX_MUSIC_BYTES } from 'src/services/highlight.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { UUIDParamDto } from 'src/validation.js';
 
 const history = () => new HistoryBuilder().added('v3.3.0').alpha('v3.3.0');
@@ -41,7 +42,7 @@ export class HighlightController {
     history: history(),
   })
   createHighlight(@Auth() auth: AuthDto, @Body() dto: HighlightCreateDto): Promise<HighlightJobResponseDto> {
-    return this.service.create(auth, dto);
+    return this.service.create(auth, dto, ActivityRecorder.web());
   }
 
   @Get()

@@ -31,6 +31,15 @@ describe('getNotificationRoute', () => {
     expect(getNotificationRoute({ type: NotificationType.ClusterGroupRequest })).toContain('/user-settings');
   });
 
+  it('should open the changes of a chat turn in the activity log', () => {
+    expect(
+      getNotificationRoute({
+        type: NotificationType.Custom,
+        data: '{"activityGroupId":"turn-1","sessionId":"chat-1"}',
+      }),
+    ).toBe('/activity?group=turn-1');
+  });
+
   it('should ignore notifications without a target', () => {
     expect(getNotificationRoute({ type: NotificationType.Custom })).toBeUndefined();
     expect(getNotificationRoute({ type: NotificationType.Custom, data: 'not json' })).toBeUndefined();

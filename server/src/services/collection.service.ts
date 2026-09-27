@@ -12,15 +12,23 @@ import {
   CollectionPackResponseDto,
   CollectionPlaceCandidate,
   CollectionSavedEntry,
+  CollectionSearchResponseDto,
   CollectionSummaryResponseDto,
   CollectionVisitResponse,
   CollectionVisitsDto,
   CollectionVisitsResponseDto,
 } from 'src/dtos/collection.dto.js';
-import { AssetFileType, AssetType, Permission } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, AssetType, Permission } from 'src/enum.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import {
+  ActivityCollectionPhoto,
+  ActivityRecorder,
+  countPhotos,
+  quote,
+  recordActivity,
+} from 'src/utils/activity-log.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import {
@@ -46,7 +54,7 @@ import {
   getCollectionTagRules,
   redactText,
 } from 'src/utils/collections/pack.js';
-import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
+import { PlaceCandidate, PlacePhoto, findPlaceNames, isGarbled, isSamePlaceName } from 'src/utils/collections/place.js';
 import {
   CollectionPersonTimes,
   CollectionQueryFilters,
@@ -59,15 +67,18 @@ import {
   summarizeCollections,
 } from 'src/utils/collections/query.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
+import { getCollectionSearchTerms, hasSearchTerms } from 'src/utils/collections/search-terms.js';
 import {
   FocusRect,
   ParsedSource,
   chooseReading,
   chooseSourceOcr,
+  cleanReadTitle,
   combineSourceOcr,
   getEntriesFocus,
   getTitlePrompt,
   mergeSourceEntries,
+  snapEntryPlaces,
 } from 'src/utils/collections/source.js';
 import {
   getEntryTag,
@@ -208,6 +219,9 @@ export type CollectionQueryResponse = CollectionQueryResult & {
 export const COLLECTION_QUERY_ROWS = 20_000;
 /** photos of the people asked about read for one question */
 const COLLECTION_PERSON_ROWS = 50_000;
+/** visits, and entries per visit, shown beside the results of a search */
+const SEARCH_VISITS = 8;
+const SEARCH_ENTRIES = 6;
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -251,6 +265,44 @@ export class CollectionService extends BaseService {
     const packs = getCollectionPacks();
     const { photos, truncated } = await this.readCollectionPhotos(auth, packs, {});
     return { packs: summarizeCollections(photos, packs), truncated };
+  }
+
+  /**
+   * The visits of the collections that match a question typed in the search bar, without AI (see
+   * `getCollectionSearchTerms`): shown at once beside the smart search results
+   */
+  async searchCollections(auth: AuthDto, question: string): Promise<CollectionSearchResponseDto> {
+    const packs = getCollectionPacks();
+    const terms = getCollectionSearchTerms(question, packs);
+    if (!hasSearchTerms(terms)) {
+      return { terms, visits: [], total: 0 };
+    }
+
+    const result = await this.queryCollections(auth, {
+      pack: terms.pack,
+      text: terms.text.length > 0 ? terms.text : undefined,
+      from: terms.from,
+      to: terms.to,
+      limit: SEARCH_VISITS,
+      entriesPerVisit: SEARCH_ENTRIES,
+      photosPerEntry: 2,
+    });
+    const tagRoots = new Map(packs.map((pack) => [pack.id, pack.tagRoot]));
+    const visits = (result.visits ?? []).map((visit) => {
+      const entries = visit.entries.map(({ name, photoIds }) => ({ name, photoIds }));
+      return {
+        pack: visit.pack,
+        place: visit.place,
+        tag: `${tagRoots.get(visit.pack) ?? visit.pack}/${visit.place}`,
+        date: visit.date,
+        ...('endDate' in visit && visit.endDate && { endDate: visit.endDate }),
+        ...('city' in visit && visit.city && { city: visit.city }),
+        ...('country' in visit && visit.country && { country: visit.country }),
+        entries,
+        photoIds: [...new Set(entries.flatMap(({ photoIds }) => photoIds))].slice(0, SEARCH_ENTRIES),
+      };
+    });
+    return { terms, visits, total: result.total.visits };
   }
 
   /**
@@ -429,7 +481,10 @@ export class CollectionService extends BaseService {
             confidence: 0,
             assetIds: [],
           },
-          candidates: candidates.filter((candidate) => candidate !== place),
+          // the other names read, but not the name of the place again (a title read on the recipe it is tagged with)
+          candidates: candidates.filter(
+            (candidate) => candidate !== place && !(place && isSamePlaceName(candidate.name, place.name)),
+          ),
           saved,
         };
       }),
@@ -575,6 +630,8 @@ export class CollectionService extends BaseService {
 
     const warnings: string[] = [];
     let entries: CollectionEntryResponse[];
+    // the entries whose names may be misspelled (Greek print read as Latin lookalikes): their photos are to check
+    const toCheck = new Set<number>();
     // where each entry is in the order of the source (e.g. the courses of a menu), and whether it has a price
     let courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>;
     if (dto.entries && dto.entries.length > 0) {
@@ -585,10 +642,11 @@ export class CollectionService extends BaseService {
       // entries passed in are in the order they were read; the matcher only follows it when the photos do
       courses = entries.map((_, index) => ({ course: index }));
     } else {
-      const readings = await mapLimit(sourceIds, 2, (id) => this.getSourceReading(pack, id, true));
-      for (const reading of readings) {
+      const read = await mapLimit(sourceIds, 2, (id) => this.getSourceReading(pack, id, true));
+      for (const reading of read) {
         warnings.push(...reading.warnings);
       }
+      const readings = await this.snapPlaces(auth, read, [...subjectIds, ...sourceIds], warnings);
       const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
@@ -599,6 +657,11 @@ export class CollectionService extends BaseService {
         sourceId,
       }));
       courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
+      for (const [index, { item }] of merged.entries()) {
+        if (item.check) {
+          toCheck.add(index);
+        }
+      }
     }
     // a pack whose subjects carry their source (a bottle's label) needs no other
     if (entries.length === 0 && (sourceIds.length > 0 || !pack.source.onSubjects)) {
@@ -671,7 +734,7 @@ export class CollectionService extends BaseService {
         assetIds: match.ids,
         ...(match.item !== undefined && { index: match.item, name: entries[match.item].name }),
         score: match.score,
-        unsure: match.unsure,
+        unsure: match.unsure || (match.item !== undefined && toCheck.has(match.item)),
         ...(match.shared && { shared: true }),
         ...(match.offList !== undefined && { offList: match.offList }),
         suggestions: match.suggestions.map(({ item, score }) => ({ index: item, name: entries[item].name, score })),
@@ -679,6 +742,37 @@ export class CollectionService extends BaseService {
       noEmbedding,
       warnings: unique(warnings),
     };
+  }
+
+  /**
+   * The readings with the place names to check (read from Greek lookalikes, "Soutia") corrected to the closest place
+   * the visit knows: the cities and regions of its photos, and the places read clearly on its other sources ("Sougia"
+   * on a ferry ticket). What was corrected is said, and stays to check.
+   */
+  private async snapPlaces<T extends SourceReading>(
+    auth: AuthDto,
+    readings: T[],
+    assetIds: string[],
+    warnings: string[],
+  ): Promise<T[]> {
+    if (readings.every((reading) => reading.items.every((item) => !item.check || !item.places?.length))) {
+      return readings;
+    }
+    const rows = await this.assetJobRepository.getForAgent(assetIds, auth.user.id);
+    const known = unique([
+      ...rows.flatMap(({ city, state }) => [city, state].filter((name): name is string => !!name)),
+      ...readings.flatMap((reading) => reading.items.flatMap((item) => (item.check ? [] : (item.places ?? [])))),
+    ]);
+    if (known.length === 0) {
+      return readings;
+    }
+    return readings.map((reading) => {
+      const { items, snapped } = snapEntryPlaces(reading.items, known);
+      for (const { from, to } of snapped) {
+        warnings.push(`"${from}" was read as the closest place of the photos, "${to}": check it`);
+      }
+      return snapped.length > 0 ? { ...reading, items } : reading;
+    });
   }
 
   /**
@@ -818,7 +912,12 @@ export class CollectionService extends BaseService {
    * replacing the tag of the pack it had, and a subject photo without a description gets the pack's description,
    * e.g. "Dish · Restaurant". Running it again with the same names changes nothing.
    */
-  async saveEntries(auth: AuthDto, packId: string, dto: CollectionEntriesDto): Promise<CollectionEntriesResponseDto> {
+  async saveEntries(
+    auth: AuthDto,
+    packId: string,
+    dto: CollectionEntriesDto,
+    activity?: ActivityRecorder,
+  ): Promise<CollectionEntriesResponseDto> {
     const pack = this.requirePack(packId);
     const rules = getCollectionTagRules(pack);
     const prefix = getTagPrefix(rules);
@@ -900,6 +999,7 @@ export class CollectionService extends BaseService {
     const rows = await this.assetJobRepository.getForAgent(targets, auth.user.id);
     const descriptions = new Map(rows.map((row) => [row.id, row.description ?? '']));
     const assetService = BaseService.create(AssetService, this);
+    const logged: ActivityCollectionPhoto[] = [];
     for (const id of targets) {
       if (results.has(id)) {
         continue;
@@ -924,6 +1024,28 @@ export class CollectionService extends BaseService {
         }
       }
       results.set(id, result);
+      const tagAdded = existing.every(({ assetId, value }) => !(assetId === id && value === result.tag));
+      if (result.description || tagAdded) {
+        logged.push({
+          id,
+          tag: result.tag!,
+          tagAdded,
+          previousTags: previous.get(id) ?? [],
+          ...(result.description && {
+            description: result.description,
+            previousDescription: descriptions.get(id) ?? '',
+          }),
+        });
+      }
+    }
+
+    if (logged.length > 0) {
+      await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+        action: ActivityLogAction.CollectionEntries,
+        summary: `Named ${countPhotos(logged.length)} of ${quote(place)} (${pack.title})`,
+        assetIds: logged.map(({ id }) => id),
+        undo: { pack: pack.id, photos: logged },
+      });
     }
 
     return { place, results: ids.map((id) => results.get(id)!) };
@@ -966,11 +1088,17 @@ export class CollectionService extends BaseService {
     };
     return readings.map((reading) => {
       const chosen = chooseReading(reading, fit);
-      if (chosen.alternatives?.length) {
-        const others = chosen.alternatives.flatMap(({ title }) => (title ? [title] : []));
+      // the other titles as the user can read them: without the words OCR tore, the garbled ones and the chosen one
+      const others = unique(
+        (chosen.alternatives ?? []).flatMap(({ title }) => {
+          const cleaned = title ? cleanReadTitle(title, isGarbled) : undefined;
+          return cleaned && !(chosen.title && isSamePlaceName(cleaned, chosen.title)) ? [cleaned] : [];
+        }),
+      );
+      if (others.length > 0) {
         warnings.push(
           `The ${pack.names.source} photo also shows ${others.join(', ')}: the ${pack.names.entries} of ` +
-            `${chosen.title} fit the photos best`,
+            `${cleanReadTitle(chosen.title ?? '', isGarbled) ?? chosen.title} fit the photos best`,
         );
       }
       return chosen;

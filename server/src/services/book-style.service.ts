@@ -9,9 +9,10 @@ import {
   mapBookUserStyle,
   resolveBookStyle,
 } from 'src/dtos/book.dto.js';
-import { AssetFileType, Permission } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { Palette, extractPalette } from 'src/utils/book/palette.js';
 import {
   BookRenderWarning,
@@ -107,7 +108,11 @@ export class BookStyleService extends BaseService {
     return mapBookUserStyle(await findOrFail(() => this.bookRepository.getStyle(id), 'Book style'));
   }
 
-  async create(auth: AuthDto, dto: BookUserStyleCreateDto): Promise<BookUserStyleResponseDto> {
+  async create(
+    auth: AuthDto,
+    dto: BookUserStyleCreateDto,
+    activity?: ActivityRecorder,
+  ): Promise<BookUserStyleResponseDto> {
     requireNotSharedLink(auth);
     const style = this.requireValidStyle(dto.style);
     const row = await this.bookRepository.createStyle({
@@ -115,6 +120,12 @@ export class BookStyleService extends BaseService {
       name: dto.name,
       description: dto.description ?? '',
       style,
+    });
+    await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+      action: ActivityLogAction.BookStyleCreate,
+      summary: `Saved the book style ${quote(row.name)}`,
+      targetId: row.id,
+      undo: { styleId: row.id, updatedAt: row.updatedAt.toISOString() },
     });
     return mapBookUserStyle(row);
   }

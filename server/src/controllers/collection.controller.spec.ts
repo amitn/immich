@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { CollectionService } from 'src/services/collection.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
 
@@ -29,6 +30,28 @@ describe(CollectionController.name, () => {
       const { status, body } = await request(ctx.getHttpServer()).get('/collections');
       expect(status).toBe(200);
       expect(body).toEqual([]);
+    });
+  });
+
+  describe('GET /collections/search', () => {
+    it('should be an authenticated route', async () => {
+      await request(ctx.getHttpServer()).get('/collections/search?q=noma');
+      expect(ctx.authenticate).toHaveBeenCalled();
+    });
+
+    it('should search the collections for a question', async () => {
+      service.searchCollections.mockResolvedValue({ terms: { pack: 'food', text: ['noma'] }, visits: [], total: 0 });
+      const { status, body } = await request(ctx.getHttpServer()).get(
+        `/collections/search?q=${encodeURIComponent('what did we eat at noma?')}`,
+      );
+      expect(status).toBe(200);
+      expect(body.terms).toEqual({ pack: 'food', text: ['noma'] });
+      expect(service.searchCollections).toHaveBeenCalledWith(undefined, 'what did we eat at noma?');
+    });
+
+    it('should require a question', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/collections/search?q=');
+      expect(status).toBe(400);
     });
   });
 
@@ -148,10 +171,12 @@ describe(CollectionController.name, () => {
 
       expect(status).toBe(200);
       expect(body).toEqual({ place: 'Nino', results: [{ id, success: true, tag: 'Food/Nino/Carbonara' }] });
-      expect(service.saveEntries).toHaveBeenCalledWith(undefined, 'food', {
-        place: 'Nino',
-        photos: [{ id, entry: 'Carbonara' }],
-      });
+      expect(service.saveEntries).toHaveBeenCalledWith(
+        undefined,
+        'food',
+        { place: 'Nino', photos: [{ id, entry: 'Carbonara' }] },
+        expect.any(ActivityRecorder),
+      );
     });
   });
 });

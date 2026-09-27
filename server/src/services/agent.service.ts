@@ -33,8 +33,10 @@ import {
 } from 'src/repositories/acp.repository.js';
 import { AgentMessageTable } from 'src/schema/tables/agent-message.table.js';
 import { AgentSessionTable } from 'src/schema/tables/agent-session.table.js';
+import { AUTO_APPROVED_CHANGES_NOTIFY_MIN, ActivityLogService } from 'src/services/activity-log.service.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AgentConfig, getAgentProfile, isAssistantEnabled } from 'src/utils/agent/config.js';
 import { IMMICH_MCP_SERVER_NAME, RecapMessage, buildPromptText, buildRecap } from 'src/utils/agent/instructions.js';
 import {
@@ -124,6 +126,12 @@ type RunningAgent = {
   toolCalls: Map<string, ToolCallEntry>;
   /** ids of tool calls that target Immich tools */
   immichToolCalls: Set<string>;
+  /** the user message of the current turn: the group of the turn's changes in the activity log */
+  turnId?: string;
+  /** changes of the current turn that the user did not approve one by one */
+  unreviewedChanges: number;
+  /** a change of the current turn was approved automatically (auto-approve in the chat, or for every chat) */
+  autoApproved: boolean;
 };
 
 type PendingApproval = {
@@ -256,6 +264,9 @@ export class AgentService extends BaseService {
         ...(!session.title && { title: truncateText(dto.text.replaceAll(/\s+/g, ' ').trim(), 80) }),
       });
       this.emit(run, AgentSessionStatus.Running, message);
+      run.turnId = message.id;
+      run.unreviewedChanges = 0;
+      run.autoApproved = false;
 
       if (!run.ready) {
         run.ready = this.startAgent(run, session, config, message.id);
@@ -349,7 +360,9 @@ export class AgentService extends BaseService {
     const entry = run ? await this.enqueue(run, () => this.startMcpToolCall(run, tool, input)) : undefined;
 
     let result: AgentToolResult | undefined;
+    let askedUser = false;
     if (tool.mutating && !config.autoApproveWrites && !(run && (await this.isAutoApproved(run.sessionId)))) {
+      askedUser = true;
       const status = run ? await this.requestApproval(run, tool, input) : AgentPermissionStatus.Denied;
       if (status !== AgentPermissionStatus.Approved) {
         result = toolError(
@@ -360,18 +373,29 @@ export class AgentService extends BaseService {
       }
     }
 
+    // the changes of one chat turn form a group in the activity log, which can be undone as a whole
+    const activity = ActivityRecorder.assistant({
+      sessionId: context.sessionId,
+      toolName: tool.name,
+      groupId: run?.turnId ?? randomUUID(),
+    });
     if (!result) {
       try {
-        result = await tool.handler(context, input);
+        result = await tool.handler({ ...context, activity }, input);
       } catch (error: Error | unknown) {
         this.logger.warn(`Agent tool ${tool.name} failed: ${error}`);
         result = toolError(error instanceof Error ? error.message : String(error));
       }
     }
 
+    if (run && activity.ids.length > 0 && !askedUser) {
+      run.unreviewedChanges += activity.ids.length;
+      run.autoApproved ||= tool.mutating;
+    }
+
     if (run && entry) {
       const final = result;
-      await this.enqueue(run, () => this.finishMcpToolCall(run, entry, tool, input, final));
+      await this.enqueue(run, () => this.finishMcpToolCall(run, entry, tool, input, final, activity.ids));
     }
 
     return result;
@@ -449,6 +473,8 @@ export class AgentService extends BaseService {
       queue: Promise.resolve(),
       toolCalls: new Map(),
       immichToolCalls: new Set(),
+      unreviewedChanges: 0,
+      autoApproved: false,
     };
   }
 
@@ -540,6 +566,7 @@ export class AgentService extends BaseService {
         assetIds: dto.assetIds,
         instructions: !run.primed,
         recap: run.recap,
+        answer: dto.answer,
       });
       run.primed = true;
       run.recap = undefined;
@@ -589,6 +616,16 @@ export class AgentService extends BaseService {
     run.busy = false;
     run.lastUsed = Date.now();
     this.resolveApprovals(run.sessionId, AgentPermissionStatus.Expired);
+
+    // "The assistant made 12 changes": the user did not see them one by one, so point them to the activity log
+    if (run.turnId && run.autoApproved && run.unreviewedChanges >= AUTO_APPROVED_CHANGES_NOTIFY_MIN) {
+      await BaseService.create(ActivityLogService, this).notifyAutoApprovedChanges(run.userId, {
+        sessionId: run.sessionId,
+        groupId: run.turnId,
+      });
+    }
+    run.unreviewedChanges = 0;
+    run.autoApproved = false;
 
     if (this.running.get(run.sessionId) === run) {
       const { agent: config } = await this.getConfig({ withCache: true });
@@ -897,9 +934,13 @@ export class AgentService extends BaseService {
     tool: AgentTool,
     input: Record<string, unknown>,
     result: AgentToolResult,
+    activityIds: string[] = [],
   ) {
     const { texts, values } = getToolCallResult({ rawOutput: result });
     let content = mergeRefs(entry.content, extractToolCallRefs(tool.name, { input, output: values }));
+    if (activityIds.length > 0) {
+      content = { ...content, activityIds: [...(content.activityIds ?? []), ...activityIds] };
+    }
     if (entry.fromMcp) {
       content = {
         ...content,

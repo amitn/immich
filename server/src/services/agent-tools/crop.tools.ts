@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import z from 'zod';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { AssetFileType, AssetType, Colorspace, Permission } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, AssetType, Colorspace, Permission } from 'src/enum.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import {
   CropRect,
   CropSuggestion,
@@ -153,9 +155,16 @@ export class CropAgentTools extends BaseService {
           rotate: RotateSchema.optional(),
         }),
         mutating: true,
-        handler: async ({ auth }, { id, ...crop }) => {
+        handler: async ({ auth, activity }, { id, ...crop }) => {
           try {
-            return toolJson(await this.createCroppedCopy(auth, id, crop));
+            const copy = await this.createCroppedCopy(auth, id, crop);
+            await this.recordCopy(
+              auth,
+              activity,
+              copy,
+              crop.rotate ? 'Cropped and straightened a photo' : 'Cropped a photo',
+            );
+            return toolJson(copy);
           } catch (error) {
             return toolError(`Could not crop ${id}: ${errorMessage(error)}`);
           }
@@ -172,7 +181,7 @@ export class CropAgentTools extends BaseService {
           rotate: RotateSchema.optional(),
         }),
         mutating: true,
-        handler: async ({ auth }, { id, rotate }) => {
+        handler: async ({ auth, activity }, { id, rotate }) => {
           try {
             let angle = rotate;
             if (angle === undefined) {
@@ -184,13 +193,33 @@ export class CropAgentTools extends BaseService {
               }
               angle = tilt.angle;
             }
-            return toolJson({ ...(await this.createCroppedCopy(auth, id, { rotate: angle })), rotate: angle });
+            const copy = await this.createCroppedCopy(auth, id, { rotate: angle });
+            await this.recordCopy(auth, activity, copy, `Straightened a photo by ${angle}°`);
+            return toolJson({ ...copy, rotate: angle });
           } catch (error) {
             return toolError(`Could not straighten ${id}: ${errorMessage(error)}`);
           }
         },
       }),
     ];
+  }
+
+  /** a new copy goes into the activity log, where undoing it moves it to the trash */
+  private async recordCopy(
+    auth: AuthDto,
+    activity: ActivityRecorder | undefined,
+    copy: { id: string; sourceId: string; duplicate: boolean },
+    summary: string,
+  ) {
+    if (copy.duplicate) {
+      return;
+    }
+    await BaseService.create(ActivityLogService, this).record(auth, activity, {
+      action: ActivityLogAction.AssetCopy,
+      summary,
+      assetIds: [copy.id, copy.sourceId],
+      undo: { copies: [{ id: copy.id, sourceId: copy.sourceId }] },
+    });
   }
 
   /** Computes a face-aware crop of an image asset, in original pixels and normalized, without rendering anything. */

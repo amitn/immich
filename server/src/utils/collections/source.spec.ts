@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
-import { ParsedSource, chooseReading, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import {
+  ParsedSource,
+  chooseReading,
+  chooseSourceOcr,
+  cleanReadTitle,
+  mergeSourceEntries,
+  snapEntryPlaces,
+  snapPlaceName,
+} from 'src/utils/collections/source.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
 const box = (text: string, left: number, top: number, height = 0.022, width?: number): OcrBoxInput => {
@@ -68,5 +76,79 @@ describe('chooseReading', () => {
   it('should return a reading without alternatives as it is', () => {
     const page = reading('Quiche');
     expect(chooseReading(page, () => 1)).toBe(page);
+  });
+});
+
+describe('cleanReadTitle', () => {
+  it('should drop a last word OCR tore at the edge of the photo', () => {
+    expect(cleanReadTitle('Spinach Quiche Batl')).toBe('Spinach Quiche');
+    expect(cleanReadTitle('Lemon Tarte Tatn')).toBe('Lemon Tarte');
+  });
+
+  it('should keep the words titles end with', () => {
+    for (const title of [
+      'Pulled Pork',
+      'Lemon Tart',
+      'Basic Buttercream Frosting',
+      'Red Lentil Dahl',
+      'Fish',
+      'Quiche',
+    ]) {
+      expect(cleanReadTitle(title)).toBe(title);
+    }
+  });
+
+  it('should leave out a title that is garbled', () => {
+    expect(cleanReadTitle('MZSDGUICAT Quiche', (text) => /[^aeiou\s]{5}/i.test(text))).toBeUndefined();
+    expect(cleanReadTitle(' - ')).toBeUndefined();
+  });
+});
+
+describe('snapPlaceName', () => {
+  const known = ['Chaniá', 'Sougia', 'Chóra Sfakíon', 'Samaria', 'Crete'];
+
+  it('should correct a misread name to the closest known place', () => {
+    expect(snapPlaceName('Soutia', known)).toBe('Sougia');
+    expect(snapPlaceName('Choa Akion', known)).toBe('Chóra Sfakíon');
+    expect(snapPlaceName('Amaria', known)).toBe('Samaria');
+  });
+
+  it('should keep a name a known place spells so, and leave far or short names alone', () => {
+    expect(snapPlaceName('CHANIA', known)).toBe('CHANIA');
+    expect(snapPlaceName('Heraklion', known)).toBeUndefined();
+    expect(snapPlaceName('Oia', ['Ola'])).toBeUndefined();
+  });
+
+  it('should not choose between two places as close', () => {
+    expect(snapPlaceName('Marta', ['Maria', 'Marte'])).toBeUndefined();
+  });
+});
+
+describe('snapEntryPlaces', () => {
+  const entry = { column: 0, box: [0, 0, 1, 1] as [number, number, number, number] };
+
+  it('should correct the places of the entries to check, in their name and description', () => {
+    const { items, snapped } = snapEntryPlaces(
+      [
+        {
+          ...entry,
+          name: 'Bus Chania → Soutia, 4 Oct 2016',
+          description: 'to Soutia',
+          places: ['Chania', 'Soutia'],
+          check: true,
+        },
+        // a place read clearly is not corrected
+        { ...entry, name: 'Ferry Soutia → Sfakia', places: ['Soutia', 'Sfakia'] },
+      ],
+      ['Sougia', 'Chania'],
+    );
+    expect(items[0]).toMatchObject({
+      name: 'Bus Chania → Sougia, 4 Oct 2016',
+      description: 'to Sougia',
+      places: ['Chania', 'Sougia'],
+      check: true,
+    });
+    expect(items[1].name).toBe('Ferry Soutia → Sfakia');
+    expect(snapped).toEqual([{ from: 'Soutia', to: 'Sougia' }]);
   });
 });

@@ -2,6 +2,9 @@ import { AssetOrder, type UserPreferencesResponseDto } from '@immich/sdk';
 import { Sync } from 'factory.ts';
 
 export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
+  aiAnswers: {
+    enabled: true,
+  },
   albums: {
     defaultAssetOrder: AssetOrder.Desc,
   },

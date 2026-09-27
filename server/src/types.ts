@@ -237,6 +237,17 @@ export interface IEntityJob extends IBaseJob {
   notify?: boolean;
 }
 
+/** the photos of a user to check for a wrong orientation: the new uploads (nightly), or a scope asked for */
+export interface IOrientationCheckJob extends IBaseJob {
+  userId: string;
+  /** the photos uploaded since the last nightly check */
+  nightly?: boolean;
+  albumId?: string;
+  /** ISO dates of the capture time */
+  takenAfter?: string;
+  takenBefore?: string;
+}
+
 export interface IAssetDeleteJob extends IEntityJob {
   deleteOnDisk: boolean;
 }
@@ -348,6 +359,7 @@ export interface JobCounts {
 export type JobItem =
   // Audit
   | { name: JobName.AuditTableCleanup; data?: IBaseJob }
+  | { name: JobName.ActivityLogCleanup; data?: IBaseJob }
 
   // Backups
   | { name: JobName.DatabaseBackup; data?: IBaseJob }
@@ -425,6 +437,10 @@ export type JobItem =
 
   // Highlight videos
   | { name: JobName.HighlightRender; data: IEntityJob }
+
+  // Orientation
+  | { name: JobName.OrientationCheckQueueAll; data?: IBaseJob }
+  | { name: JobName.OrientationCheck; data: IOrientationCheckJob }
 
   // Tags
   | { name: JobName.TagCleanup; data?: IBaseJob }
@@ -574,6 +590,8 @@ export interface SystemMetadata extends Record<SystemMetadataKey, Record<string,
   [SystemMetadataKey.VersionCheckState]: VersionCheckMetadata;
   [SystemMetadataKey.MemoriesState]: MemoriesState;
   [SystemMetadataKey.IntegrityChecksumCheckpoint]: { date?: string };
+  /** the upload time up to which the nightly orientation check looked at the photos of each user */
+  [SystemMetadataKey.OrientationCheckState]: { users?: Record<string, string> };
 }
 
 export type UserPreferences = {
@@ -625,6 +643,9 @@ export type UserPreferences = {
     sidebarWeb: boolean;
   };
   bookDrafts: {
+    enabled: boolean;
+  };
+  aiAnswers: {
     enabled: boolean;
   };
   collectionNotifications: {

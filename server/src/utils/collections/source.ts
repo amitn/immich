@@ -19,6 +19,10 @@ export type SourceEntry = {
   column: number;
   /** where the entry is on the photo: [left, top, right, bottom], normalized 0..1 */
   box: [number, number, number, number];
+  /** the place names in the name as printed (where a leg starts and ends), which the engine may correct */
+  places?: string[];
+  /** the name may be misspelled (Greek print read as Latin lookalikes): the user should check it */
+  check?: boolean;
 };
 
 export type ParsedSource = {
@@ -128,6 +132,39 @@ export const getEntriesFocus = (items: Array<Pick<SourceEntry, 'box'>>, { pad = 
   return { x: round(x), y: round(y), width: round(width), height: round(height) } satisfies FocusRect;
 };
 
+/**
+ * two consonants that end words of English, French, Italian or German titles ("Pork", "Tart", "Frosting", "Dahl"); a
+ * word torn at the edge of a photo ends in others ("Spinach Quiche Batl")
+ */
+const WORD_ENDINGS = new Set(
+  (
+    'bb bs ch ck ct dd ds dt ff ft gg gh gs gt hl hn ht ks lb ld lf lk ll lm lp ls lt mb mm mn mp ms nc nd ng nk nn ' +
+    'ns nt nz ph pp ps pt rb rc rd rf rg rk rl rm rn rp rr rs rt rz sh sk sp ss st th ts tt tz wd wk wl wn ws wt xt zz'
+  ).split(' '),
+);
+
+/** the last word of a title is torn: a short word OCR cut off at the edge of the photo, "Batl" */
+const isTornWord = (word: string) => {
+  const letters = stripAccents(word)
+    .toLowerCase()
+    .replaceAll(/[^a-z]/g, '');
+  const end = letters.slice(-2);
+  return letters.length >= 2 && letters.length <= 5 && /^[^aeiouy]{2}$/.test(end) && !WORD_ENDINGS.has(end);
+};
+
+/**
+ * The title of a reading as shown to the user: without a last word the OCR tore ("Spinach Quiche Batl" is "Spinach
+ * Quiche"), or none when what is left is not a title. The engine still chooses the readings by the titles as read.
+ */
+export const cleanReadTitle = (title: string, isGarbled: (text: string) => boolean = () => false) => {
+  const words = title.trim().split(/\s+/);
+  if (words.length > 1 && isTornWord(words.at(-1)!)) {
+    words.pop();
+  }
+  const cleaned = words.join(' ').replace(/[\s,;:.-]+$/, '');
+  return cleaned && /\p{L}/u.test(cleaned) && !isGarbled(cleaned) ? cleaned : undefined;
+};
+
 /** the CLIP text of the title of a reading, compared with the subject photos */
 export const getTitlePrompt = (title: string) => `a photo of ${title}`;
 
@@ -208,4 +245,74 @@ export const mergeSourceEntries = <T extends { items: SourceEntry[] }>(
     }
   }
   return items;
+};
+
+const placeKey = (name: string) =>
+  stripAccents(name)
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/**
+ * The known place a misread place name is closest to, when it is close (a third of its letters at most) and no other
+ * is as close: "Soutia" is "Sougia", "Choa Akion" is "Chora Sfakion". The name itself when a place is spelled so (but
+ * for case and accents), undefined when none is close.
+ */
+export const snapPlaceName = (name: string, known: string[]): string | undefined => {
+  const key = placeKey(name);
+  if (key.length < 4) {
+    return;
+  }
+  if (known.some((place) => placeKey(place) === key)) {
+    return name;
+  }
+  let best: { place: string; key: string; distance: number } | undefined;
+  let tie = false;
+  for (const place of known) {
+    const other = placeKey(place);
+    if (other.length < 4) {
+      continue;
+    }
+    const distance = editDistance(key, other);
+    if (distance > Math.max(1, Math.floor(0.34 * Math.max(key.length, other.length)))) {
+      continue;
+    }
+    if (!best || distance < best.distance) {
+      best = { place, key: other, distance };
+      tie = false;
+    } else if (distance === best.distance && other !== best.key) {
+      tie = true;
+    }
+  }
+  return best && !tie ? best.place : undefined;
+};
+
+export type SnappedPlace = { from: string; to: string };
+
+/**
+ * The entries with the place names to check (`check`) corrected to the closest known place (the cities of the photos,
+ * the places read clearly on the other sources), in their name and description; they stay to check
+ */
+export const snapEntryPlaces = (
+  items: SourceEntry[],
+  known: string[],
+): { items: SourceEntry[]; snapped: SnappedPlace[] } => {
+  const snapped: SnappedPlace[] = [];
+  const result = items.map((item) => {
+    if (!item.check || !item.places?.length) {
+      return item;
+    }
+    let { name, description } = item;
+    const places = item.places.map((place) => {
+      const to = snapPlaceName(place, known);
+      if (!to || to === place) {
+        return place;
+      }
+      name = name.split(place).join(to);
+      description = description?.split(place).join(to);
+      snapped.push({ from: place, to });
+      return to;
+    });
+    return { ...item, name, ...(description !== undefined && { description }), places };
+  });
+  return { items: result, snapped };
 };

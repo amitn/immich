@@ -1,7 +1,8 @@
 import { bookStylePresetIds } from 'src/dtos/book.dto.js';
-import { SharedLinkType } from 'src/enum.js';
+import { ActivityLogAction, SharedLinkType } from 'src/enum.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
+import { ActivityRecorder, fingerprintBook, toBookSnapshot } from 'src/utils/activity-log.js';
 import { AgentTool, AgentToolContext } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
@@ -248,6 +249,67 @@ describe(BookAgentTools.name, () => {
       expect(result.isError).toBe(true);
       expect(text(result)).toContain('has 1 slot(s)');
       expect(mocks.book.addPage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('activity log', () => {
+    it('should record an edit with a snapshot of the book before it', async () => {
+      const { book, pages } = await createBook();
+      const assetId = newUuid();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([assetId]));
+      const before = pages.map((page) => ({ ...page, assets: [...page.assets] }));
+      mocks.book.upsertSlot.mockImplementation((_, { slot, crop }) => {
+        pages[1].assets = [...pages[1].assets, { slot, assetId, crop: crop ?? null, caption: null }];
+        return Promise.resolve();
+      });
+      mocks.activityLog.createRevision.mockResolvedValue({ id: 'revision', createdAt: new Date() });
+      mocks.activityLog.pruneRevisions.mockResolvedValue();
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+      ctx = {
+        ...ctx,
+        activity: ActivityRecorder.assistant({ sessionId: ctx.sessionId, toolName: 'place_photo', groupId: 'turn' }),
+      };
+
+      const crop = { x: 0, y: 0, width: 1, height: 0.5 };
+      await call('place_photo', { bookId: book.id, page: 2, slot: 2, assetId, crop });
+
+      expect(mocks.activityLog.createRevision).toHaveBeenCalledWith(book.id, toBookSnapshot(book, before));
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.BookEdit,
+          summary: `Placed a photo on page 2 of “${book.title}”`,
+          targetId: book.id,
+          undo: { bookId: book.id, revisionId: 'revision', fingerprint: fingerprintBook(toBookSnapshot(book, pages)) },
+        }),
+      );
+      expect(ctx.activity!.ids).toEqual(['change']);
+    });
+
+    it('should not record an edit that failed without changing the book', async () => {
+      const { book } = await createBook();
+      ctx = { ...ctx, activity: ActivityRecorder.web() };
+
+      const result = await call('place_photo', { bookId: book.id, page: 9, slot: 1, assetId: newUuid() });
+
+      expect(result.isError).toBe(true);
+      expect(mocks.activityLog.create).not.toHaveBeenCalled();
+    });
+
+    it('should record a new book', async () => {
+      const { book } = setupBook();
+      mocks.book.create.mockResolvedValue(book);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+      ctx = { ...ctx, activity: ActivityRecorder.web() };
+
+      await call('create_book', { title: book.title });
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.BookCreate,
+          summary: `Created the book “${book.title}”`,
+          undo: { bookId: book.id, fingerprint: expect.any(String) },
+        }),
+      );
     });
   });
 

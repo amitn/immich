@@ -49,6 +49,7 @@ import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js'
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { sendFile } from 'src/utils/file.js';
 import { getSharedLinkAuthTokens } from 'src/utils/shared-link.js';
 import { UUIDParamDto } from 'src/validation.js';
@@ -165,7 +166,7 @@ export class BookController {
     history: history(),
   })
   keepBookDraft(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookResponseDto> {
-    return this.draftService.keep(auth, id);
+    return this.draftService.keep(auth, id, ActivityRecorder.web());
   }
 
   @Post(':id/discard')
@@ -177,7 +178,7 @@ export class BookController {
     history: history(),
   })
   discardBookDraft(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
-    return this.draftService.discard(auth, id);
+    return this.draftService.discard(auth, id, ActivityRecorder.web());
   }
 
   @Get(':id')
@@ -218,7 +219,7 @@ export class BookController {
     @Param() { id }: UUIDParamDto,
     @Body() dto: BookUpdateDto,
   ): Promise<BookDetailResponseDto> {
-    return this.service.update(auth, id, dto);
+    return this.service.update(auth, id, dto, ActivityRecorder.web());
   }
 
   @Delete(':id')

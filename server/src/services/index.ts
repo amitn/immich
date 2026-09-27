@@ -1,3 +1,4 @@
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { ActivityService } from 'src/services/activity.service.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { AgentService } from 'src/services/agent.service.js';
@@ -15,6 +16,7 @@ import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
+import { CollageService } from 'src/services/collage.service.js';
 import { CollectionNoticeService } from 'src/services/collection-notice.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
@@ -37,6 +39,7 @@ import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
 import { NotificationService } from 'src/services/notification.service.js';
 import { OcrService } from 'src/services/ocr.service.js';
+import { OrientationService } from 'src/services/orientation.service.js';
 import { PartnerService } from 'src/services/partner.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
@@ -67,6 +70,7 @@ import { WorkflowService } from 'src/services/workflow.service.js';
 export const services = [
   ApiKeyService,
   ActivityService,
+  ActivityLogService,
   AgentService,
   AgentToolService,
   AlbumService,
@@ -90,6 +94,8 @@ export const services = [
   DownloadService,
   DuplicateService,
   EnhanceService,
+  CollageService,
+  OrientationService,
   FoodService,
   IntegrityService,
   HlsService,

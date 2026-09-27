@@ -289,6 +289,321 @@
         "x-immich-state": "Stable"
       }
     },
+    "/activity": {
+      "get": {
+        "description": "Retrieve the changes the assistant made to the library (and the changes made with its features in the web app), newest first, optionally only those of one chat, group, source or kind, of a date range, or only the undone ones.",
+        "operationId": "getActivityLog",
+        "parameters": [
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ActivityLogAction"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Only changes made at or after this date",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "example": "2024-01-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": false,
+            "in": "query",
+            "description": "Only the changes of this group (a chat turn or a web request)",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of changes to return",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of changes to skip",
+            "schema": {
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "default": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": false,
+            "in": "query",
+            "description": "Only the changes of this assistant chat",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ActivityLogSource"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Only changes made before this date",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "example": "2024-01-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "undone",
+            "required": false,
+            "in": "query",
+            "description": "true: only undone changes; false: only changes that were not undone",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityLogResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve the activity log",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/undo": {
+      "post": {
+        "description": "Undo several changes, or every change of a group (a chat turn), newest first. Each change is checked first: a change that later changes depend on (e.g. a copy placed in a book since, or a book edited again) is refused with the reason, and the other changes are still undone.",
+        "operationId": "undoActivities",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityUndoDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityUndoResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Undo changes",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/{id}/redo": {
+      "post": {
+        "description": "Apply an undone change again. Only for the changes that are simple to repeat: adding photos to an album, removing them, and keeping a suggested book.",
+        "operationId": "redoActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityLogResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Redo a change",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/{id}/undo": {
+      "post": {
+        "description": "Undo one change: created copies, artworks and videos go to the trash, photos go back into or out of albums, collection names and books are restored. It is refused, with the reason, when later changes depend on it.",
+        "operationId": "undoActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityUndoResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Undo a change",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/admin/auth/unlink-all": {
       "post": {
         "description": "Unlinks all OAuth accounts associated with user accounts in the system.",
@@ -9643,6 +9958,175 @@
         "x-immich-permission": "clusterGroup.read"
       }
     },
+    "/collages": {
+      "post": {
+        "description": "Save a collage as a new image asset, dated like its last photo and tagged Collages/<title or dates>; optionally add it to an album.",
+        "operationId": "createCollage",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Save a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.upload",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collages/layouts": {
+      "post": {
+        "description": "List the layouts for the number of photos, the one that fits their orientations best at the aspect ratio first.",
+        "operationId": "getCollageLayouts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollageLayoutsResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List the layouts of a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collages/render": {
+      "post": {
+        "description": "Render a collage as a JPEG image without saving it: a preview, or the full size image to download.",
+        "operationId": "renderCollage",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageRenderDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Render a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/collections": {
       "get": {
         "description": "Retrieve the collection packs (food is the first): the theme of each, the words of its domain, the root of its tags and its book style.",
@@ -9675,6 +10159,64 @@
           }
         ],
         "summary": "List collection packs",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collections/search": {
+      "get": {
+        "description": "Find the visits of the collections that match a question or words typed in the search bar (\"what did we eat at noma\", \"which museums did we visit in 2025\"), without AI: the pack the words point to, the years they name and the names left are matched against the tags of the collections. Only the user's own photos are read.",
+        "operationId": "searchCollections",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "A question or words typed in the search bar",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 500,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionSearchResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Search the collections",
         "tags": [
           "Collections"
         ],
@@ -13370,6 +13912,291 @@
           }
         ],
         "x-immich-state": "Stable"
+      }
+    },
+    "/orientation/fix": {
+      "post": {
+        "description": "Turn photos with a rotate edit (reversible, no copy is made): by their suggested turn, or by the given one.",
+        "operationId": "fixOrientation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrientationFixDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BulkIdResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Fix the orientation of photos",
+        "tags": [
+          "Orientation"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.edit.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/orientation/reject": {
+      "post": {
+        "description": "Keep photos as they are; their turn is not suggested again.",
+        "operationId": "rejectOrientation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrientationAssetsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BulkIdResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Reject orientation suggestions",
+        "tags": [
+          "Orientation"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/orientation/scan": {
+      "post": {
+        "description": "Check the photos of the user in the background, all of them (newest first, up to 5000), those of an album or those taken in a date range, for photos stored sideways or upside down. Only confident cases are suggested.",
+        "operationId": "scanOrientation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrientationScanDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Check the orientation of photos",
+        "tags": [
+          "Orientation"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/orientation/suggestions": {
+      "get": {
+        "description": "List the photos found sideways or upside down, with the turn that fixes them and why.",
+        "operationId": "getOrientationSuggestions",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Only the suggestions with this status (default suggested)",
+            "schema": {
+              "$ref": "#/components/schemas/OrientationStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrientationSuggestionResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List orientation suggestions",
+        "tags": [
+          "Orientation"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/orientation/undo": {
+      "post": {
+        "description": "Turn fixed photos back as they were, and suggest the turn again.",
+        "operationId": "undoOrientation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrientationAssetsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BulkIdResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Undo orientation fixes",
+        "tags": [
+          "Orientation"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.edit.create",
+        "x-immich-state": "Alpha"
       }
     },
     "/partners": {
@@ -21957,6 +22784,10 @@
       "description": "An activity is a like or a comment made by a user on an asset or album."
     },
     {
+      "name": "Activity log",
+      "description": "The activity log records the changes the AI assistant made to the library (and the changes made with its features in the web app), each with its inverse, so that a change, or all the changes of a chat turn, can be undone."
+    },
+    {
       "name": "Albums",
       "description": "An album is a collection of assets that can be shared with other users or via shared links."
     },
@@ -21995,6 +22826,10 @@
     {
       "name": "Config (user)",
       "description": "The system configuration properties that are visible to logged in users."
+    },
+    {
+      "name": "Collages",
+      "description": "A collage is 2 to 9 photos on one page at a chosen aspect ratio, laid out and drawn with the book layouts and styles, and saved as a new image asset."
     },
     {
       "name": "Collections",
@@ -22067,6 +22902,10 @@
     {
       "name": "Notifications (admin)",
       "description": "Notification administrative endpoints."
+    },
+    {
+      "name": "Orientation",
+      "description": "Photos stored sideways or upside down are found by a background check (CLIP, faces and text direction) and fixed with a reversible rotate edit."
     },
     {
       "name": "Partners",
@@ -22199,6 +23038,134 @@
         ],
         "type": "object"
       },
+      "ActivityLogAction": {
+        "description": "Kind of change",
+        "enum": [
+          "album.create",
+          "album.addAssets",
+          "album.removeAssets",
+          "asset.copy",
+          "asset.create",
+          "artwork.create",
+          "artStyle.create",
+          "book.create",
+          "book.edit",
+          "bookDraft.keep",
+          "bookDraft.discard",
+          "bookStyle.create",
+          "collection.entries",
+          "highlight.create",
+          "sharedLink.create"
+        ],
+        "type": "string"
+      },
+      "ActivityLogResponseDto": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ActivityLogAction"
+          },
+          "assetIds": {
+            "description": "The photos and videos that were changed or created",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canRedo": {
+            "description": "Whether the undone change can be applied again",
+            "type": "boolean"
+          },
+          "canUndo": {
+            "description": "Whether the change can be undone (it may still be refused by the safety checks)",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "When the change was made",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "groupId": {
+            "description": "Group of the change: the changes of one chat turn or one web request",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Change ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "sessionId": {
+            "description": "Assistant chat that made the change",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ActivityLogSource"
+          },
+          "summary": {
+            "description": "What changed",
+            "type": "string"
+          },
+          "targetId": {
+            "description": "The album, book, style, shared link or highlight video that was changed or created",
+            "nullable": true,
+            "type": "string"
+          },
+          "toolName": {
+            "description": "Assistant tool that made the change",
+            "nullable": true,
+            "type": "string"
+          },
+          "undoneAt": {
+            "description": "When the change was undone",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "undoneBy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLogSource"
+              }
+            ],
+            "description": "Who undid the change",
+            "nullable": true
+          }
+        },
+        "required": [
+          "action",
+          "assetIds",
+          "canRedo",
+          "canUndo",
+          "createdAt",
+          "groupId",
+          "id",
+          "sessionId",
+          "source",
+          "summary",
+          "targetId",
+          "toolName",
+          "undoneAt",
+          "undoneBy"
+        ],
+        "type": "object"
+      },
+      "ActivityLogSource": {
+        "description": "Who made the change: the assistant, or the user in the web app",
+        "enum": [
+          "assistant",
+          "web"
+        ],
+        "type": "string"
+      },
       "ActivityResponseDto": {
         "properties": {
           "assetId": {
@@ -22263,6 +23230,102 @@
         ],
         "type": "object"
       },
+      "ActivityUndoDto": {
+        "properties": {
+          "groupId": {
+            "description": "Undo every change of this group (a chat turn or a web request)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "ids": {
+            "description": "Changes to undo; they are undone newest first",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ActivityUndoResponseDto": {
+        "properties": {
+          "refused": {
+            "description": "Number of changes that were refused or failed",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "results": {
+            "description": "One result per change, in the order they were undone",
+            "items": {
+              "$ref": "#/components/schemas/ActivityUndoResultDto"
+            },
+            "type": "array"
+          },
+          "undone": {
+            "description": "Number of changes undone (fully or partly)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "refused",
+          "results",
+          "undone"
+        ],
+        "type": "object"
+      },
+      "ActivityUndoResultDto": {
+        "properties": {
+          "id": {
+            "description": "Change ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why the change was not undone, or not all of it",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActivityUndoStatus"
+          },
+          "summary": {
+            "description": "What changed",
+            "type": "string"
+          },
+          "warnings": {
+            "description": "What undoing left as it was, e.g. a photo that was already in the trash",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "summary",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "ActivityUndoStatus": {
+        "description": "Outcome of undoing a change",
+        "enum": [
+          "undone",
+          "partial",
+          "refused",
+          "alreadyUndone",
+          "failed"
+        ],
+        "type": "string"
+      },
       "AddUsersDto": {
         "properties": {
           "albumUsers": {
@@ -22282,6 +23345,12 @@
       "AdminConfigAgentDto": {
         "description": "AI assistant (Agent Client Protocol) config",
         "properties": {
+          "activityRetentionDays": {
+            "description": "Days the activity log keeps the changes made by the assistant, which can be undone until then",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
           "artProfile": {
             "description": "Profile used for artistic transforms (empty to disable)",
             "type": "string"
@@ -22323,6 +23392,7 @@
           }
         },
         "required": [
+          "activityRetentionDays",
           "artProfile",
           "autoApproveWrites",
           "chatProfile",
@@ -23777,6 +24847,13 @@
       },
       "AgentMessageContentDto": {
         "properties": {
+          "activityIds": {
+            "description": "Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "albumIds": {
             "description": "Albums referenced by tool results",
             "items": {
@@ -23976,6 +25053,10 @@
       },
       "AgentPromptDto": {
         "properties": {
+          "answer": {
+            "description": "A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a \"Sources:\" line of the photos and tags used",
+            "type": "boolean"
+          },
           "assetIds": {
             "description": "Assets selected by the user, passed as context",
             "items": {
@@ -24163,6 +25244,27 @@
           "sessionId",
           "status"
         ],
+        "type": "object"
+      },
+      "AiAnswersResponse": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the assistant answers the questions typed in the search bar, beside the results",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "AiAnswersUpdate": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the assistant answers the questions typed in the search bar, beside the results",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "AlbumResponseDto": {
@@ -28294,6 +29396,221 @@
         ],
         "type": "object"
       },
+      "CollageAspectRatio": {
+        "description": "Aspect ratio of the collage, width:height",
+        "enum": [
+          "1:1",
+          "4:5",
+          "9:16",
+          "16:9"
+        ],
+        "type": "string"
+      },
+      "CollageCreateDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album to add the collage to, e.g. the album the photos were picked in",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageDto": {
+        "properties": {
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageLayoutResponseDto": {
+        "properties": {
+          "description": {
+            "description": "What the layout looks like",
+            "type": "string"
+          },
+          "id": {
+            "description": "Layout ID",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the layout",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CollageLayoutsResponseDto": {
+        "properties": {
+          "layouts": {
+            "description": "The layouts for the number of photos, the one that fits them best first",
+            "items": {
+              "$ref": "#/components/schemas/CollageLayoutResponseDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "layouts"
+        ],
+        "type": "object"
+      },
+      "CollageRenderDto": {
+        "properties": {
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "full": {
+            "description": "Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview",
+            "type": "boolean"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageResponseDto": {
+        "properties": {
+          "assetId": {
+            "description": "The new image asset",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "duplicate": {
+            "description": "An identical collage had already been saved, and is returned instead",
+            "type": "boolean"
+          },
+          "layout": {
+            "description": "Layout the collage was drawn with",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag of the collage, Collages/<title or dates>",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetId",
+          "duplicate",
+          "layout",
+          "tag"
+        ],
+        "type": "object"
+      },
       "CollectionEntriesDto": {
         "properties": {
           "photos": {
@@ -28841,6 +30158,134 @@
           "assetId",
           "place",
           "source"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchEntryDto": {
+        "properties": {
+          "name": {
+            "description": "Name of the entry, e.g. a dish",
+            "type": "string"
+          },
+          "photoIds": {
+            "description": "Photos of the entry",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "photoIds"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchResponseDto": {
+        "properties": {
+          "terms": {
+            "$ref": "#/components/schemas/CollectionSearchTermsDto"
+          },
+          "total": {
+            "description": "Matching visits in all",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "visits": {
+            "description": "Matching visits, newest first",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSearchVisitDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "terms",
+          "total",
+          "visits"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchTermsDto": {
+        "properties": {
+          "from": {
+            "description": "First year named",
+            "type": "string"
+          },
+          "pack": {
+            "description": "The pack the words point to, e.g. food for \"what did we eat\"",
+            "type": "string"
+          },
+          "text": {
+            "description": "Names looked for in the places and entries, e.g. noma",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "description": "Last year named",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchVisitDto": {
+        "properties": {
+          "city": {
+            "description": "City",
+            "type": "string"
+          },
+          "country": {
+            "description": "Country",
+            "type": "string"
+          },
+          "date": {
+            "description": "Local day of the visit",
+            "type": "string"
+          },
+          "endDate": {
+            "description": "Local last day of a visit of several days",
+            "type": "string"
+          },
+          "entries": {
+            "description": "Entries named on the visit, up to 6",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSearchEntryDto"
+            },
+            "type": "array"
+          },
+          "pack": {
+            "description": "Pack ID",
+            "type": "string"
+          },
+          "photoIds": {
+            "description": "Photos of the visit, up to 6",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "place": {
+            "description": "Name of the place, as in the tags",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag of the place, e.g. Food/Noma Australia",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "entries",
+          "pack",
+          "photoIds",
+          "place",
+          "tag"
         ],
         "type": "object"
       },
@@ -31309,6 +32754,7 @@
           "AssetGenerateThumbnailsQueueAll",
           "AssetGenerateThumbnails",
           "AuditTableCleanup",
+          "ActivityLogCleanup",
           "BookDraftsQueueAll",
           "BookDraftsGenerate",
           "CollectionNoticesQueueAll",
@@ -31316,6 +32762,8 @@
           "BookExport",
           "BookExportHtml",
           "HighlightRender",
+          "OrientationCheckQueueAll",
+          "OrientationCheck",
           "DatabaseBackup",
           "FacialRecognitionQueueAll",
           "FacialRecognition",
@@ -33402,6 +34850,133 @@
         ],
         "type": "object"
       },
+      "OrientationAssetsDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "OrientationFixDto": {
+        "properties": {
+          "assetIds": {
+            "description": "Photos to turn",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "rotate": {
+            "description": "Clockwise turn in degrees (90, 180 or 270); default: the suggested one",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "OrientationScanDto": {
+        "properties": {
+          "albumId": {
+            "description": "Only the photos of this album",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "takenAfter": {
+            "description": "Only the photos taken at or after this date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "takenBefore": {
+            "description": "Only the photos taken before this date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OrientationStatus": {
+        "description": "Review status of an orientation suggestion",
+        "enum": [
+          "suggested",
+          "fixed",
+          "rejected"
+        ],
+        "type": "string"
+      },
+      "OrientationSuggestionResponseDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "checkedAt": {
+            "description": "When the photo was checked",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "How sure the check is, 0 to 1",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "reasons": {
+            "description": "What the check saw: CLIP, faces, text",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rotate": {
+            "description": "Clockwise turn in degrees that makes the photo upright: 90, 180 or 270",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrientationStatus"
+          }
+        },
+        "required": [
+          "assetId",
+          "checkedAt",
+          "confidence",
+          "reasons",
+          "rotate",
+          "status"
+        ],
+        "type": "object"
+      },
       "PartnerCreateDto": {
         "properties": {
           "sharedWithId": {
@@ -33636,6 +35211,8 @@
           "activity.update",
           "activity.delete",
           "activity.statistics",
+          "activityLog.read",
+          "activityLog.undo",
           "agentSession.create",
           "agentSession.read",
           "agentSession.update",
@@ -41731,6 +43308,9 @@
       },
       "UserPreferencesResponseDto": {
         "properties": {
+          "aiAnswers": {
+            "$ref": "#/components/schemas/AiAnswersResponse"
+          },
           "albums": {
             "$ref": "#/components/schemas/AlbumsResponse"
           },
@@ -41775,6 +43355,7 @@
           }
         },
         "required": [
+          "aiAnswers",
           "albums",
           "bookDrafts",
           "cast",
@@ -41794,6 +43375,9 @@
       },
       "UserPreferencesUpdateDto": {
         "properties": {
+          "aiAnswers": {
+            "$ref": "#/components/schemas/AiAnswersUpdate"
+          },
           "albums": {
             "$ref": "#/components/schemas/AlbumsUpdate"
           },

@@ -20,6 +20,7 @@ import {
 } from 'src/utils/collections/packs/travel/dates.js';
 import { isGreekLookalike, readGreekName } from 'src/utils/collections/packs/travel/greek.js';
 import { ParsedSource, SourceParseOptions } from 'src/utils/collections/source.js';
+import { stripAccents } from 'src/utils/collections/text.js';
 
 /**
  * Reading a travel document (a boarding pass; a bus, train, ferry or monorail ticket; a park or museum entry ticket;
@@ -270,6 +271,23 @@ const cleanCarrier = (text: string) => {
 /** the Greek bus operators' cooperative, as OCR reads ΚΤΕΛ */
 const KNOWN_ACRONYMS: Record<string, string> = { KTEA: 'KTEL', ΚΤΕΛ: 'KTEL' };
 
+/**
+ * A carrier that is a shard of a longer line, not a name: too short, without a vowel, or a single word decoded from
+ * Greek capitals with the ending of an inflected word ("YMNOU", the end of ΡΕΘΥΜΝΟΥ, "of Rethymno", which a torn
+ * company line starts with), which no company acronym has
+ */
+const isCarrierFragment = (carrier: string, decoded: boolean) => {
+  if (CJK.test(carrier)) {
+    return false;
+  }
+  const letters = stripAccents(carrier).replaceAll(/[^\p{L}]/gu, '');
+  return (
+    letters.length < 3 ||
+    !/[aeiouy]/i.test(letters) ||
+    (decoded && !carrier.includes(' ') && /(?:OU|ON)$/.test(carrier.toUpperCase()))
+  );
+};
+
 /** the carrier: an airline, or the company named at the top of the document (Greek decoded) */
 const findCarrier = (lines: TextLine[], mode: TravelMode | undefined, greek: boolean): string | undefined => {
   const text = lines.map((line) => line.text).join('\n');
@@ -301,9 +319,12 @@ const findCarrier = (lines: TextLine[], mode: TravelMode | undefined, greek: boo
   if (greek) {
     const first = words[0];
     // a company acronym, e.g. ANENAYK (ΑΝΕΝΔΥΚ): decoded, it is kept in capitals
-    return isGreekLookalike(first, true) ? readGreekName(first).name.toUpperCase() : cleanCarrier(company.text);
+    const decoded = isGreekLookalike(first, true);
+    const carrier = decoded ? readGreekName(first).name.toUpperCase() : cleanCarrier(company.text);
+    return isCarrierFragment(carrier, decoded) ? undefined : carrier;
   }
-  return cleanCarrier(company.text);
+  const carrier = cleanCarrier(company.text);
+  return isCarrierFragment(carrier, false) ? undefined : carrier;
 };
 
 /** whether two words share a run of `length` letters: the same name read twice ("ZAMAPIA" and "EAMAPIA") */
@@ -905,6 +926,10 @@ export const parseTicket = (ocr: OcrBoxInput[], options: SourceParseOptions = {}
   }
   const { flags, box, ...fields } = ticket;
   const description = getLegDescription(fields);
+  // the places of the leg as they are in its name, for the engine to correct those read from Greek lookalikes
+  const places = [fields.from, fields.to, fields.venue?.replace(/\s(?:National Park|Museum)$/, '')].filter(
+    (place): place is string => !!place,
+  );
   return {
     items: [
       {
@@ -914,6 +939,8 @@ export const parseTicket = (ocr: OcrBoxInput[], options: SourceParseOptions = {}
         ...(fields.mode && { section: getModeName(fields.mode) }),
         column: 0,
         box,
+        ...(places.length > 0 && { places }),
+        ...(fields.lookalike && { check: true }),
       },
     ],
     ...(fields.carrier && { title: fields.carrier }),

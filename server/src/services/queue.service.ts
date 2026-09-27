@@ -29,7 +29,7 @@ import {
   QueueName,
 } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
-import { handlePromiseError } from 'src/utils/misc.js';
+import { handlePromiseError, isSmartSearchEnabled } from 'src/utils/misc.js';
 
 const asNightlyTasksCron = (config: SystemConfig) => {
   const [hours, minutes] = config.nightlyTasks.startTime.split(':').map(Number);
@@ -277,6 +277,7 @@ export class QueueService extends BaseService {
         { name: JobName.SessionCleanup },
         { name: JobName.HlsSessionCleanup },
         { name: JobName.AuditTableCleanup },
+        { name: JobName.ActivityLogCleanup },
       );
     }
 
@@ -290,6 +291,11 @@ export class QueueService extends BaseService {
 
     if (config.collections.notifications.enabled) {
       jobs.push({ name: JobName.CollectionNoticesQueueAll });
+    }
+
+    if (isSmartSearchEnabled(config.machineLearning)) {
+      // the photos uploaded since the last night that are sideways or upside down
+      jobs.push({ name: JobName.OrientationCheckQueueAll });
     }
 
     if (config.nightlyTasks.syncQuotaUsage) {

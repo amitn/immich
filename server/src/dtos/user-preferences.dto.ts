@@ -116,6 +116,16 @@ const BookDraftsUpdateSchema = z
   .optional()
   .meta({ id: 'BookDraftsUpdate' });
 
+const AiAnswersUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .optional()
+  .meta({ id: 'AiAnswersUpdate' });
+
 const CollectionNotificationsUpdateSchema = z
   .object({
     enabled: z
@@ -128,6 +138,7 @@ const CollectionNotificationsUpdateSchema = z
 
 const UserPreferencesUpdateSchema = z
   .object({
+    aiAnswers: AiAnswersUpdateSchema,
     albums: AlbumsUpdateSchema,
     avatar: AvatarUpdateSchema,
     bookDrafts: BookDraftsUpdateSchema,
@@ -243,8 +254,17 @@ const CollectionNotificationsResponseSchema = z
   })
   .meta({ id: 'CollectionNotificationsResponse' });
 
+const AiAnswersResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .meta({ id: 'AiAnswersResponse' });
+
 const UserPreferencesResponseSchema = z
   .object({
+    aiAnswers: AiAnswersResponseSchema,
     albums: AlbumsResponseSchema,
     folders: FoldersResponseSchema,
     memories: MemoriesResponseSchema,

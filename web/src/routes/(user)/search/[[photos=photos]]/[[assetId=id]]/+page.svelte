@@ -6,6 +6,8 @@
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import ControlAppBar from '$lib/components/shared-components/ControlAppBar.svelte';
   import GalleryViewer from '$lib/components/shared-components/gallery-viewer/GalleryViewer.svelte';
+  import AskLibraryPanel from '$lib/components/search/AskLibraryPanel.svelte';
+  import CollectionMatches from '$lib/components/search/CollectionMatches.svelte';
   import SearchBar from '$lib/components/shared-components/search-bar/SearchBar.svelte';
   import ArchiveAction from '$lib/components/timeline/actions/ArchiveAction.svelte';
   import ChangeDate from '$lib/components/timeline/actions/ChangeDateAction.svelte';
@@ -28,6 +30,7 @@
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { lang, locale } from '$lib/stores/preferences.store';
   import { handlePromiseError } from '$lib/utils';
+  import { isQuestion } from '$lib/utils/ask-library';
   import { parseUtcDate } from '$lib/utils/date-time';
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, isPeopleRoute } from '$lib/utils/navigation';
@@ -68,6 +71,8 @@
   let smartSearchEnabled = $derived(featureFlagsManager.value.smartSearch);
   let terms = $derived<SearchTerms>(searchQuery ? JSON.parse(searchQuery) : {});
   let searchTermKeys = $derived(getObjectKeys(terms));
+  /** a question typed in the search bar gets the collections that match it and an answer beside the results */
+  let question = $derived(typeof terms.query === 'string' && isQuestion(terms.query) ? terms.query.trim() : undefined);
 
   $effect(() => {
     // we want this to *only* be reactive on `terms`
@@ -306,100 +311,111 @@
   </section>
 {/if}
 
-<section
-  class="m-4 mb-12 max-h-screen bg-immich-bg dark:bg-immich-dark-bg"
-  bind:clientHeight={viewport.height}
-  bind:clientWidth={viewport.width}
-  bind:this={searchResultsElement}
->
-  <section id="search-content">
-    {#if searchResultAssets.length > 0}
-      <GalleryViewer
-        assets={searchResultAssets}
-        assetInteraction={assetMultiSelectManager}
-        onEndReached={loadNextPage}
-        showArchiveIcon={true}
-        {viewport}
-        onReload={onSearchQueryUpdate}
-        slidingWindowOffset={searchResultsElement.offsetTop}
-      />
-    {:else if !isLoading}
-      <div class="flex min-h-[calc(66vh-11rem)] w-full place-content-center items-center dark:text-white">
-        <div class="flex flex-col content-center items-center text-center">
-          <Icon icon={mdiImageOffOutline} size="3.5em" />
-          <p class="mt-5 text-3xl font-medium">{$t('no_results')}</p>
-          <p class="text-base font-normal">{$t('no_results_description')}</p>
-        </div>
-      </div>
-    {/if}
-
-    {#if isLoading}
-      <div class="flex items-center justify-center py-16">
-        <LoadingSpinner size="giant" />
-      </div>
-    {/if}
-  </section>
-
-  <section>
-    {#if assetMultiSelectManager.selectionActive}
-      <div class="fixed inset-s-0 top-0 z-2 w-full">
-        <AssetSelectControlBar>
-          {@const Actions = getAssetBulkActions($t)}
-          <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
-
-          <CreateSharedLink />
-          <IconButton
-            shape="round"
-            color="secondary"
-            variant="ghost"
-            aria-label={$t('select_all')}
-            icon={mdiSelectAll}
-            onclick={handleSelectAll}
-          />
-          <ActionButton action={Actions.AddToAlbum} />
-          {#if assetMultiSelectManager.isAllUserOwned}
-            <FavoriteAction
-              removeFavorite={assetMultiSelectManager.isAllFavorite}
-              onFavorite={(ids, isFavorite) => {
-                for (const id of ids) {
-                  const asset = searchResultAssets.find((asset) => asset.id === id);
-                  if (asset) {
-                    asset.isFavorite = isFavorite;
-                  }
-                }
-              }}
-            />
-
-            <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')}>
-              <ActionMenuItem action={Actions.AddToAlbum} />
-              <DownloadAction menuItem />
-              <ChangeDate menuItem />
-              <ChangeDescription menuItem />
-              <ChangeLocation menuItem />
-              <ArchiveAction menuItem unarchive={assetMultiSelectManager.isAllArchived} />
-              <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
-              {#if authManager.preferences.tags.enabled}
-                <TagAction menuItem />
-              {/if}
-              <DeleteAssets menuItem {onAssetDelete} onUndoDelete={onSearchQueryUpdate} />
-              <hr />
-              <ActionMenuItem action={Actions.RegenerateThumbnailJob} />
-              <ActionMenuItem action={Actions.RefreshMetadataJob} />
-              <ActionMenuItem action={Actions.TranscodeVideoJob} />
-            </ButtonContextMenu>
-          {:else}
-            <DownloadAction />
-          {/if}
-        </AssetSelectControlBar>
-      </div>
-    {:else}
-      <div class="fixed inset-s-0 top-0 z-2 w-full">
-        <ControlAppBar onClose={() => goto(previousRoute)} backIcon={mdiArrowLeft}>
-          <div class="mx-auto w-full max-w-2xl pe-2">
-            <SearchBar grayTheme={false} />
+<div class="flex flex-col lg:flex-row-reverse">
+  {#if question}
+    <aside
+      class="mx-4 mt-4 flex shrink-0 flex-col gap-4 lg:sticky lg:top-24 lg:ms-0 lg:me-4 lg:w-96 lg:self-start"
+      data-testid="search-question"
+    >
+      <AskLibraryPanel {question} />
+      <CollectionMatches query={question} />
+    </aside>
+  {/if}
+  <section
+    class="m-4 mb-12 max-h-screen min-w-0 flex-1 bg-immich-bg dark:bg-immich-dark-bg"
+    bind:clientHeight={viewport.height}
+    bind:clientWidth={viewport.width}
+    bind:this={searchResultsElement}
+  >
+    <section id="search-content">
+      {#if searchResultAssets.length > 0}
+        <GalleryViewer
+          assets={searchResultAssets}
+          assetInteraction={assetMultiSelectManager}
+          onEndReached={loadNextPage}
+          showArchiveIcon={true}
+          {viewport}
+          onReload={onSearchQueryUpdate}
+          slidingWindowOffset={searchResultsElement.offsetTop}
+        />
+      {:else if !isLoading}
+        <div class="flex min-h-[calc(66vh-11rem)] w-full place-content-center items-center dark:text-white">
+          <div class="flex flex-col content-center items-center text-center">
+            <Icon icon={mdiImageOffOutline} size="3.5em" />
+            <p class="mt-5 text-3xl font-medium">{$t('no_results')}</p>
+            <p class="text-base font-normal">{$t('no_results_description')}</p>
           </div>
-        </ControlAppBar>
-      </div>
-    {/if}
+        </div>
+      {/if}
+
+      {#if isLoading}
+        <div class="flex items-center justify-center py-16">
+          <LoadingSpinner size="giant" />
+        </div>
+      {/if}
+    </section>
+
+    <section>
+      {#if assetMultiSelectManager.selectionActive}
+        <div class="fixed inset-s-0 top-0 z-2 w-full">
+          <AssetSelectControlBar>
+            {@const Actions = getAssetBulkActions($t)}
+            <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
+
+            <CreateSharedLink />
+            <IconButton
+              shape="round"
+              color="secondary"
+              variant="ghost"
+              aria-label={$t('select_all')}
+              icon={mdiSelectAll}
+              onclick={handleSelectAll}
+            />
+            <ActionButton action={Actions.AddToAlbum} />
+            {#if assetMultiSelectManager.isAllUserOwned}
+              <FavoriteAction
+                removeFavorite={assetMultiSelectManager.isAllFavorite}
+                onFavorite={(ids, isFavorite) => {
+                  for (const id of ids) {
+                    const asset = searchResultAssets.find((asset) => asset.id === id);
+                    if (asset) {
+                      asset.isFavorite = isFavorite;
+                    }
+                  }
+                }}
+              />
+
+              <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')}>
+                <ActionMenuItem action={Actions.AddToAlbum} />
+                <DownloadAction menuItem />
+                <ChangeDate menuItem />
+                <ChangeDescription menuItem />
+                <ChangeLocation menuItem />
+                <ArchiveAction menuItem unarchive={assetMultiSelectManager.isAllArchived} />
+                <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
+                {#if authManager.preferences.tags.enabled}
+                  <TagAction menuItem />
+                {/if}
+                <DeleteAssets menuItem {onAssetDelete} onUndoDelete={onSearchQueryUpdate} />
+                <hr />
+                <ActionMenuItem action={Actions.RegenerateThumbnailJob} />
+                <ActionMenuItem action={Actions.RefreshMetadataJob} />
+                <ActionMenuItem action={Actions.TranscodeVideoJob} />
+              </ButtonContextMenu>
+            {:else}
+              <DownloadAction />
+            {/if}
+          </AssetSelectControlBar>
+        </div>
+      {:else}
+        <div class="fixed inset-s-0 top-0 z-2 w-full">
+          <ControlAppBar onClose={() => goto(previousRoute)} backIcon={mdiArrowLeft}>
+            <div class="mx-auto w-full max-w-2xl pe-2">
+              <SearchBar grayTheme={false} />
+            </div>
+          </ControlAppBar>
+        </div>
+      {/if}
+    </section>
   </section>
-</section>
+</div>

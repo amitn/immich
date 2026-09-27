@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
-import { ArtJobStatus, AssetFileType } from 'src/enum.js';
+import { ActivityLogAction, ArtJobStatus, AssetFileType } from 'src/enum.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
@@ -81,11 +82,19 @@ export class ArtAgentTools extends BaseService {
             .describe('Short caption for styles with usesCaption, e.g. "summer days" (2–4 words work best)'),
         }),
         mutating: true,
-        handler: async ({ auth }, { assetId, style, prompt, caption }) => {
+        handler: async ({ auth, activity }, { assetId, style, prompt, caption }) => {
           if (!style && !prompt) {
             return toolJson({ error: 'Pass a style or a prompt' });
           }
           const job = await artService.createJob(auth, { assetId, style, prompt, caption });
+          const styleName = style ? (artStyles.find(({ id }) => id === style)?.name ?? 'your own style') : undefined;
+          await BaseService.create(ActivityLogService, this).record(auth, activity, {
+            action: ActivityLogAction.Artwork,
+            summary: styleName ? `Made an artwork of a photo (${styleName})` : 'Made an artwork of a photo',
+            targetId: job.id,
+            assetIds: [assetId],
+            undo: { jobId: job.id },
+          });
           return toolJson({ jobId: job.id, status: job.status, next: 'call get_artwork with this jobId' });
         },
       }),
@@ -111,7 +120,7 @@ export class ArtAgentTools extends BaseService {
             .describe('Place the untouched photo above the artwork, for a prompt that paints only the lower half'),
         }),
         mutating: true,
-        handler: async ({ auth }, { assetId, prompt, caption, photoAbove }) => {
+        handler: async ({ auth, activity }, { assetId, prompt, caption, photoAbove }) => {
           const { errors, warnings } = checkArtPrompt(prompt, {
             usesCaption: prompt.includes('{caption}'),
             photoAbove,
@@ -121,6 +130,13 @@ export class ArtAgentTools extends BaseService {
           }
           try {
             const job = await artService.createJob(auth, { assetId, prompt, caption }, { test: true, photoAbove });
+            await BaseService.create(ActivityLogService, this).record(auth, activity, {
+              action: ActivityLogAction.Artwork,
+              summary: 'Tested a draft art style on a photo',
+              targetId: job.id,
+              assetIds: [assetId],
+              undo: { jobId: job.id },
+            });
             return toolJson({
               jobId: job.id,
               status: job.status,
@@ -149,9 +165,9 @@ export class ArtAgentTools extends BaseService {
             .describe('Place the untouched photo above the artwork, which paints only the lower half (default false)'),
         }),
         mutating: true,
-        handler: async ({ auth }, input) => {
+        handler: async ({ auth, activity }, input) => {
           try {
-            const style = await artService.createStyle(auth, input);
+            const style = await artService.createStyle(auth, input, activity);
             const { warnings } = checkArtPrompt(style.prompt, style);
             return toolJson({
               id: style.id,

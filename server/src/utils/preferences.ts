@@ -57,6 +57,9 @@ const getDefaultPreferences = (): UserPreferences => {
     bookDrafts: {
       enabled: true,
     },
+    aiAnswers: {
+      enabled: true,
+    },
     collectionNotifications: {
       enabled: true,
     },

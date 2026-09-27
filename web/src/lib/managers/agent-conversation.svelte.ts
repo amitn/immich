@@ -95,6 +95,13 @@ export class AgentConversation {
     return this.#messages.length === 0;
   }
 
+  /** the photos the chat refers to (the attached photos and those of tool results and replies), lower case */
+  readonly assetIds: ReadonlySet<string> = $derived(
+    // a new set on every change of the messages, never mutated
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    new Set(this.#messages.flatMap((message) => (message.content.assetIds ?? []).map((id) => id.toLowerCase()))),
+  );
+
   /** Start an empty conversation (optionally for a freshly created session) */
   reset(sessionId?: string) {
     this.sessionId = sessionId;

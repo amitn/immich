@@ -3,6 +3,7 @@ import { Stats } from 'node:fs';
 import { vitest } from 'vitest';
 import { bookStylePresets } from 'src/dtos/book.dto.js';
 import {
+  ActivityLogAction,
   AssetType,
   AssetVisibility,
   HighlightJobStatus,
@@ -19,6 +20,7 @@ import {
   getHighlightTag,
   resolveHighlightStyle,
 } from 'src/services/highlight.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AutoLayoutPhoto } from 'src/utils/book/auto-layout.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { newUuid } from 'test/small.factory.js';
@@ -170,6 +172,24 @@ describe(HighlightService.name, () => {
         expect.objectContaining({ options: expect.objectContaining({ format: 'vertical' }) }),
       );
       expect(result.format).toBe('vertical');
+    });
+
+    it('should record the video, to cancel or trash it on undo', async () => {
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.album.getById.mockResolvedValue({ albumName: 'Sicily 2009' } as any);
+      mocks.highlightJob.create.mockImplementation((job) => Promise.resolve(jobRow(job as any)) as any);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      const result = await sut.create(auth, { albumId }, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.HighlightCreate,
+          summary: 'Made the highlight video “Sicily 2009”',
+          targetId: result.id,
+          undo: { highlightId: result.id },
+        }),
+      );
     });
 
     it('should require access to the album', async () => {

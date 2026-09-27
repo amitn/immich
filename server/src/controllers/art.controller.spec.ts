@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { ArtController } from 'src/controllers/art.controller.js';
 import { ArtService } from 'src/services/art.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
 
@@ -41,7 +42,11 @@ describe(ArtController.name, () => {
         .post('/art/styles')
         .send({ name: 'Linocut', prompt, usesCaption: false });
       expect(status).toBe(201);
-      expect(service.createStyle).toHaveBeenCalledWith(undefined, { name: 'Linocut', prompt, usesCaption: false });
+      expect(service.createStyle).toHaveBeenCalledWith(
+        undefined,
+        { name: 'Linocut', prompt, usesCaption: false },
+        expect.any(ActivityRecorder),
+      );
     });
   });
 

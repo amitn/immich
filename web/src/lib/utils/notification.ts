@@ -25,6 +25,12 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
   }
 
   const values = parseData(data);
+  // "The assistant made 12 changes": the changes of that chat turn
+  const activityGroupId = getId(values, 'activityGroupId');
+  if (activityGroupId) {
+    return Route.activityLog({ groupId: activityGroupId });
+  }
+
   const albumId = getId(values, 'albumId');
   const bookId = getId(values, 'bookId');
   const assetId = getId(values, 'assetId') ?? getId(values, 'sourceAssetId');

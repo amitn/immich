@@ -2,6 +2,7 @@
   import { serverConfigManager } from '$lib/managers/server-config-manager.svelte';
   import SettingAccordion from '$lib/components/shared-components/settings/SettingAccordion.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { handleError } from '$lib/utils/handle-error';
   import { AssetOrder, updateMyPreferences } from '@immich/sdk';
   import { Button, Field, NumberInput, Select, Switch, toastManager } from '@immich/ui';
@@ -39,6 +40,9 @@
   // Suggested books
   let bookDraftsEnabled = $state(authManager.preferences.bookDrafts?.enabled ?? true);
 
+  // Answers of the assistant in search
+  let aiAnswersEnabled = $state(authManager.preferences.aiAnswers?.enabled ?? true);
+
   // New collection found
   let collectionNotificationsEnabled = $state(authManager.preferences.collectionNotifications?.enabled ?? true);
 
@@ -62,6 +66,7 @@
           cast: { gCastEnabled },
           recentlyAdded: { sidebarWeb: recentlyAddedSidebar },
           bookDrafts: { enabled: bookDraftsEnabled },
+          aiAnswers: { enabled: aiAnswersEnabled },
           collectionNotifications: { enabled: collectionNotificationsEnabled },
         },
       });
@@ -156,6 +161,20 @@
             </Field>
           </div>
         </SettingAccordion>
+
+        {#if featureFlagsManager.value.assistant}
+          <SettingAccordion
+            key="ai-answers"
+            title={$t('ai_answers_setting')}
+            subtitle={$t('ai_answers_setting_description')}
+          >
+            <div class="mt-4 flex flex-col gap-4 sm:ms-4">
+              <Field label={$t('enable')}>
+                <Switch bind:checked={aiAnswersEnabled} />
+              </Field>
+            </div>
+          </SettingAccordion>
+        {/if}
 
         <SettingAccordion
           key="collection-notifications"

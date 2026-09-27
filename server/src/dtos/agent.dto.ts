@@ -37,6 +37,12 @@ const AgentPromptSchema = z
   .object({
     text: z.string().trim().min(1).max(20_000).describe('Message for the assistant'),
     assetIds: z.array(z.uuidv4()).max(1000).optional().describe('Assets selected by the user, passed as context'),
+    answer: z
+      .boolean()
+      .optional()
+      .describe(
+        'A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a "Sources:" line of the photos and tags used',
+      ),
   })
   .meta({ id: 'AgentPromptDto' });
 
@@ -105,6 +111,10 @@ export const AgentMessageContentSchema = z
     requestId: z.string().optional().describe('Permission request ID, used to respond (permission)'),
     options: z.array(AgentPermissionOptionSchema).optional().describe('Permission options (permission)'),
     entries: z.array(AgentPlanEntrySchema).optional().describe('Plan entries (plan)'),
+    activityIds: z
+      .array(z.string())
+      .optional()
+      .describe('Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call)'),
   })
   .meta({ id: 'AgentMessageContentDto' });
 

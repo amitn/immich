@@ -9,6 +9,7 @@ const agent = vi.hoisted(() => ({
   maxConcurrentSessions: 2,
   idleTimeoutMinutes: 30,
   autoApproveWrites: false,
+  activityRetentionDays: 90,
   mcpUrl: '',
   profiles: [{ name: 'claude', command: 'claude-agent-acp', args: [], env: [], passEnv: [] }],
 }));

@@ -69,6 +69,7 @@ describe(validateAgentConfig.name, () => {
     maxConcurrentSessions: 3,
     idleTimeoutMinutes: 15,
     autoApproveWrites: false,
+    activityRetentionDays: 90,
     mcpUrl: '',
     ...overrides,
   });
