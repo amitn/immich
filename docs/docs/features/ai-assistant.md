@@ -241,6 +241,7 @@ A highlight video is a short film of a trip, a dinner or a museum visit: a book 
 
 - **Title**: shown on the title card; the name of the album or book by default.
 - **Length**: 30, 60, 90 or 120 seconds. The film is exactly that long, unless there are too few photos to fill it.
+- **Shape**: **Landscape 16:9** (1920×1080) for a TV or a computer, or **Vertical 9:16** (1080×1920) for phones, stories, reels and messages (see [Vertical videos](#vertical-videos)).
 - **Style**: the look of the title cards and captions, from the [book styles](#photo-books). **Automatic** uses the style of the book, or the style of the collection the photos belong to, so a food video looks like a food book and a museum video like an exhibition catalogue.
 - **Maps**: open each chapter that has GPS locations with a map.
 - **Captions**: name the dishes, artworks, wines and recipe steps, and the places, in a label at the bottom of the photos.
@@ -248,11 +249,23 @@ A highlight video is a short film of a trip, a dinner or a museum visit: a book 
 
 The video picks and orders its photos like the [automatic book layout](#how-the-automatic-layout-works): one photo per stack and per burst, the best ones first, and a chapter per day or stop (or per restaurant visit, recipe, tasting, museum visit or leg of a trip). Each chapter opens with a map or a title card with its place and dates. Photos slowly zoom towards the faces, or towards the most interesting part of the photo when there are none, and never crop a face out of the frame; portraits are shown whole over a blurred copy of themselves. Short clips of 3 to 5 seconds are cut from the best part of the videos, with their sound. Travel documents and menus are never shown.
 
-The video is rendered in the background, with its progress in the corner of the screen, where you can also cancel it. When it's done you get a notification, _Your highlight video is ready_, and the video opens. It's saved as a new 1080p video (MP4, H.264 and AAC) in your timeline, dated like the last photo of the trip, tagged `Highlights/<title>`, and added to the album it was made from. Immich then makes its thumbnails and transcodes it like any other video.
+The video is rendered in the background, with its progress in the corner of the screen, where you can also cancel it. When it's done you get a notification, _Your highlight video is ready_, and the video opens. A card in the corner stays until you close it, with **Share**, **Download** and **Open**. **Share** sends the file itself to another app (WhatsApp, Instagram, Messages…) where the browser can share files, as on phones; elsewhere it downloads it. It's saved as a new 1080p video (MP4, H.264 and AAC) in your timeline, dated like the last photo of the trip, tagged `Highlights/<title>`, and added to the album it was made from. Immich then makes its thumbnails and transcodes it like any other video.
 
 Rendering takes about half a minute to a few minutes on the CPU, depending on the length and the number of clips. When your administrator turns on hardware acceleration for [video transcoding](/features/hardware-transcoding), the film is encoded on the GPU, and on the CPU if that fails.
 
 You can also ask the assistant: _"make a one-minute video of our trip to Sicily"_. It uses `make_highlight_video`, which asks for approval, and tells you when the video is ready.
+
+### Vertical videos
+
+A vertical video is made from the same photos, chapters and length as a landscape one, framed for a phone held upright:
+
+- Portrait photos fill the frame.
+- Landscape photos are cropped to 9:16 around their subject: the faces, or the most interesting part of the photo when there are none. When that crop would cut a face, keep less than about a third of the photo (16:9 photos and panoramas), or enlarge a small photo too much, the photo is shown whole over a blurred copy of itself instead.
+- The slow zooms are planned in portrait and keep every face in the frame.
+- Portrait clips fill the frame; landscape clips are shown whole over a blurred copy of themselves.
+- The title cards, chapter cards and captions use larger text and stay out of the top 14% and the bottom 20% of the frame, where social apps show the account name, the caption and their buttons. Maps are drawn at 9:16, with their title, compass, scale and route in the same safe band, and [styled maps](#map-pages) keep their look.
+
+The file is named `<title>-vertical.mp4`, and the video is described as a vertical highlight video. Ask the assistant for _"a vertical video for my Instagram story"_ and it passes `format: vertical`.
 
 ## Artistic styles
 
