@@ -10,6 +10,15 @@ const box = (text: string, left: number, top: number, height = 0.04, textScore =
   return { x1: left, y1: top, x2: right, y2: top, x3: right, y3: bottom, x4: left, y4: bottom, text, textScore };
 };
 
+/** a Greek bus ticket whose company line is `company` */
+const lines = (company: string) => [
+  box(company, 0.25, 0.07),
+  box('HMEPOMHNIA TPITH 04/10/2016 05:00', 0.2, 0.2),
+  box('ROUTE', 0.2, 0.25),
+  box('ANO-NPOE XANIA-EOYTIA', 0.2, 0.3),
+  box('FROM-TO', 0.2, 0.35),
+];
+
 describe('dates', () => {
   it.each([
     ['04/10/2016 05:00', { year: 2016, month: 10, day: 4 }],
@@ -148,6 +157,42 @@ describe(readTicket.name, () => {
     expect(ticket.flags).toContain('Greek print was read as Latin lookalikes: the place names may be misspelled');
     expect(getLegName(ticket)).toBe('Bus Chania → Soutia, 4 Oct 2016');
     expect(getLegDescription(ticket)).toBe('KTEL · departs 05:00 · bus 55 · seat 5');
+  });
+
+  it('should give the engine the places of a leg to check when they were read from Greek lookalikes', () => {
+    const parsed = parseTicket([
+      box('KTEA XANIQN-PEOYMNOY A.E.', 0.25, 0.07),
+      box('HMEPOMHNIA TPITH 04/10/2016 05:00', 0.2, 0.2),
+      box('ROUTE', 0.2, 0.25),
+      box('ANO-NPOE XANIA-EOYTIA', 0.2, 0.3),
+      box('FROM-TO', 0.2, 0.35),
+      box('BUS 55 PLATFORM SEAT 5', 0.15, 0.5),
+    ]);
+    expect(parsed.items[0]).toMatchObject({
+      name: 'Bus Chania → Soutia, 4 Oct 2016',
+      places: ['Chania', 'Soutia'],
+      check: true,
+    });
+    // a ticket printed in Latin letters has nothing to check
+    const ferry = parseTicket([
+      box('ANENAYK A.E.', 0.28, 0.09),
+      box('IM/NIA-RPA 04/10/2016 09:20', 0.28, 0.2),
+      box('VESSEL SAMARIA I', 0.28, 0.28),
+      box('FROM-TO SOUGIA SFAKIA', 0.28, 0.33),
+    ]);
+    expect(ferry.items[0]).toMatchObject({ places: ['Sougia', 'Sfakia'] });
+    expect(ferry.items[0].check).toBeUndefined();
+  });
+
+  it('should not take a shard of a torn company line for the carrier', () => {
+    // the end of ΡΕΘΥΜΝΟΥ, an inflected word no company acronym is
+    expect(readTicket(lines('YMNOY A.E.'))!.carrier).toBeUndefined();
+    // too short, or without a vowel
+    expect(readTicket(lines('NY A.E.'))!.carrier).toBeUndefined();
+    expect(readTicket(lines('NTPKM A.E.'))!.carrier).toBeUndefined();
+    // a company acronym is kept
+    expect(readTicket(lines('ANENAYK A.E.'))!.carrier).toBe('ANENAVK');
+    expect(getLegDescription(readTicket(lines('YMNOY A.E.'))!)).toBe('departs 05:00');
   });
 
   it('should take the date of the journey, not the date of issue', () => {

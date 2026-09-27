@@ -431,6 +431,9 @@ describe('CollectionNameModal component with named subjects', () => {
     vi.stubGlobal('visualViewport', getVisualViewportMock());
     vi.resetAllMocks();
     Element.prototype.animate = getAnimateMock();
+    vi.spyOn(toastManager, 'success').mockImplementation(() => {});
+    vi.spyOn(toastManager, 'warning').mockImplementation(() => {});
+    sdkMock.getAllTags.mockResolvedValue([]);
     flags.assistant = true;
     flags.smartSearch = true;
   });
@@ -533,6 +536,57 @@ describe('CollectionNameModal component with named subjects', () => {
     expect(await screen.findByRole('textbox', { name: /collections\.cookbook\.place/ })).toHaveValue('Quiche');
     expect(screen.queryByText('collections.cookbook.other_names')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'QUICHE' })).not.toBeInTheDocument();
+  });
+
+  it('should ask to check a leg whose places were misread, and let its name be corrected as text', async () => {
+    const visit = visitOf({
+      subjectIds: ['photo-1'],
+      sourceIds: ['ticket-1'],
+      place: { name: 'Crete, October 2016', source: 'fallback', confidence: 0, assetIds: [] },
+    });
+    sdkMock.findCollectionVisits.mockResolvedValue(findResult(visit, 'travel'));
+    sdkMock.matchCollectionVisit.mockResolvedValue({
+      entries: [{ index: 0, name: 'Bus Chania → Soutia, 4 Oct 2016', sourceId: 'ticket-1' }],
+      subjects: [
+        {
+          assetIds: ['photo-1'],
+          index: 0,
+          name: 'Bus Chania → Soutia, 4 Oct 2016',
+          score: 0.9,
+          unsure: true,
+          suggestions: [{ index: 0, name: 'Bus Chania → Soutia, 4 Oct 2016', score: 0.9 }],
+        },
+      ],
+      noEmbedding: [],
+      warnings: ['Greek print was read as Latin lookalikes: the place names may be misspelled'],
+    } as never);
+    sdkMock.saveCollectionEntries.mockResolvedValue({ place: 'Crete, October 2016', results: [] });
+
+    render(CollectionNameModal, { props: { pack: travelPack, album, onClose } });
+    const [photo] = await screen.findAllByTestId('collection-entry');
+
+    expect(photo).toHaveAttribute('data-unsure', 'true');
+    expect(within(photo).getByText('collections.travel.subject_unsure')).toBeInTheDocument();
+    await fireEvent.click(within(photo).getByRole('button', { name: 'edit_name' }));
+    const input = within(photo).getByRole('textbox');
+    expect(input).toHaveValue('Bus Chania → Soutia, 4 Oct 2016');
+    await fireEvent.input(input, { target: { value: 'Bus Chania → Sougia, 4 Oct 2016' } });
+    // still on the leg, not off the list
+    expect(within(photo).getByRole('checkbox')).not.toBeChecked();
+    await fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() =>
+      expect(sdkMock.saveCollectionEntries).toHaveBeenCalledWith({
+        pack: 'travel',
+        collectionEntriesDto: {
+          place: 'Crete, October 2016',
+          photos: [
+            { id: 'ticket-1', source: true },
+            { id: 'photo-1', entry: 'Bus Chania → Sougia, 4 Oct 2016' },
+          ],
+        },
+      }),
+    );
   });
 
   it('should show the saved leg of a trip photo instead of "on no leg"', async () => {

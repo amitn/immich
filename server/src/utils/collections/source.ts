@@ -19,6 +19,10 @@ export type SourceEntry = {
   column: number;
   /** where the entry is on the photo: [left, top, right, bottom], normalized 0..1 */
   box: [number, number, number, number];
+  /** the place names in the name as printed (where a leg starts and ends), which the engine may correct */
+  places?: string[];
+  /** the name may be misspelled (Greek print read as Latin lookalikes): the user should check it */
+  check?: boolean;
 };
 
 export type ParsedSource = {
@@ -241,4 +245,74 @@ export const mergeSourceEntries = <T extends { items: SourceEntry[] }>(
     }
   }
   return items;
+};
+
+const placeKey = (name: string) =>
+  stripAccents(name)
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/**
+ * The known place a misread place name is closest to, when it is close (a third of its letters at most) and no other
+ * is as close: "Soutia" is "Sougia", "Choa Akion" is "Chora Sfakion". The name itself when a place is spelled so (but
+ * for case and accents), undefined when none is close.
+ */
+export const snapPlaceName = (name: string, known: string[]): string | undefined => {
+  const key = placeKey(name);
+  if (key.length < 4) {
+    return;
+  }
+  if (known.some((place) => placeKey(place) === key)) {
+    return name;
+  }
+  let best: { place: string; key: string; distance: number } | undefined;
+  let tie = false;
+  for (const place of known) {
+    const other = placeKey(place);
+    if (other.length < 4) {
+      continue;
+    }
+    const distance = editDistance(key, other);
+    if (distance > Math.max(1, Math.floor(0.34 * Math.max(key.length, other.length)))) {
+      continue;
+    }
+    if (!best || distance < best.distance) {
+      best = { place, key: other, distance };
+      tie = false;
+    } else if (distance === best.distance && other !== best.key) {
+      tie = true;
+    }
+  }
+  return best && !tie ? best.place : undefined;
+};
+
+export type SnappedPlace = { from: string; to: string };
+
+/**
+ * The entries with the place names to check (`check`) corrected to the closest known place (the cities of the photos,
+ * the places read clearly on the other sources), in their name and description; they stay to check
+ */
+export const snapEntryPlaces = (
+  items: SourceEntry[],
+  known: string[],
+): { items: SourceEntry[]; snapped: SnappedPlace[] } => {
+  const snapped: SnappedPlace[] = [];
+  const result = items.map((item) => {
+    if (!item.check || !item.places?.length) {
+      return item;
+    }
+    let { name, description } = item;
+    const places = item.places.map((place) => {
+      const to = snapPlaceName(place, known);
+      if (!to || to === place) {
+        return place;
+      }
+      name = name.split(place).join(to);
+      description = description?.split(place).join(to);
+      snapped.push({ from: place, to });
+      return to;
+    });
+    return { ...item, name, ...(description !== undefined && { description }), places };
+  });
+  return { items: result, snapped };
 };

@@ -5,7 +5,9 @@
   import { getAssetMediaUrl } from '$lib/utils';
   import { getEntryOptions, type EntryRow } from '$lib/utils/collections';
   import { AssetMediaSize } from '@immich/sdk';
-  import { Checkbox, Input, Label } from '@immich/ui';
+  import { Checkbox, IconButton, Input, Label } from '@immich/ui';
+  import { mdiPencilOutline } from '@mdi/js';
+  import { tick } from 'svelte';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -31,6 +33,16 @@
   const checkboxId = $derived(`${pack.id}-off-list-${row.key}`);
 
   const entryNames = $derived(new Set(entries.map(({ name }) => name)));
+  const inputId = $derived(`${pack.id}-entry-${row.key}`);
+
+  /** the name is edited as text, e.g. to correct a letter of a place the source was misread for */
+  let editing = $state(false);
+
+  const edit = async () => {
+    editing = true;
+    await tick();
+    document.querySelector<HTMLInputElement>(`#${CSS.escape(inputId)}`)?.focus();
+  };
 
   const setOffList = (offList: boolean) => {
     if (offList) {
@@ -90,24 +102,37 @@
       {/if}
     </div>
 
-    {#if hasSource && !row.offList}
-      <Combobox
-        label={$t(label('subject_name'))}
-        {options}
-        {selectedOption}
-        {disabled}
-        allowCreate
-        placeholder={$t(label('subject_name_placeholder'))}
-        onSelect={(option) => onChange({ ...row, name: option?.value ?? '', unsure: false })}
-      />
+    {#if hasSource && !row.offList && !editing}
+      <div class="flex items-end gap-1">
+        <div class="min-w-0 flex-1">
+          <Combobox
+            label={$t(label('subject_name'))}
+            {options}
+            {selectedOption}
+            {disabled}
+            allowCreate
+            placeholder={$t(label('subject_name_placeholder'))}
+            onSelect={(option) => onChange({ ...row, name: option?.value ?? '', unsure: false })}
+          />
+        </div>
+        {#if row.name}
+          <IconButton
+            shape="round"
+            variant="ghost"
+            color="secondary"
+            size="small"
+            icon={mdiPencilOutline}
+            aria-label={$t('edit_name')}
+            title={$t('edit_name')}
+            {disabled}
+            onclick={edit}
+          />
+        {/if}
+      </div>
     {:else}
-      <Label
-        label={$t(label('subject_name'))}
-        for="{pack.id}-entry-{row.key}"
-        class="text-xs font-light text-neutral-500"
-      />
+      <Label label={$t(label('subject_name'))} for={inputId} class="text-xs font-light text-neutral-500" />
       <Input
-        id="{pack.id}-entry-{row.key}"
+        id={inputId}
         value={row.name}
         {disabled}
         maxlength={200}

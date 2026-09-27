@@ -6,6 +6,8 @@ import {
   chooseSourceOcr,
   cleanReadTitle,
   mergeSourceEntries,
+  snapEntryPlaces,
+  snapPlaceName,
 } from 'src/utils/collections/source.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
@@ -99,5 +101,54 @@ describe('cleanReadTitle', () => {
   it('should leave out a title that is garbled', () => {
     expect(cleanReadTitle('MZSDGUICAT Quiche', (text) => /[^aeiou\s]{5}/i.test(text))).toBeUndefined();
     expect(cleanReadTitle(' - ')).toBeUndefined();
+  });
+});
+
+describe('snapPlaceName', () => {
+  const known = ['Chaniá', 'Sougia', 'Chóra Sfakíon', 'Samaria', 'Crete'];
+
+  it('should correct a misread name to the closest known place', () => {
+    expect(snapPlaceName('Soutia', known)).toBe('Sougia');
+    expect(snapPlaceName('Choa Akion', known)).toBe('Chóra Sfakíon');
+    expect(snapPlaceName('Amaria', known)).toBe('Samaria');
+  });
+
+  it('should keep a name a known place spells so, and leave far or short names alone', () => {
+    expect(snapPlaceName('CHANIA', known)).toBe('CHANIA');
+    expect(snapPlaceName('Heraklion', known)).toBeUndefined();
+    expect(snapPlaceName('Oia', ['Ola'])).toBeUndefined();
+  });
+
+  it('should not choose between two places as close', () => {
+    expect(snapPlaceName('Marta', ['Maria', 'Marte'])).toBeUndefined();
+  });
+});
+
+describe('snapEntryPlaces', () => {
+  const entry = { column: 0, box: [0, 0, 1, 1] as [number, number, number, number] };
+
+  it('should correct the places of the entries to check, in their name and description', () => {
+    const { items, snapped } = snapEntryPlaces(
+      [
+        {
+          ...entry,
+          name: 'Bus Chania → Soutia, 4 Oct 2016',
+          description: 'to Soutia',
+          places: ['Chania', 'Soutia'],
+          check: true,
+        },
+        // a place read clearly is not corrected
+        { ...entry, name: 'Ferry Soutia → Sfakia', places: ['Soutia', 'Sfakia'] },
+      ],
+      ['Sougia', 'Chania'],
+    );
+    expect(items[0]).toMatchObject({
+      name: 'Bus Chania → Sougia, 4 Oct 2016',
+      description: 'to Sougia',
+      places: ['Chania', 'Sougia'],
+      check: true,
+    });
+    expect(items[1].name).toBe('Ferry Soutia → Sfakia');
+    expect(snapped).toEqual([{ from: 'Soutia', to: 'Sougia' }]);
   });
 });
