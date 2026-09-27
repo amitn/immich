@@ -32,7 +32,7 @@ describe.skipIf(!url)('book drafts dry run', () => {
   beforeAll(() => {
     db = new Kysely<DB>({
       dialect: new PostgresJSDialect({
-        postgres: postgres(url!, { max: 1, connection: { default_transaction_read_only: 'on' } }),
+        postgres: postgres(url!, { max: 1, connection: { default_transaction_read_only: true } }),
       }),
     });
   });
