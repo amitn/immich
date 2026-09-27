@@ -5,8 +5,9 @@
   import AssistantPermissionCard from '$lib/components/assistant/AssistantPermissionCard.svelte';
   import AssistantPlan from '$lib/components/assistant/AssistantPlan.svelte';
   import AssistantToolCallCard from '$lib/components/assistant/AssistantToolCallCard.svelte';
+  import type { ActivityLogState } from '$lib/managers/activity-log.svelte';
   import type { ChatMessage } from '$lib/managers/agent-conversation.svelte';
-  import { AgentMessageKind, AgentMessageRole, type AgentPermissionResponseDto } from '@immich/sdk';
+  import { ActivityUndoStatus, AgentMessageKind, AgentMessageRole, type AgentPermissionResponseDto } from '@immich/sdk';
   import { Icon } from '@immich/ui';
   import { mdiAlertCircleOutline, mdiThoughtBubbleOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -14,11 +15,23 @@
   type Props = {
     message: ChatMessage;
     onPermission: (message: ChatMessage, response: AgentPermissionResponseDto & { approved: boolean }) => Promise<void>;
+    /** the changes of the chat, for the Undo buttons of the tool calls */
+    activity?: ActivityLogState;
   };
 
-  const { message, onPermission }: Props = $props();
+  const { message, onPermission, activity }: Props = $props();
 
   const content = $derived(message.content);
+  const activityIds = $derived(content.activityIds ?? []);
+  const changes = $derived.by(() => {
+    const byId = activity?.byId;
+    return byId ? activityIds.flatMap((id) => byId.get(id) ?? []) : [];
+  });
+  const undoMessage = $derived(
+    activityIds
+      .map((id) => activity?.results[id])
+      .find((result) => result?.message && result.status !== ActivityUndoStatus.AlreadyUndone)?.message,
+  );
 </script>
 
 {#if message.role === AgentMessageRole.User}
@@ -56,7 +69,14 @@
     </div>
   </details>
 {:else if message.kind === AgentMessageKind.ToolCall}
-  <AssistantToolCallCard {content} />
+  <AssistantToolCallCard
+    {content}
+    {changes}
+    {undoMessage}
+    busy={activity?.isBusy(activityIds) ?? false}
+    onUndo={activity ? (ids) => activity.undo({ ids }) : undefined}
+    onRedo={activity ? (id) => activity.redo(id) : undefined}
+  />
 {:else if message.kind === AgentMessageKind.Permission}
   <AssistantPermissionCard {content} onRespond={(response) => onPermission(message, response)} />
 {:else if message.kind === AgentMessageKind.Plan}
