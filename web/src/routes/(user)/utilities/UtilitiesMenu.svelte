@@ -9,6 +9,7 @@
     mdiCrosshairsGps,
     mdiImageSizeSelectLarge,
     mdiLinkEdit,
+    mdiPhoneRotateLandscape,
     mdiStateMachine,
   } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -17,6 +18,7 @@
     { href: Route.duplicatesUtility(), icon: mdiContentDuplicate, label: $t('review_duplicates') },
     { href: Route.largeFileUtility(), icon: mdiImageSizeSelectLarge, label: $t('review_large_files') },
     { href: Route.geolocationUtility(), icon: mdiCrosshairsGps, label: $t('manage_geolocation') },
+    { href: Route.orientationUtility(), icon: mdiPhoneRotateLandscape, label: $t('review_orientation') },
     { href: Route.workflows(), icon: mdiStateMachine, label: $t('workflows') },
   ];
 </script>
