@@ -7038,6 +7038,94 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/drafts": {
+      "get": {
+        "description": "Retrieve the photo books drafted for the current user in the background (a year of a collection, a trip, a birthday), waiting to be kept or discarded, with the reason each one is suggested. Drafts are not in the list of books until they are kept.",
+        "operationId": "getBookDrafts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookDraftResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List suggested books",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/drafts/refresh": {
+      "post": {
+        "description": "Look for new photo books to draft for the current user now, in the background, instead of waiting for the nightly tasks. The user is notified of every book drafted.",
+        "operationId": "refreshBookDrafts",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Look for books to suggest",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.create",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/books/from-album": {
       "post": {
         "description": "Create a photo book from the photos of an album and lay it out automatically: a cover, one section per event opened by a map or a section title, and pages whose photo sizes follow the importance of the photos. The warnings report e.g. a map style that is not available.",
@@ -7429,6 +7517,56 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/{id}/discard": {
+      "post": {
+        "description": "Discard a photo book drafted for the user: it is deleted and not suggested again.",
+        "operationId": "discardBookDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Discard a suggested book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.delete",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/books/{id}/export": {
       "post": {
         "description": "Queue the export of a photo book: the print-ready (300 dpi) PDF (default), or a single self-contained HTML file with every photo embedded. Poll the book until exportStatus (PDF) or htmlExportStatus (HTML) is completed.",
@@ -7544,6 +7682,63 @@
           }
         ],
         "x-immich-permission": "book.download",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/books/{id}/keep": {
+      "post": {
+        "description": "Keep a photo book drafted for the user: it becomes one of their books.",
+        "operationId": "keepBookDraft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Keep a suggested book",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
         "x-immich-state": "Alpha"
       }
     },
@@ -21155,6 +21350,40 @@
         ],
         "type": "object"
       },
+      "AdminConfigBookDraftsDto": {
+        "properties": {
+          "birthdays": {
+            "description": "Draft a book of the year that ended on the latest birthday of the named people with a birth date",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "Draft photo books for the users in the background with the nightly tasks (a year of a collection, a trip, a birthday), for them to keep or discard",
+            "type": "boolean"
+          },
+          "maxPerRun": {
+            "description": "Most books drafted for a user per run",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "trips": {
+            "description": "Draft a book of every trip",
+            "type": "boolean"
+          },
+          "yearly": {
+            "description": "Draft a book of a year of a collection, e.g. \"2026 in food\"",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "birthdays",
+          "enabled",
+          "maxPerRun",
+          "trips",
+          "yearly"
+        ],
+        "type": "object"
+      },
       "AdminConfigBookMapsDto": {
         "properties": {
           "defaultStyle": {
@@ -21181,11 +21410,15 @@
       "AdminConfigBooksDto": {
         "description": "Photo book config",
         "properties": {
+          "drafts": {
+            "$ref": "#/components/schemas/AdminConfigBookDraftsDto"
+          },
           "maps": {
             "$ref": "#/components/schemas/AdminConfigBookMapsDto"
           }
         },
         "required": [
+          "drafts",
           "maps"
         ],
         "type": "object"
@@ -24933,6 +25166,9 @@
             },
             "type": "array"
           },
+          "status": {
+            "$ref": "#/components/schemas/BookStatus"
+          },
           "style": {
             "$ref": "#/components/schemas/BookStyle"
           },
@@ -24977,6 +25213,7 @@
           "pageHeightMm",
           "pageWidthMm",
           "pages",
+          "status",
           "style",
           "subtitle",
           "title",
@@ -25150,6 +25387,9 @@
             },
             "type": "array"
           },
+          "status": {
+            "$ref": "#/components/schemas/BookStatus"
+          },
           "style": {
             "$ref": "#/components/schemas/BookStyle"
           },
@@ -25187,11 +25427,83 @@
           "pageHeightMm",
           "pageWidthMm",
           "pages",
+          "status",
           "style",
           "subtitle",
           "title",
           "updatedAt"
         ],
+        "type": "object"
+      },
+      "BookDraftKind": {
+        "description": "Kind of suggested book",
+        "enum": [
+          "yearly",
+          "trip",
+          "birthday"
+        ],
+        "type": "string"
+      },
+      "BookDraftResponseDto": {
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookResponseDto",
+            "description": "The draft book"
+          },
+          "createdAt": {
+            "description": "When the book was drafted",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Suggestion ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable key of the suggestion, e.g. food:2026, trip:Travel/<Trip>, trip:<first day> or birthday:<personId>:<age>",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/BookDraftKind"
+          },
+          "reason": {
+            "description": "Why the book is suggested, e.g. \"You visited 6 restaurants in 2026\"",
+            "type": "string"
+          }
+        },
+        "required": [
+          "book",
+          "createdAt",
+          "id",
+          "key",
+          "kind",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "BookDraftsResponse": {
+        "properties": {
+          "enabled": {
+            "description": "Whether photo books are drafted for the user in the background, to keep or discard",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "BookDraftsUpdate": {
+        "properties": {
+          "enabled": {
+            "description": "Whether photo books are drafted for the user in the background, to keep or discard",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "BookExportDto": {
@@ -25780,6 +26092,9 @@
             "minimum": -9007199254740991,
             "type": "integer"
           },
+          "status": {
+            "$ref": "#/components/schemas/BookStatus"
+          },
           "style": {
             "$ref": "#/components/schemas/BookStyle"
           },
@@ -25816,6 +26131,7 @@
           "pageCount",
           "pageHeightMm",
           "pageWidthMm",
+          "status",
           "style",
           "subtitle",
           "title",
@@ -26157,6 +26473,14 @@
           "assetId"
         ],
         "type": "object"
+      },
+      "BookStatus": {
+        "description": "Book status: a draft made for the user in the background, or a book of theirs",
+        "enum": [
+          "draft",
+          "active"
+        ],
+        "type": "string"
       },
       "BookStyle": {
         "description": "Visual style of a book",
@@ -29372,6 +29696,8 @@
           "AssetGenerateThumbnailsQueueAll",
           "AssetGenerateThumbnails",
           "AuditTableCleanup",
+          "BookDraftsQueueAll",
+          "BookDraftsGenerate",
           "BookExport",
           "BookExportHtml",
           "DatabaseBackup",
@@ -29765,6 +30091,7 @@
           "user-cleanup",
           "memory-cleanup",
           "memory-create",
+          "book-drafts-create",
           "backup-database",
           "integrity-missing-files",
           "integrity-untracked-files",
@@ -39774,6 +40101,9 @@
           "albums": {
             "$ref": "#/components/schemas/AlbumsResponse"
           },
+          "bookDrafts": {
+            "$ref": "#/components/schemas/BookDraftsResponse"
+          },
           "cast": {
             "$ref": "#/components/schemas/CastResponse"
           },
@@ -39810,6 +40140,7 @@
         },
         "required": [
           "albums",
+          "bookDrafts",
           "cast",
           "download",
           "emailNotifications",
@@ -39831,6 +40162,9 @@
           },
           "avatar": {
             "$ref": "#/components/schemas/AvatarUpdate"
+          },
+          "bookDrafts": {
+            "$ref": "#/components/schemas/BookDraftsUpdate"
           },
           "cast": {
             "$ref": "#/components/schemas/CastUpdate"

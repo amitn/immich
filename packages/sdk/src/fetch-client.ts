@@ -99,6 +99,18 @@ export type AdminConfigDatabaseBackupDto = {
 export type AdminConfigBackupsDto = {
     database: AdminConfigDatabaseBackupDto;
 };
+export type AdminConfigBookDraftsDto = {
+    /** Draft a book of the year that ended on the latest birthday of the named people with a birth date */
+    birthdays: boolean;
+    /** Draft photo books for the users in the background with the nightly tasks (a year of a collection, a trip, a birthday), for them to keep or discard */
+    enabled: boolean;
+    /** Most books drafted for a user per run */
+    maxPerRun: number;
+    /** Draft a book of every trip */
+    trips: boolean;
+    /** Draft a book of a year of a collection, e.g. "2026 in food" */
+    yearly: boolean;
+};
 export type AdminConfigBookMapsDto = {
     /** Map style used when a book asks for the automatic style */
     defaultStyle: DefaultStyle;
@@ -106,6 +118,7 @@ export type AdminConfigBookMapsDto = {
     stadiaApiKey: string;
 };
 export type AdminConfigBooksDto = {
+    drafts: AdminConfigBookDraftsDto;
     maps: AdminConfigBookMapsDto;
 };
 export type AdminConfigFFmpegRealtimeDto = {
@@ -704,6 +717,10 @@ export type CalendarHeatmapResponseDto = {
 export type AlbumsResponse = {
     defaultAssetOrder: AssetOrder;
 };
+export type BookDraftsResponse = {
+    /** Whether photo books are drafted for the user in the background, to keep or discard */
+    enabled: boolean;
+};
 export type CastResponse = {
     /** Whether Google Cast is enabled */
     gCastEnabled: boolean;
@@ -772,6 +789,7 @@ export type TagsResponse = {
 };
 export type UserPreferencesResponseDto = {
     albums: AlbumsResponse;
+    bookDrafts: BookDraftsResponse;
     cast: CastResponse;
     download: DownloadResponse;
     emailNotifications: EmailNotificationsResponse;
@@ -789,6 +807,10 @@ export type AlbumsUpdate = {
 };
 export type AvatarUpdate = {
     color?: UserAvatarColor;
+};
+export type BookDraftsUpdate = {
+    /** Whether photo books are drafted for the user in the background, to keep or discard */
+    enabled?: boolean;
 };
 export type CastUpdate = {
     /** Whether Google Cast is enabled */
@@ -859,6 +881,7 @@ export type TagsUpdate = {
 export type UserPreferencesUpdateDto = {
     albums?: AlbumsUpdate;
     avatar?: AvatarUpdate;
+    bookDrafts?: BookDraftsUpdate;
     cast?: CastUpdate;
     download?: DownloadUpdate;
     emailNotifications?: EmailNotificationsUpdate;
@@ -1852,6 +1875,7 @@ export type BookResponseDto = {
     pageHeightMm: number;
     /** Page width in millimeters */
     pageWidthMm: number;
+    status: BookStatus;
     style: BookStyle;
     /** Book subtitle */
     subtitle: string | null;
@@ -1982,6 +2006,7 @@ export type BookDetailResponseDto = {
     pageWidthMm: number;
     /** Pages in book order */
     pages: BookPageResponseDto[];
+    status: BookStatus;
     style: BookStyle;
     /** Book subtitle */
     subtitle: string | null;
@@ -1989,6 +2014,19 @@ export type BookDetailResponseDto = {
     title: string;
     /** Last update date */
     updatedAt: string;
+};
+export type BookDraftResponseDto = {
+    /** The draft book */
+    book: BookResponseDto;
+    /** When the book was drafted */
+    createdAt: string;
+    /** Suggestion ID */
+    id: string;
+    /** Stable key of the suggestion, e.g. food:2026, trip:Travel/<Trip>, trip:<first day> or birthday:<personId>:<age> */
+    key: string;
+    kind: BookDraftKind;
+    /** Why the book is suggested, e.g. "You visited 6 restaurants in 2026" */
+    reason: string;
 };
 export type BookFromAlbumDto = {
     /** Album whose photos are laid out */
@@ -2053,6 +2091,7 @@ export type BookAutoLayoutResponseDto = {
     pageWidthMm: number;
     /** Pages in book order */
     pages: BookPageResponseDto[];
+    status: BookStatus;
     style: BookStyle;
     /** Book subtitle */
     subtitle: string | null;
@@ -6625,6 +6664,26 @@ export function createBook({ bookCreateDto }: {
     })));
 }
 /**
+ * List suggested books
+ */
+export function getBookDrafts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDraftResponseDto[];
+    }>("/books/drafts", {
+        ...opts
+    }));
+}
+/**
+ * Look for books to suggest
+ */
+export function refreshBookDrafts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/books/drafts/refresh", {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
  * Create a book from an album
  */
 export function createBookFromAlbum({ bookFromAlbumDto }: {
@@ -6718,6 +6777,17 @@ export function autoLayoutBook({ id, bookAutoLayoutDto }: {
     })));
 }
 /**
+ * Discard a suggested book
+ */
+export function discardBookDraft({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/discard`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
  * Export a book
  */
 export function exportBook({ id, bookExportDto }: {
@@ -6741,6 +6811,20 @@ export function downloadBookHtml({ id }: {
         data: Blob;
     }>(`/books/${encodeURIComponent(id)}/html`, {
         ...opts
+    }));
+}
+/**
+ * Keep a suggested book
+ */
+export function keepBookDraft({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/keep`, {
+        ...opts,
+        method: "POST"
     }));
 }
 /**
@@ -10103,6 +10187,10 @@ export enum BookExportStatus {
     Completed = "completed",
     Failed = "failed"
 }
+export enum BookStatus {
+    Draft = "draft",
+    Active = "active"
+}
 export enum BookStyleTheme {
     Plain = "plain",
     Food = "food",
@@ -10126,6 +10214,11 @@ export enum BookMapStyle {
     Watercolor = "watercolor",
     Toner = "toner",
     Terrain = "terrain"
+}
+export enum BookDraftKind {
+    Yearly = "yearly",
+    Trip = "trip",
+    Birthday = "birthday"
 }
 export enum BookCaptionMode {
     None = "none",
@@ -10209,6 +10302,7 @@ export enum ManualJobName {
     UserCleanup = "user-cleanup",
     MemoryCleanup = "memory-cleanup",
     MemoryCreate = "memory-create",
+    BookDraftsCreate = "book-drafts-create",
     BackupDatabase = "backup-database",
     IntegrityMissingFiles = "integrity-missing-files",
     IntegrityUntrackedFiles = "integrity-untracked-files",
@@ -10294,6 +10388,8 @@ export enum JobName {
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
+    BookDraftsQueueAll = "BookDraftsQueueAll",
+    BookDraftsGenerate = "BookDraftsGenerate",
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     DatabaseBackup = "DatabaseBackup",
