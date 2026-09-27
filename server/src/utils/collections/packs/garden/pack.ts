@@ -21,13 +21,16 @@ const DAY_MINUTES = 24 * 60;
 
 /**
  * a garden: its photos over seasons and years, at one place, whatever the gaps between the rounds (a year and more
- * between two harvests), and the tags and packets photographed with them
+ * between two harvests), and the tags and packets photographed on a round (a text photographed apart from the plants,
+ * months away, is not the garden's)
  */
 export const GARDEN_VISIT_OPTIONS: VisitOptions = {
   maxGapMinutes: 2 * 366 * DAY_MINUTES,
   maxSpanMinutes: 30 * 366 * DAY_MINUTES,
   maxDistanceMeters: 300,
-  attachMinutes: 2 * 366 * DAY_MINUTES,
+  attachMinutes: DAY_MINUTES,
+  // a round of the garden is a walk around it; rounds without a location are one garden only with each other
+  roundGapMinutes: 3 * 60,
 };
 
 /** texts for photos of a garden that are not of one plant */

@@ -29,6 +29,13 @@ export type VisitOptions = {
    * photo of a visit starts a new one, whatever the gaps (the books read in a year, a child's drawings of a year)
    */
   period?: (time: number) => string;
+  /**
+   * for visits made of rounds over months (the rounds of a garden): photos further apart than this are different
+   * rounds, and a round joins the visit only when it has subjects and is known to be at its place, both located within
+   * `maxDistanceMeters` or both without a location; a round of texts alone (a book, a recipe card) bridges nothing,
+   * and attaches to a round within `attachMinutes` like any lone source
+   */
+  roundGapMinutes?: number;
 };
 
 /** the local year of a local time in ms, e.g. "2024", for `VisitOptions.period` */
@@ -86,7 +93,10 @@ export const groupVisits = <T extends VisitPhoto>(
   options: Partial<VisitOptions> = DEFAULT_VISIT_OPTIONS,
 ): T[][] => {
   const settings = { ...DEFAULT_VISIT_OPTIONS, ...options };
-  const groups = splitVisits(photos, settings);
+  const groups =
+    settings.roundGapMinutes === undefined
+      ? splitVisits(photos, settings)
+      : joinRounds(splitVisits(photos, { ...settings, maxGapMinutes: settings.roundGapMinutes }), settings);
 
   // attach the groups without subjects to the closest visit with subjects
   const visits = groups.filter((group) => hasSubject(group));
@@ -112,6 +122,37 @@ export const groupVisits = <T extends VisitPhoto>(
   return [...visits, ...others]
     .map((visit) => sortByTime(visit))
     .toSorted((a, b) => a[0].time - b[0].time || a[0].id.localeCompare(b[0].id));
+};
+
+/** whether two groups are known to be at the same place: both located and close, or both without a location */
+const isKnownSamePlace = (a: VisitPhoto[], b: VisitPhoto[], maxDistanceMeters: number) => {
+  const placeA = centroid(locatedOf(a));
+  const placeB = centroid(locatedOf(b));
+  return placeA && placeB ? haversineKm(placeA, placeB) * 1000 <= maxDistanceMeters : !placeA && !placeB;
+};
+
+/** joins the rounds with subjects into visits (see `VisitOptions.roundGapMinutes`); the other rounds stay apart */
+const joinRounds = <T extends VisitPhoto>(rounds: T[][], options: VisitOptions): T[][] => {
+  const visits: T[][] = [];
+  let current: T[] | undefined;
+  for (const round of rounds) {
+    if (!hasSubject(round)) {
+      continue;
+    }
+    const joins =
+      current &&
+      round[0].time - current.at(-1)!.time <= options.maxGapMinutes * 60_000 &&
+      round.at(-1)!.time - current[0].time <= options.maxSpanMinutes * 60_000 &&
+      (!options.period || options.period(round[0].time) === options.period(current[0].time)) &&
+      isKnownSamePlace(current, round, options.maxDistanceMeters);
+    if (current && joins) {
+      current.push(...round);
+    } else {
+      current = [...round];
+      visits.push(current);
+    }
+  }
+  return [...visits, ...rounds.filter((round) => !hasSubject(round))];
 };
 
 const splitVisits = <T extends VisitPhoto>(photos: T[], options: VisitOptions): T[][] => {
