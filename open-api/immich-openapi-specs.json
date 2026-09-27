@@ -36709,7 +36709,8 @@
           "missing-captions",
           "could-look-better",
           "missing-dish-name",
-          "missing-menu-page"
+          "missing-menu-page",
+          "privacy"
         ],
         "type": "string"
       },
@@ -37047,7 +37048,7 @@
         "type": "object"
       },
       "BookStylePreset": {
-        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos), food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit), museum (an exhibition catalogue: white pages, artworks shown whole with museum-label captions and catalogue numbers; lays out one chapter per museum visit), wine (a tasting notebook: cream paper, burgundy ink, a tasting-note page per bottle with its fiche and the note from its description; lays out one chapter per tasting), cookbook (a family recipe book: warm paper, serif headings, a typeset recipe page (ingredients and steps) beside the photo of the recipe, step captions; lays out one chapter per recipe), travel (a travel journal: cream paper, passport-blue ink, stamps and ticket stubs typeset from the legs (never the documents themselves); lays out one chapter per leg of the trip), concerts (a gig poster: dark paper, a bright screen-print accent, bold capitals, the setlist of each act typeset beside the photo of the sheet; lays out one chapter per act) or nature (a field guide: cream paper, fine ink, numbered plates shown whole with the scientific name in italics, the common name and the family; lays out one chapter per garden or zoo visit). The style options override its values",
+        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos), food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit), museum (an exhibition catalogue: white pages, artworks shown whole with museum-label captions and catalogue numbers; lays out one chapter per museum visit), wine (a tasting notebook: cream paper, burgundy ink, a tasting-note page per bottle with its fiche and the note from its description; lays out one chapter per tasting), cookbook (a family recipe book: warm paper, serif headings, a typeset recipe page (ingredients and steps) beside the photo of the recipe, step captions; lays out one chapter per recipe), travel (a travel journal: cream paper, passport-blue ink, stamps and ticket stubs typeset from the legs (never the documents themselves); lays out one chapter per leg of the trip), concerts (a gig poster: dark paper, a bright screen-print accent, bold capitals, the setlist of each act typeset beside the photo of the sheet; lays out one chapter per act), nature (a field guide: cream paper, fine ink, numbered plates shown whole with the scientific name in italics, the common name and the family; lays out one chapter per garden or zoo visit), reading (a reading journal: off-white paper, ink blue, a page per book with its cover, title, author, the date it was read and the note from its description; lays out one chapter per reading period), kids-art (a refrigerator gallery: warm paper, artworks shown whole on white mats with tape at the corners and handwritten-style labels (title, age, date); lays out one chapter per child and year) or garden (a garden journal: herbarium paper, leaf green, a chapter per plant and a growth timeline of its dated photos with their stages; lays out one chapter per plant). The style options override its values",
         "enum": [
           "classic",
           "soft",
@@ -37058,7 +37059,10 @@
           "cookbook",
           "travel",
           "concerts",
-          "nature"
+          "nature",
+          "reading",
+          "kids-art",
+          "garden"
         ],
         "type": "string"
       },
@@ -37088,7 +37092,7 @@
         "type": "object"
       },
       "BookStyleTheme": {
-        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos), or gallery (an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title in italics, then the artist, the date and the medium) and catalogue numbers), or wine (a tasting notebook: small-caps headings, thin rules, and a typeset fiche beside each bottle with room for the tasting note), or cookbook (a family recipe book: serif headings, thin rules, the recipe typeset on its page, and the steps captioned below their photos), or travel (a travel journal: small-caps headings, thin rules, and ticket stubs with a route line and a date stamp for the legs), or gig-poster (a gig poster: the printed look on dark paper, headings in spaced capitals with the accent, and setlists typeset in bold capitals), or field-guide (a field guide: plates shown whole on cream paper, never cropped, numbered, with the scientific name in italics, then the common name and the family)",
+        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos), or gallery (an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title in italics, then the artist, the date and the medium) and catalogue numbers), or wine (a tasting notebook: small-caps headings, thin rules, and a typeset fiche beside each bottle with room for the tasting note), or cookbook (a family recipe book: serif headings, thin rules, the recipe typeset on its page, and the steps captioned below their photos), or travel (a travel journal: small-caps headings, thin rules, and ticket stubs with a route line and a date stamp for the legs), or gig-poster (a gig poster: the printed look on dark paper, headings in spaced capitals with the accent, and setlists typeset in bold capitals), or field-guide (a field guide: plates shown whole on cream paper, never cropped, numbered, with the scientific name in italics, then the common name and the family), or reading (a reading journal: small-caps headings, thin rules, and the title, author and reading date typeset beside each cover with room for a note), or kids-art (a refrigerator gallery: artworks shown whole on paper mats, taped at the corners, with handwritten-style labels and crayon underlines), or garden (a garden journal: small-caps headings, thin rules, and growth timelines with a dot, a date and a stage for each photo of a plant)",
         "enum": [
           "plain",
           "food",
@@ -37097,7 +37101,10 @@
           "cookbook",
           "travel",
           "gig-poster",
-          "field-guide"
+          "field-guide",
+          "reading",
+          "kids-art",
+          "garden"
         ],
         "type": "string"
       },
@@ -42014,7 +42021,10 @@
           "cookbook",
           "travel",
           "concerts",
-          "nature"
+          "nature",
+          "reading",
+          "kids-art",
+          "garden"
         ],
         "type": "string"
       },
