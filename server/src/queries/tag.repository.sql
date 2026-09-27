@@ -257,6 +257,7 @@ select
           and "person"."ownerId" = $1::uuid
           and "person"."isHidden" = $2
           and "person"."name" != $3
+          and "person"."type" != $4
         where
           "asset_face"."assetId" = "asset"."id"
           and "asset_face"."deletedAt" is null
@@ -269,18 +270,18 @@ from
   inner join "tag" on "tag"."id" = "tag_asset"."tagId"
   left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
 where
-  "tag"."userId" = $4::uuid
+  "tag"."userId" = $5::uuid
   and (
-    "tag"."value" like $5
-    or "tag"."value" like $6
+    "tag"."value" like $6
+    or "tag"."value" like $7
   )
-  and "asset"."ownerId" = $7::uuid
+  and "asset"."ownerId" = $8::uuid
   and "asset"."deletedAt" is null
   and "asset"."visibility" in ('archive', 'timeline')
-  and "asset"."localDateTime" >= $8
-  and "asset"."localDateTime" < $9
+  and "asset"."localDateTime" >= $9
+  and "asset"."localDateTime" < $10
 order by
   "asset"."localDateTime" desc,
   "asset"."id" asc
 limit
-  $10
+  $11

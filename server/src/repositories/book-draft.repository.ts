@@ -120,6 +120,7 @@ export class BookDraftRepository {
       .where('person.ownerId', '=', ownerId)
       .where('person.isHidden', '=', false)
       .where('person.name', '!=', '')
+      .where('person.type', '!=', 'pet')
       .where('person.birthDate', 'is not', null)
       .orderBy('person.name')
       .execute();

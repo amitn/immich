@@ -98,6 +98,7 @@ where
   "person"."ownerId" = $1
   and "person"."isHidden" = $2
   and "person"."name" != $3
+  and "person"."type" != $4
   and "person"."birthDate" is not null
 order by
   "person"."name"

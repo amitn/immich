@@ -527,14 +527,18 @@ export class AssetJobRepository {
     return this.db.selectFrom('asset').select(['id']).where('asset.deletedAt', 'is', null).stream();
   }
 
-  /** compact metadata, faces and preview path for the assistant tools; callers must check access */
+  /**
+   * compact metadata, faces and preview path for the assistant tools; callers must check access. Pet faces (see
+   * `petFacePredicate`) keep their boxes, so that crops and scores still see them, but not a person: pets and the
+   * species buckets of pet detection are not the people of a photo.
+   */
   @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
-  getForAgent(ids: string[], viewingUserId: string) {
+  async getForAgent(ids: string[], viewingUserId: string) {
     if (ids.length === 0) {
-      return Promise.resolve([]);
+      return [];
     }
 
-    return this.db
+    const rows = await this.db
       .selectFrom('asset')
       .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
       .select([
@@ -595,6 +599,7 @@ export class AssetJobRepository {
               'asset_face.boundingBoxX2',
               'asset_face.boundingBoxY2',
             ])
+            .select((inner) => petFacePredicate(inner).as('isPet'))
             .whereRef('asset_face.assetId', '=', 'asset.id')
             .where('asset_face.deletedAt', 'is', null)
             .where('asset_face.isVisible', 'is', true),
@@ -603,6 +608,11 @@ export class AssetJobRepository {
       .where('asset.id', '=', anyUuid(ids))
       .where('asset.deletedAt', 'is', null)
       .execute();
+
+    return rows.map((row) => ({
+      ...row,
+      faces: row.faces.map(({ isPet, ...face }) => (isPet ? { ...face, personId: null, name: null } : face)),
+    }));
   }
 
   /** albums of the given assets that the user owns or is a member of */
@@ -669,7 +679,8 @@ export class AssetJobRepository {
                 .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
                 .on('person.ownerId', '=', asUuid(viewingUserId))
                 .on('person.isHidden', '=', false)
-                .on('person.name', '!=', ''),
+                .on('person.name', '!=', '')
+                .on('person.type', '!=', 'pet'),
             )
             .select('person.name')
             .whereRef('asset_face.assetId', '=', 'asset.id')
@@ -775,6 +786,8 @@ export class AssetJobRepository {
       .select((eb) => eb.fn.count<number>('asset.id').distinct().as('count'))
       .where('person.ownerId', '=', asUuid(viewingUserId))
       .where('person.isHidden', '=', false)
+      // pets and the unnamed species buckets of pet detection are not people
+      .where('person.type', '!=', 'pet')
       .$if(!!personIds, (qb) => qb.where('person.personGroupId', '=', anyUuid(personIds!)))
       .$if(!personIds, (qb) => qb.where('person.name', '!=', ''))
       .groupBy(['person.ownerId', 'person.personGroupId'])

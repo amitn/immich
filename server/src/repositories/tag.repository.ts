@@ -420,7 +420,8 @@ export class TagRepository {
                 .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
                 .on('person.ownerId', '=', asUuid(userId))
                 .on('person.isHidden', '=', false)
-                .on('person.name', '!=', ''),
+                .on('person.name', '!=', '')
+                .on('person.type', '!=', 'pet'),
             )
             .select('person.name')
             .whereRef('asset_face.assetId', '=', 'asset.id')
