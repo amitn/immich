@@ -1,4 +1,10 @@
-import { BookExportFormat, BookExportStatus, BookMapStyleOption, BookStylePreset } from '@immich/sdk';
+import {
+  BookExportFormat,
+  BookExportStatus,
+  BookMapLookOption,
+  BookMapStyleOption,
+  BookStylePreset,
+} from '@immich/sdk';
 import { modalManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
@@ -51,7 +57,8 @@ describe('AlbumBookExportModal component', () => {
         stylePreset: BookStylePreset.Soft,
         targetPageCount: undefined,
         includeMaps: true,
-        mapStyle: BookMapStyleOption.Auto,
+        mapStyle: BookMapStyleOption.Styled,
+        mapLook: BookMapLookOption.Auto,
         illustratedMaps: false,
         improvePhotos: true,
       },
@@ -62,6 +69,33 @@ describe('AlbumBookExportModal component', () => {
       formats: [BookExportFormat.Pdf],
       warnings: [],
     });
+  });
+
+  it('should create the book with the map style and look picked', async () => {
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build(), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    const vintage = screen.getByTestId('book-map-style-styled-vintage');
+    expect(vintage.querySelector('img')?.getAttribute('src')).toMatch(
+      new RegExp(String.raw`/books/map-preview\?albumId=${album.id}&stylePreset=soft&style=styled&look=vintage`),
+    );
+    await fireEvent.click(screen.getByRole('radio', { name: 'book_map_look_vintage' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createBookFromAlbum).toHaveBeenCalledWith({
+      bookFromAlbumDto: expect.objectContaining({
+        mapStyle: BookMapStyleOption.Styled,
+        mapLook: BookMapLookOption.Vintage,
+      }),
+    });
+  });
+
+  it('should not offer the Stadia styles without a key', () => {
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    expect(screen.getByRole('radio', { name: 'book_map_style_watercolor' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'book_map_style_sketch' })).toBeEnabled();
+    expect(screen.getByText('book_map_style_stadia_unavailable')).toBeInTheDocument();
   });
 
   it('should pass the notes from laying out the book to the progress dialog', async () => {

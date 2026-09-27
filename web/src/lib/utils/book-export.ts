@@ -1,8 +1,11 @@
 import {
   BookExportFormat,
   BookExportStatus,
+  BookMapLook,
+  BookMapLookOption,
   BookMapStyle,
   BookMapStyleOption,
+  type BookMapDto,
   type BookPageResponseDto,
   type BookResponseDto,
 } from '@immich/sdk';
@@ -76,6 +79,7 @@ export const normalizeBookPageCount = (value: number | null | undefined) => {
 
 export const BOOK_MAP_STYLE_OPTIONS: BookMapStyleOption[] = [
   BookMapStyleOption.Auto,
+  BookMapStyleOption.Styled,
   BookMapStyleOption.Sketch,
   BookMapStyleOption.Watercolor,
   BookMapStyleOption.Toner,
@@ -84,19 +88,81 @@ export const BOOK_MAP_STYLE_OPTIONS: BookMapStyleOption[] = [
 export const BOOK_MAP_LAYOUTS = ['map', 'map-photo'];
 
 const MAP_STYLE_OPTIONS: Record<BookMapStyle, BookMapStyleOption> = {
+  [BookMapStyle.Styled]: BookMapStyleOption.Styled,
   [BookMapStyle.Sketch]: BookMapStyleOption.Sketch,
   [BookMapStyle.Watercolor]: BookMapStyleOption.Watercolor,
   [BookMapStyle.Toner]: BookMapStyleOption.Toner,
   [BookMapStyle.Terrain]: BookMapStyleOption.Terrain,
 };
 
-/** The option that keeps the style of an existing map, `auto` without one */
-export const toBookMapStyleOption = (style: BookMapStyle | undefined) =>
-  style ? MAP_STYLE_OPTIONS[style] : BookMapStyleOption.Auto;
+/** The option that keeps the style of an existing map, `fallback` without one */
+export const toBookMapStyleOption = (
+  style: BookMapStyle | undefined,
+  fallback: BookMapStyleOption = BookMapStyleOption.Auto,
+) => (style ? MAP_STYLE_OPTIONS[style] : fallback);
+
+/** The style of a map for an option, `undefined` for auto */
+export const toBookMapStyle = (option: BookMapStyleOption) =>
+  (Object.entries(MAP_STYLE_OPTIONS) as Array<[BookMapStyle, BookMapStyleOption]>).find(
+    ([, value]) => value === option,
+  )?.[0];
 
 /** Tile styles are rendered from Stadia Maps and need an API key in the admin settings */
-export const isTileMapStyle = (style: BookMapStyleOption) =>
-  style !== BookMapStyleOption.Auto && style !== BookMapStyleOption.Sketch;
+export const isTileMapStyle = (style: BookMapStyleOption | BookMapStyle) =>
+  style !== BookMapStyleOption.Auto && style !== BookMapStyleOption.Sketch && style !== BookMapStyleOption.Styled;
+
+/** A choice of the map style picker: a style, and the look of a styled map (none: the look of the book) */
+export type BookMapChoice = { style: BookMapStyle; look?: BookMapLook };
+
+export type BookMapPickerOption = BookMapChoice & {
+  id: string;
+  /** styled: the map data of the Map page; offline: the sketch; stadia: Stadia Maps tiles */
+  kind: 'styled' | 'offline' | 'stadia';
+};
+
+/** The styles of the picker, the recommended styled map first */
+export const BOOK_MAP_PICKER_OPTIONS: BookMapPickerOption[] = [
+  { id: 'styled', kind: 'styled', style: BookMapStyle.Styled },
+  ...[BookMapLook.Wash, BookMapLook.Engraved, BookMapLook.Minimal, BookMapLook.Vintage].map((look) => ({
+    id: `styled-${look}`,
+    kind: 'styled' as const,
+    style: BookMapStyle.Styled,
+    look,
+  })),
+  { id: 'sketch', kind: 'offline', style: BookMapStyle.Sketch },
+  ...[BookMapStyle.Watercolor, BookMapStyle.Toner, BookMapStyle.Terrain].map((style) => ({
+    id: style,
+    kind: 'stadia' as const,
+    style,
+  })),
+];
+
+/** the picker option of a map: its style, and for a styled map its look */
+export const getBookMapChoiceId = ({
+  style,
+  look,
+}: {
+  style?: BookMapStyle;
+  look?: BookMapLook | BookMapLookOption;
+}) => {
+  if (!style) {
+    return 'styled';
+  }
+  if (style !== BookMapStyle.Styled) {
+    return style;
+  }
+  return look && look !== BookMapLookOption.Auto ? `styled-${look}` : 'styled';
+};
+
+/** A map of a page in a new style; an illustration made for the old style is dropped */
+export const withBookMapChoice = (map: BookMapDto | null | undefined, { style, look }: BookMapChoice): BookMapDto => ({
+  showRoute: map?.showRoute ?? true,
+  labels: map?.labels ?? true,
+  ...(map?.title && { title: map.title }),
+  ...(map?.assetIds && { assetIds: map.assetIds }),
+  style,
+  ...(style === BookMapStyle.Styled && look && { look }),
+});
 
 export const isMapPage = (page: Pick<BookPageResponseDto, 'layout'> & { map?: BookPageResponseDto['map'] }) =>
   !!page.map || BOOK_MAP_LAYOUTS.includes(page.layout);

@@ -1,11 +1,12 @@
 <script lang="ts">
   import BookCaptionField from '$lib/components/books/BookCaptionField.svelte';
+  import BookMapStylePicker from '$lib/components/books/BookMapStylePicker.svelte';
   import BookSlotActions from '$lib/components/books/BookSlotActions.svelte';
   import type { BookEditorManager, BookSlotRef } from '$lib/managers/book-editor-manager.svelte';
   import BookLayoutPickerModal from '$lib/modals/BookLayoutPickerModal.svelte';
   import { countPhotos } from '$lib/utils/book-geometry';
   import { isMapPage } from '$lib/utils/book-export';
-  import type { BookPageResponseDto } from '@immich/sdk';
+  import { BookMapStyle, type BookPageResponseDto } from '@immich/sdk';
   import { Button, Text, modalManager } from '@immich/ui';
   import { mdiViewDashboardEditOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -89,6 +90,19 @@
           multiline
           onSave={(caption) => editor.updatePage(page.id, { caption })}
         />
+
+        {#if layout?.mapArea}
+          <BookMapStylePicker
+            value={{ style: page.map?.style ?? BookMapStyle.Sketch, ...(page.map?.look && { look: page.map.look }) }}
+            preview={{ bookId: editor.book.id, pageId: page.id }}
+            illustrated={{
+              active: !!(page.map?.artJobId || page.map?.illustratedAssetId),
+              onSelect: () => editor.illustrateMap(page.id),
+            }}
+            disabled={editor.isSaving}
+            onChange={(choice) => editor.setMapStyle(page.id, choice)}
+          />
+        {/if}
 
         {#if selected && editor.selected}
           <BookSlotActions

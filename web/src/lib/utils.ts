@@ -266,6 +266,28 @@ export const getBookPageRenderUrl = ({
   cacheKey?: string;
 }) => createUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
 
+/**
+ * A small JPEG preview of a map in a style (and look): of a page, the first map of a book, or the photos of an album
+ * for a book not made yet
+ */
+export const getBookMapPreviewUrl = ({
+  bookId,
+  pageId,
+  albumId,
+  stylePreset,
+  style,
+  look,
+  size = 240,
+}: {
+  bookId?: string;
+  pageId?: string;
+  albumId?: string;
+  stylePreset?: string;
+  style: string;
+  look?: string;
+  size?: number;
+}) => createUrl('/books/map-preview', { bookId, pageId, albumId, stylePreset, style, look, size });
+
 /** a JPEG of the photo before and after auto-enhance, side by side */
 export const getEnhancePreviewUrl = ({ id, strength }: { id: string; strength?: EnhanceStrength }) =>
   createUrl(`/assets/${id}/enhance/preview.jpg`, { strength });

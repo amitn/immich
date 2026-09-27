@@ -1,7 +1,9 @@
+import { BookMapLook, BookMapStyle } from '@immich/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { ComponentProps } from 'svelte';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
+import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import { bookDetailFactory, bookFactory } from '@test-data/factories/book-factory';
 import { bookLayouts, bookPageFactory } from '@test-data/factories/book-page-factory';
 import type BookPage from './+page.svelte';
@@ -81,5 +83,77 @@ describe('book page editing', () => {
         expect.stringContaining(encodeURIComponent(updated.updatedAt)),
       ),
     );
+  });
+
+  describe('map pages', () => {
+    const mapBook = bookDetailFactory.build({
+      title: 'Sicily',
+      updatedAt: '2026-09-25T10:00:00.000Z',
+      pages: [
+        bookPageFactory('map-page', 0, [], {
+          layout: 'map',
+          map: { style: BookMapStyle.Sketch, showRoute: true, labels: true, title: 'Sicily' },
+        }),
+      ],
+    });
+
+    const renderMapBook = () =>
+      render(BookPageTestWrapper, {
+        data: { book: mapBook, books: [bookFactory.build({ id: mapBook.id })], meta: { title: 'Sicily' } } as Data,
+      });
+
+    it('should pick the style of a map page, with previews of each style', async () => {
+      sdkMock.getBook.mockResolvedValue(mapBook);
+      renderMapBook();
+      await fireEvent.click(screen.getByRole('button', { name: 'book_edit_pages' }));
+
+      const sketch = await screen.findByRole('radio', { name: 'book_map_style_sketch' });
+      expect(sketch).toBeChecked();
+      const preview = screen.getByTestId('book-map-style-styled-engraved').querySelector('img');
+      expect(preview?.getAttribute('src')).toBe(
+        `/api/books/map-preview?bookId=${mapBook.id}&pageId=map-page&style=styled&look=engraved&size=240`,
+      );
+
+      await fireEvent.click(screen.getByRole('radio', { name: 'book_map_look_engraved' }));
+
+      await waitFor(() =>
+        expect(sdkMock.updateBookPage).toHaveBeenCalledWith({
+          id: mapBook.id,
+          pageId: 'map-page',
+          bookPageUpdateDto: {
+            map: {
+              style: BookMapStyle.Styled,
+              look: BookMapLook.Engraved,
+              title: 'Sicily',
+              showRoute: true,
+              labels: true,
+            },
+          },
+        }),
+      );
+    });
+
+    it('should illustrate the map with the art agent', async () => {
+      featureFlagsManager.value.artisticStyles = true;
+      sdkMock.getBook.mockResolvedValue(mapBook);
+      renderMapBook();
+      await fireEvent.click(screen.getByRole('button', { name: 'book_edit_pages' }));
+
+      await fireEvent.click(await screen.findByRole('radio', { name: 'book_map_style_illustrated' }));
+      await waitFor(() =>
+        expect(sdkMock.illustrateBookPageMap).toHaveBeenCalledWith({ id: mapBook.id, pageId: 'map-page' }),
+      );
+      featureFlagsManager.value.artisticStyles = false;
+    });
+
+    it('should only offer an illustrated map with an art agent', async () => {
+      sdkMock.getBook.mockResolvedValue(mapBook);
+      renderMapBook();
+      await fireEvent.click(screen.getByRole('button', { name: 'book_edit_pages' }));
+
+      expect(await screen.findByRole('radio', { name: 'book_map_style_illustrated' })).toBeDisabled();
+      expect(screen.getByRole('radio', { name: 'book_map_style_toner' })).toBeDisabled();
+      expect(screen.getByRole('radio', { name: 'book_map_look_auto' })).toBeEnabled();
+    });
   });
 });

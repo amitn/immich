@@ -1,45 +1,43 @@
 <script lang="ts">
+  import BookMapStylePicker from '$lib/components/books/BookMapStylePicker.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
-  import { BOOK_MAP_STYLE_OPTIONS, isTileMapStyle } from '$lib/utils/book-export';
-  import { BookMapStyleOption } from '@immich/sdk';
-  import { Field, Select, Switch } from '@immich/ui';
+  import { toBookMapStyle, toBookMapStyleOption, type BookMapChoice } from '$lib/utils/book-export';
+  import { BookMapLookOption, BookMapStyle, BookMapStyleOption, type BookMapLook } from '@immich/sdk';
+  import { Field, Switch } from '@immich/ui';
   import { t } from 'svelte-i18n';
 
   type Props = {
     includeMaps: boolean;
     mapStyle: BookMapStyleOption;
+    /** the look of styled maps */
+    mapLook?: BookMapLookOption;
     illustratedMaps: boolean;
+    /** what the thumbnails of the styles show: the first map of a book, or the photos of an album */
+    preview?: { bookId?: string; albumId?: string; stylePreset?: string };
     disabled?: boolean;
   };
 
   let {
     includeMaps = $bindable(),
     mapStyle = $bindable(),
+    mapLook = $bindable(BookMapLookOption.Auto),
     illustratedMaps = $bindable(),
+    preview,
     disabled = false,
   }: Props = $props();
 
   const canIllustrate = $derived(featureFlagsManager.value.artisticStyles);
 
-  const labels: Record<BookMapStyleOption, string> = $derived({
-    [BookMapStyleOption.Auto]: $t('book_map_style_auto'),
-    [BookMapStyleOption.Sketch]: $t('book_map_style_sketch'),
-    [BookMapStyleOption.Watercolor]: $t('book_map_style_watercolor'),
-    [BookMapStyleOption.Toner]: $t('book_map_style_toner'),
-    [BookMapStyleOption.Terrain]: $t('book_map_style_terrain'),
+  // auto is the server's default, which is styled unless the administrator chose another
+  const choice = $derived<BookMapChoice>({
+    style: toBookMapStyle(mapStyle) ?? BookMapStyle.Styled,
+    ...(mapLook !== BookMapLookOption.Auto && { look: mapLook as unknown as BookMapLook }),
   });
 
-  const options = $derived(BOOK_MAP_STYLE_OPTIONS.map((value) => ({ value, label: labels[value] })));
-
-  const styleDescription = $derived.by(() => {
-    if (mapStyle === BookMapStyleOption.Auto) {
-      return $t('book_map_style_auto_description');
-    }
-    if (isTileMapStyle(mapStyle)) {
-      return $t('book_map_style_needs_key');
-    }
-    return $t('book_map_style_sketch_description');
-  });
+  const onChange = ({ style, look }: BookMapChoice) => {
+    mapStyle = toBookMapStyleOption(style);
+    mapLook = (look as unknown as BookMapLookOption | undefined) ?? BookMapLookOption.Auto;
+  };
 
   $effect(() => {
     if (!canIllustrate && illustratedMaps) {
@@ -55,9 +53,7 @@
 
   {#if includeMaps}
     <div class="flex flex-col gap-4 border-s-2 border-gray-200 ps-4 dark:border-gray-700">
-      <Field label={$t('book_map_style')} description={styleDescription} {disabled}>
-        <Select bind:value={mapStyle} {options} />
-      </Field>
+      <BookMapStylePicker value={choice} {preview} {disabled} {onChange} />
 
       <Field
         label={$t('book_illustrate_maps')}

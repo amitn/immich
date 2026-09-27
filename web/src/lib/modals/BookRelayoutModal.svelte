@@ -8,7 +8,13 @@
     toBookMapStyleOption,
   } from '$lib/utils/book-export';
   import { handleError } from '$lib/utils/handle-error';
-  import { autoLayoutBook, type BookAutoLayoutResponseDto, type BookDetailResponseDto } from '@immich/sdk';
+  import {
+    autoLayoutBook,
+    BookMapLookOption,
+    BookMapStyleOption,
+    type BookAutoLayoutResponseDto,
+    type BookDetailResponseDto,
+  } from '@immich/sdk';
   import { Alert, Field, FormModal, NumberInput } from '@immich/ui';
   import { mdiAlertOutline, mdiAutoFix } from '@mdi/js';
   import { t } from 'svelte-i18n';
@@ -31,7 +37,14 @@
   // svelte-ignore state_referenced_locally
   let includeMaps = $state(book.pages.length === 0 || book.pages.some((page) => isMapPage(page)));
   // svelte-ignore state_referenced_locally
-  let mapStyle = $state(toBookMapStyleOption(book.pages.find((page) => page.map)?.map?.style));
+  let mapStyle = $state(
+    toBookMapStyleOption(book.pages.find((page) => page.map)?.map?.style, BookMapStyleOption.Styled),
+  );
+  // svelte-ignore state_referenced_locally
+  let mapLook = $state(
+    (book.pages.find((page) => page.map)?.map?.look as unknown as BookMapLookOption | undefined) ??
+      BookMapLookOption.Auto,
+  );
   // svelte-ignore state_referenced_locally
   let illustratedMaps = $state(book.pages.some((page) => page.map?.illustratedAssetId || page.map?.artJobId));
 
@@ -43,6 +56,7 @@
           targetPageCount: normalizeBookPageCount(targetPageCount),
           includeMaps,
           mapStyle: includeMaps ? mapStyle : undefined,
+          mapLook: includeMaps && mapStyle === BookMapStyleOption.Styled ? mapLook : undefined,
           illustratedMaps: includeMaps && illustratedMaps,
           keepExisting: false,
         },
@@ -84,6 +98,6 @@
       />
     </Field>
 
-    <BookMapOptions bind:includeMaps bind:mapStyle bind:illustratedMaps />
+    <BookMapOptions bind:includeMaps bind:mapStyle bind:mapLook bind:illustratedMaps preview={{ bookId: book.id }} />
   </div>
 </FormModal>

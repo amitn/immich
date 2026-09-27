@@ -20,6 +20,7 @@
   import {
     BookExportFormat,
     BookExportStatus,
+    BookMapLookOption,
     BookMapStyleOption,
     BookStylePreset,
     createBookFromAlbum,
@@ -50,7 +51,8 @@
   let userStyles = $state<BookUserStyleResponseDto[]>([]);
   let targetPageCount = $state<number>();
   let includeMaps = $state(true);
-  let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);
+  let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Styled);
+  let mapLook = $state<BookMapLookOption>(BookMapLookOption.Auto);
   let illustratedMaps = $state(false);
   let exportChoice = $state<BookExportChoice>(BookExportFormat.Pdf);
   let improvePhotos = $state(true);
@@ -84,6 +86,7 @@
       targetPageCount: normalizeBookPageCount(targetPageCount),
       includeMaps,
       mapStyle: includeMaps ? mapStyle : undefined,
+      mapLook: includeMaps && mapStyle === BookMapStyleOption.Styled ? mapLook : undefined,
       illustratedMaps: includeMaps && illustratedMaps,
       improvePhotos,
     };
@@ -195,7 +198,13 @@
       />
     </Field>
 
-    <BookMapOptions bind:includeMaps bind:mapStyle bind:illustratedMaps />
+    <BookMapOptions
+      bind:includeMaps
+      bind:mapStyle
+      bind:mapLook
+      bind:illustratedMaps
+      preview={{ albumId: album.id, stylePreset: isBookStylePreset(stylePreset) ? stylePreset : undefined }}
+    />
 
     <Field label={$t('book_improve_photos')} description={$t('book_improve_photos_description')}>
       <Switch bind:checked={improvePhotos} />

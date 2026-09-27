@@ -1,10 +1,19 @@
-import { BookExportFormat, BookExportStatus, BookMapStyle, BookMapStyleOption } from '@immich/sdk';
 import {
+  BookExportFormat,
+  BookExportStatus,
+  BookMapLook,
+  BookMapLookOption,
+  BookMapStyle,
+  BookMapStyleOption,
+} from '@immich/sdk';
+import {
+  BOOK_MAP_PICKER_OPTIONS,
   BOOK_MAX_PAGES,
   BOOK_MIN_PAGES,
   BOOK_PAGE_SIZE_PRESETS,
   findBookPageSizePreset,
   getBookExportedAt,
+  getBookMapChoiceId,
   getBookExportStatus,
   getBookFileName,
   getBookPageSizePreset,
@@ -17,8 +26,10 @@ import {
   isMapPage,
   isTileMapStyle,
   normalizeBookPageCount,
+  toBookMapStyle,
   toBookMapStyleOption,
   toExportFormats,
+  withBookMapChoice,
   type BookPageSizePresetId,
 } from '$lib/utils/book-export';
 
@@ -97,6 +108,7 @@ describe('maps', () => {
   it('should only need a Stadia Maps key for tile styles', () => {
     expect(isTileMapStyle(BookMapStyleOption.Auto)).toBe(false);
     expect(isTileMapStyle(BookMapStyleOption.Sketch)).toBe(false);
+    expect(isTileMapStyle(BookMapStyleOption.Styled)).toBe(false);
     expect(isTileMapStyle(BookMapStyleOption.Watercolor)).toBe(true);
     expect(isTileMapStyle(BookMapStyleOption.Toner)).toBe(true);
     expect(isTileMapStyle(BookMapStyleOption.Terrain)).toBe(true);
@@ -105,7 +117,54 @@ describe('maps', () => {
   it('should keep the style of an existing map', () => {
     expect(toBookMapStyleOption(BookMapStyle.Watercolor)).toBe(BookMapStyleOption.Watercolor);
     expect(toBookMapStyleOption(BookMapStyle.Sketch)).toBe(BookMapStyleOption.Sketch);
+    expect(toBookMapStyleOption(BookMapStyle.Styled)).toBe(BookMapStyleOption.Styled);
     expect(toBookMapStyleOption(undefined)).toBe(BookMapStyleOption.Auto);
+    expect(toBookMapStyleOption(undefined, BookMapStyleOption.Styled)).toBe(BookMapStyleOption.Styled);
+    expect(toBookMapStyle(BookMapStyleOption.Toner)).toBe(BookMapStyle.Toner);
+    expect(toBookMapStyle(BookMapStyleOption.Auto)).toBeUndefined();
+  });
+
+  it('should list the styled looks first, then the offline and the Stadia styles', () => {
+    expect(BOOK_MAP_PICKER_OPTIONS.map(({ id }) => id)).toEqual([
+      'styled',
+      'styled-wash',
+      'styled-engraved',
+      'styled-minimal',
+      'styled-vintage',
+      'sketch',
+      'watercolor',
+      'toner',
+      'terrain',
+    ]);
+    expect(getBookMapChoiceId({ style: BookMapStyle.Styled, look: BookMapLook.Vintage })).toBe('styled-vintage');
+    expect(getBookMapChoiceId({ style: BookMapStyle.Styled, look: BookMapLookOption.Auto })).toBe('styled');
+    expect(getBookMapChoiceId({ style: BookMapStyle.Toner, look: BookMapLook.Wash })).toBe('toner');
+    expect(getBookMapChoiceId({})).toBe('styled');
+  });
+
+  it('should change the style of a map and drop its illustration', () => {
+    const map = {
+      style: BookMapStyle.Sketch,
+      title: 'Sicily',
+      showRoute: false,
+      labels: true,
+      assetIds: ['a'],
+      artJobId: 'job',
+      illustratedAssetId: 'art',
+    };
+    expect(withBookMapChoice(map, { style: BookMapStyle.Styled, look: BookMapLook.Engraved })).toEqual({
+      style: BookMapStyle.Styled,
+      look: BookMapLook.Engraved,
+      title: 'Sicily',
+      showRoute: false,
+      labels: true,
+      assetIds: ['a'],
+    });
+    expect(withBookMapChoice(null, { style: BookMapStyle.Terrain, look: BookMapLook.Wash })).toEqual({
+      style: BookMapStyle.Terrain,
+      showRoute: true,
+      labels: true,
+    });
   });
 
   it('should detect map pages', () => {

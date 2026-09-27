@@ -2,6 +2,7 @@ import {
   addBookPage,
   clearBookSlot,
   getBookLayouts,
+  illustrateBookPageMap,
   moveBookPage,
   removeBookPage,
   setBookSlot,
@@ -15,6 +16,7 @@ import {
 } from '@immich/sdk';
 import { t } from 'svelte-i18n';
 import { get } from 'svelte/store';
+import { withBookMapChoice, type BookMapChoice } from '$lib/utils/book-export';
 import { isSameAspect, planLayoutChange } from '$lib/utils/book-geometry';
 import { handleError } from '$lib/utils/handle-error';
 
@@ -216,6 +218,28 @@ export class BookEditorManager {
     ) as { sectionTitle?: string | null; caption?: string | null };
     return this.#run(get(t)('errors.unable_to_update_book_page'), async () => {
       await updateBookPage({ id: this.book.id, pageId, bookPageUpdateDto });
+    });
+  }
+
+  /** Draws the map of a page in another style (and look); an illustration of the map is dropped */
+  setMapStyle(pageId: string, choice: BookMapChoice) {
+    const page = this.getPage(pageId);
+    if (!page) {
+      return Promise.resolve(false);
+    }
+    return this.#run(get(t)('errors.unable_to_update_book_map'), async () => {
+      await updateBookPage({
+        id: this.book.id,
+        pageId,
+        bookPageUpdateDto: { map: withBookMapChoice(page.map, choice) },
+      });
+    });
+  }
+
+  /** Has the art agent illustrate the map of a page; the page shows the rendered map until it is done */
+  illustrateMap(pageId: string) {
+    return this.#run(get(t)('errors.unable_to_illustrate_book_map'), async () => {
+      await illustrateBookPageMap({ id: this.book.id, pageId });
     });
   }
 

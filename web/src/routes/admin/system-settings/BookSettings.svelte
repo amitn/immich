@@ -20,6 +20,7 @@
   const books = $derived(configToEdit.books);
 
   const styleLabels: Record<DefaultStyle, string> = $derived({
+    [DefaultStyle.Styled]: `${$t('book_map_style_styled')} (${$t('book_map_style_recommended')})`,
     [DefaultStyle.Sketch]: $t('book_map_style_sketch'),
     [DefaultStyle.Watercolor]: $t('book_map_style_watercolor'),
     [DefaultStyle.Toner]: $t('book_map_style_toner'),
@@ -28,6 +29,9 @@
   const styleOptions = $derived(Object.values(DefaultStyle).map((value) => ({ value, text: styleLabels[value] })));
 
   const hasKey = $derived(books.maps.stadiaApiKey.trim().length > 0);
+  const needsKey = $derived(
+    books.maps.defaultStyle !== DefaultStyle.Sketch && books.maps.defaultStyle !== DefaultStyle.Styled,
+  );
 
   const onBeforeSave = () => {
     books.maps.stadiaApiKey = books.maps.stadiaApiKey.trim();
@@ -72,8 +76,11 @@
           isEdited={books.maps.defaultStyle !== config.books.maps.defaultStyle}
         />
 
-        {#if !hasKey && books.maps.defaultStyle !== DefaultStyle.Sketch}
+        {#if !hasKey && needsKey}
           <Text size="small" class="text-orange-700 dark:text-orange-300">{$t('admin.book_maps_style_needs_key')}</Text>
+        {:else if books.maps.defaultStyle === DefaultStyle.Styled && !configToEdit.map.enabled}
+          <Text size="small" class="text-orange-700 dark:text-orange-300">{$t('admin.book_maps_styled_needs_map')}</Text
+          >
         {/if}
 
         <SettingSwitch
