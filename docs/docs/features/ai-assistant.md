@@ -148,7 +148,7 @@ Open a book to see its pages. Switch between **Spread** (facing pages, as in a p
 - **Artwork on neighbouring pages**.
 - **Many single-photo pages in a row**.
 - **Similar photos close together**: very similar photos on neighbouring or facing pages.
-- **Map style not available**: a map style that needs a Stadia Maps key, drawn as a sketch instead.
+- **Map style not available**: a styled map while the map is turned off or its data can't be loaded, or a map style that needs a Stadia Maps key, drawn as a sketch instead.
 - **Person rarely shown**: a main person who appears in many album photos but few book photos.
 - **Many artwork pairs**: too many pages that pair a photo with its own copy or artwork.
 - **Repeated layout**: neighbouring pages with the same layout.
@@ -214,17 +214,26 @@ Turn suggestions off for yourself under **Account Settings > Features > Suggeste
 
 ### Map pages
 
-Map pages show the route, the stops, place names, a compass rose, a scale bar and the section title. Choose the **Map style** when you create or re-lay out a book:
+Map pages show the route, the numbered stops, place names, a compass, a scale bar and the section title. Choose the **Map style** when you create or re-lay out a book, or for one map page in **Edit pages**. Each style shows a small preview of the map, drawn by the server:
 
-- **Auto**: the default style chosen by your administrator.
-- **Sketch (offline)**: drawn on your server. No locations are sent to a map provider.
-- **Watercolor**, **Toner** and **Terrain**: the Stamen styles from [Stadia Maps](https://stadiamaps.com). They need a Stadia Maps API key in the admin settings.
+- **Styled map** (recommended, and the default): the real streets, water, parks, forests, railways and place names, drawn in the look of the book. It uses the same map data as Immich's own **Map** page, from the tile server set in **Administration > Settings > Map** (by default the OpenStreetMap-based tiles of `tiles.immich.cloud`), with the credit _© OpenStreetMap contributors_ on the page. A walk in a town shows the streets around it, and a road trip or an island shows its coast, sea and towns. The look follows the style of the book, or you can choose one:
+  - **Watercolor wash**: soft washes of water and parks with hand-drawn edges on warm paper; for the Soft, Food and Cookbook styles and your own styles with warm paper.
+  - **Engraved atlas**: fine ink coasts with water lines, hatched woods and sepia land; for the Classic and Cellar notes (wine) styles.
+  - **Minimal**: thin grey lines on white with small sans-serif labels; for the Gallery (museum) and Bold styles.
+  - **Vintage chart**: cream and navy, with a compass rose, a latitude and longitude grid and a stamp-red route; for the Travel style.
+- **Sketch (offline)**: a route on paper, drawn on your server, with the coastlines of large areas. No locations are sent to a map provider.
+- **Watercolor**, **Toner** and **Terrain**: the Stamen styles from [Stadia Maps](https://stadiamaps.com). They need a Stadia Maps API key in the admin settings; without one they can't be chosen.
+- **Auto**: the default style chosen by your administrator (styled, unless changed). The assistant uses it when you don't ask for a style.
+
+Styled maps are drawn at the print resolution of the PDF (300 dpi), for the rendered pages, the PDF, the HTML book, the preview and the map cards of [highlight videos](#highlight-videos). Books made before styled maps keep their style.
 
 :::info Map tiles and privacy
-The watercolor, toner and terrain styles send the coordinates of the trip to Stadia Maps to download map tiles. Without an API key, or when the tiles can't be downloaded, all maps fall back to the offline sketch style.
+A styled map asks the tile server of the Map page for the area of the page (at most about 20 tiles, which are then kept for 30 days in a cache under the thumbnails folder), as the Map page does when you look at a place. The request carries no personal data, only the area and a generic User-Agent. The watercolor, toner and terrain styles send the area of the trip to Stadia Maps.
+
+When the map is turned off in **Administration > Settings > Map**, or its data can't be loaded (the tile server is down, too slow or blocked), a styled map is drawn as the offline sketch instead, and the review of the book (see [The book viewer](#the-book-viewer)) reports **Map style not available**. Without an API key, or when their tiles can't be downloaded, the Stadia styles also fall back to the sketch.
 :::
 
-**Illustrate maps with AI** asks the [art agent](#artistic-styles) to paint over each map page as a hand-illustrated vintage watercolor travel map, keeping the geography, route, pins and place names. It needs an art profile and adds a few minutes per map. The rendered map is saved as a photo tagged `Photo books/Maps`, and the illustration is stacked with it.
+**Illustrate maps with AI** (or **Illustrated by AI** for one page in **Edit pages**) asks the [art agent](#artistic-styles) to paint over each map page as a hand-illustrated vintage watercolor travel map, keeping the geography, route, pins and place names. It needs an art profile and adds a few minutes per map. The rendered map is saved as a photo tagged `Photo books/Maps`, and the illustration is stacked with it.
 
 ## Highlight videos
 
@@ -521,7 +530,7 @@ Install an ACP agent adapter where the server runs, for example `npm install -g 
    - turn on **Enable AI assistant**;
    - check the **Agent profiles** (command, arguments, environment variables and forwarded server variables);
    - choose the **Chat profile** and, optionally, the **Art profile** (for example `codex`) to enable artistic styles and illustrated maps.
-2. Optionally, in **Administration > Settings > Photo books**, add a **Stadia Maps API key** for the watercolor, toner and terrain map styles.
+2. Optionally, in **Administration > Settings > Photo books**, add a **Stadia Maps API key** for the watercolor, toner and terrain map styles. Styled maps need no key: they use the map of **Administration > Settings > Map**.
 3. Optionally, in **Administration > Settings > Food**, turn on **Look up restaurants on OpenStreetMap** (see [Restaurant names](#restaurant-names)).
 
 ### Settings
@@ -536,8 +545,8 @@ Install an ACP agent adapter where the server runs, for example `npm install -g 
 | `agent.idleTimeoutMinutes`       | `15`                                                 | **Idle timeout (minutes)**: an idle agent process is stopped after this time. The chat is kept and continues on your next message.                                                                                                                       |
 | `agent.autoApproveWrites`        | `false`                                              | **Auto-approve changes**: lets the agent change the library of every user without asking for approval.                                                                                                                                                   |
 | `agent.mcpUrl`                   | _(empty)_                                            | **MCP URL** the agent uses to reach Immich's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                  |
-| `books.maps.stadiaApiKey`        | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Empty draws every map as an offline sketch.                                                                                                                                    |
-| `books.maps.defaultStyle`        | `watercolor`                                         | **Default map style** used when a book's map style is **Auto**: `sketch`, `watercolor`, `toner` or `terrain`. Without an API key, **Auto** uses the sketch style.                                                                                        |
+| `books.maps.stadiaApiKey`        | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Not needed for styled and sketch maps.                                                                                                                                         |
+| `books.maps.defaultStyle`        | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                  |
 | `books.drafts.enabled`           | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                   |
 | `books.drafts.maxPerRun`         | `3`                                                  | **Books per night**: the most books drafted for a user per run.                                                                                                                                                                                          |
 | `books.drafts.yearly`            | `true`                                               | **Yearly collection books**, e.g. "2026 in food".                                                                                                                                                                                                        |
@@ -563,7 +572,7 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 - **The agent isn't found.** The chat shows an error such as `Agent claude exited during initialization`, with `ENOENT` in the message. Check that the profile's **Command** is installed in the server container and on its `PATH`. With Docker, the image must be built with `docker-compose.assistant.yml` (see [Docker](#docker)); `docker exec immich_server immich-check-assistant` shows what's missing.
 - **The agent isn't logged in.** The chat shows an authentication error, such as _Please run /login_. Log in again as in [Docker](#docker), or check the API key in `.env`. Logins are kept on the `agent-home` volume; they're lost if it's removed, for example with `docker compose down -v`.
 - **No image is generated.** The error _The art agent did not produce an image_ means the art profile's agent can't generate images. Choose an agent with image generation, such as Codex, as the **Art profile**.
-- **Maps are drawn as sketches.** The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**.
+- **Maps are drawn as sketches.** Styled maps need the map to be turned on in **Administration > Settings > Map**, and the server must reach its tile server (by default `tiles.immich.cloud`). The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**. A custom map style whose tiles are served as a single PMTiles file, or only as raster images, can't be used for styled maps.
 - **The menu isn't read.** The dialog says _No items could be read on the menu_, or the assistant finds few items. The menu may be blurry, tilted, in a strong perspective, too dark or partly covered. Photograph the menu straight on, flat and in focus, in several parts for a long menu. You can still name the dishes by hand, or **Ask the assistant**: it looks at the menu photos itself, reads the items, and matches the dishes with what it read.
 - **A highlight video fails.** The notification says why. Videos are rendered with the `ffmpeg` that Immich uses to transcode videos; when the server runs outside Docker, `ffmpeg` and `ffprobe` must be installed, or their paths set with `FFMPEG_PATH` and `FFPROBE_PATH`. Photos smaller than about 1000 pixels are left out, as they would look blurry in 1080p.
 - **A photo isn't enhanced.** _This photo already looks good, there is nothing to enhance at this strength._ Auto-enhance only applies corrections a photo needs. Try the **Strong** strength, or leave the photo as it is.
