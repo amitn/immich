@@ -545,6 +545,37 @@ Saving tags each artwork `Art/<Museum>/<Title — Artist, Date, Medium>` (the pa
 
 The **Gallery** style (_Like an exhibition catalogue: white pages, every artwork shown whole with a museum-label caption and its catalogue number_) makes a chapter per museum visit, opened by the museum's name and the date. Artworks are never cropped: each slot fits its photo. Every artwork is captioned like a museum label (its number in the book, the title in italics, then the artist, the date and the medium), and the label photos stay out of the book, as the captions say what they say. The review reports artworks without their caption and artworks that are cropped.
 
+## Reading log
+
+Photograph the cover, the spine or the title page of the books you read, and choose **Name the books…** or ask the assistant. Each page is its own source, like a wine label.
+
+- **Reading the pages.** The title is the largest type near the top, with the lines set close to it (_Wanderungen / in den / Dolomiten_); the author follows _von_ or _by_, a genre line such as _Roman_, or is a line of name-like words (_ZANE GREY_, _PAUL · L · FORD_). The year, the publisher and the place come from the foot of the page. Library stamps, shelf marks and the reviews on a dust jacket are left out.
+- **Fraktur.** Blackletter is read as other letters (_Rumft mmd Proletariat_ for _Kunst und Proletariat_): such a page is never sure, and the assistant reads it on the zoomed crop. A book open at a page without its title gets no name.
+- **One book, two photos.** The cover and the title page of one book, photographed a minute apart, are grouped by the words of their titles; two books of one author stay apart.
+- **Reading periods.** The books of a calendar year are one period, such as _Reading 2024_, or take the name of the library or bookshop whose sign was photographed with them.
+- **Tags and books.** `Reading/<Year or place>/<Title — Author>`, with a reading list as `…/Reading list`. The **Reading journal** style has a chapter per period and a page per book: the cover with its title, author and the date it was read beside it, and your note from the photo's description, or ruled lines to write one.
+
+## Kids' art
+
+An archive of your children's drawings, paintings, crafts and illustrated letters. Choose **Name the artworks…** or ask the assistant.
+
+- **What is read.** A greeting (_Buon Natale_), an age or a year written on an artwork names it, such as _Buon Natale (1947)_. Children's writing is read in fragments, and Cyrillic or Japanese not at all, so most artworks are named by the assistant from what they show, and nothing is marked sure unless it was read letter for letter. The pages of a letter, whose text runs on from one page to the next, are one artwork.
+- **Years.** The artworks of a calendar year are one visit; a year with the artworks of two children is split by the assistant with you. A scan has the date it was imported: the assistant takes the year written on the artwork, or asks.
+- **Tags and books.** `Kids art/<Child or family, year>/<Title (age N)>`, such as `Kids art/Lina, 2025/Two foxes under green leaves (age 8)`. The **Refrigerator gallery** style shows every artwork whole on a white paper mat, taped to warm paper or held by photo corners, with a handwritten-style label of its title, age and date, and a chapter per child and year. The label font is Patrick Hand or Comic Neue where installed, else the sans-serif.
+
+:::info Kids' art and privacy
+The pack is for artworks, never for photos of the children: the smart search is told a photo of a child is something else, the assistant is told never to name one, and the book review reports any photo of the set with a face on it. At most the first name of a child is kept: every name read on an artwork or passed by the assistant keeps one word of a person's name (the given name of a name signed surname first, such as _Rossi Marco_), and the child of a place `<child>, <year>` keeps one word, so no full name reaches a tag, a description or a book. Type titles in sentence case, as runs of capitalized words are read as names. Places are never read on the photos or looked up, books show no map and no city, and the review also reports a caption that reads like a full name and a map page.
+:::
+
+## Garden journal
+
+Follow the plants of your garden over seasons and years, from their seed packets and plant tags. Choose **Name the plants…** or ask the assistant.
+
+- **Tags and packets.** A seed packet is read into its crop and variety, such as _Lettuce 'Anuenue'_. Embossed metal tags read nothing: the assistant reads them on the photos and passes the varieties back, one per tag photo.
+- **Following the plants.** A photo belongs to the plant whose tag was photographed just before it; a photo of a whole plant after a close-up is the next plant. The photos of a variety on every round of the garden are one plant over the years. A plant without a tag that day stays unnamed, with the plants it looks most like as suggestions: fruit trees of one kind look alike, so check them.
+- **Growth stages.** Where the smart search can tell it (flowering, fruit, seedlings, bolting, seeds), the stage goes into the description, such as _Peach 'Tropic Prince' · flowering_.
+- **Tags and books.** `Garden/<Garden>/<Plant variety>`, with `…/Tag` or `…/Seed packet` on the sources; the garden is one visit over the years. The **Garden journal** style has a chapter per plant, opened by its tag, and growth-timeline pages of its dated photos in order, each with its stage.
+
 ## Tags
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:
