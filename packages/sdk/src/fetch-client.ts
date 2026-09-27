@@ -714,6 +714,10 @@ export type CalendarHeatmapResponseDto = {
     /** Total activity count over the period */
     totalCount: number;
 };
+export type AiAnswersResponse = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled: boolean;
+};
 export type AlbumsResponse = {
     defaultAssetOrder: AssetOrder;
 };
@@ -788,6 +792,7 @@ export type TagsResponse = {
     sidebarWeb: boolean;
 };
 export type UserPreferencesResponseDto = {
+    aiAnswers: AiAnswersResponse;
     albums: AlbumsResponse;
     bookDrafts: BookDraftsResponse;
     cast: CastResponse;
@@ -801,6 +806,10 @@ export type UserPreferencesResponseDto = {
     recentlyAdded: RecentlyAddedResponse;
     sharedLinks: SharedLinksResponse;
     tags: TagsResponse;
+};
+export type AiAnswersUpdate = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled?: boolean;
 };
 export type AlbumsUpdate = {
     defaultAssetOrder?: AssetOrder;
@@ -879,6 +888,7 @@ export type TagsUpdate = {
     sidebarWeb?: boolean;
 };
 export type UserPreferencesUpdateDto = {
+    aiAnswers?: AiAnswersUpdate;
     albums?: AlbumsUpdate;
     avatar?: AvatarUpdate;
     bookDrafts?: BookDraftsUpdate;
@@ -1030,6 +1040,8 @@ export type AgentPermissionResponseDto = {
     optionId?: string;
 };
 export type AgentPromptDto = {
+    /** A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a "Sources:" line of the photos and tags used */
+    answer?: boolean;
     /** Assets selected by the user, passed as context */
     assetIds?: string[];
     /** Message for the assistant */
@@ -2500,6 +2512,49 @@ export type CollectionPackResponseDto = {
     tagRoot: string;
     /** Pack title, e.g. Food */
     title: string;
+};
+export type CollectionSearchTermsDto = {
+    /** First year named */
+    "from"?: string;
+    /** The pack the words point to, e.g. food for "what did we eat" */
+    pack?: string;
+    /** Names looked for in the places and entries, e.g. noma */
+    text: string[];
+    /** Last year named */
+    to?: string;
+};
+export type CollectionSearchEntryDto = {
+    /** Name of the entry, e.g. a dish */
+    name: string;
+    /** Photos of the entry */
+    photoIds: string[];
+};
+export type CollectionSearchVisitDto = {
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    date: string;
+    /** Local last day of a visit of several days */
+    endDate?: string;
+    /** Entries named on the visit, up to 6 */
+    entries: CollectionSearchEntryDto[];
+    /** Pack ID */
+    pack: string;
+    /** Photos of the visit, up to 6 */
+    photoIds: string[];
+    /** Name of the place, as in the tags */
+    place: string;
+    /** Tag of the place, e.g. Food/Noma Australia */
+    tag: string;
+};
+export type CollectionSearchResponseDto = {
+    terms: CollectionSearchTermsDto;
+    /** Matching visits in all */
+    total: number;
+    /** Matching visits, newest first */
+    visits: CollectionSearchVisitDto[];
 };
 export type CollectionPlaceSummaryDto = {
     /** Local day of the last visit, e.g. 2016-03-23 */
@@ -7518,6 +7573,21 @@ export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: CollectionPackResponseDto[];
     }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Search the collections
+ */
+export function searchCollections({ q }: {
+    q: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSearchResponseDto;
+    }>(`/collections/search${QS.query(QS.explode({
+        q
+    }))}`, {
         ...opts
     }));
 }

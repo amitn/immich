@@ -11,7 +11,7 @@ import {
 } from 'src/repositories/acp.repository.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { AGENT_APPROVAL_TIMEOUT_MS, AGENT_TEXT_FLUSH_MS, AgentService } from 'src/services/agent.service.js';
-import { ASSISTANT_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
+import { ASSISTANT_INSTRUCTIONS, QUICK_ANSWER_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
 import { defineTool, toolJson } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { factory } from 'test/small.factory.js';
@@ -252,6 +252,19 @@ describe(AgentService.name, () => {
       expect(mocks.acp.start).toHaveBeenCalledTimes(1);
       const [, [, second]] = fake.agent.prompt.mock.calls as unknown as [unknown, [string, [{ text: string }]]];
       expect(second[0].text).toBe('thanks');
+    });
+
+    it('should answer a question of the search bar briefly, keeping only the question in the chat', async () => {
+      const session = newSession();
+      await sut.prompt(auth, session.id, { text: 'what did we eat at noma', answer: true });
+      await settle();
+
+      const [[, [block]]] = fake.agent.prompt.mock.calls as unknown as [[string, [{ text: string }]]];
+      expect(block.text).toContain(`<quick-answer>\n${QUICK_ANSWER_INSTRUCTIONS}\n</quick-answer>`);
+      expect(block.text.endsWith('what did we eat at noma')).toBe(true);
+      expect(mocks.agent.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ content: { text: 'what did we eat at noma' } }),
+      );
     });
 
     it('should title an untitled chat after the first message before announcing it', async () => {

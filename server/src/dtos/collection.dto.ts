@@ -261,6 +261,52 @@ const CollectionSummaryResponseSchema = z
   })
   .meta({ id: 'CollectionSummaryResponseDto' });
 
+const CollectionSearchSchema = z
+  .object({
+    q: z.string().trim().min(1).max(500).describe('A question or words typed in the search bar'),
+  })
+  .meta({ id: 'CollectionSearchDto' });
+
+const CollectionSearchTermsSchema = z
+  .object({
+    pack: z.string().optional().describe('The pack the words point to, e.g. food for "what did we eat"'),
+    text: z.array(z.string()).describe('Names looked for in the places and entries, e.g. noma'),
+    from: z.string().optional().describe('First year named'),
+    to: z.string().optional().describe('Last year named'),
+  })
+  .meta({ id: 'CollectionSearchTermsDto' });
+
+const CollectionSearchEntrySchema = z
+  .object({
+    name: z.string().describe('Name of the entry, e.g. a dish'),
+    photoIds: z.array(z.string()).describe('Photos of the entry'),
+  })
+  .meta({ id: 'CollectionSearchEntryDto' });
+
+const CollectionSearchVisitSchema = z
+  .object({
+    pack: z.string().describe('Pack ID'),
+    place: z.string().describe('Name of the place, as in the tags'),
+    tag: z.string().describe('Tag of the place, e.g. Food/Noma Australia'),
+    date: z.string().describe('Local day of the visit'),
+    endDate: z.string().optional().describe('Local last day of a visit of several days'),
+    city: z.string().optional().describe('City'),
+    country: z.string().optional().describe('Country'),
+    entries: z.array(CollectionSearchEntrySchema).describe('Entries named on the visit, up to 6'),
+    photoIds: z.array(z.string()).describe('Photos of the visit, up to 6'),
+  })
+  .meta({ id: 'CollectionSearchVisitDto' });
+
+const CollectionSearchResponseSchema = z
+  .object({
+    terms: CollectionSearchTermsSchema,
+    visits: z.array(CollectionSearchVisitSchema).describe('Matching visits, newest first'),
+    total: z.int().describe('Matching visits in all'),
+  })
+  .meta({ id: 'CollectionSearchResponseDto' });
+
+export class CollectionSearchDto extends createZodDto(CollectionSearchSchema) {}
+export class CollectionSearchResponseDto extends createZodDto(CollectionSearchResponseSchema) {}
 export class CollectionPackParamDto extends createZodDto(CollectionPackParamSchema) {}
 export class CollectionPackResponseDto extends createZodDto(CollectionPackSchema) {}
 export class CollectionVisitsDto extends createZodDto(CollectionVisitsSchema) {}

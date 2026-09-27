@@ -70,20 +70,36 @@ export const buildRecap = (messages: RecapMessage[]) => {
   return `This conversation continues an earlier one. Recap of the most recent messages:\n${lines.join('\n')}`;
 };
 
+/** the line an answer in the search bar ends with, which the web app turns into photo and tag chips */
+export const ANSWER_SOURCES_PREFIX = 'Sources:';
+
+/** how to answer a question typed in the search bar, shown beside the search results (see `AgentPromptDto.answer`) */
+export const QUICK_ANSWER_INSTRUCTIONS = `This question was typed into the search bar of Immich. Your answer is shown in a small panel beside the search results, which the user already sees.
+- Answer in one to three short sentences, with the dates and places. Use query_collections first for places, dishes, artworks, wines, recipes and trips, then search_photos or find_events; don't show contact sheets.
+- Never change the library and don't ask questions back. If nothing matches, say so in one sentence.
+- End with one line that starts with "${ANSWER_SOURCES_PREFIX}" and lists the ids of the photos your answer rests on (at most 6) and the collection tags you used, e.g. "${ANSWER_SOURCES_PREFIX} photos 1f0c…, 9a2b…; tags Food/Noma Australia, Wine/Noma Australia". Write "${ANSWER_SOURCES_PREFIX} none" when there are none.`;
+
 export const buildPromptText = ({
   text,
   assetIds,
   instructions,
   recap,
+  answer,
 }: {
   text: string;
   assetIds?: string[];
   instructions: boolean;
   recap?: string;
+  /** a question typed in the search bar */
+  answer?: boolean;
 }) => {
   const parts: string[] = [];
   if (instructions) {
     parts.push(`<instructions>\n${ASSISTANT_INSTRUCTIONS}\n</instructions>`);
+  }
+
+  if (answer) {
+    parts.push(`<quick-answer>\n${QUICK_ANSWER_INSTRUCTIONS}\n</quick-answer>`);
   }
 
   if (recap) {

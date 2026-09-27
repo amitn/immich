@@ -9677,6 +9677,64 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/collections/search": {
+      "get": {
+        "description": "Find the visits of the collections that match a question or words typed in the search bar (\"what did we eat at noma\", \"which museums did we visit in 2025\"), without AI: the pack the words point to, the years they name and the names left are matched against the tags of the collections. Only the user's own photos are read.",
+        "operationId": "searchCollections",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "description": "A question or words typed in the search bar",
+            "schema": {
+              "minLength": 1,
+              "maxLength": 500,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionSearchResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Search the collections",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/collections/summary": {
       "get": {
         "description": "Retrieve what the collections of the user hold, per pack: the photos, visits, places and entries named with the tags of the pack, the years covered and the places visited most recently. Only the user's own photos are counted, and the names of packs that hide private text are redacted.",
@@ -24211,6 +24269,10 @@
       },
       "AgentPromptDto": {
         "properties": {
+          "answer": {
+            "description": "A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a \"Sources:\" line of the photos and tags used",
+            "type": "boolean"
+          },
           "assetIds": {
             "description": "Assets selected by the user, passed as context",
             "items": {
@@ -24398,6 +24460,27 @@
           "sessionId",
           "status"
         ],
+        "type": "object"
+      },
+      "AiAnswersResponse": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the assistant answers the questions typed in the search bar, beside the results",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "AiAnswersUpdate": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the assistant answers the questions typed in the search bar, beside the results",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "AlbumResponseDto": {
@@ -29237,6 +29320,134 @@
           "assetId",
           "place",
           "source"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchEntryDto": {
+        "properties": {
+          "name": {
+            "description": "Name of the entry, e.g. a dish",
+            "type": "string"
+          },
+          "photoIds": {
+            "description": "Photos of the entry",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "photoIds"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchResponseDto": {
+        "properties": {
+          "terms": {
+            "$ref": "#/components/schemas/CollectionSearchTermsDto"
+          },
+          "total": {
+            "description": "Matching visits in all",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "visits": {
+            "description": "Matching visits, newest first",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSearchVisitDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "terms",
+          "total",
+          "visits"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchTermsDto": {
+        "properties": {
+          "from": {
+            "description": "First year named",
+            "type": "string"
+          },
+          "pack": {
+            "description": "The pack the words point to, e.g. food for \"what did we eat\"",
+            "type": "string"
+          },
+          "text": {
+            "description": "Names looked for in the places and entries, e.g. noma",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "to": {
+            "description": "Last year named",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "CollectionSearchVisitDto": {
+        "properties": {
+          "city": {
+            "description": "City",
+            "type": "string"
+          },
+          "country": {
+            "description": "Country",
+            "type": "string"
+          },
+          "date": {
+            "description": "Local day of the visit",
+            "type": "string"
+          },
+          "endDate": {
+            "description": "Local last day of a visit of several days",
+            "type": "string"
+          },
+          "entries": {
+            "description": "Entries named on the visit, up to 6",
+            "items": {
+              "$ref": "#/components/schemas/CollectionSearchEntryDto"
+            },
+            "type": "array"
+          },
+          "pack": {
+            "description": "Pack ID",
+            "type": "string"
+          },
+          "photoIds": {
+            "description": "Photos of the visit, up to 6",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "place": {
+            "description": "Name of the place, as in the tags",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag of the place, e.g. Food/Noma Australia",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "entries",
+          "pack",
+          "photoIds",
+          "place",
+          "tag"
         ],
         "type": "object"
       },
@@ -42232,6 +42443,9 @@
       },
       "UserPreferencesResponseDto": {
         "properties": {
+          "aiAnswers": {
+            "$ref": "#/components/schemas/AiAnswersResponse"
+          },
           "albums": {
             "$ref": "#/components/schemas/AlbumsResponse"
           },
@@ -42273,6 +42487,7 @@
           }
         },
         "required": [
+          "aiAnswers",
           "albums",
           "bookDrafts",
           "cast",
@@ -42291,6 +42506,9 @@
       },
       "UserPreferencesUpdateDto": {
         "properties": {
+          "aiAnswers": {
+            "$ref": "#/components/schemas/AiAnswersUpdate"
+          },
           "albums": {
             "$ref": "#/components/schemas/AlbumsUpdate"
           },

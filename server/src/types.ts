@@ -640,6 +640,9 @@ export type UserPreferences = {
   bookDrafts: {
     enabled: boolean;
   };
+  aiAnswers: {
+    enabled: boolean;
+  };
 };
 
 export type UserMetadataItem<T extends keyof UserMetadata = UserMetadataKey> = {

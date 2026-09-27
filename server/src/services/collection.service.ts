@@ -12,6 +12,7 @@ import {
   CollectionPackResponseDto,
   CollectionPlaceCandidate,
   CollectionSavedEntry,
+  CollectionSearchResponseDto,
   CollectionSummaryResponseDto,
   CollectionVisitResponse,
   CollectionVisitsDto,
@@ -59,6 +60,7 @@ import {
   summarizeCollections,
 } from 'src/utils/collections/query.js';
 import { getCollectionPack, getCollectionPacks } from 'src/utils/collections/registry.js';
+import { getCollectionSearchTerms, hasSearchTerms } from 'src/utils/collections/search-terms.js';
 import {
   FocusRect,
   ParsedSource,
@@ -208,6 +210,9 @@ export type CollectionQueryResponse = CollectionQueryResult & {
 export const COLLECTION_QUERY_ROWS = 20_000;
 /** photos of the people asked about read for one question */
 const COLLECTION_PERSON_ROWS = 50_000;
+/** visits, and entries per visit, shown beside the results of a search */
+const SEARCH_VISITS = 8;
+const SEARCH_ENTRIES = 6;
 
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
@@ -251,6 +256,44 @@ export class CollectionService extends BaseService {
     const packs = getCollectionPacks();
     const { photos, truncated } = await this.readCollectionPhotos(auth, packs, {});
     return { packs: summarizeCollections(photos, packs), truncated };
+  }
+
+  /**
+   * The visits of the collections that match a question typed in the search bar, without AI (see
+   * `getCollectionSearchTerms`): shown at once beside the smart search results
+   */
+  async searchCollections(auth: AuthDto, question: string): Promise<CollectionSearchResponseDto> {
+    const packs = getCollectionPacks();
+    const terms = getCollectionSearchTerms(question, packs);
+    if (!hasSearchTerms(terms)) {
+      return { terms, visits: [], total: 0 };
+    }
+
+    const result = await this.queryCollections(auth, {
+      pack: terms.pack,
+      text: terms.text.length > 0 ? terms.text : undefined,
+      from: terms.from,
+      to: terms.to,
+      limit: SEARCH_VISITS,
+      entriesPerVisit: SEARCH_ENTRIES,
+      photosPerEntry: 2,
+    });
+    const tagRoots = new Map(packs.map((pack) => [pack.id, pack.tagRoot]));
+    const visits = (result.visits ?? []).map((visit) => {
+      const entries = visit.entries.map(({ name, photoIds }) => ({ name, photoIds }));
+      return {
+        pack: visit.pack,
+        place: visit.place,
+        tag: `${tagRoots.get(visit.pack) ?? visit.pack}/${visit.place}`,
+        date: visit.date,
+        ...('endDate' in visit && visit.endDate && { endDate: visit.endDate }),
+        ...('city' in visit && visit.city && { city: visit.city }),
+        ...('country' in visit && visit.country && { country: visit.country }),
+        entries,
+        photoIds: [...new Set(entries.flatMap(({ photoIds }) => photoIds))].slice(0, SEARCH_ENTRIES),
+      };
+    });
+    return { terms, visits, total: result.total.visits };
   }
 
   /**
