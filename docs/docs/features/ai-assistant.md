@@ -75,6 +75,15 @@ Keep in mind:
 
 The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
 
+### Asking from the search bar
+
+You can also type a question straight into the search bar, such as _"what did we eat at noma"_ or _"which museums did we visit in 2025?"_. A search counts as a question when it has a question mark or starts with a question word (what, which, when, where, who, how, did…); no AI decides that. The usual results show at once, as for any search, and never wait for the assistant. Beside them:
+
+- **From your collections** lists the visits whose names match the question (the restaurant, the dishes, the museum), found without AI from its words: _eat_ points to food, _museums_ to museum visits, a year to that year, and the words left are looked for in the names. Each visit links to its tag.
+- **Answer from the assistant** streams in when the assistant is enabled: a short answer with the dates and places, followed by the photos and the tags it used, as thumbnails and tag chips. **Stop** cancels it, and **Continue in chat** opens it as a chat, where you can ask a follow-up. Each answer is a chat of its own, titled with the question, in the **Assistant** page.
+
+To turn the answers off, select **×** on the panel, or turn off **Answers in search** under **Account Settings → Features**. The results and the collection matches stay.
+
 ## Photos are never changed
 
 Everything the assistant and the related tools make is a **new photo**, stacked with the original, which stays the primary photo of the stack. The copy keeps the original's date, location and camera. Each copy is tagged automatically, so you can find it later:
