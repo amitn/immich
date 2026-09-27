@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/svelte';
-import UserPageLayout, { headerId } from './UserPageLayout.svelte';
+import UserPageLayout from './UserPageLayout.svelte';
 
 vi.mock('$lib/components/shared-components/navigation-bar/NavigationBar.svelte', async () => {
   return await import('@test-data/mocks/Empty.mock.svelte');
@@ -13,7 +13,7 @@ describe('UserPageLayout component', () => {
     const title = 'Crete, October 2016: Samaria Gorge, Sougia, Loutro and the south coast';
     render(UserPageLayout, { title, description: 'Ten days by bus and ferry' });
 
-    const header = document.querySelector(`#${headerId}`)!;
+    const header = document.querySelector('#user-page-header')!;
     expect(header).toHaveTextContent(title);
     expect(header).toHaveClass('truncate', 'min-w-0');
     expect(header).toHaveAttribute('title', title);
