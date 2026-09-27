@@ -1,0 +1,23 @@
+#
+# The AI assistant in the dev setup: the dev server gets the ACP agents (Claude Code and Codex), as
+# docker-compose.assistant.yml does for the production image. Use it on top of docker-compose.dev.yml:
+#
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.assistant.yml up --build --remove-orphans
+#
+# Log in with `docker exec -it immich_server claude` (then /login) or `docker exec -it immich_server codex login
+# --device-auth`, or set ANTHROPIC_API_KEY / OPENAI_API_KEY in .env. Check with
+# `docker exec immich_server immich-check-assistant`.
+#
+
+services:
+  immich-server:
+    # its own image: immich-init shares immich-server-dev:latest (the dev target)
+    image: immich-server-dev:agents
+    build:
+      target: dev-agents
+    volumes:
+      # the agent home (HOME in the image): the logins and settings of the agents
+      - agent-home:/var/lib/immich-agents
+
+volumes:
+  agent-home:
