@@ -417,6 +417,9 @@ export type JobItem =
   | { name: JobName.BookExport; data: IEntityJob }
   | { name: JobName.BookExportHtml; data: IEntityJob }
 
+  // Highlight videos
+  | { name: JobName.HighlightRender; data: IEntityJob }
+
   // Tags
   | { name: JobName.TagCleanup; data?: IBaseJob }
 

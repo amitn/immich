@@ -185,6 +185,10 @@ export enum Permission {
   BookDownload = 'book.download',
   BookShare = 'book.share',
 
+  HighlightCreate = 'highlight.create',
+  HighlightRead = 'highlight.read',
+  HighlightDelete = 'highlight.delete',
+
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',
   ClusterGroupRequestCreate = 'clusterGroupRequest.create',
@@ -887,6 +891,8 @@ export enum JobName {
   BookExport = 'BookExport',
   BookExportHtml = 'BookExportHtml',
 
+  HighlightRender = 'HighlightRender',
+
   DatabaseBackup = 'DatabaseBackup',
 
   FacialRecognitionQueueAll = 'FacialRecognitionQueueAll',
@@ -1254,6 +1260,7 @@ export enum ApiTag {
   Duplicates = 'Duplicates',
   Faces = 'Faces',
   Food = 'Food',
+  Highlights = 'Highlights',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',
@@ -1364,6 +1371,19 @@ export enum ArtJobStatus {
 }
 
 export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+export enum HighlightJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export const HighlightJobStatusSchema = z
+  .enum(HighlightJobStatus)
+  .describe('Highlight video status')
+  .meta({ id: 'HighlightJobStatus' });
 
 export enum BookExportStatus {
   Pending = 'pending',

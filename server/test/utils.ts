@@ -28,6 +28,7 @@ import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
 import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
@@ -241,6 +242,7 @@ export type ServiceOverrides = {
   agent: AgentRepository;
   acp: AcpRepository;
   artJob: ArtJobRepository;
+  highlightJob: HighlightJobRepository;
   book: BookRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
@@ -333,6 +335,7 @@ export const getMocks = () => {
     agent: automock(AgentRepository),
     acp: automock(AcpRepository, { args: [loggerMock] }),
     artJob: automock(ArtJobRepository),
+    highlightJob: automock(HighlightJobRepository),
     book: automock(BookRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
@@ -410,6 +413,7 @@ export const newTestService = <T extends BaseService>(
     overrides.agent || (mocks.agent as As<AgentRepository>),
     overrides.acp || (mocks.acp as As<AcpRepository>),
     overrides.artJob || (mocks.artJob as As<ArtJobRepository>),
+    overrides.highlightJob || (mocks.highlightJob as As<HighlightJobRepository>),
     overrides.book || (mocks.book as As<BookRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),

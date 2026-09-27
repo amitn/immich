@@ -15,6 +15,7 @@ import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
 import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
@@ -76,6 +77,7 @@ export const BASE_SERVICE_DEPENDENCIES = [
   AgentRepository,
   AcpRepository,
   ArtJobRepository,
+  HighlightJobRepository,
   BookRepository,
   AlbumRepository,
   AlbumUserRepository,
@@ -142,6 +144,7 @@ export class BaseService {
     protected agentRepository: AgentRepository,
     protected acpRepository: AcpRepository,
     protected artJobRepository: ArtJobRepository,
+    protected highlightJobRepository: HighlightJobRepository,
     protected bookRepository: BookRepository,
     protected albumRepository: AlbumRepository,
     protected albumUserRepository: AlbumUserRepository,
@@ -217,6 +220,7 @@ export class BaseService {
       ctx.agentRepository,
       ctx.acpRepository,
       ctx.artJobRepository,
+      ctx.highlightJobRepository,
       ctx.bookRepository,
       ctx.albumRepository,
       ctx.albumUserRepository,
