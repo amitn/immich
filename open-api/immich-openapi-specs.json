@@ -22497,6 +22497,44 @@
         ],
         "type": "object"
       },
+      "AdminConfigCollectionNotificationsDto": {
+        "properties": {
+          "enabled": {
+            "description": "Notify the users of new visits of the collections (a meal, a museum visit, a tasting) in their new uploads that nobody named yet, with the nightly tasks",
+            "type": "boolean"
+          },
+          "maxPerRun": {
+            "description": "Most notifications sent to a user per run",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "windowDays": {
+            "description": "Only photos uploaded in this many days are looked at, however long ago the last run was",
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "maxPerRun",
+          "windowDays"
+        ],
+        "type": "object"
+      },
+      "AdminConfigCollectionsDto": {
+        "description": "Collections config",
+        "properties": {
+          "notifications": {
+            "$ref": "#/components/schemas/AdminConfigCollectionNotificationsDto"
+          }
+        },
+        "required": [
+          "notifications"
+        ],
+        "type": "object"
+      },
       "AdminConfigDatabaseBackupDto": {
         "properties": {
           "cronExpression": {
@@ -22532,6 +22570,9 @@
           },
           "books": {
             "$ref": "#/components/schemas/AdminConfigBooksDto"
+          },
+          "collections": {
+            "$ref": "#/components/schemas/AdminConfigCollectionsDto"
           },
           "ffmpeg": {
             "$ref": "#/components/schemas/AdminConfigFFmpegDto"
@@ -22604,6 +22645,7 @@
           "agent",
           "backup",
           "books",
+          "collections",
           "ffmpeg",
           "food",
           "image",
@@ -28547,6 +28589,27 @@
         ],
         "type": "object"
       },
+      "CollectionNotificationsResponse": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the user is notified of new visits of the collections (meals, museum visits) to name",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CollectionNotificationsUpdate": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the user is notified of new visits of the collections (meals, museum visits) to name",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CollectionPackResponseDto": {
         "properties": {
           "bookStylePreset": {
@@ -31248,6 +31311,8 @@
           "AuditTableCleanup",
           "BookDraftsQueueAll",
           "BookDraftsGenerate",
+          "CollectionNoticesQueueAll",
+          "CollectionNoticesCheck",
           "BookExport",
           "BookExportHtml",
           "HighlightRender",
@@ -31643,6 +31708,7 @@
           "memory-cleanup",
           "memory-create",
           "book-drafts-create",
+          "collection-notices-create",
           "backup-database",
           "integrity-missing-files",
           "integrity-untracked-files",
@@ -41674,6 +41740,9 @@
           "cast": {
             "$ref": "#/components/schemas/CastResponse"
           },
+          "collectionNotifications": {
+            "$ref": "#/components/schemas/CollectionNotificationsResponse"
+          },
           "download": {
             "$ref": "#/components/schemas/DownloadResponse"
           },
@@ -41709,6 +41778,7 @@
           "albums",
           "bookDrafts",
           "cast",
+          "collectionNotifications",
           "download",
           "emailNotifications",
           "folders",
@@ -41735,6 +41805,9 @@
           },
           "cast": {
             "$ref": "#/components/schemas/CastUpdate"
+          },
+          "collectionNotifications": {
+            "$ref": "#/components/schemas/CollectionNotificationsUpdate"
           },
           "download": {
             "$ref": "#/components/schemas/DownloadUpdate"

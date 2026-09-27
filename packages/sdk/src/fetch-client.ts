@@ -121,6 +121,17 @@ export type AdminConfigBooksDto = {
     drafts: AdminConfigBookDraftsDto;
     maps: AdminConfigBookMapsDto;
 };
+export type AdminConfigCollectionNotificationsDto = {
+    /** Notify the users of new visits of the collections (a meal, a museum visit, a tasting) in their new uploads that nobody named yet, with the nightly tasks */
+    enabled: boolean;
+    /** Most notifications sent to a user per run */
+    maxPerRun: number;
+    /** Only photos uploaded in this many days are looked at, however long ago the last run was */
+    windowDays: number;
+};
+export type AdminConfigCollectionsDto = {
+    notifications: AdminConfigCollectionNotificationsDto;
+};
 export type AdminConfigFFmpegRealtimeDto = {
     /** Enable real-time HLS transcoding (alpha) */
     enabled: boolean;
@@ -475,6 +486,7 @@ export type AdminConfigDto = {
     agent: AdminConfigAgentDto;
     backup: AdminConfigBackupsDto;
     books: AdminConfigBooksDto;
+    collections: AdminConfigCollectionsDto;
     ffmpeg: AdminConfigFFmpegDto;
     food: AdminConfigFoodDto;
     image: AdminConfigImageDto;
@@ -725,6 +737,10 @@ export type CastResponse = {
     /** Whether Google Cast is enabled */
     gCastEnabled: boolean;
 };
+export type CollectionNotificationsResponse = {
+    /** Whether the user is notified of new visits of the collections (meals, museum visits) to name */
+    enabled: boolean;
+};
 export type DownloadResponse = {
     /** Maximum archive size in bytes */
     archiveSize: number;
@@ -791,6 +807,7 @@ export type UserPreferencesResponseDto = {
     albums: AlbumsResponse;
     bookDrafts: BookDraftsResponse;
     cast: CastResponse;
+    collectionNotifications: CollectionNotificationsResponse;
     download: DownloadResponse;
     emailNotifications: EmailNotificationsResponse;
     folders: FoldersResponse;
@@ -815,6 +832,10 @@ export type BookDraftsUpdate = {
 export type CastUpdate = {
     /** Whether Google Cast is enabled */
     gCastEnabled?: boolean;
+};
+export type CollectionNotificationsUpdate = {
+    /** Whether the user is notified of new visits of the collections (meals, museum visits) to name */
+    enabled?: boolean;
 };
 export type DownloadUpdate = {
     /** Maximum archive size in bytes */
@@ -883,6 +904,7 @@ export type UserPreferencesUpdateDto = {
     avatar?: AvatarUpdate;
     bookDrafts?: BookDraftsUpdate;
     cast?: CastUpdate;
+    collectionNotifications?: CollectionNotificationsUpdate;
     download?: DownloadUpdate;
     emailNotifications?: EmailNotificationsUpdate;
     folders?: FoldersUpdate;
@@ -10751,6 +10773,7 @@ export enum ManualJobName {
     MemoryCleanup = "memory-cleanup",
     MemoryCreate = "memory-create",
     BookDraftsCreate = "book-drafts-create",
+    CollectionNoticesCreate = "collection-notices-create",
     BackupDatabase = "backup-database",
     IntegrityMissingFiles = "integrity-missing-files",
     IntegrityUntrackedFiles = "integrity-untracked-files",
@@ -10838,6 +10861,8 @@ export enum JobName {
     AuditTableCleanup = "AuditTableCleanup",
     BookDraftsQueueAll = "BookDraftsQueueAll",
     BookDraftsGenerate = "BookDraftsGenerate",
+    CollectionNoticesQueueAll = "CollectionNoticesQueueAll",
+    CollectionNoticesCheck = "CollectionNoticesCheck",
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
