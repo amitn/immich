@@ -2,8 +2,11 @@ import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/b
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
 import { getNoteHeading, isGalleryTheme, isMountedTheme, isPrintedTheme } from 'src/utils/book/collections.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
+import { getTimelineDecorations, getTimelineLabel } from 'src/utils/book/growth-timeline.js';
 import {
   BookLayout,
+  GROWTH_TIMELINE_LAYOUTS,
+  GROWTH_TIMELINE_X,
   LayoutRect,
   LayoutTextArea,
   PageSize,
@@ -891,6 +894,18 @@ export const planPage = (
   if (food && !layout.fullBleed) {
     decorations.push(...getMenuFrame({ width, height }, mmToPx(style.marginMm, dpi), dpi, accent));
   }
+  if (GROWTH_TIMELINE_LAYOUTS.includes(layout.id)) {
+    // the line of a plant's growth timeline, with a dot beside each photo
+    const box = toPxRect(getLayoutBox(layout, size, style), dpi);
+    decorations.push(
+      ...getTimelineDecorations(
+        box.left + GROWTH_TIMELINE_X * box.width,
+        slots.filter((slot) => slot.assetId).map((slot) => slot.rect),
+        dpi,
+        { accent, page: pageBackground },
+      ),
+    );
+  }
   if (mounted) {
     for (const slot of slots) {
       if (slot.source) {
@@ -1032,6 +1047,11 @@ export const planPage = (
           break;
         }
         captionedSlots.add(slot.index);
+        if (GROWTH_TIMELINE_LAYOUTS.includes(layout.id)) {
+          // the date and the stage of a photo of a plant, beside its dot on the timeline
+          blocks.push(...getTimelineLabel(slot.caption, rect, { captionPx, ink, accent, lineHeight: LINE_HEIGHT }));
+          break;
+        }
         if (TASTING_LAYOUTS.includes(layout.id)) {
           // the fiche of a bottle and its tasting note, typeset beside (or below) its photo
           const note = getTastingNoteBlocks(slot.caption, rect, {

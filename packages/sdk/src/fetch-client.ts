@@ -11044,7 +11044,8 @@ export enum BookStyleTheme {
     Cookbook = "cookbook",
     Travel = "travel",
     Reading = "reading",
-    KidsArt = "kids-art"
+    KidsArt = "kids-art",
+    Garden = "garden"
 }
 export enum BookExportStatus {
     Pending = "pending",
@@ -11066,7 +11067,8 @@ export enum BookStylePreset {
     Cookbook = "cookbook",
     Travel = "travel",
     Reading = "reading",
-    KidsArt = "kids-art"
+    KidsArt = "kids-art",
+    Garden = "garden"
 }
 export enum BookMapLook {
     Wash = "wash",
@@ -11195,7 +11197,8 @@ export enum HighlightStyle {
     Cookbook = "cookbook",
     Travel = "travel",
     Reading = "reading",
-    KidsArt = "kids-art"
+    KidsArt = "kids-art",
+    Garden = "garden"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
