@@ -21,6 +21,8 @@
   const look = $derived(getBookStyleLook(style));
   const printed = $derived(look === 'printed');
   const gallery = $derived(look === 'gallery');
+  // the mounted look (kids' art) shows a drawing on a white mat, taped to the page, with a handwritten label
+  const mounted = $derived(look === 'mounted');
   const accent = $derived(getBookStyleAccent(style));
 </script>
 
@@ -44,7 +46,23 @@
       style:opacity="0.6"
     ></span>
   {/if}
-  {#if gallery}
+  {#if mounted}
+    <span class="flex min-h-0 flex-1 items-center justify-center">
+      <span class="relative block h-3/4 w-3/5 bg-white shadow-sm" style:padding="{Math.max(1, size / 28)}px">
+        <span class="block h-full w-full bg-linear-to-br from-amber-300 to-sky-400"></span>
+        <span class="absolute -top-0.5 left-1/2 block h-1 w-1/2 -translate-x-1/2 -rotate-3 bg-yellow-200/80" data-tape
+        ></span>
+      </span>
+    </span>
+    <span
+      class="block shrink-0 truncate text-center leading-none"
+      style:font-size="{Math.max(6, size / 8)}px"
+      style:color={accent ?? 'currentColor'}
+      style:font-family={style?.fontFamily}
+    >
+      Aa
+    </span>
+  {:else if gallery}
     <!-- one photo shown whole, never cropped, with space around it -->
     <span class="flex min-h-0 flex-1 items-center justify-center">
       <span class="block h-3/4 w-3/5 rounded-[1px] bg-linear-to-br from-slate-400 to-slate-500"></span>

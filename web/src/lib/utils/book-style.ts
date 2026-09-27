@@ -183,7 +183,7 @@ export const findBookUserStyle = (
 ): BookUserStyleResponseDto | undefined => available.find((item) => isSameBookStyle(style, item.style));
 
 /** how the renderer draws a theme: plain pages, a printed menu (rules, ornaments, small caps) or a gallery catalogue */
-export type BookStyleLook = 'plain' | 'printed' | 'gallery';
+export type BookStyleLook = 'plain' | 'printed' | 'gallery' | 'mounted';
 
 export const getBookStyleLook = (style?: BookStyle): BookStyleLook => {
   switch (getBookStyleTheme(style) ?? BookStyleTheme.Plain) {
@@ -192,6 +192,10 @@ export const getBookStyleLook = (style?: BookStyle): BookStyleLook => {
     }
     case BookStyleTheme.Gallery: {
       return 'gallery';
+    }
+    // the artworks of kids' art on paper mats, taped to the page
+    case BookStyleTheme.KidsArt: {
+      return 'mounted';
     }
     default: {
       return 'printed';

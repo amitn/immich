@@ -34,6 +34,7 @@ export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type, Translations> = {
   [Type.CouldLookBetter]: 'book_review_issue_could_look_better',
   [Type.MissingDishName]: 'book_review_issue_missing_dish_name',
   [Type.MissingMenuPage]: 'book_review_issue_missing_menu_page',
+  [Type.Privacy]: 'book_review_issue_privacy',
 };
 
 /** At most this many issues are listed in the prompt that fixes them all */
