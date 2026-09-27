@@ -1,0 +1,32 @@
+#
+# The AI assistant: builds immich-server from this repository with the ACP agents (Claude Code and Codex) inside it.
+# Use it on top of docker-compose.yml (or docker-compose.rootless.yml, or docker-compose.prod.yml):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
+#
+# Then log in to an agent, or set its API key in .env (see example.env):
+#
+#   docker exec -it immich_server claude              # Claude Code: type /login, open the link, paste the code
+#   docker exec -it immich_server codex login --device-auth
+#   docker exec immich_server immich-check-assistant  # checks the agents, the agent home, the fonts and ffmpeg
+#
+# and turn on Administration > Settings > AI Assistant. See https://docs.immich.app/features/ai-assistant
+#
+# The agents run inside the server container: they share its filesystem, get only PATH, HOME, LANG, TZ and the
+# variables their profile names (passEnv), and change the library only through the Immich tools, with approval.
+#
+
+services:
+  immich-server:
+    image: immich-server:assistant
+    build:
+      context: ../
+      dockerfile: server/Dockerfile
+      target: server-agents
+    volumes:
+      # the agent home (HOME in the image): the logins and settings of the agents (~/.claude, ~/.claude.json, ~/.codex)
+      - agent-home:/var/lib/immich-agents
+    # ANTHROPIC_API_KEY and OPENAI_API_KEY reach the container through `env_file: .env`, when they are set there
+
+volumes:
+  agent-home:
