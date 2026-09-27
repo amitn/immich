@@ -48,7 +48,8 @@ describe('nature pack', () => {
       'Castanospermum australe\nMoreton Bay Chestnut · Fabaceae',
     );
     expect(captionSpecies('Hernandia moerenhoutiana (Hernandiaceae)')).toBe('Hernandia moerenhoutiana\nHernandiaceae');
-    expect(captionSpecies("Rose 'Proper Job' (Rosa)")).toBe("Rosa\nRose 'Proper Job'");
+    expect(captionSpecies("Rose 'Proper Job' (Rosa)")).toBe("Rosa 'Proper Job'\nRose");
+    expect(captionSpecies('Ground cover rose (Rosa)')).toBe('Rosa\nGround cover rose');
     expect(captionSpecies('White poppy')).toBe('White poppy');
     expect(describeSpecies("Rose 'Proper Job' (Rosa)", 'Copped Hall')).toBe("Rose 'Proper Job' · Copped Hall");
   });

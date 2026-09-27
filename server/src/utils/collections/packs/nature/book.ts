@@ -11,6 +11,12 @@ export const FIELD_GUIDE_THEME = 'field-guide';
  */
 export const captionSpecies = (entry: string) => {
   const { common, scientific, family } = parseTaxon(entry);
+  // a cultivar of a genus, "Rose 'Proper Job' (Rosa)": "Rosa 'Proper Job'", then "Rose"
+  const cultivar = common && scientific && !scientific.includes(' ') ? /^(.*?)\s*(['‘][^'’]+['’])$/.exec(common) : null;
+  if (cultivar) {
+    const details = [cultivar[1], family].filter(Boolean).join(' · ');
+    return `${scientific} ${cultivar[2]}${details ? `\n${details}` : ''}`;
+  }
   const title = scientific ?? common ?? entry;
   const details = [common && common !== title ? common : undefined, family].filter(Boolean).join(' · ');
   return details ? `${title}\n${details}` : title;

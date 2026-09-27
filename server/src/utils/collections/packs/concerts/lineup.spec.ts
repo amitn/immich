@@ -9,6 +9,7 @@ import {
   readConcertSource,
   readTime,
   readWeekday,
+  repairDate,
 } from 'src/utils/collections/packs/concerts/lineup.js';
 
 const box = (text: string, left: number, top: number, height = 0.03, width?: number) => {
@@ -35,6 +36,8 @@ describe('concert sources', () => {
     expect(isDateText('3/7/19')).toBe(true);
     expect(isDateText('OUT OF SIGHT')).toBe(false);
     expect(isDateText('OCT OFSIGHT')).toBe(false);
+    expect(repairDate('MARCHT')).toBe('MARCH 7');
+    expect(repairDate('FEB 17 2023')).toBe('FEB 17 2023');
     expect(isSetlistMarker('---INTERLUDE')).toBe(true);
     expect(isSetlistMarker('ENCORE:')).toBe(true);
     expect(isSetlistMarker('INTERLUDES OF LOVE')).toBe(false);

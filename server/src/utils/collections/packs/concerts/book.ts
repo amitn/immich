@@ -12,15 +12,15 @@ const getNightMinutes = (time: string) => {
 };
 
 /**
- * The page of a setlist or a line-up in a concert book (the `setlist` layout, see `setlist-page.ts`): the act and
- * where and when it played, then its songs, numbered; or the stage of a line-up, then its acts with their starts under
- * their days. The page joins the chapter of the act photographed closest to it (a setlist is photographed on stage,
+ * The page of a setlist or a line-up in a concert book (the `setlist` layout, see `setlist-page.ts`), below the act
+ * that titles its chapter: "Setlist", the acts billed with it and the date and the city as printed, then its songs,
+ * numbered; or "Line-up" and the stage of a line-up, then its acts with their starts under their days. The page joins the chapter of the act photographed closest to it (a setlist is photographed on stage,
  * right before, during or after its set), so it names no entry: the act as printed ("CHERRYGLAZERR") may be spelled
  * differently from the act as saved.
  */
 export const formatSetlistPage = (
   ocr: OcrBoxInput[],
-  { aspectRatio, place }: { aspectRatio?: number; place: string },
+  { aspectRatio }: { aspectRatio?: number; place: string },
 ): CollectionSourcePage | undefined => {
   const source = readConcertSource(ocr, { aspectRatio });
   if (source.kind === 'setlist') {
@@ -28,12 +28,12 @@ export const formatSetlistPage = (
     if (songs.length < 3) {
       return;
     }
-    const own = source.acts.find((act) => act.setlist === 'own');
+    // the act is the title of its chapter: the header says what else the sheet says
     const billed = source.acts.filter((act) => act.setlist === 'billed').map((act) => act.name);
-    const where = [source.venue ?? place.trim(), source.date].filter(Boolean).join(' · ');
+    const where = [source.date, source.city, source.venue].filter(Boolean).join(' · ');
     let number = 0;
     const list = source.songs.map((song) => (isSetlistMarker(song) ? song : `${++number}. ${song}`));
-    const header = [own?.name ?? 'Setlist', ...(billed.length > 0 ? [`with ${billed.join(', ')}`] : []), where];
+    const header = ['Setlist', ...(billed.length > 0 ? [`with ${billed.join(', ')}`] : []), where];
     return { text: `${header.filter(Boolean).join('\n')}\n\n${list.join('\n')}` };
   }
 
@@ -51,7 +51,7 @@ export const formatSetlistPage = (
         .map((act) => `${act.time} ${act.name}${act.stage && act.stage !== title ? ` — ${act.stage}` : ''}`);
       return [...(weekday === -1 ? [] : [`${WEEKDAYS[weekday]}:`]), ...lines].join('\n');
     });
-  return { text: `${title}\n${place.trim()}\n\n${paragraphs.join('\n\n')}` };
+  return { text: `Line-up\n${title}\n\n${paragraphs.join('\n\n')}` };
 };
 
 /** "Kali Uchis · Primavera Sound 2019": the act, then the festival or the venue and the night */

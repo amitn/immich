@@ -66,17 +66,18 @@ describe('concerts pack', () => {
     ).toEqual([]);
   });
 
-  it('should typeset a setlist with its act, venue and date, and its songs numbered', () => {
+  it('should typeset a setlist with what its header says, and its songs numbered', () => {
     const ocr = lines([
-      'CHERRY GLAZERR - SEATTLE - MARCH 7',
+      'CHERRY GLAZERR - SEATTLE - MARCHT',
       'OHIO',
       'HAD TEN DOLLAZ',
       '---INTERLUDE',
       'DISTRESSOR',
       'TOLD YOU',
     ]);
+    // the act titles the chapter the page opens
     expect(formatSetlistPage(ocr, { place: 'Neumos, 7 Mar 2019' })).toEqual({
-      text: 'Cherry Glazerr\nNeumos, 7 Mar 2019 · March 7\n\n1. Ohio\n2. Had Ten Dollaz\nInterlude\n3. Distressor\n4. Told You',
+      text: 'Setlist\nMarch 7 · Seattle\n\n1. Ohio\n2. Had Ten Dollaz\nInterlude\n3. Distressor\n4. Told You',
     });
   });
 
@@ -89,7 +90,7 @@ describe('concerts pack', () => {
       box('20:30 - PHORO', 0.34, 0.49, 0.018),
     ];
     expect(formatSetlistPage(ocr, { place: 'Primavera Sound 2019' })).toEqual({
-      text: 'Night Pro\nPrimavera Sound 2019\n\nSaturday:\n19:30 DTSQ\n20:30 Phoro\n00:00 F5',
+      text: 'Line-up\nNight Pro\n\nSaturday:\n19:30 DTSQ\n20:30 Phoro\n00:00 F5',
     });
     expect(formatSetlistPage(lines(['OHIO']), { place: 'Neumos' })).toBeUndefined();
   });

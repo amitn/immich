@@ -100,6 +100,14 @@ const NUMERIC_DATE = /\b\d{1,2}[./-]\d{1,2}[./-](?:\d{2}|\d{4})\b/;
 export const isDateText = (text: string) =>
   MONTH_DATE.test(text) || NUMERIC_DATE.test(text) || readWeekday(text) !== undefined;
 
+/** "MARCHT" is "MARCH 7": the digits of a date that OCR read as letters, after the month */
+const DATE_DIGITS: Record<string, string> = { T: '7', I: '1', l: '1', O: '0', o: '0', S: '5', Z: '2' };
+export const repairDate = (text: string) =>
+  text.replace(
+    new RegExp(String.raw`\b((?:${MONTHS})\.?)\s*([TIlOoSZ\d]{1,2})\b`, 'i'),
+    (_, month: string, day: string) => `${month} ${[...day].map((char) => DATE_DIGITS[char] ?? char).join('')}`,
+  );
+
 /** the separators of the parts of a setlist header: "CHERRY GLAZERR - SEATTLE - MARCH 7", "SEATTLE · NEUMOS" */
 const VENUE_SEPARATOR = /\s*[·•@|]\s*|\s+at\s+/i;
 
@@ -347,7 +355,7 @@ const readSetlist = (lines: TextLine[], aspectRatio: number): Omit<ConcertSource
           continue;
         }
         if (isDateText(part)) {
-          date = date ? `${date} ${part}` : part;
+          date = date ? `${date} ${repairDate(part)}` : repairDate(part);
           continue;
         }
         const [where, at] = part.split(VENUE_SEPARATOR);

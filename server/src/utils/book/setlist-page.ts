@@ -2,12 +2,12 @@ import type { PxRect } from 'src/utils/book/layouts.js';
 import type { PageDecoration, PageTextBlock } from 'src/utils/book/render.js';
 
 /*
- * The setlist page of a concert book (the `setlist` layout): the caption typeset beside the photo of the setlist (or
- * of the line-up) like the sheet taped to the stage floor, in bold capitals. The caption is plain text a person can
- * edit (see `formatSetlistPage` of the concerts pack): a first paragraph with the act (or the stage of a line-up) and
- * lines such as the venue and the date, then paragraphs of numbered songs ("1. Ohio"), acts with their start ("20:20
- * Malihini") or other lines ("Interlude", "Encore"), each paragraph under an optional heading that ends with a colon
- * ("Saturday:").
+ * The setlist page of a concert book (the `setlist` layout): the caption typeset below the title of the chapter (the
+ * act) and beside the photo of the setlist (or of the line-up), like the sheet taped to the stage floor, in bold
+ * capitals. The caption is plain text a person can edit (see `formatSetlistPage` of the concerts pack): a first
+ * paragraph of lines such as "Setlist" and the date and the city as printed, then paragraphs of numbered songs ("1.
+ * Ohio"), acts with their start ("20:20 Malihini") or other lines ("Interlude", "Encore"), each paragraph under an
+ * optional heading that ends with a colon ("Saturday:").
  */
 
 type Item =
@@ -15,7 +15,7 @@ type Item =
   | { kind: 'numbered'; label: string; text: string }
   | { kind: 'marker'; text: string };
 
-export type SetlistText = { title?: string; lines: string[]; items: Item[] };
+export type SetlistText = { lines: string[]; items: Item[] };
 
 const HEADING = /^(.{1,40}):\s*$/;
 const NUMBERED = /^(\d{1,2}[.)]|\d{1,2}:\d{2})\s+(.+)$/;
@@ -35,8 +35,7 @@ export const parseSetlistText = (caption: string): SetlistText => {
   for (const [index, lines] of paragraphs.entries()) {
     const numbered = lines.filter((line) => NUMBERED.test(line)).length;
     if (index === 0 && numbered === 0 && !HEADING.test(lines[0])) {
-      result.title = lines[0];
-      result.lines = lines.slice(1);
+      result.lines = lines;
       continue;
     }
     for (const line of lines) {
@@ -74,8 +73,8 @@ const CAPS = { smallCaps: true, bold: true, letterSpacing: 0.04 } as const;
 const MIN_SCALE = 0.5;
 
 /**
- * The text blocks and rules of a setlist caption in `rect`: the act large in the accent, its lines in spaced small
- * capitals, a thick rule, then the songs in bold capitals with their numbers (or the acts with their starts) in the
+ * The text blocks and rules of a setlist caption in `rect`: its first lines in spaced small capitals, the first in
+ * the accent, a thick rule, then the songs in bold capitals with their numbers (or the acts with their starts) in the
  * accent, in two columns when one is too long, at the largest size (up to twice the caption's) that fits.
  */
 export const getSetlistBlocks = (
@@ -92,25 +91,9 @@ export const getSetlistBlocks = (
     const blocks: PageTextBlock[] = [];
     const decorations: PageDecoration[] = [];
     let top = rect.top;
-    if (setlist.title) {
-      const titlePx = fontPx * 2.1;
-      const lines = wrap(setlist.title.toUpperCase(), rect.width, titlePx, capsWidth);
-      const height = Math.min(2, lines.length) * titlePx * lineHeight;
-      blocks.push({
-        kind: 'caption',
-        rect: { left: rect.left, top, width: rect.width, height },
-        text: setlist.title.toUpperCase(),
-        fontPx: titlePx,
-        align: 'left',
-        color: accent,
-        ...CAPS,
-        letterSpacing: 0.02,
-        valign: 'top',
-      });
-      top += height + fontPx * 0.2;
-    }
-    for (const line of setlist.lines) {
-      const linePx = fontPx * 0.85;
+    for (const [index, line] of setlist.lines.entries()) {
+      // the first line ("Setlist", "Line-up") in the accent, the others (the date and the city as printed) in ink
+      const linePx = fontPx * (index === 0 ? 1.05 : 0.85);
       const height = wrap(line, rect.width, linePx, capsCharWidth + 0.12).length * linePx * lineHeight;
       blocks.push({
         kind: 'caption',
@@ -118,14 +101,15 @@ export const getSetlistBlocks = (
         text: line,
         fontPx: linePx,
         align: 'left',
-        color: ink,
+        color: index === 0 ? accent : ink,
         smallCaps: true,
+        ...(index === 0 && { bold: true }),
         letterSpacing: 0.12,
         valign: 'top',
       });
       top += height;
     }
-    if (setlist.title || setlist.lines.length > 0) {
+    if (setlist.lines.length > 0) {
       top += fontPx * 0.45;
       decorations.push({
         kind: 'line',

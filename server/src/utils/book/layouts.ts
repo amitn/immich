@@ -414,12 +414,16 @@ export const bookLayouts: readonly BookLayout[] = [
     id: SETLIST_LAYOUT,
     name: 'Setlist',
     description:
-      'Opens the chapter of an act of a concert book with its setlist (or a line-up): the photo of the sheet (slot 1) ' +
-      'beside the caption typeset in bold capitals: a first paragraph with the act and lines such as the venue and ' +
-      'the date, then numbered songs "1. Ohio" (or acts with their start, "20:20 Malihini") and other lines ' +
-      '("Encore"), under optional headings that end with a colon ("Saturday:"), separated by blank lines.',
-    slots: [{ x: 0, y: 0, width: 0.44, height: 1 }],
-    text: [{ kind: 'caption', x: 0.48, y: 0, width: 0.52, height: 1, align: 'left' }],
+      'Opens the chapter of an act of a concert book with its setlist (or a line-up): the section title, the caption ' +
+      'typeset below it in bold capitals, and the photo of the sheet (slot 1) beside them. The caption is a first ' +
+      'paragraph of lines such as "Setlist" and the date and city as printed, then numbered songs "1. Ohio" (or acts ' +
+      'with their start, "20:20 Malihini") and other lines ("Encore"), under optional headings that end with a colon ' +
+      '("Saturday:"), separated by blank lines.',
+    slots: [{ x: 0.59, y: 0.2, width: 0.41, height: 0.6 }],
+    text: [
+      { kind: 'sectionTitle', x: 0, y: 0, width: 0.56, height: 0.2, align: 'left' },
+      { kind: 'caption', x: 0, y: 0.2, width: 0.56, height: 0.8, align: 'left' },
+    ],
     orientation: 'portrait',
     collection: true,
   },

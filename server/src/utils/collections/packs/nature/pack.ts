@@ -202,7 +202,7 @@ export const naturePack: CollectionPack = {
         textColor: '#2e2a22',
         fontFamily: 'FreeSerif, serif',
         titleSizePt: 26,
-        captionSizePt: 9,
+        captionSizePt: 10,
         theme: FIELD_GUIDE_THEME,
         accentColor: '#6b6a3a',
       },
