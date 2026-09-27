@@ -163,7 +163,7 @@ export class HighlightService extends BaseService {
     await this.jobRepository.queue({ name: JobName.HighlightRender, data: { id: job.id } });
     await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
       action: ActivityLogAction.HighlightCreate,
-      summary: `Made the highlight video ${quote(job.title)}`,
+      summary: `Made the ${job.options.format === 'vertical' ? 'vertical ' : ''}highlight video ${quote(job.title)}`,
       targetId: job.id,
       undo: { highlightId: job.id },
     });

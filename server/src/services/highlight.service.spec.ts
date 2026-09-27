@@ -192,6 +192,19 @@ describe(HighlightService.name, () => {
       );
     });
 
+    it('should record a vertical video as such', async () => {
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.album.getById.mockResolvedValue({ albumName: 'Sicily 2009' } as any);
+      mocks.highlightJob.create.mockImplementation((job) => Promise.resolve(jobRow(job as any)) as any);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await sut.create(auth, { albumId, format: 'vertical' }, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({ summary: 'Made the vertical highlight video “Sicily 2009”' }),
+      );
+    });
+
     it('should require access to the album', async () => {
       await expect(sut.create(auth, { albumId })).rejects.toBeInstanceOf(BadRequestException);
       expect(mocks.highlightJob.create).not.toHaveBeenCalled();
