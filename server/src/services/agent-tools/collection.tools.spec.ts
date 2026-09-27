@@ -343,13 +343,18 @@ describe(CollectionAgentTools.name, () => {
         }),
       );
 
-      expect(saveEntries).toHaveBeenCalledWith(auth, 'food', {
-        place: 'Nino',
-        photos: [
-          { id: dish, entry: 'Carbonara' },
-          { id: other, source: true },
-        ],
-      });
+      expect(saveEntries).toHaveBeenCalledWith(
+        auth,
+        'food',
+        {
+          place: 'Nino',
+          photos: [
+            { id: dish, entry: 'Carbonara' },
+            { id: other, source: true },
+          ],
+        },
+        undefined,
+      );
       expect(result).toEqual({
         place: 'Nino',
         photos: [{ id: dish, tag: 'Food/Nino/Carbonara', description: 'Carbonara · Nino' }],

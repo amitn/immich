@@ -6,6 +6,7 @@ import { BookDraftResponseDto, BookResponseDto, mapBook } from 'src/dtos/book.dt
 import { SystemConfig } from 'src/dtos/config.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
+  ActivityLogAction,
   BookDraftState,
   BookStatus,
   JobName,
@@ -17,6 +18,7 @@ import {
 } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { ActivityRecorder, quote, recordActivity, toBookSnapshot } from 'src/utils/activity-log.js';
 import {
   DraftCandidate,
   YEARLY_BOOKS,
@@ -247,24 +249,49 @@ export class BookDraftService extends BaseService {
   }
 
   /** Keeps a draft: it becomes one of the user's books */
-  async keep(auth: AuthDto, id: string): Promise<BookResponseDto> {
+  async keep(auth: AuthDto, id: string, activity?: ActivityRecorder): Promise<BookResponseDto> {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
-    await this.requireDraft(id);
+    const book = await this.requireDraft(id);
 
     await this.bookRepository.update(id, { status: BookStatus.Active });
     const draft = await this.bookDraftRepository.getByBookId(id);
     if (draft) {
       await this.bookDraftRepository.update(draft.id, { state: BookDraftState.Kept });
     }
+    await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+      action: ActivityLogAction.BookDraftKeep,
+      summary: `Kept the suggested book ${quote(book.title)}`,
+      targetId: id,
+      undo: { bookId: id, draftId: draft?.id ?? null },
+    });
     return mapBook(await findOrFail(() => this.bookRepository.get(id), 'Book'));
   }
 
   /** Discards a draft: the book is deleted, and it is not suggested again */
-  async discard(auth: AuthDto, id: string): Promise<void> {
+  async discard(auth: AuthDto, id: string, activity?: ActivityRecorder): Promise<void> {
     await this.requireAccess({ auth, permission: Permission.BookDelete, ids: [id] });
-    await this.requireDraft(id);
+    const book = await this.requireDraft(id);
+    // the book is deleted: undoing lays it out again from this copy
+    const draft = await this.bookDraftRepository.getByBookId(id);
+    const snapshot = activity ? toBookSnapshot(book, await this.bookRepository.getPages(id)) : undefined;
+
     // deleting a draft discards its suggestion
     await this.books.delete(auth, id);
+
+    if (snapshot) {
+      await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+        action: ActivityLogAction.BookDraftDiscard,
+        summary: `Discarded the suggested book ${quote(book.title)}`,
+        targetId: id,
+        undo: {
+          bookId: id,
+          draftId: draft?.id ?? null,
+          draftState: draft?.state ?? BookDraftState.Drafted,
+          book: { ownerId: book.ownerId, status: book.status, createdAt: book.createdAt.toISOString() },
+          snapshot,
+        },
+      });
+    }
   }
 
   private async requireDraft(id: string) {

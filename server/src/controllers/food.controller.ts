@@ -13,6 +13,7 @@ import {
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
 import { FoodService } from 'src/services/food.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 const history = () => new HistoryBuilder().added('v3.3.0').alpha('v3.3.0');
 
@@ -56,6 +57,6 @@ export class FoodController {
     history: history(),
   })
   setDishNames(@Auth() auth: AuthDto, @Body() dto: FoodDishesDto): Promise<FoodDishesResponseDto> {
-    return this.service.setDishNames(auth, dto);
+    return this.service.setDishNames(auth, dto, ActivityRecorder.web());
   }
 }

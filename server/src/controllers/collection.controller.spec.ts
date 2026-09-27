@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { CollectionService } from 'src/services/collection.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
 
@@ -170,10 +171,12 @@ describe(CollectionController.name, () => {
 
       expect(status).toBe(200);
       expect(body).toEqual({ place: 'Nino', results: [{ id, success: true, tag: 'Food/Nino/Carbonara' }] });
-      expect(service.saveEntries).toHaveBeenCalledWith(undefined, 'food', {
-        place: 'Nino',
-        photos: [{ id, entry: 'Carbonara' }],
-      });
+      expect(service.saveEntries).toHaveBeenCalledWith(
+        undefined,
+        'food',
+        { place: 'Nino', photos: [{ id, entry: 'Carbonara' }] },
+        expect.any(ActivityRecorder),
+      );
     });
   });
 });

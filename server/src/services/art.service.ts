@@ -22,6 +22,7 @@ import {
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
+  ActivityLogAction,
   ArtJobStatus,
   AssetFileType,
   AssetType,
@@ -35,6 +36,7 @@ import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
 import { ArtStyleTable } from 'src/schema/tables/art-style.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.service.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { ArtStyle, artStyles, buildArtPrompt, checkArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
 import { decodeOriginal } from 'src/utils/image-decode.js';
@@ -86,7 +88,11 @@ export class ArtService extends BaseService {
     return mapArtUserStyle(await findOrFail(() => this.artJobRepository.getStyle(id), 'Art style'));
   }
 
-  async createStyle(auth: AuthDto, dto: ArtUserStyleCreateDto): Promise<ArtUserStyleResponseDto> {
+  async createStyle(
+    auth: AuthDto,
+    dto: ArtUserStyleCreateDto,
+    activity?: ActivityRecorder,
+  ): Promise<ArtUserStyleResponseDto> {
     const usesCaption = dto.usesCaption ?? false;
     const photoAbove = dto.photoAbove ?? false;
     this.requireValidPrompt(dto.prompt, { usesCaption, photoAbove });
@@ -97,6 +103,12 @@ export class ArtService extends BaseService {
       prompt: dto.prompt,
       usesCaption,
       photoAbove,
+    });
+    await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+      action: ActivityLogAction.ArtStyleCreate,
+      summary: `Saved the art style ${quote(row.name)}`,
+      targetId: row.id,
+      undo: { styleId: row.id, updatedAt: row.updatedAt.toISOString() },
     });
     return mapArtUserStyle(row);
   }

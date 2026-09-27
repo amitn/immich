@@ -43,6 +43,7 @@ describe(QueueService.name, () => {
         { name: JobName.SessionCleanup },
         { name: JobName.HlsSessionCleanup },
         { name: JobName.AuditTableCleanup },
+        { name: JobName.ActivityLogCleanup },
         { name: JobName.MemoryGenerate },
         { name: JobName.BookDraftsQueueAll },
         { name: JobName.OrientationCheckQueueAll },

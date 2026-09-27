@@ -11,8 +11,9 @@ import {
   SharedLinkSearchDto,
   mapSharedLink,
 } from 'src/dtos/shared-link.dto.js';
-import { Permission, SharedLinkType } from 'src/enum.js';
+import { ActivityLogAction, Permission, SharedLinkType } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { OpenGraphTags, findOrFail, getExternalDomain } from 'src/utils/misc.js';
 import { asSharedLinkToken } from 'src/utils/shared-link.js';
 
@@ -67,7 +68,8 @@ export class SharedLinkService extends BaseService {
     return mapSharedLink(sharedLink, { stripAssetMetadata: false });
   }
 
-  async create(auth: AuthDto, dto: SharedLinkCreateDto): Promise<SharedLinkResponseDto> {
+  /** Creates a shared link; with a recorder, a link to a book goes into the activity log (undo deletes it) */
+  async create(auth: AuthDto, dto: SharedLinkCreateDto, activity?: ActivityRecorder): Promise<SharedLinkResponseDto> {
     switch (dto.type) {
       case SharedLinkType.Album: {
         if (!dto.albumId) {
@@ -115,6 +117,16 @@ export class SharedLinkService extends BaseService {
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
       });
+
+      if (isBook && activity) {
+        const book = await this.bookRepository.get(dto.bookId!);
+        await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+          action: ActivityLogAction.SharedLinkCreate,
+          summary: `Shared the book ${quote(book?.title ?? '')} with a link`,
+          targetId: sharedLink.id,
+          undo: { sharedLinkId: sharedLink.id },
+        });
+      }
 
       return mapSharedLink(sharedLink, { stripAssetMetadata: false });
     } catch (error) {

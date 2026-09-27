@@ -1,3 +1,4 @@
+import { ActivityLogController } from 'src/controllers/activity-log.controller.js';
 import { ActivityController } from 'src/controllers/activity.controller.js';
 import { AgentMcpController } from 'src/controllers/agent-mcp.controller.js';
 import { AgentController } from 'src/controllers/agent.controller.js';
@@ -59,6 +60,7 @@ import { WorkflowController } from 'src/controllers/workflow.controller.js';
 export const controllers = [
   ApiKeyController,
   ActivityController,
+  ActivityLogController,
   AgentController,
   AgentMcpController,
   AlbumController,

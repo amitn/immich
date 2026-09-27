@@ -2,8 +2,11 @@ import { Injectable } from '@nestjs/common';
 import z from 'zod';
 import { AlbumResponseDto } from 'src/dtos/album.dto.js';
 import { BulkIdErrorReason, BulkIdResponseDto } from 'src/dtos/asset-ids.response.dto.js';
+import { ActivityLogAction } from 'src/enum.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { countPhotos, quote } from 'src/utils/activity-log.js';
 import { AgentTool, defineTool, toolError, toolJson } from 'src/utils/agent/tools.js';
 
 const MAX_ASSET_IDS = 5000;
@@ -41,11 +44,18 @@ const summarizeAdd = (results: BulkIdResponseDto[], requested: string[]) => {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+const succeeded = (results: BulkIdResponseDto[]) => results.filter(({ success }) => success).map(({ id }) => id);
+
 /** Album management */
 @Injectable()
 export class AlbumAgentTools extends BaseService {
   getTools(): AgentTool[] {
     const albums = () => BaseService.create(AlbumService, this);
+    const activityLog = () => BaseService.create(ActivityLogService, this);
+    const albumName = async (albumId: string) => {
+      const album = await this.activityLogRepository.getAlbumState(albumId);
+      return album?.albumName ?? 'the album';
+    };
 
     return [
       defineTool({
@@ -111,12 +121,25 @@ export class AlbumAgentTools extends BaseService {
           assetIds: AssetIdsSchema.optional(),
         }),
         mutating: true,
-        handler: async ({ auth }, { name, description, assetIds = [] }) => {
+        handler: async ({ auth, activity }, { name, description, assetIds = [] }) => {
           try {
             const service = albums();
             const album = await service.create(auth, { albumName: name, description });
             const results =
               assetIds.length > 0 ? await service.addAssets(auth, album.id, { ids: unique(assetIds) }) : [];
+            const added = succeeded(results);
+            await activityLog().record(auth, activity, {
+              action: ActivityLogAction.AlbumCreate,
+              summary: `Created the album ${quote(album.albumName)} with ${countPhotos(added.length)}`,
+              targetId: album.id,
+              assetIds: added,
+              undo: {
+                albumId: album.id,
+                name: album.albumName,
+                description: album.description || null,
+                assetIds: added,
+              },
+            });
             return toolJson({ id: album.id, name: album.albumName, ...summarizeAdd(results, assetIds) });
           } catch (error) {
             return toolError(`Could not create album: ${errorMessage(error)}`);
@@ -130,9 +153,19 @@ export class AlbumAgentTools extends BaseService {
         description: 'Add assets to an album. Assets already in the album are counted as duplicate.',
         input: z.object({ albumId: z.uuidv4().describe('Album ID'), assetIds: AssetIdsSchema }),
         mutating: true,
-        handler: async ({ auth }, { albumId, assetIds }) => {
+        handler: async ({ auth, activity }, { albumId, assetIds }) => {
           try {
             const results = await albums().addAssets(auth, albumId, { ids: unique(assetIds) });
+            const added = succeeded(results);
+            if (activity && added.length > 0) {
+              await activityLog().record(auth, activity, {
+                action: ActivityLogAction.AlbumAddAssets,
+                summary: `Added ${countPhotos(added.length)} to ${quote(await albumName(albumId))}`,
+                targetId: albumId,
+                assetIds: added,
+                undo: { albumId, assetIds: added },
+              });
+            }
             return toolJson({ albumId, ...summarizeAdd(results, assetIds) });
           } catch (error) {
             return toolError(`Could not add to album ${albumId}: ${errorMessage(error)}`);
@@ -146,9 +179,19 @@ export class AlbumAgentTools extends BaseService {
         description: 'Remove assets from an album. The assets themselves are not deleted.',
         input: z.object({ albumId: z.uuidv4().describe('Album ID'), assetIds: AssetIdsSchema }),
         mutating: true,
-        handler: async ({ auth }, { albumId, assetIds }) => {
+        handler: async ({ auth, activity }, { albumId, assetIds }) => {
           try {
             const results = await albums().removeAssets(auth, albumId, { ids: unique(assetIds) });
+            const removed = succeeded(results);
+            if (activity && removed.length > 0) {
+              await activityLog().record(auth, activity, {
+                action: ActivityLogAction.AlbumRemoveAssets,
+                summary: `Removed ${countPhotos(removed.length)} from ${quote(await albumName(albumId))}`,
+                targetId: albumId,
+                assetIds: removed,
+                undo: { albumId, assetIds: removed },
+              });
+            }
             const notInAlbum = results.filter(({ error }) => error === BulkIdErrorReason.NOT_FOUND).length;
             const failed = results.filter(({ success, error }) => !success && error !== BulkIdErrorReason.NOT_FOUND);
             return toolJson({

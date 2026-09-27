@@ -8,7 +8,7 @@
   import { userInteraction } from '$lib/stores/user.svelte';
   import { getAboutInfo, type ServerAboutResponseDto } from '@immich/sdk';
   import { Button, Icon, IconButton, modalManager } from '@immich/ui';
-  import { mdiCog, mdiLogout, mdiPencil, mdiWrench } from '@mdi/js';
+  import { mdiCog, mdiHistory, mdiLogout, mdiPencil, mdiWrench } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import { fade } from 'svelte/transition';
@@ -73,6 +73,21 @@
         <div class="flex place-content-center place-items-center gap-2 px-2 text-center">
           <Icon icon={mdiCog} size="18" aria-hidden />
           {$t('account_settings')}
+        </div>
+      </Button>
+      <Button
+        href={Route.activityLog()}
+        onclick={onClose}
+        size="small"
+        color="secondary"
+        variant="ghost"
+        shape="round"
+        aria-current={page.url.pathname.startsWith('/activity') ? 'page' : undefined}
+        class="border hover:bg-immich-primary/10 dark:border-immich-dark-gray dark:bg-gray-500 dark:text-white dark:hover:bg-immich-dark-primary/50"
+      >
+        <div class="flex place-content-center place-items-center gap-2 px-2 text-center">
+          <Icon icon={mdiHistory} size="18" aria-hidden />
+          {$t('activity_log')}
         </div>
       </Button>
       {#if authManager.user.isAdmin}

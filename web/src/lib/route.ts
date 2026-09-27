@@ -47,6 +47,10 @@ export const Route = {
   onboarding: (params?: { step?: string }) => '/auth/onboarding' + asQueryString(params),
   pinPrompt: (params?: { continue?: string }) => '/auth/pin-prompt' + asQueryString({ continue: params?.continue }),
 
+  // activity log (the changes of the assistant, and undoing them)
+  activityLog: (params?: { groupId?: string; sessionId?: string }) =>
+    '/activity' + asQueryString({ group: params?.groupId, session: params?.sessionId }),
+
   // albums
   albums: () => '/albums',
   viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,

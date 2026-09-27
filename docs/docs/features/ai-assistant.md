@@ -53,6 +53,51 @@ To skip the prompts, turn on **Auto-approve** at the top of a chat. It only appl
 
 Select **Stop** next to the message box to cancel the current run. Any pending approval is denied. You can send a new message afterwards.
 
+### Undoing the assistant's changes
+
+Every change the assistant makes is recorded in the **activity log**, with what's needed to undo it. So are the changes you make with the assistant's features in the web app: naming the photos of a visit (**Name the dishes** and the other collection dialogs), keeping or discarding a suggested book, saving a book or art style, changing the style of a book, sharing a book with a link, and making a highlight video.
+
+You can undo from three places:
+
+- **In the chat.** A completed tool call that changed your library has an **Undo** button. Each turn that changed something ends with **Undo this turn**, which undoes all the changes of that reply, newest first.
+- **The Activity panel.** Select **Changes** at the top of the Assistant page to list the changes of the chat (**This chat**) or all of them (**All**).
+- **The Activity log page.** Open it from the user menu (your avatar, then **Activity log**). Filter by who made the change (the assistant or you), the kind of change, whether it was undone, and the dates.
+
+You can also ask the assistant, for example "undo what you just did" or "put the photos back in the album". It looks up its changes with `list_activity` and undoes them with `undo_activity`, which asks for your approval like any other change.
+
+What undo does:
+
+| Change                                                                             | Undo                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Photos added to or removed from an album                                           | Removes or puts back exactly those photos.                                                                                                                               |
+| A new album                                                                        | Deletes the album, but only if it's unchanged since it was created: same name, description and photos, and not shared. Albums have no trash, so a changed album is kept. |
+| A copy (crop, straighten, enhance, improve), an artwork or a style test, a collage | Moves the copy to the trash and takes it out of its stack, as the stack was before. You can restore it from the trash.                                                   |
+| Names of a collection (tags and descriptions)                                      | Gives the photos back the tags of the pack and the descriptions they had.                                                                                                |
+| A book edit (layout, photos, captions, maps, style, improved photos)               | Restores the book from a copy taken before the change. Improved copies the change placed in the book go to the trash.                                                    |
+| A new book                                                                         | Deletes the book, but only if it's unchanged since it was made and not shared.                                                                                           |
+| Keeping or discarding a suggested book                                             | Makes it a suggestion again. A discarded book is laid out again from its copy.                                                                                           |
+| A saved book or art style                                                          | Deletes the style, unless it was edited since. Books keep their copy of the style.                                                                                       |
+| A book link                                                                        | Deletes the link.                                                                                                                                                        |
+| A highlight video                                                                  | Stops it if it's still rendering; otherwise takes the video out of its album and moves it to the trash.                                                                  |
+
+Undo never deletes photos or videos for good: new ones go to the trash.
+
+**Safety checks.** A change that later changes depend on is refused, with the reason and what to do instead:
+
+- a copy that was placed in a book since (remove it from the book, or undo that change first);
+- a book that was edited again after the change (undo the later edits first; **Undo this turn** does this in the right order);
+- an album that changed since it was created;
+- photos that were named again since (they keep their new names, and the others are restored);
+- an artwork that is still being made.
+
+When part of a change can't be undone, for example a photo that was deleted since, the rest is undone and the result says what was left as it was.
+
+**Redo.** A toast after undoing offers **Redo** for the changes that are simple to repeat: adding photos to an album, removing them, and keeping a suggested book. Other changes can't be redone; ask the assistant to do them again.
+
+**Notifications.** When an auto-approved reply makes several changes, you get a notification, "The assistant made 12 changes", which opens those changes in the activity log.
+
+**Retention.** Changes are kept for 90 days by default (`agent.activityRetentionDays`), and removed with the nightly database cleanup. A change can be undone as long as it's in the log and its safety checks pass. For each book, the copies of the last 50 versions are kept; an older book edit can't be undone. Only you can undo your changes.
+
 ### Asking about your library
 
 Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits) and the legs of your [trips](#travel-documents), with the dates, places (the city and country of the photos) and people of their photos. For example:
@@ -580,6 +625,7 @@ Install an ACP agent adapter where the server runs, for example `npm install -g 
 | `agent.maxConcurrentSessions`    | `3`                                                  | **Maximum concurrent sessions**: agent processes running at once. Idle chats are stopped to make room; new chats are rejected when all are busy. Art jobs are also limited to this number.                                                               |
 | `agent.idleTimeoutMinutes`       | `15`                                                 | **Idle timeout (minutes)**: an idle agent process is stopped after this time. The chat is kept and continues on your next message.                                                                                                                       |
 | `agent.autoApproveWrites`        | `false`                                              | **Auto-approve changes**: lets the agent change the library of every user without asking for approval.                                                                                                                                                   |
+| `agent.activityRetentionDays`    | `90`                                                 | **Activity log retention (days)**: how long changes stay in the activity log, where they can be undone (see [Undoing the assistant's changes](#undoing-the-assistants-changes)).                                                                         |
 | `agent.mcpUrl`                   | _(empty)_                                            | **MCP URL** the agent uses to reach Immich's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                  |
 | `books.maps.stadiaApiKey`        | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Not needed for styled and sketch maps.                                                                                                                                         |
 | `books.maps.defaultStyle`        | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                  |

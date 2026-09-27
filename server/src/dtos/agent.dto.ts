@@ -111,6 +111,10 @@ export const AgentMessageContentSchema = z
     requestId: z.string().optional().describe('Permission request ID, used to respond (permission)'),
     options: z.array(AgentPermissionOptionSchema).optional().describe('Permission options (permission)'),
     entries: z.array(AgentPlanEntrySchema).optional().describe('Plan entries (plan)'),
+    activityIds: z
+      .array(z.string())
+      .optional()
+      .describe('Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call)'),
   })
   .meta({ id: 'AgentMessageContentDto' });
 

@@ -15,6 +15,7 @@ import {
 } from 'src/dtos/highlight.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
+  ActivityLogAction,
   AssetType,
   AssetVisibility,
   ChecksumAlgorithm,
@@ -34,6 +35,7 @@ import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService, getRenderInput } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { scorePhoto } from 'src/utils/agent/scoring.js';
 import { getStyledMapSource } from 'src/utils/book/map-source.js';
 import { resolveMapStyle } from 'src/utils/book/map-styles.js';
@@ -109,7 +111,8 @@ export class HighlightService extends BaseService {
     await this.highlightJobRepository.failRunning();
   }
 
-  async create(auth: AuthDto, dto: HighlightCreateDto): Promise<HighlightJobResponseDto> {
+  /** Starts a highlight video; with a recorder it goes into the activity log (undo cancels it, or trashes the video) */
+  async create(auth: AuthDto, dto: HighlightCreateDto, activity?: ActivityRecorder): Promise<HighlightJobResponseDto> {
     let title = dto.title;
     if (dto.albumId) {
       await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [dto.albumId] });
@@ -154,6 +157,12 @@ export class HighlightService extends BaseService {
       },
     });
     await this.jobRepository.queue({ name: JobName.HighlightRender, data: { id: job.id } });
+    await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+      action: ActivityLogAction.HighlightCreate,
+      summary: `Made the highlight video ${quote(job.title)}`,
+      targetId: job.id,
+      undo: { highlightId: job.id },
+    });
     return mapHighlightJob(job);
   }
 

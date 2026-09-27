@@ -6,6 +6,7 @@ import { BookUserStyleCreateDto, BookUserStyleResponseDto, BookUserStyleUpdateDt
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { UUIDParamDto } from 'src/validation.js';
 
 const history = () => new HistoryBuilder().added('v3.3.0').alpha('v3.3.0');
@@ -38,7 +39,7 @@ export class BookStyleController {
     history: history(),
   })
   createBookUserStyle(@Auth() auth: AuthDto, @Body() dto: BookUserStyleCreateDto): Promise<BookUserStyleResponseDto> {
-    return this.service.create(auth, dto);
+    return this.service.create(auth, dto, ActivityRecorder.web());
   }
 
   @Get(':id')

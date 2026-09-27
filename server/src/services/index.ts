@@ -1,3 +1,4 @@
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { ActivityService } from 'src/services/activity.service.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { AgentService } from 'src/services/agent.service.js';
@@ -68,6 +69,7 @@ import { WorkflowService } from 'src/services/workflow.service.js';
 export const services = [
   ApiKeyService,
   ActivityService,
+  ActivityLogService,
   AgentService,
   AgentToolService,
   AlbumService,

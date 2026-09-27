@@ -114,6 +114,18 @@
           isEdited={configToEdit.agent.idleTimeoutMinutes !== config.agent.idleTimeoutMinutes}
         />
 
+        <SettingInputField
+          inputType={SettingInputFieldType.NUMBER}
+          label={$t('admin.agent_activity_retention')}
+          description={$t('admin.agent_activity_retention_description')}
+          min={1}
+          max={3650}
+          required
+          {disabled}
+          bind:value={configToEdit.agent.activityRetentionDays}
+          isEdited={configToEdit.agent.activityRetentionDays !== config.agent.activityRetentionDays}
+        />
+
         <!-- inputs and selects carry their own bottom margin, so give the switch the same spacing -->
         <div class="mb-4">
           <SettingSwitch

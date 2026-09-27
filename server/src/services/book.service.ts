@@ -63,6 +63,7 @@ import { BaseService } from 'src/services/base.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
+import { ActivityRecorder, beginBookChange, quote } from 'src/utils/activity-log.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
@@ -169,7 +170,14 @@ const HIDDEN_SOURCE_PX = 12;
 /** a placed photo that an improved copy would help, see `ImproveService.estimate` */
 export type BookImprovement = { assetId: string; recipe: ImproveRecipe; gain: number };
 
-export type BookImprovedPhoto = { sourceId: string; id: string; description: string; pages: number[] };
+export type BookImprovedPhoto = {
+  sourceId: string;
+  id: string;
+  description: string;
+  pages: number[];
+  /** the copy existed before (the same fixes were applied earlier) */
+  duplicate?: true;
+};
 
 export type BookAutoLayoutResult = {
   book: BookDetailResponseDto;
@@ -558,8 +566,29 @@ export class BookService extends BaseService {
     });
   }
 
-  async update(auth: AuthDto, id: string, dto: BookUpdateDto): Promise<BookDetailResponseDto> {
+  /**
+   * Updates a book. With a recorder, a change of the style (a preset, a saved style or style options) goes into the
+   * activity log, with a snapshot of the book to undo it.
+   */
+  async update(
+    auth: AuthDto,
+    id: string,
+    dto: BookUpdateDto,
+    activity?: ActivityRecorder,
+  ): Promise<BookDetailResponseDto> {
     await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [id] });
+    const styled = dto.style !== undefined || dto.stylePreset !== undefined || dto.styleId !== undefined;
+    const change = styled
+      ? await beginBookChange(
+          {
+            activityLogRepository: this.activityLogRepository,
+            bookRepository: this.bookRepository,
+            logger: this.logger,
+          },
+          activity,
+          id,
+        )
+      : undefined;
     if (dto.albumId) {
       await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [dto.albumId] });
     }
@@ -592,6 +621,7 @@ export class BookService extends BaseService {
       pageHeightMm: dto.pageHeightMm,
       style: dto.style || dto.stylePreset || dto.styleId ? style : undefined,
     });
+    await change?.finish(auth, { summary: (title) => `Changed the style of ${quote(title)}` });
 
     return this.getDetail(id);
   }
@@ -1753,6 +1783,7 @@ export class BookService extends BaseService {
           id: copy.id,
           description: copy.description,
           pages: [],
+          ...(copy.duplicate && { duplicate: true as const }),
         };
         entry.pages.push(index + 1);
         improved.set(copy.sourceId, entry);

@@ -14,6 +14,7 @@ import {
 } from 'src/dtos/food.dto.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService, NearbyPlaces, PlaceLookupInput, SourceReading } from 'src/services/collection.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { NearbyPlace } from 'src/utils/collections/overpass.js';
 import { getCollectionTagRules } from 'src/utils/collections/pack.js';
 import { MealType, foodPack } from 'src/utils/collections/packs/food/pack.js';
@@ -139,7 +140,7 @@ export class FoodService extends BaseService {
    * food tag it had, and a dish photo without a description gets "Dish · Restaurant". Running it again with the same
    * names changes nothing.
    */
-  async setDishNames(auth: AuthDto, dto: FoodDishesDto): Promise<FoodDishesResponseDto> {
+  async setDishNames(auth: AuthDto, dto: FoodDishesDto, activity?: ActivityRecorder): Promise<FoodDishesResponseDto> {
     if (!/[\p{L}\d]/u.test(getTagPlaceName(FOOD_TAGS, dto.restaurant))) {
       throw new BadRequestException('The restaurant needs a name');
     }
@@ -151,14 +152,19 @@ export class FoodService extends BaseService {
     if (new Set(dto.photos.map(({ id }) => id)).size > FOOD_LIMITS.photos) {
       throw new BadRequestException(`At most ${FOOD_LIMITS.photos} photos at once`);
     }
-    const { place, results } = await this.collections.saveEntries(auth, FOOD, {
-      place: dto.restaurant,
-      photos: dto.photos.map(({ id, dish, menu }) => ({
-        id,
-        ...(dish !== undefined && { entry: dish }),
-        ...(menu !== undefined && { source: menu }),
-      })),
-    });
+    const { place, results } = await this.collections.saveEntries(
+      auth,
+      FOOD,
+      {
+        place: dto.restaurant,
+        photos: dto.photos.map(({ id, dish, menu }) => ({
+          id,
+          ...(dish !== undefined && { entry: dish }),
+          ...(menu !== undefined && { source: menu }),
+        })),
+      },
+      activity,
+    );
     return { restaurant: place, results };
   }
 }

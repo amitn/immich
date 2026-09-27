@@ -1,11 +1,14 @@
 <script lang="ts">
   import { replaceState } from '$app/navigation';
+  import AssistantActivityPanel from '$lib/components/assistant/AssistantActivityPanel.svelte';
   import AssistantComposer from '$lib/components/assistant/AssistantComposer.svelte';
+  import AssistantTurnUndo from '$lib/components/assistant/AssistantTurnUndo.svelte';
   import AssistantEmptyState from '$lib/components/assistant/AssistantEmptyState.svelte';
   import AssistantMessage from '$lib/components/assistant/AssistantMessage.svelte';
   import AssistantSessionList from '$lib/components/assistant/AssistantSessionList.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
+  import { ActivityLogState } from '$lib/managers/activity-log.svelte';
   import {
     AgentConversation,
     AgentPermissionStatus,
@@ -33,7 +36,7 @@
     type AgentUpdateDto,
   } from '@immich/sdk';
   import { Alert, Button, IconButton, LoadingSpinner, modalManager, Switch, toastManager } from '@immich/ui';
-  import { mdiArrowDown, mdiForumOutline, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
+  import { mdiArrowDown, mdiForumOutline, mdiHistory, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
   import { onMount, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -47,6 +50,36 @@
   const BOTTOM_THRESHOLD = 80;
 
   const conversation = new AgentConversation();
+  /** the changes of the open chat, for the Undo buttons and the Activity panel */
+  const chatActivity = new ActivityLogState(() => ({ sessionId: conversation.sessionId }));
+  let showActivity = $state(false);
+
+  const refreshActivity = async () => {
+    if (conversation.sessionId) {
+      await chatActivity.load();
+    } else {
+      chatActivity.items = [];
+    }
+  };
+
+  /** the last message of each turn, with the group of the turn's changes (the id of its user message) */
+  const turnEnds = $derived.by(() => {
+    // a lookup, rebuilt whenever the messages are
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
+    const ends = new Map<string, string>();
+    const messages = conversation.messages;
+    let turn: string | undefined;
+    for (const [index, message] of messages.entries()) {
+      if (message.role === AgentMessageRole.User) {
+        turn = message.id;
+      }
+      const next = messages[index + 1];
+      if (turn && (next ? next.role === AgentMessageRole.User : !conversation.isRunning)) {
+        ends.set(message.id, turn);
+      }
+    }
+    return ends;
+  });
 
   let sessions = $state<AgentSessionResponseDto[]>(data.sessions);
   let draft = $state(data.context.prompt);
@@ -134,6 +167,7 @@
       if (conversation.sessionId === id) {
         conversation.load(detail);
         upsertSession(detail);
+        void refreshActivity();
       }
     } catch (error) {
       handleError(error, $t('errors.unable_to_load_assistant_chat'));
@@ -161,6 +195,7 @@
   const newChat = async () => {
     showSessions = false;
     conversation.reset();
+    void refreshActivity();
     isAtBottom = true;
     draft = '';
     syncUrl();
@@ -355,7 +390,16 @@
       }
     }
 
+    const turnEnded = conversation.isRunning && update.status !== AgentSessionStatus.Running;
     conversation.applyUpdate(update);
+
+    // a tool call that changed the library, or the end of a turn: the Undo buttons need the new changes
+    if (update.sessionId === conversation.sessionId) {
+      const activityIds = update.message?.content.activityIds ?? [];
+      if (turnEnded || activityIds.some((id) => !chatActivity.byId.has(id))) {
+        void refreshActivity();
+      }
+    }
   };
 
   const onWebsocketConnect = () => {
@@ -423,6 +467,24 @@
             <span class="hidden sm:inline">{$t('assistant_delete_chat')}</span>
           </Button>
         {/if}
+        <Button
+          variant="ghost"
+          size="small"
+          color="secondary"
+          leadingIcon={mdiHistory}
+          title={$t('activity_log')}
+          aria-label={$t('activity_log')}
+          aria-expanded={showActivity}
+          aria-controls="assistant-activity"
+          onclick={() => {
+            showActivity = !showActivity;
+            if (showActivity) {
+              void refreshActivity();
+            }
+          }}
+        >
+          <span class="hidden sm:inline">{$t('activity_log_changes')}</span>
+        </Button>
         <Button variant="ghost" size="small" color="secondary" leadingIcon={mdiPlus} onclick={newChat}>
           {$t('assistant_new_chat')}
         </Button>
@@ -473,7 +535,16 @@
               <AssistantEmptyState hasContext={contextAssetIds.length > 0} onPick={pickExample} />
             {:else}
               {#each conversation.messages as message (message.id)}
-                <AssistantMessage {message} onPermission={respondToPermission} />
+                {@const turnId = turnEnds.get(message.id)}
+                <AssistantMessage {message} onPermission={respondToPermission} activity={chatActivity} />
+                {#if turnId}
+                  {@const changes = chatActivity.group(turnId)}
+                  <AssistantTurnUndo
+                    {changes}
+                    busy={chatActivity.isBusy(changes.map(({ id }) => id))}
+                    onUndo={() => chatActivity.undo({ groupId: turnId })}
+                  />
+                {/if}
               {/each}
             {/if}
 
@@ -516,6 +587,19 @@
           />
         </div>
       </section>
+
+      {#if showActivity}
+        <aside
+          id="assistant-activity"
+          class="absolute inset-0 z-10 flex w-full flex-col border-s border-gray-200 bg-light md:static md:w-96 md:shrink-0 dark:border-gray-700"
+        >
+          <AssistantActivityPanel
+            chat={chatActivity}
+            hasChat={!!conversation.sessionId}
+            onClose={() => (showActivity = false)}
+          />
+        </aside>
+      {/if}
     </div>
   {/if}
 </UserPageLayout>

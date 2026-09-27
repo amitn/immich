@@ -289,6 +289,321 @@
         "x-immich-state": "Stable"
       }
     },
+    "/activity": {
+      "get": {
+        "description": "Retrieve the changes the assistant made to the library (and the changes made with its features in the web app), newest first, optionally only those of one chat, group, source or kind, of a date range, or only the undone ones.",
+        "operationId": "getActivityLog",
+        "parameters": [
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ActivityLogAction"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "Only changes made at or after this date",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "example": "2024-01-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": false,
+            "in": "query",
+            "description": "Only the changes of this group (a chat turn or a web request)",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Number of changes to return",
+            "schema": {
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Number of changes to skip",
+            "schema": {
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "default": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": false,
+            "in": "query",
+            "description": "Only the changes of this assistant chat",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/ActivityLogSource"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "Only changes made before this date",
+            "schema": {
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "example": "2024-01-01T00:00:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "undone",
+            "required": false,
+            "in": "query",
+            "description": "true: only undone changes; false: only changes that were not undone",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActivityLogResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve the activity log",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/undo": {
+      "post": {
+        "description": "Undo several changes, or every change of a group (a chat turn), newest first. Each change is checked first: a change that later changes depend on (e.g. a copy placed in a book since, or a book edited again) is refused with the reason, and the other changes are still undone.",
+        "operationId": "undoActivities",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivityUndoDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityUndoResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Undo changes",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/{id}/redo": {
+      "post": {
+        "description": "Apply an undone change again. Only for the changes that are simple to repeat: adding photos to an album, removing them, and keeping a suggested book.",
+        "operationId": "redoActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityLogResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Redo a change",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/activity/{id}/undo": {
+      "post": {
+        "description": "Undo one change: created copies, artworks and videos go to the trash, photos go back into or out of albums, collection names and books are restored. It is refused, with the reason, when later changes depend on it.",
+        "operationId": "undoActivity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityUndoResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Undo a change",
+        "tags": [
+          "Activity log"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "activityLog.undo",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/admin/auth/unlink-all": {
       "post": {
         "description": "Unlinks all OAuth accounts associated with user accounts in the system.",
@@ -22469,6 +22784,10 @@
       "description": "An activity is a like or a comment made by a user on an asset or album."
     },
     {
+      "name": "Activity log",
+      "description": "The activity log records the changes the AI assistant made to the library (and the changes made with its features in the web app), each with its inverse, so that a change, or all the changes of a chat turn, can be undone."
+    },
+    {
       "name": "Albums",
       "description": "An album is a collection of assets that can be shared with other users or via shared links."
     },
@@ -22719,6 +23038,134 @@
         ],
         "type": "object"
       },
+      "ActivityLogAction": {
+        "description": "Kind of change",
+        "enum": [
+          "album.create",
+          "album.addAssets",
+          "album.removeAssets",
+          "asset.copy",
+          "asset.create",
+          "artwork.create",
+          "artStyle.create",
+          "book.create",
+          "book.edit",
+          "bookDraft.keep",
+          "bookDraft.discard",
+          "bookStyle.create",
+          "collection.entries",
+          "highlight.create",
+          "sharedLink.create"
+        ],
+        "type": "string"
+      },
+      "ActivityLogResponseDto": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ActivityLogAction"
+          },
+          "assetIds": {
+            "description": "The photos and videos that were changed or created",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "canRedo": {
+            "description": "Whether the undone change can be applied again",
+            "type": "boolean"
+          },
+          "canUndo": {
+            "description": "Whether the change can be undone (it may still be refused by the safety checks)",
+            "type": "boolean"
+          },
+          "createdAt": {
+            "description": "When the change was made",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "groupId": {
+            "description": "Group of the change: the changes of one chat turn or one web request",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "id": {
+            "description": "Change ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "sessionId": {
+            "description": "Assistant chat that made the change",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ActivityLogSource"
+          },
+          "summary": {
+            "description": "What changed",
+            "type": "string"
+          },
+          "targetId": {
+            "description": "The album, book, style, shared link or highlight video that was changed or created",
+            "nullable": true,
+            "type": "string"
+          },
+          "toolName": {
+            "description": "Assistant tool that made the change",
+            "nullable": true,
+            "type": "string"
+          },
+          "undoneAt": {
+            "description": "When the change was undone",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "nullable": true,
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "undoneBy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivityLogSource"
+              }
+            ],
+            "description": "Who undid the change",
+            "nullable": true
+          }
+        },
+        "required": [
+          "action",
+          "assetIds",
+          "canRedo",
+          "canUndo",
+          "createdAt",
+          "groupId",
+          "id",
+          "sessionId",
+          "source",
+          "summary",
+          "targetId",
+          "toolName",
+          "undoneAt",
+          "undoneBy"
+        ],
+        "type": "object"
+      },
+      "ActivityLogSource": {
+        "description": "Who made the change: the assistant, or the user in the web app",
+        "enum": [
+          "assistant",
+          "web"
+        ],
+        "type": "string"
+      },
       "ActivityResponseDto": {
         "properties": {
           "assetId": {
@@ -22783,6 +23230,102 @@
         ],
         "type": "object"
       },
+      "ActivityUndoDto": {
+        "properties": {
+          "groupId": {
+            "description": "Undo every change of this group (a chat turn or a web request)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "ids": {
+            "description": "Changes to undo; they are undone newest first",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 500,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ActivityUndoResponseDto": {
+        "properties": {
+          "refused": {
+            "description": "Number of changes that were refused or failed",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "results": {
+            "description": "One result per change, in the order they were undone",
+            "items": {
+              "$ref": "#/components/schemas/ActivityUndoResultDto"
+            },
+            "type": "array"
+          },
+          "undone": {
+            "description": "Number of changes undone (fully or partly)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "refused",
+          "results",
+          "undone"
+        ],
+        "type": "object"
+      },
+      "ActivityUndoResultDto": {
+        "properties": {
+          "id": {
+            "description": "Change ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why the change was not undone, or not all of it",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ActivityUndoStatus"
+          },
+          "summary": {
+            "description": "What changed",
+            "type": "string"
+          },
+          "warnings": {
+            "description": "What undoing left as it was, e.g. a photo that was already in the trash",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "summary",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "ActivityUndoStatus": {
+        "description": "Outcome of undoing a change",
+        "enum": [
+          "undone",
+          "partial",
+          "refused",
+          "alreadyUndone",
+          "failed"
+        ],
+        "type": "string"
+      },
       "AddUsersDto": {
         "properties": {
           "albumUsers": {
@@ -22802,6 +23345,12 @@
       "AdminConfigAgentDto": {
         "description": "AI assistant (Agent Client Protocol) config",
         "properties": {
+          "activityRetentionDays": {
+            "description": "Days the activity log keeps the changes made by the assistant, which can be undone until then",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
           "artProfile": {
             "description": "Profile used for artistic transforms (empty to disable)",
             "type": "string"
@@ -22843,6 +23392,7 @@
           }
         },
         "required": [
+          "activityRetentionDays",
           "artProfile",
           "autoApproveWrites",
           "chatProfile",
@@ -24255,6 +24805,13 @@
       },
       "AgentMessageContentDto": {
         "properties": {
+          "activityIds": {
+            "description": "Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call)",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "albumIds": {
             "description": "Albums referenced by tool results",
             "items": {
@@ -32118,6 +32675,7 @@
           "AssetGenerateThumbnailsQueueAll",
           "AssetGenerateThumbnails",
           "AuditTableCleanup",
+          "ActivityLogCleanup",
           "BookDraftsQueueAll",
           "BookDraftsGenerate",
           "BookExport",
@@ -34571,6 +35129,8 @@
           "activity.update",
           "activity.delete",
           "activity.statistics",
+          "activityLog.read",
+          "activityLog.undo",
           "agentSession.create",
           "agentSession.read",
           "agentSession.update",

@@ -118,6 +118,9 @@ export enum Permission {
   ActivityDelete = 'activity.delete',
   ActivityStatistics = 'activity.statistics',
 
+  ActivityLogRead = 'activityLog.read',
+  ActivityLogUndo = 'activityLog.undo',
+
   AgentSessionCreate = 'agentSession.create',
   AgentSessionRead = 'agentSession.read',
   AgentSessionUpdate = 'agentSession.update',
@@ -900,6 +903,7 @@ export enum JobName {
   AssetGenerateThumbnails = 'AssetGenerateThumbnails',
 
   AuditTableCleanup = 'AuditTableCleanup',
+  ActivityLogCleanup = 'ActivityLogCleanup',
 
   BookDraftsQueueAll = 'BookDraftsQueueAll',
   BookDraftsGenerate = 'BookDraftsGenerate',
@@ -1260,6 +1264,7 @@ export enum ConfigVisibility {
 
 export enum ApiTag {
   Activities = 'Activities',
+  ActivityLog = 'Activity log',
   Albums = 'Albums',
   Assistant = 'Assistant',
   ApiKeys = 'API keys',
@@ -1382,6 +1387,67 @@ export const AgentMessageKindSchema = z
   .enum(AgentMessageKind)
   .describe('Agent message kind')
   .meta({ id: 'AgentMessageKind' });
+
+/** who made a change recorded in the activity log */
+export enum ActivityLogSource {
+  /** a tool call of the AI assistant */
+  Assistant = 'assistant',
+  /** the user, in the web app */
+  Web = 'web',
+}
+
+export const ActivityLogSourceSchema = z
+  .enum(ActivityLogSource)
+  .describe('Who made the change: the assistant, or the user in the web app')
+  .meta({ id: 'ActivityLogSource' });
+
+/**
+ * The kinds of change the activity log records, each with its own inverse (see `ActivityLogService`).
+ * New features that create assets (e.g. collages) record `AssetCreate`, whose undo moves the assets to the trash.
+ */
+export enum ActivityLogAction {
+  AlbumCreate = 'album.create',
+  AlbumAddAssets = 'album.addAssets',
+  AlbumRemoveAssets = 'album.removeAssets',
+  /** copies stacked with their originals: crops, straightened, enhanced and improved photos */
+  AssetCopy = 'asset.copy',
+  /** new assets that are not copies, e.g. collages */
+  AssetCreate = 'asset.create',
+  /** an artwork made by the art agent in the background */
+  Artwork = 'artwork.create',
+  ArtStyleCreate = 'artStyle.create',
+  BookCreate = 'book.create',
+  BookEdit = 'book.edit',
+  BookDraftKeep = 'bookDraft.keep',
+  BookDraftDiscard = 'bookDraft.discard',
+  BookStyleCreate = 'bookStyle.create',
+  CollectionEntries = 'collection.entries',
+  HighlightCreate = 'highlight.create',
+  SharedLinkCreate = 'sharedLink.create',
+}
+
+export const ActivityLogActionSchema = z
+  .enum(ActivityLogAction)
+  .describe('Kind of change')
+  .meta({ id: 'ActivityLogAction' });
+
+export enum ActivityUndoStatus {
+  /** the change was undone */
+  Undone = 'undone',
+  /** the change was undone, but not all of it (see the warnings) */
+  Partial = 'partial',
+  /** the change can't be undone safely, e.g. later changes depend on it (see the message) */
+  Refused = 'refused',
+  /** the change was undone before */
+  AlreadyUndone = 'alreadyUndone',
+  /** undoing failed */
+  Failed = 'failed',
+}
+
+export const ActivityUndoStatusSchema = z
+  .enum(ActivityUndoStatus)
+  .describe('Outcome of undoing a change')
+  .meta({ id: 'ActivityUndoStatus' });
 
 export enum ArtJobStatus {
   Pending = 'pending',

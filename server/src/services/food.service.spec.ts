@@ -1,8 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
-import { AssetFileType, AssetType } from 'src/enum.js';
+import { ActivityLogAction, ActivityLogSource, AssetFileType, AssetType } from 'src/enum.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { FoodService } from 'src/services/food.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { CollectionKind } from 'src/utils/collections/classify.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import { FOOD_PROMPT_LIST } from 'src/utils/collections/packs/food/classify.js';
@@ -506,6 +507,66 @@ describe(FoodService.name, () => {
           },
         ],
       });
+    });
+
+    it('should record the names in the activity log, with the tags and descriptions they replaced', async () => {
+      const [carbonara, captioned, renamed] = [newUuid(), newUuid(), newUuid()];
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([carbonara, captioned, renamed]));
+      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([
+        { assetId: renamed, tagId: 'tag:old', value: 'Food/Old name/Pasta' },
+        { assetId: captioned, tagId: 'tag:cannolo', value: 'Food/Nino/Cannolo' },
+      ]);
+      mocks.assetJob.getForAgent.mockResolvedValue([
+        agentRow(carbonara, { description: '' }),
+        agentRow(captioned, { description: 'Best dinner ever' }),
+        agentRow(renamed, { description: 'Pasta · Old name' }),
+      ]);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+      const activity = ActivityRecorder.web();
+
+      await sut.setDishNames(
+        auth,
+        {
+          restaurant: 'Nino',
+          photos: [
+            { id: carbonara, dish: 'Carbonara' },
+            { id: captioned, dish: 'Cannolo' },
+            { id: renamed, dish: 'Norma' },
+          ],
+        },
+        activity,
+      );
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source: ActivityLogSource.Web,
+          action: ActivityLogAction.CollectionEntries,
+          summary: 'Named 2 photos of “Nino” (Food)',
+          assetIds: [carbonara, renamed],
+          undo: {
+            pack: 'food',
+            photos: [
+              {
+                id: carbonara,
+                tag: 'Food/Nino/Carbonara',
+                tagAdded: true,
+                previousTags: [],
+                description: 'Carbonara · Nino',
+                previousDescription: '',
+              },
+              {
+                id: renamed,
+                tag: 'Food/Nino/Norma',
+                tagAdded: true,
+                previousTags: ['Food/Old name/Pasta'],
+                description: 'Norma · Nino',
+                previousDescription: 'Pasta · Old name',
+              },
+            ],
+          },
+        }),
+      );
+      expect(activity.ids).toEqual(['change']);
     });
 
     it('should change nothing when run again', async () => {
