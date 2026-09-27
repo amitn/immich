@@ -332,6 +332,22 @@ export class BookController {
     return this.service.clearSlot(auth, id, pageId, slot);
   }
 
+  @Post(':id/pages/:pageId/illustrate-map')
+  @Authenticated({ permission: Permission.BookUpdate })
+  @Endpoint({
+    summary: 'Illustrate the map of a page',
+    description:
+      'Have the art agent redraw the map of a page as a hand-illustrated map, decorative rather than exact. The page ' +
+      'shows the rendered map until the illustration is done. Needs an art agent profile.',
+    history: history(),
+  })
+  illustrateBookPageMap(
+    @Auth() auth: AuthDto,
+    @Param() { id, pageId }: BookPageParamDto,
+  ): Promise<BookPageResponseDto> {
+    return this.service.illustratePageMap(auth, id, pageId);
+  }
+
   @Get(':id/pages/:pageId/render')
   @Authenticated({ permission: Permission.BookRead, sharedLink: true })
   @FileResponse()

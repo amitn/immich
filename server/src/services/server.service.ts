@@ -89,6 +89,7 @@ export class ServerService extends BaseService {
   async getFeatures(): Promise<ServerFeaturesDto> {
     const {
       agent,
+      books,
       food,
       reverseGeocoding,
       metadata,
@@ -121,6 +122,7 @@ export class ServerService extends BaseService {
       realtimeTranscoding: ffmpeg.realtime.enabled,
       assistant: isAssistantEnabled(agent),
       artisticStyles: isArtEnabled(agent),
+      bookStadiaMaps: books.maps.stadiaApiKey.trim().length > 0,
       restaurantLookup: isAssistantEnabled(agent) && food.openStreetMap.enabled,
     };
   }

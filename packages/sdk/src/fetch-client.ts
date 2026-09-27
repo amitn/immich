@@ -4122,6 +4122,8 @@ export type ServerFeaturesDto = {
     artisticStyles: boolean;
     /** Whether the AI assistant is enabled */
     assistant: boolean;
+    /** Whether the Stadia Maps styles of book maps (watercolor, toner, terrain) have an API key */
+    bookStadiaMaps: boolean;
     /** Whether config file is available */
     configFile: boolean;
     /** Whether duplicate detection is enabled */
@@ -7160,6 +7162,21 @@ export function updateBookPage({ id, pageId, bookPageUpdateDto }: {
         method: "PATCH",
         body: bookPageUpdateDto
     })));
+}
+/**
+ * Illustrate the map of a page
+ */
+export function illustrateBookPageMap({ id, pageId }: {
+    id: string;
+    pageId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/illustrate-map`, {
+        ...opts,
+        method: "POST"
+    }));
 }
 /**
  * Move a book page

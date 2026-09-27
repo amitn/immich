@@ -139,6 +139,7 @@ describe(ServerService.name, () => {
         facialRecognition: true,
         assistant: false,
         artisticStyles: false,
+        bookStadiaMaps: false,
         restaurantLookup: false,
         importFaces: false,
         map: true,

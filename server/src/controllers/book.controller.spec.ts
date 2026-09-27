@@ -328,6 +328,47 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('GET /books/map-preview', () => {
+    it('should preview a map style of a page as a JPEG', async () => {
+      service.renderMapPreview.mockResolvedValue(Buffer.from('jpeg'));
+      const [bookId, pageId] = [factory.uuid(), factory.uuid()];
+
+      const { status, headers } = await request(ctx.getHttpServer()).get(
+        `/books/map-preview?bookId=${bookId}&pageId=${pageId}&style=styled&look=vintage&size=240`,
+      );
+
+      expect(status).toBe(200);
+      expect(headers['content-type']).toBe('image/jpeg');
+      expect(service.renderMapPreview).toHaveBeenCalledWith(undefined, {
+        bookId,
+        pageId,
+        style: 'styled',
+        look: 'vintage',
+        size: 240,
+      });
+    });
+
+    it('should validate the style and the look', async () => {
+      const bad = ['style=satellite', 'style=styled&look=neon', 'look=wash'];
+      for (const query of bad) {
+        const { status } = await request(ctx.getHttpServer()).get(`/books/map-preview?${query}`);
+        expect(status).toBe(400);
+      }
+    });
+  });
+
+  describe('POST /books/:id/pages/:pageId/illustrate-map', () => {
+    it('should start the illustration of the map', async () => {
+      const [id, pageId] = [factory.uuid(), factory.uuid()];
+      service.illustratePageMap.mockResolvedValue({ id: pageId } as never);
+
+      const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/pages/${pageId}/illustrate-map`);
+
+      expect(status).toBe(201);
+      expect(service.illustratePageMap).toHaveBeenCalledWith(undefined, id, pageId);
+    });
+  });
+
   describe('POST /books/:id/export', () => {
     it('should return no content', async () => {
       const id = factory.uuid();

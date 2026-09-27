@@ -8558,6 +8558,73 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/{id}/pages/{pageId}/illustrate-map": {
+      "post": {
+        "description": "Have the art agent redraw the map of a page as a hand-illustrated map, decorative rather than exact. The page shows the rendered map until the illustration is done. Needs an art agent profile.",
+        "operationId": "illustrateBookPageMap",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Illustrate the map of a page",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.update",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/books/{id}/pages/{pageId}/position": {
       "put": {
         "description": "Move a page to a new position.",
@@ -35973,6 +36040,10 @@
             "description": "Whether the AI assistant is enabled",
             "type": "boolean"
           },
+          "bookStadiaMaps": {
+            "description": "Whether the Stadia Maps styles of book maps (watercolor, toner, terrain) have an API key",
+            "type": "boolean"
+          },
           "configFile": {
             "description": "Whether config file is available",
             "type": "boolean"
@@ -36045,6 +36116,7 @@
         "required": [
           "artisticStyles",
           "assistant",
+          "bookStadiaMaps",
           "configFile",
           "duplicateDetection",
           "email",
