@@ -8,7 +8,7 @@ import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte'
 export const museumLabels: HasCollectionLabels<'museum'> = true;
 
 /** The limits of one request, see `COLLECTION_LIMITS` on the server */
-export const MUSEUM_LIMITS = { assetIds: 2000, subjects: 100, sources: 10 } as const;
+export const MUSEUM_LIMITS = { assetIds: 2000, subjects: 100, sources: 100 } as const;
 
 /**
  * Museum & gallery visits: the artworks of a visit, each paired with the wall label photographed next to it and saved

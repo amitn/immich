@@ -7,7 +7,7 @@ import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte'
 export const travelLabels: HasCollectionLabels<'travel'> = true;
 
 /** The limits of one request, see `COLLECTION_LIMITS` on the server */
-export const TRAVEL_LIMITS = { assetIds: 2000, subjects: 100, sources: 10 } as const;
+export const TRAVEL_LIMITS = { assetIds: 2000, subjects: 100, sources: 100 } as const;
 
 /**
  * Travel: the photos of a trip, matched by time with the legs read on its travel documents (boarding passes, tickets,

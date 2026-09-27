@@ -7,7 +7,7 @@ import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte'
 export const wineLabels: HasCollectionLabels<'wine'> = true;
 
 /** The limits of one request, see `COLLECTION_LIMITS` on the server */
-export const WINE_LIMITS = { assetIds: 2000, subjects: 100, sources: 10 } as const;
+export const WINE_LIMITS = { assetIds: 2000, subjects: 100, sources: 100 } as const;
 
 /**
  * Wine: a wine and drinks journal. Bottles, glasses and pours are named from their labels (or the wine list of the

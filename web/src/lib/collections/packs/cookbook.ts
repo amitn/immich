@@ -15,7 +15,7 @@ import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte'
 export const cookbookLabels: HasCollectionLabels<'cookbook'> = true;
 
 /** The limits of one request, see `COLLECTION_LIMITS` on the server */
-export const COOKBOOK_LIMITS = { assetIds: 2000, subjects: 100, sources: 10 } as const;
+export const COOKBOOK_LIMITS = { assetIds: 2000, subjects: 100, sources: 100 } as const;
 
 /** the generic responses of the server, field for field the web's collection types */
 const toVisits = (response: CollectionVisitsResponseDto): CollectionVisits => response as CollectionVisits;

@@ -10,7 +10,8 @@ export const COLLECTION_LIMITS = {
   /** asset ids given to a visit search */
   assetIds: 2000,
   subjects: 100,
-  sources: 10,
+  // one label per artwork in a museum visit, so as many as the subjects
+  sources: 100,
   entries: 200,
   photos: 200,
 } as const;
