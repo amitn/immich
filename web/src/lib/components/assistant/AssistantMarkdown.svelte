@@ -1,14 +1,33 @@
 <script lang="ts">
+  import { Route } from '$lib/route';
+  import { getAssetMediaUrl } from '$lib/utils';
   import { renderMarkdown } from '$lib/utils/markdown';
+  import { AssetMediaSize } from '@immich/sdk';
+  import { t } from 'svelte-i18n';
 
   type Props = {
     text?: string;
+    /** the photos of the chat: their ids in the text show as thumbnail chips, other ids stay text */
+    assetIds?: ReadonlySet<string>;
     class?: string;
   };
 
-  const { text, class: className = '' }: Props = $props();
+  const { text, assetIds, class: className = '' }: Props = $props();
 
-  const html = $derived(renderMarkdown(text));
+  const html = $derived(
+    renderMarkdown(text, {
+      getAssetChip: assetIds?.size
+        ? (id) =>
+            assetIds.has(id)
+              ? {
+                  href: Route.viewAsset({ id }),
+                  src: getAssetMediaUrl({ id, size: AssetMediaSize.Thumbnail }),
+                  label: $t('assistant_open_this_photo'),
+                }
+              : undefined
+        : undefined,
+    }),
+  );
 </script>
 
 <div class="assistant-markdown text-sm/6 wrap-break-word {className}">
@@ -99,6 +118,32 @@
     padding: 0.25em 0.75em;
     border: 1px solid rgb(127 127 127 / 0.3);
     text-align: start;
+  }
+
+  .assistant-markdown :global(a[data-asset-chip]) {
+    display: inline-block;
+    vertical-align: middle;
+    overflow: hidden;
+    border-radius: 0.375rem;
+    text-decoration: none;
+    outline-offset: 2px;
+  }
+
+  .assistant-markdown :global(a[data-asset-chip]:focus-visible) {
+    outline: 2px solid var(--color-primary, currentColor);
+  }
+
+  .assistant-markdown :global(a[data-asset-chip] img) {
+    display: block;
+    width: 1.75rem;
+    height: 1.75rem;
+    object-fit: cover;
+    background-color: rgb(127 127 127 / 0.2);
+    transition: transform 150ms;
+  }
+
+  .assistant-markdown :global(a[data-asset-chip]:hover img) {
+    transform: scale(1.08);
   }
 
   .assistant-markdown :global(hr) {

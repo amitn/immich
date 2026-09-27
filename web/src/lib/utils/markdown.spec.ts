@@ -114,4 +114,55 @@ describe(renderMarkdown.name, () => {
   it('should convert single newlines to line breaks', () => {
     expect(renderMarkdown('line 1\nline 2')).toContain('<br>');
   });
+
+  describe('photo chips', () => {
+    const known = '7144b65c-9b36-4845-9280-0522144198e6';
+    const unknown = '192ae623-a809-4808-a97f-921d44246f93';
+    const getAssetChip = (id: string) =>
+      id === known
+        ? { href: `/photos/${id}`, src: `/api/assets/${id}/thumbnail`, label: 'Open this photo' }
+        : undefined;
+
+    const parse = (html: string) => {
+      const container = document.createElement('div');
+      container.innerHTML = html;
+      return container;
+    };
+
+    it('should show the known photo ids printed as inline code as thumbnail chips', () => {
+      const html = parse(renderMarkdown(`1. Gougères — \`${known}\`\n2. Salmon — \`${unknown}\``, { getAssetChip }));
+      const chips = html.querySelectorAll('a[data-asset-chip]');
+      expect(chips).toHaveLength(1);
+      expect(chips[0].getAttribute('href')).toBe(`/photos/${known}`);
+      expect(chips[0].getAttribute('aria-label')).toBe('Open this photo');
+      expect(chips[0].querySelector('img')?.getAttribute('src')).toBe(`/api/assets/${known}/thumbnail`);
+      expect(html.textContent).not.toContain(known);
+      // an id the chat does not know stays text
+      expect(html.querySelector('code')?.textContent).toBe(unknown);
+    });
+
+    it('should show the known photo ids of the text as chips, in any case', () => {
+      const html = parse(renderMarkdown(`The quiche (${known.toUpperCase()}) was the best.`, { getAssetChip }));
+      expect(html.querySelectorAll('a[data-asset-chip]')).toHaveLength(1);
+      expect(html.textContent?.trim()).toBe('The quiche () was the best.');
+    });
+
+    it('should leave the ids of code blocks and links alone', () => {
+      const block = parse(renderMarkdown(`\`\`\`\n${known}\n\`\`\``, { getAssetChip }));
+      expect(block.querySelector('a[data-asset-chip]')).toBeNull();
+      const link = parse(renderMarkdown(`[the photo ${known}](/photos/${known})`, { getAssetChip }));
+      expect(link.querySelectorAll('a')).toHaveLength(1);
+      expect(link.querySelector('a[data-asset-chip]')).toBeNull();
+    });
+
+    it('should not let the markdown make a chip or an image of its own', () => {
+      const html = renderMarkdown(
+        `<a data-asset-chip="x" href="/photos/x"><img src="https://evil.example.com/x.png"></a>`,
+        {
+          getAssetChip,
+        },
+      );
+      expect(html).not.toContain('evil.example.com');
+    });
+  });
 });

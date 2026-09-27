@@ -772,6 +772,7 @@
   "assistant_open_book": "Open photo book",
   "assistant_open_book_number": "Open photo book {index}",
   "assistant_open_photo": "Open photo {index}",
+  "assistant_open_this_photo": "Open this photo",
   "assistant_permission_approved": "Approved",
   "assistant_permission_denied": "Denied",
   "assistant_permission_request": "Permission needed",

@@ -473,7 +473,7 @@
               <AssistantEmptyState hasContext={contextAssetIds.length > 0} onPick={pickExample} />
             {:else}
               {#each conversation.messages as message (message.id)}
-                <AssistantMessage {message} onPermission={respondToPermission} />
+                <AssistantMessage {message} assetIds={conversation.assetIds} onPermission={respondToPermission} />
               {/each}
             {/if}
 

@@ -51,6 +51,24 @@ describe(AgentConversation.name, () => {
     expect(sut.isRunning).toBe(false);
   });
 
+  it('should know the photos of the chat, from the tool results, replies and attached photos', () => {
+    sut.load(
+      detail([
+        message({ id: 'u1', role: AgentMessageRole.User, content: { text: 'hi', assetIds: ['A1'] } }),
+        message({ id: 't1', kind: AgentMessageKind.ToolCall, content: { assetIds: ['b2', 'c3'] } }),
+        message({ id: 'm1', content: { text: 'Here', assetIds: ['c3'] } }),
+      ]),
+    );
+    expect([...sut.assetIds]).toEqual(['a1', 'b2', 'c3']);
+
+    sut.applyUpdate({
+      sessionId: 'session-1',
+      status: AgentSessionStatus.Running,
+      message: message({ id: 't2', kind: AgentMessageKind.ToolCall, content: { assetIds: ['d4'] } }),
+    });
+    expect(sut.assetIds.has('d4')).toBe(true);
+  });
+
   describe('load', () => {
     it('should load the history and status', () => {
       sut.load(detail([message({ id: 'm1' }), message({ id: 'm2' })], { status: AgentSessionStatus.Running }));
