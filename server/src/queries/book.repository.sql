@@ -450,3 +450,43 @@ from
 where
   "asset"."id" = any ($1::uuid[])
   and "asset"."deletedAt" is null
+
+-- BookRepository.getStyles
+select
+  *
+from
+  "book_style"
+where
+  "book_style"."ownerId" = $1
+order by
+  "book_style"."createdAt" desc
+
+-- BookRepository.getStyle
+select
+  *
+from
+  "book_style"
+where
+  "book_style"."id" = $1
+
+-- BookRepository.createStyle
+insert into
+  "book_style" ("ownerId", "name", "style")
+values
+  ($1, $2, $3)
+returning
+  *
+
+-- BookRepository.updateStyle
+update "book_style"
+set
+  "name" = $1
+where
+  "book_style"."id" = $2
+returning
+  *
+
+-- BookRepository.deleteStyle
+delete from "book_style"
+where
+  "book_style"."id" = $1

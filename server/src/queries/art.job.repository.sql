@@ -61,3 +61,43 @@ set
   "error" = $2
 where
   "art_job"."status" in ($3, $4)
+
+-- ArtJobRepository.getStyles
+select
+  *
+from
+  "art_style"
+where
+  "art_style"."ownerId" = $1
+order by
+  "art_style"."createdAt" asc
+
+-- ArtJobRepository.getStyle
+select
+  *
+from
+  "art_style"
+where
+  "art_style"."id" = $1
+
+-- ArtJobRepository.createStyle
+insert into
+  "art_style" ("ownerId", "name", "prompt")
+values
+  ($1, $2, $3)
+returning
+  *
+
+-- ArtJobRepository.updateStyle
+update "art_style"
+set
+  "name" = $1
+where
+  "art_style"."id" = $2
+returning
+  *
+
+-- ArtJobRepository.deleteStyle
+delete from "art_style"
+where
+  "art_style"."id" = $1

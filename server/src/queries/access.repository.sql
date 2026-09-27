@@ -89,6 +89,15 @@ where
   "art_job"."id" in ($1)
   and "art_job"."userId" = $2
 
+-- AccessRepository.artStyle.checkOwnerAccess
+select
+  "art_style"."id"
+from
+  "art_style"
+where
+  "art_style"."id" in ($1)
+  and "art_style"."ownerId" = $2
+
 -- AccessRepository.asset.checkAlbumAccess
 with
   "target" as (
@@ -206,6 +215,15 @@ where
   "shared_link"."id" = $1
   and "shared_link"."type" = $2
   and "book"."id" in ($3)
+
+-- AccessRepository.bookStyle.checkOwnerAccess
+select
+  "book_style"."id"
+from
+  "book_style"
+where
+  "book_style"."id" in ($1)
+  and "book_style"."ownerId" = $2
 
 -- AccessRepository.duplicate.checkOwnerAccess
 select
