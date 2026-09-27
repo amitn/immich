@@ -37,6 +37,9 @@ const visit = (pack: string, subjects: string[], others: Partial<ArbitratedVisit
   ...others,
 });
 
+/** a subject photo taken at a time */
+const at = (id: string, time: number) => ({ id, kind: 'subject' as const, time });
+
 describe('getPackShares', () => {
   it('should share a photo between the packs by how well their prompts fit it', () => {
     const shares = getPackShares(stage);
@@ -146,7 +149,6 @@ describe('arbitrateVisits', () => {
   it('should give the winner the whole occasion: the photos the loser took between the photos they share', () => {
     const walk: PackFit = { nature: { subject: 0.3 }, garden: { subject: 0.27 } };
     const photos = fits({ w1: walk, w2: walk, w3: walk, lone: tree, t1: tree, t2: tree, t3: tree });
-    const at = (id: string, time: number) => ({ id, kind: 'subject' as const, time });
     // a garden over the years that took a nature walk for one of its rounds
     const garden = visit('garden', [], {
       photos: [at('w1', 10), at('lone', 11), at('w3', 12), at('t1', 100), at('t2', 200), at('t3', 300)],

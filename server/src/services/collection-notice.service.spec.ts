@@ -48,6 +48,8 @@ const visits = (pack: string, items: CollectionVisitResponse[]): CollectionVisit
 });
 
 const pack = (id: string) => getCollectionPack(id)!;
+/** a year of a child's artworks, from its first photo */
+const year = (day: string) => visit({ type: undefined, city: undefined, day });
 const six = () => Array.from({ length: 6 }, () => newUuid());
 
 describe('new collection messages', () => {
@@ -111,7 +113,6 @@ describe('new collection messages', () => {
 
   it("should name a year of a child's artworks, and the scans added lately", () => {
     const kidsArt = pack('kids-art');
-    const year = (day: string) => visit({ type: undefined, city: undefined, day });
     // scans have the date they were imported: "today" is when they were added, not when they were made
     expect(getNoticeText(kidsArt, year('2026-09-27'), today).title).toBe('Name the artworks you added today?');
     expect(getNoticeText(kidsArt, year('2026-09-26'), today).title).toBe('Name the artworks you added yesterday?');

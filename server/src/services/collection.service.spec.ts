@@ -221,7 +221,7 @@ describe(CollectionService.name, () => {
 
       const fits = await sut.getPackFits([fern, other]);
 
-      expect([...fits.keys()]).toEqual([fern]);
+      expect(fits.keys().toArray()).toEqual([fern]);
       const fit = fits.get(fern)!;
       expect(Object.keys(fit)).toEqual(expect.arrayContaining(['food', 'garden', 'labels']));
       expect(Object.keys(fit.labels)).toEqual(expect.arrayContaining(['subject', 'source', 'sign']));

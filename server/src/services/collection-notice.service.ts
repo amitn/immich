@@ -329,11 +329,11 @@ export class CollectionNoticeService extends BaseService {
             ? 'named'
             : keys.has(`${pack.id}\n${key}`) || ids.some((id) => noticed.has(id))
               ? 'notified'
-              : !isLargeEnough(pack, visit)
-                ? 'small'
-                : isAwayFromHome(pack, visit, home)
+              : isLargeEnough(pack, visit)
+                ? isAwayFromHome(pack, visit, home)
                   ? 'new'
-                  : 'not-away';
+                  : 'not-away'
+                : 'small';
         found.push({ pack, visit, notice: toNewVisit(pack, visit, key, status, today) });
       }
     }
@@ -364,9 +364,10 @@ export class CollectionNoticeService extends BaseService {
       const { status, photos, share } = results[index];
       const kept = new Set(photos.map(({ id }) => id));
       const trimmed = status === 'new' && kept.size < notice.assetIds.length ? trimVisit(visit, kept, times) : visit;
-      Object.assign(notice, toNewVisit(pack, trimmed, getVisitKey(trimmed), status, today), {
-        ...(share !== undefined && { share: Math.round(share * 100) / 100 }),
-      });
+      Object.assign(notice, toNewVisit(pack, trimmed, getVisitKey(trimmed), status, today));
+      if (share !== undefined) {
+        notice.share = Math.round(share * 100) / 100;
+      }
     }
 
     // the newest first

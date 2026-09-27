@@ -157,11 +157,14 @@ export const arbitrateVisits = (
     };
   });
 
-  const strength = (index: number) =>
-    subjectsOf(results[index].photos).reduce((sum, id) => {
+  const strength = (index: number) => {
+    let sum = 0;
+    for (const id of subjectsOf(results[index].photos)) {
       const fit = fits.get(id);
-      return sum + (fit ? (getPackShares(fit)[visits[index].pack] ?? 0.5) : 0.5);
-    }, 0);
+      sum += fit ? (getPackShares(fit)[visits[index].pack] ?? 0.5) : 0.5;
+    }
+    return sum;
+  };
   const order = visits
     .map((_, index) => index)
     .filter((index) => results[index].status === 'new')

@@ -445,7 +445,8 @@ export class CollectionService extends BaseService {
       const kind = classifications.get(id)?.kind;
       return kind && kind !== 'other' && foreign?.get(kind)?.has(id) ? [id] : [];
     });
-    const named = new Set((await this.getSavedTags(pack, foreignIds)).map(({ assetId }) => assetId));
+    const namedForeign = await this.getSavedTags(pack, foreignIds);
+    const named = new Set(namedForeign.map(({ assetId }) => assetId));
     const excluded = new Set(foreignIds.filter((id) => !named.has(id)));
     const classified = candidates.flatMap((candidate) => {
       const classification = classifications.get(candidate.id);

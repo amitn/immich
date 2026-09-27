@@ -28,6 +28,8 @@ const nino = { latitude: 37.8526, longitude: 15.2869, city: 'Taormina', country:
 const ninoNearby = { latitude: 37.8531, longitude: 15.2874, city: 'Taormina', country: 'Italy' };
 const bar = { latitude: 37.8505, longitude: 15.2905, city: 'Taormina', country: 'Italy' };
 
+const ids = (visits: VisitPhoto[][]) => visits.map((visit) => visit.map(({ id }) => id));
+
 describe('groupVisits', () => {
   it('should keep a meal together', () => {
     const meals = groupVisits([
@@ -42,7 +44,6 @@ describe('groupVisits', () => {
 
   describe('rounds', () => {
     const garden = { ...GARDEN_VISIT_OPTIONS };
-    const ids = (visits: VisitPhoto[][]) => visits.map((visit) => visit.map(({ id }) => id));
 
     it('should join the rounds of a garden over the months, located or not', () => {
       const visits = groupVisits(
