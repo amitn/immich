@@ -1,6 +1,6 @@
 import z from 'zod';
-import { AuthDto } from 'src/dtos/auth.dto.js';
 import type { ActivityRecorder } from 'src/utils/activity-log.js';
+import { AuthDto } from 'src/dtos/auth.dto.js';
 
 export type AgentToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 

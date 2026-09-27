@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AssetIdErrorReason } from 'src/dtos/asset-ids.response.dto.js';
 import { mapSharedLink } from 'src/dtos/shared-link.dto.js';
-import { SharedLinkType } from 'src/enum.js';
+import { ActivityLogAction, SharedLinkType } from 'src/enum.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { SharedLinkFactory } from 'test/factories/shared-link.factory.js';
@@ -412,6 +413,25 @@ describe(SharedLinkService.name, () => {
       );
       expect(mocks.access.book.checkOwnerAccess).toHaveBeenCalledWith(authStub.admin.user.id, new Set([bookId]));
       expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should record a link to a book, to delete it on undo', async () => {
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedLink.create.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.book.get.mockResolvedValue({ title: 'Rome' } as never);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await sut.create(authStub.admin, { type: SharedLinkType.Book, bookId }, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.SharedLinkCreate,
+          summary: 'Shared the book “Rome” with a link',
+          targetId: sharedLink.id,
+          undo: { sharedLinkId: sharedLink.id },
+        }),
+      );
     });
 
     it('should create a link to a book, with a password and an expiry', async () => {

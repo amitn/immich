@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { FoodController } from 'src/controllers/food.controller.js';
 import { FoodService } from 'src/services/food.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(FoodController.name, () => {
   let ctx: ControllerContext;

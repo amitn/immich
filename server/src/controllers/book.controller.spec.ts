@@ -7,11 +7,11 @@ import { BookController } from 'src/controllers/book.controller.js';
 import { CacheControl } from 'src/enum.js';
 import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(BookController.name, () => {
   let ctx: ControllerContext;

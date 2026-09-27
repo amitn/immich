@@ -1,5 +1,7 @@
 import { AuthDto } from 'src/dtos/auth.dto.js';
+import { ActivityLogAction } from 'src/enum.js';
 import { AlbumAgentTools } from 'src/services/agent-tools/album.tools.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -24,12 +26,12 @@ describe(AlbumAgentTools.name, () => {
   let sut: AlbumAgentTools;
   let mocks: ServiceMocks;
 
-  const call = (auth: AuthDto, name: string, input: Record<string, unknown>) => {
+  const call = (auth: AuthDto, name: string, input: Record<string, unknown>, activity?: ActivityRecorder) => {
     const tool = sut.getTools().find((tool) => tool.name === name);
     if (!tool) {
       throw new Error(`Unknown tool ${name}`);
     }
-    return tool.handler({ auth, sessionId: null }, tool.input.parse(input));
+    return tool.handler({ auth, sessionId: null, activity }, tool.input.parse(input));
   };
 
   beforeEach(() => {
@@ -169,6 +171,32 @@ describe(AlbumAgentTools.name, () => {
       expect(mocks.album.addAssetIds).toHaveBeenCalledWith(album.id, [asset1.id, asset2.id]);
     });
 
+    it('should record the album as it was created, for undo', async () => {
+      const { album, owner } = newAlbum({ albumName: 'Italy', description: '' });
+      const asset1 = AssetFactory.create();
+      mocks.album.create.mockResolvedValue(getForAlbum(album));
+      mocks.album.getById.mockResolvedValue(getForAlbum(album));
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([album.id]));
+      mocks.album.getAssetIds.mockResolvedValue(new Set());
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset1.id]));
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await call(
+        AuthFactory.create(owner),
+        'create_album',
+        { name: 'Italy', assetIds: [asset1.id] },
+        ActivityRecorder.web(),
+      );
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.AlbumCreate,
+          summary: 'Created the album “Italy” with 1 photo',
+          undo: { albumId: album.id, name: 'Italy', description: null, assetIds: [asset1.id] },
+        }),
+      );
+    });
+
     it('should create an empty album', async () => {
       const { album, owner } = newAlbum({ albumName: 'Empty' });
       mocks.album.create.mockResolvedValue(getForAlbum(album));
@@ -186,6 +214,51 @@ describe(AlbumAgentTools.name, () => {
   });
 
   describe('add_to_album', () => {
+    it('should record exactly the photos it added, for undo', async () => {
+      const { album, owner } = newAlbum({ albumName: 'Trip' });
+      const [asset1, asset2] = [AssetFactory.create(), AssetFactory.create()];
+      mocks.album.getById.mockResolvedValue(getForAlbum(album));
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([album.id]));
+      mocks.album.getAssetIds.mockResolvedValue(new Set([asset1.id]));
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset2.id]));
+      mocks.activityLog.getAlbumState.mockResolvedValue({ albumName: 'Trip' } as never);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+      const activity = ActivityRecorder.assistant({ sessionId: null, toolName: 'add_to_album', groupId: 'turn' });
+
+      await call(
+        AuthFactory.create(owner),
+        'add_to_album',
+        { albumId: album.id, assetIds: [asset1.id, asset2.id] },
+        activity,
+      );
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.AlbumAddAssets,
+          summary: 'Added 1 photo to “Trip”',
+          toolName: 'add_to_album',
+          groupId: 'turn',
+          targetId: album.id,
+          assetIds: [asset2.id],
+          undo: { albumId: album.id, assetIds: [asset2.id] },
+        }),
+      );
+      expect(activity.ids).toEqual(['change']);
+    });
+
+    it('should not record when nothing was added', async () => {
+      const { album, owner } = newAlbum();
+      const asset1 = AssetFactory.create();
+      mocks.album.getById.mockResolvedValue(getForAlbum(album));
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([album.id]));
+      mocks.album.getAssetIds.mockResolvedValue(new Set([asset1.id]));
+      const activity = ActivityRecorder.web();
+
+      await call(AuthFactory.create(owner), 'add_to_album', { albumId: album.id, assetIds: [asset1.id] }, activity);
+
+      expect(mocks.activityLog.create).not.toHaveBeenCalled();
+    });
+
     it('should report added, duplicate and failed assets', async () => {
       const { album, owner } = newAlbum();
       const [asset1, asset2, asset3] = [AssetFactory.create(), AssetFactory.create(), AssetFactory.create()];

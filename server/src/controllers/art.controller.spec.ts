@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { ArtController } from 'src/controllers/art.controller.js';
 import { ArtService } from 'src/services/art.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(ArtController.name, () => {
   let ctx: ControllerContext;

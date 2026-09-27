@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { HighlightService } from 'src/services/highlight.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(HighlightController.name, () => {
   let ctx: ControllerContext;

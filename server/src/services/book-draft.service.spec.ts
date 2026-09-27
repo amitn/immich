@@ -2,6 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { MockInstance } from 'vitest';
 import { defaults } from 'src/dtos/config.dto.js';
 import {
+  ActivityLogAction,
   BookDraftKind,
   BookDraftState,
   BookStatus,
@@ -13,7 +14,8 @@ import {
 } from 'src/enum.js';
 import { BookDraftService, MAX_PENDING_DRAFTS } from 'src/services/book-draft.service.js';
 import { BookAutoLayoutResult, BookService } from 'src/services/book.service.js';
-import { BookFactory } from 'test/factories/book.factory.js';
+import { ActivityRecorder, toBookSnapshot } from 'src/utils/activity-log.js';
+import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { factory, newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
@@ -342,6 +344,24 @@ describe(BookDraftService.name, () => {
       mocks.book.get.mockResolvedValue(book);
       await expect(sut.keep(auth, book.id)).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('should record keeping the draft, to undo it', async () => {
+      const book = BookFactory.create({ ownerId: auth.user.id, status: BookStatus.Draft, title: '2025 in food' });
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([book.id]));
+      mocks.book.get.mockResolvedValueOnce(book).mockResolvedValue({ ...book, status: BookStatus.Active });
+      mocks.bookDraft.getByBookId.mockResolvedValue({ id: 'draft-1' } as never);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await sut.keep(auth, book.id, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.BookDraftKeep,
+          summary: 'Kept the suggested book “2025 in food”',
+          undo: { bookId: book.id, draftId: 'draft-1' },
+        }),
+      );
+    });
   });
 
   describe('discard', () => {
@@ -363,6 +383,32 @@ describe(BookDraftService.name, () => {
       mocks.book.get.mockResolvedValue(book);
       await expect(sut.discard(auth, book.id)).rejects.toBeInstanceOf(BadRequestException);
       expect(mocks.book.delete).not.toHaveBeenCalled();
+    });
+
+    it('should record the discarded draft with a copy of its pages, to lay it out again on undo', async () => {
+      const book = BookFactory.create({ ownerId: auth.user.id, status: BookStatus.Draft, title: 'Crete' });
+      const pages = [BookPageFactory.create({ bookId: book.id, position: 0 })];
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([book.id]));
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue(pages);
+      mocks.bookDraft.getByBookId.mockResolvedValue({ id: 'draft-1', state: BookDraftState.Drafted } as never);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await sut.discard(auth, book.id, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.BookDraftDiscard,
+          summary: 'Discarded the suggested book “Crete”',
+          undo: {
+            bookId: book.id,
+            draftId: 'draft-1',
+            draftState: BookDraftState.Drafted,
+            book: { ownerId: auth.user.id, status: BookStatus.Draft, createdAt: book.createdAt.toISOString() },
+            snapshot: toBookSnapshot(book, pages),
+          },
+        }),
+      );
     });
   });
 });

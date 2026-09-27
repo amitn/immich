@@ -1,7 +1,8 @@
 import { Stats } from 'node:fs';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { AssetFileType, AssetType, Colorspace } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, AssetType, Colorspace } from 'src/enum.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { AssetFaceFactory } from 'test/factories/asset-face.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
@@ -44,12 +45,12 @@ describe(CropAgentTools.name, () => {
   let mocks: ServiceMocks;
   let auth: AuthDto;
 
-  const call = (name: string, input: Record<string, unknown>) => {
+  const call = (name: string, input: Record<string, unknown>, activity?: ActivityRecorder) => {
     const tool = sut.getTools().find((tool) => tool.name === name);
     if (!tool) {
       throw new Error(`Unknown tool ${name}`);
     }
-    return tool.handler({ auth, sessionId: null }, tool.input.parse(input));
+    return tool.handler({ auth, sessionId: null, activity }, tool.input.parse(input));
   };
 
   const setupAsset = (dto: AssetLike = {}, exif: AssetExifLike = {}) => {
@@ -273,6 +274,24 @@ describe(CropAgentTools.name, () => {
 
       expect(errorText(await call('straighten_photo', { id: asset.id }))).toContain('No clear tilt');
       expect(mocks.media.straightenImage).not.toHaveBeenCalled();
+    });
+
+    it('should record the copy, to move it to the trash on undo', async () => {
+      const asset = setupAsset();
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+      const activity = ActivityRecorder.assistant({ sessionId: 'chat', toolName: 'straighten_photo', groupId: 'turn' });
+
+      await call('straighten_photo', { id: asset.id, rotate: -4 }, activity);
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.AssetCopy,
+          summary: 'Straightened a photo by -4°',
+          assetIds: ['new-asset-id', asset.id],
+          undo: { copies: [{ id: 'new-asset-id', sourceId: asset.id }] },
+        }),
+      );
+      expect(activity.ids).toEqual(['change']);
     });
 
     it('should use an explicit angle', async () => {

@@ -1,10 +1,10 @@
 import request from 'supertest';
 import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(BookStyleController.name, () => {
   let ctx: ControllerContext;

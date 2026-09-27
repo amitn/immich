@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { CollectionService } from 'src/services/collection.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
-import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(CollectionController.name, () => {
   let ctx: ControllerContext;

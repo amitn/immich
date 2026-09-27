@@ -8,10 +8,10 @@ import {
   Table,
   Timestamp,
 } from '@immich/sql-tools';
+import type { ActivityUndoData } from 'src/utils/activity-log.js';
 import { ActivityLogAction, ActivityLogSource } from 'src/enum.js';
 import { AgentSessionTable } from 'src/schema/tables/agent-session.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
-import type { ActivityUndoData } from 'src/utils/activity-log.js';
 
 /**
  * One change to the library made by the assistant, or with one of the assistant's features in the web app (an album

@@ -7,8 +7,8 @@ import {
   Table,
   Timestamp,
 } from '@immich/sql-tools';
-import { BookTable } from 'src/schema/tables/book.table.js';
 import type { BookSnapshot } from 'src/utils/activity-log.js';
+import { BookTable } from 'src/schema/tables/book.table.js';
 
 /** A copy of a book (its settings, pages and slots) taken before a change, which undoing the change restores */
 @Table('book_revision')
