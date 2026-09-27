@@ -1981,6 +1981,7 @@
   "highlight_video_music": "Music",
   "highlight_video_music_description": "Immich includes no music: pick an audio file you uploaded, upload one, or keep the video silent",
   "highlight_video_no_music": "No music",
+  "highlight_video_preparing": "Preparing the video…",
   "highlight_video_progress": "Rendering… {percent}%",
   "highlight_video_ready": "Your highlight video is ready",
   "highlight_video_rendering": "Rendering the highlight video “{title}”",
