@@ -42,11 +42,18 @@ for command in claude-agent-acp codex-acp codex claude; do
 done
 
 if [ -n "${CLAUDE_CODE_EXECUTABLE:-}" ]; then
-  [ -x "$CLAUDE_CODE_EXECUTABLE" ] && ok "CLAUDE_CODE_EXECUTABLE=$CLAUDE_CODE_EXECUTABLE" \
-    || fail "CLAUDE_CODE_EXECUTABLE=$CLAUDE_CODE_EXECUTABLE is not executable"
+  if [ -x "$CLAUDE_CODE_EXECUTABLE" ]; then
+    ok "CLAUDE_CODE_EXECUTABLE=$CLAUDE_CODE_EXECUTABLE"
+  else
+    fail "CLAUDE_CODE_EXECUTABLE=$CLAUDE_CODE_EXECUTABLE is not executable"
+  fi
 fi
 if [ -n "${CODEX_PATH:-}" ]; then
-  [ -x "$CODEX_PATH" ] && ok "CODEX_PATH=$CODEX_PATH" || fail "CODEX_PATH=$CODEX_PATH is not executable"
+  if [ -x "$CODEX_PATH" ]; then
+    ok "CODEX_PATH=$CODEX_PATH"
+  else
+    fail "CODEX_PATH=$CODEX_PATH is not executable"
+  fi
 fi
 echo
 
