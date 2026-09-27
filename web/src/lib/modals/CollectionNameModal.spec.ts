@@ -6,6 +6,9 @@ import { getIntersectionObserverMock } from '$lib/__mocks__/intersection-observe
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import { getVisualViewportMock } from '$lib/__mocks__/visual-viewport.mock';
 import { foodPack } from '$lib/collections/packs/food';
+import { travelPack } from '$lib/collections/packs/travel';
+import { winePack } from '$lib/collections/packs/wine';
+import type { CollectionMatch, CollectionVisit } from '$lib/collections/types';
 import AlbumBookExportModal from '$lib/modals/AlbumBookExportModal.svelte';
 import { openAssistant } from '$lib/services/assistant.service';
 import { albumFactory } from '@test-data/factories/album-factory';
@@ -397,5 +400,143 @@ describe('CollectionNameModal component with the food pack', () => {
     await fireEvent.click(await screen.findByRole('button', { name: 'collections.food.make_book' }));
 
     expect(openAssistant).toHaveBeenCalledWith({ assetIds: ['a', 'b'], prompt: 'collections.food.book_prompt' });
+  });
+});
+
+describe('CollectionNameModal component with named subjects', () => {
+  const onClose = vi.fn();
+  const album = albumFactory.build({ albumName: 'Wine tastings' });
+
+  const visitOf = (value: Partial<CollectionVisit>): CollectionVisit => ({
+    index: 0,
+    start: '2013-11-28T18:00:00',
+    end: '2013-11-28T22:00:00',
+    day: '2013-11-28',
+    subjectIds: ['bottle-1', 'bottle-2'],
+    sourceIds: [],
+    signIds: [],
+    receiptIds: [],
+    place: { name: 'Thanksgiving 2013', source: 'fallback', confidence: 0, assetIds: [] },
+    candidates: [],
+    saved: [],
+    ...value,
+  });
+
+  const findResult = (visit: CollectionVisit, pack: string) =>
+    ({ pack, count: 2, truncated: false, photos: 2, visits: [visit], warnings: [] }) as never;
+
+  beforeEach(() => {
+    vi.stubGlobal('IntersectionObserver', getIntersectionObserverMock());
+    vi.stubGlobal('visualViewport', getVisualViewportMock());
+    vi.resetAllMocks();
+    Element.prototype.animate = getAnimateMock();
+    flags.assistant = true;
+    flags.smartSearch = true;
+  });
+
+  afterAll(async () => {
+    await waitFor(() => {
+      expect(document.body.style.pointerEvents).not.toBe('none');
+    });
+  });
+
+  it('should show the saved names of the bottles as their wines, not off the list, without asking for a wine list', async () => {
+    const visit = visitOf({
+      saved: [
+        {
+          assetId: 'bottle-1',
+          place: 'Thanksgiving 2013',
+          entry: 'Patrick Javillier · Bourgogne · 2011',
+          source: false,
+        },
+        {
+          assetId: 'bottle-2',
+          place: 'Thanksgiving 2013',
+          entry: 'Kudos · Willamette Valley Pinot Noir · 2012',
+          source: false,
+        },
+      ],
+    });
+    // the labels read differently from the saved names, and the second bottle looks like a glass of water
+    const match: CollectionMatch = {
+      entries: [
+        { index: 0, name: 'Patrick Javillier Bourgogne 2011' },
+        { index: 1, name: 'Kudos Pinot Noir' },
+      ],
+      subjects: [
+        {
+          assetIds: ['bottle-1'],
+          index: 0,
+          name: 'Patrick Javillier Bourgogne 2011',
+          score: 0.3,
+          unsure: false,
+          suggestions: [],
+        },
+        {
+          assetIds: ['bottle-2'],
+          score: 0.1,
+          unsure: true,
+          offList: 0.8,
+          suggestions: [{ index: 1, name: 'Kudos Pinot Noir', score: 0.2 }],
+        },
+      ],
+      noEmbedding: [],
+      warnings: [],
+    };
+    sdkMock.findCollectionVisits.mockResolvedValue(findResult(visit, 'wine'));
+    sdkMock.matchCollectionVisit.mockResolvedValue(match as never);
+
+    render(CollectionNameModal, { props: { pack: winePack, album, onClose } });
+    const [first, second] = await screen.findAllByTestId('collection-entry');
+
+    expect(within(first).getByRole('combobox')).toHaveValue('Patrick Javillier · Bourgogne · 2011');
+    expect(within(second).getByRole('combobox')).toHaveValue('Kudos · Willamette Valley Pinot Noir · 2012');
+    for (const row of [first, second]) {
+      expect(row).not.toHaveAttribute('data-off-list');
+      expect(within(row).getByRole('checkbox')).not.toBeChecked();
+      // the badge; the label of the checkbox says it too
+      expect(within(row).queryByText('collections.wine.not_on_source', { selector: 'span' })).not.toBeInTheDocument();
+      expect(within(row).getByText('collections.wine.subject_saved')).toBeInTheDocument();
+    }
+    expect(screen.queryByText('collections.wine.no_source')).not.toBeInTheDocument();
+    expect(screen.getByText('collections.wine.entries_read')).toBeInTheDocument();
+  });
+
+  it('should say no label could be read when no bottle was read nor named', async () => {
+    sdkMock.findCollectionVisits.mockResolvedValue(findResult(visitOf({}), 'wine'));
+    sdkMock.matchCollectionVisit.mockResolvedValue({
+      entries: [],
+      subjects: [{ assetIds: ['bottle-1', 'bottle-2'], score: 0, unsure: false, suggestions: [] }],
+      noEmbedding: [],
+      warnings: [],
+    } as never);
+
+    render(CollectionNameModal, { props: { pack: winePack, album, onClose } });
+
+    expect(await screen.findAllByTestId('collection-entry')).toHaveLength(1);
+    expect(screen.getByText('collections.wine.no_source')).toBeInTheDocument();
+  });
+
+  it('should show the saved leg of a trip photo instead of "on no leg"', async () => {
+    const visit = visitOf({
+      subjectIds: ['photo-1'],
+      sourceIds: ['ticket-1'],
+      place: { name: 'Crete 2019', source: 'source', confidence: 0.8, assetIds: ['ticket-1'] },
+      saved: [{ assetId: 'photo-1', place: 'Crete 2019', entry: 'Ferry · Chania → Sougia', source: false }],
+    });
+    sdkMock.findCollectionVisits.mockResolvedValue(findResult(visit, 'travel'));
+    sdkMock.matchCollectionVisit.mockResolvedValue({
+      entries: [{ index: 0, name: 'Bus · Chania → Sougia', sourceId: 'ticket-1' }],
+      subjects: [{ assetIds: ['photo-1'], score: 0, unsure: false, offList: 1, suggestions: [] }],
+      noEmbedding: [],
+      warnings: [],
+    } as never);
+
+    render(CollectionNameModal, { props: { pack: travelPack, album, onClose } });
+    const [photo] = await screen.findAllByTestId('collection-entry');
+
+    expect(photo).not.toHaveAttribute('data-off-list');
+    expect(within(photo).getByRole('checkbox')).not.toBeChecked();
+    expect(within(photo).getByRole('combobox')).toHaveValue('Ferry · Chania → Sougia');
   });
 });

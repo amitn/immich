@@ -20,6 +20,7 @@
     getCollectionEntriesDto,
     getEntryRows,
     getVisitAssetIds,
+    hasSubjectReadings,
     summarizeCollectionEntries,
     type CollectionSaveSummary,
     type EntryRow,
@@ -104,6 +105,13 @@
       !isSaving &&
       /[\p{L}\d]/u.test(draft.place) &&
       (visit.sourceIds.length > 0 || draft.rows.some((row) => row.name.trim())),
+  );
+  /** a pack whose subjects carry their source (a bottle's label) needs no source photo while its subjects are read */
+  const subjectsRead = $derived(
+    !!pack.sourceOnSubjects &&
+      !!draft &&
+      draft.status !== 'error' &&
+      (draft.status === 'loading' || hasSubjectReadings(draft.entries, draft.rows)),
   );
   const skipped = $derived(draft ? draft.rows.filter((row) => !row.name.trim()).length : 0);
   const canMakeBook = $derived(!!album || featureFlagsManager.value.assistant);
@@ -321,7 +329,13 @@
         <section class="flex flex-col gap-2" aria-labelledby="collection-source-heading">
           <h3 id="collection-source-heading" class="text-sm font-medium">{$t(label('source'))}</h3>
           {#if visit.sourceIds.length === 0}
-            <Text size="small" color="muted">{$t(label('no_source'))}</Text>
+            {#if !subjectsRead}
+              <Text size="small" color="muted">{$t(label('no_source'))}</Text>
+            {:else if draft.status === 'ready' && draft.entries.length > 0}
+              <Text size="small" color="muted">
+                {$t(label('entries_read'), { values: { count: draft.entries.length } })}
+              </Text>
+            {/if}
           {:else}
             <div class="flex flex-wrap gap-2">
               {#each visit.sourceIds as id (id)}

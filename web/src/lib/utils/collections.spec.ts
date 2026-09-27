@@ -17,6 +17,7 @@ import {
   getEntryOptions,
   getEntryRows,
   getVisitAssetIds,
+  hasSubjectReadings,
   isCollectionPhotoTag,
   isOffListSubject,
   summarizeCollectionEntries,
@@ -147,8 +148,22 @@ describe('getEntryRows', () => {
     expect(rows[1]).toEqual(expect.objectContaining({ name: 'Pasta alla Norma', savedName: 'Pasta alla Norma' }));
     // a saved match is not unsure anymore
     expect(rows[1].unsure).toBe(false);
-    // a saved name that is not on the menu is a free name
-    expect(rows[2]).toEqual(expect.objectContaining({ name: 'Bread', offList: true }));
+    // a saved name wins even when the menu does not list it: it is the entry, not "off the list"
+    expect(rows[2]).toEqual(expect.objectContaining({ name: 'Bread', savedName: 'Bread', offList: false }));
+  });
+
+  it('should never mark a named subject off the list, even one the match puts off it', () => {
+    const visit = meal({
+      saved: [
+        { assetId: 'dish-1', restaurant: 'Trattoria da Nino', dish: 'Caponata siciliana', menu: false },
+        { assetId: 'dish-2', restaurant: 'Trattoria da Nino', dish: 'Caponata siciliana', menu: false },
+      ],
+    });
+    const rows = getEntryRows(visit, match({ dishes: [{ ...foodBreadMatch, assetIds: ['dish-1', 'dish-2'] }] }));
+
+    expect(rows[0]).toEqual(
+      expect.objectContaining({ name: 'Caponata siciliana', savedName: 'Caponata siciliana', offList: false }),
+    );
   });
 
   it('should name the dishes freely without a menu', () => {
@@ -171,6 +186,33 @@ describe('getEntryOptions', () => {
       'Pasta alla Norma',
     ]);
     expect(options[0]).toEqual({ id: '2', label: 'Spaghetti alle vongole', value: 'Spaghetti alle vongole' });
+  });
+
+  it('should offer a saved name the source reads differently first', () => {
+    const options = getEntryOptions(entries, { suggestions: ['Cannoli'], savedName: 'Cannoli siciliani' });
+    expect(options.map(({ label }) => label)).toEqual([
+      'Cannoli siciliani',
+      'Cannoli',
+      'Caponata',
+      'Pasta alla Norma',
+      'Spaghetti alle vongole',
+    ]);
+  });
+
+  it('should not repeat a saved name the source lists', () => {
+    const options = getEntryOptions(entries, { suggestions: [], savedName: 'Cannoli' });
+    expect(options.filter(({ label }) => label === 'Cannoli')).toHaveLength(1);
+  });
+});
+
+describe('hasSubjectReadings', () => {
+  const row = { key: 'bottle-1', assetIds: ['bottle-1'], name: '', offList: false, unsure: false, suggestions: [] };
+
+  it('should tell subjects read on themselves, matched or named from subjects never read', () => {
+    expect(hasSubjectReadings(entries, [row])).toBe(true);
+    expect(hasSubjectReadings([], [{ ...row, savedName: 'Kudos · Pinot Noir · 2012' }])).toBe(true);
+    expect(hasSubjectReadings([], [{ ...row, matchedName: 'Kudos · Pinot Noir · 2012' }])).toBe(true);
+    expect(hasSubjectReadings([], [row])).toBe(false);
   });
 });
 

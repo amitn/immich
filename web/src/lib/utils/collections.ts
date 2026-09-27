@@ -60,11 +60,12 @@ const getSavedName = (assetIds: string[], visit: CollectionVisit) => {
 
 /**
  * The subjects of a visit to edit: the groups the match found, then the subject photos it could not match (no smart
- * search yet, or over the limit of one request) one by one. A name already saved in the tags wins over the match.
+ * search yet, or over the limit of one request) one by one. A name already saved in the tags wins over the match: it is
+ * the entry of the subject, even when the source reads it differently (a bottle's label, a leg of a trip), and never
+ * "off the list".
  */
 export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): EntryRow[] => {
   const hasSource = (match?.entries.length ?? 0) > 0;
-  const entryNames = new Set(match?.entries.map(({ name }) => name));
   const grouped = new Set(match?.subjects.flatMap(({ assetIds }) => assetIds));
   const sourceIds = new Set(visit.sourceIds);
 
@@ -76,7 +77,7 @@ export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): E
       key: subject.assetIds[0],
       assetIds: subject.assetIds,
       name,
-      offList: hasSource && (savedName ? !entryNames.has(savedName) : offList),
+      offList: hasSource && !savedName && offList,
       unsure: !savedName && subject.name !== undefined && subject.unsure,
       savedName,
       matchedName: subject.name,
@@ -93,7 +94,7 @@ export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): E
       key: id,
       assetIds: [id],
       name: savedName ?? '',
-      offList: hasSource && !!savedName && !entryNames.has(savedName),
+      offList: false,
       unsure: false,
       savedName,
       suggestions: [],
@@ -103,16 +104,31 @@ export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): E
   return rows;
 };
 
-/** The entries for a subject, its suggestions first */
-export const getEntryOptions = (entries: CollectionEntry[], row: Pick<EntryRow, 'suggestions'>) => {
+/** The entries for a subject, its saved name first when the source reads it differently, then its suggestions */
+export const getEntryOptions = (
+  entries: CollectionEntry[],
+  row: Pick<EntryRow, 'suggestions'> & Partial<Pick<EntryRow, 'savedName'>>,
+) => {
   const rank = (entry: CollectionEntry) => {
     const index = row.suggestions.indexOf(entry.name);
     return index === -1 ? row.suggestions.length : index;
   };
-  return [...entries]
+  const options = [...entries]
     .sort((a, b) => rank(a) - rank(b) || a.index - b.index)
     .map((entry) => ({ id: String(entry.index), label: entry.name, value: entry.name }));
+  const { savedName } = row;
+  if (savedName && entries.every(({ name }) => name !== savedName)) {
+    options.unshift({ id: `saved-${savedName}`, label: savedName, value: savedName });
+  }
+  return options;
 };
+
+/**
+ * Whether the subjects of a visit were read even without a source photo: a pack whose subjects carry their source
+ * (`sourceOnSubjects`, a bottle's label) read entries on them, matched one, or the photos already have a name
+ */
+export const hasSubjectReadings = (entries: CollectionEntry[], rows: EntryRow[]) =>
+  entries.length > 0 || rows.some((row) => !!row.savedName || !!row.matchedName);
 
 /** The request that names the photos of a visit; subjects without a name are left out */
 export const getCollectionEntriesDto = (place: string, sourceIds: string[], rows: EntryRow[]) => {

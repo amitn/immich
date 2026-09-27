@@ -37,7 +37,9 @@
       onChange({ ...row, offList, name: entryNames.has(row.name) ? '' : row.name });
       return;
     }
-    const name = entryNames.has(row.name) ? row.name : (row.matchedName ?? row.suggestions[0] ?? '');
+    // a saved name stays the entry of the subject, even when the source reads it differently
+    const keep = entryNames.has(row.name) || (!!row.name && row.name === row.savedName);
+    const name = keep ? row.name : (row.savedName ?? row.matchedName ?? row.suggestions[0] ?? '');
     onChange({ ...row, offList, name });
   };
 </script>

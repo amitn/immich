@@ -101,6 +101,11 @@ export type WebCollectionPack = {
   bookStylePreset: BookStylePreset;
   /** the name and description of the preset in the style picker */
   bookStyleLabels: { name: Translations; description: Translations };
+  /**
+   * the source is printed on the subjects themselves, e.g. the label of a bottle (the server pack's
+   * `source.onSubjects`): a visit without a source photo still reads its subjects
+   */
+  sourceOnSubjects?: boolean;
   /** the label of a kind of visit, e.g. Lunch, when the pack has kinds */
   visitTypeLabel?: (type: string) => Translations | undefined;
   /** whether the pack can be offered, e.g. smart search is enabled */
