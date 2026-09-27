@@ -55,11 +55,18 @@ class ArtJobManager {
     if (!id) {
       return;
     }
-    this.#styles ??= getArtStyles().catch(() => {
-      this.#styles = undefined;
-      return [];
-    });
-    const styles = await this.#styles;
+    const load = () =>
+      getArtStyles().catch(() => {
+        this.#styles = undefined;
+        return [];
+      });
+    this.#styles ??= load();
+    let styles = await this.#styles;
+    // a style of the user's own may be newer than the list (e.g. the assistant just saved it)
+    if (styles.every((style) => style.id !== id)) {
+      this.#styles = load();
+      styles = await this.#styles;
+    }
     return styles.find((style) => style.id === id)?.name;
   }
 }

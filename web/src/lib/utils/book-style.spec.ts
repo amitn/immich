@@ -1,12 +1,17 @@
-import { BookStyleTheme } from '@immich/sdk';
+import { BookStylePreset, BookStyleTheme } from '@immich/sdk';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import {
   findBookStylePreset,
+  findBookUserStyle,
   getBookStyleAccent,
+  getBookStyleLook,
   getBookStyleTheme,
+  isBookStylePreset,
   loadBookStylePresets,
+  loadBookUserStyles,
   resetBookStylePresets,
 } from '$lib/utils/book-style';
+import { bookUserStyleFactory } from '@test-data/factories/book-factory';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
 
 const [classic, soft, bold, food] = bookStylePresets;
@@ -66,5 +71,44 @@ describe('loadBookStylePresets', () => {
 
     await expect(loadBookStylePresets()).rejects.toThrow('offline');
     await expect(loadBookStylePresets()).resolves.toHaveLength(4);
+  });
+});
+
+describe('styles of your own', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it('should load them every time, oldest first', async () => {
+    const [older, newer] = bookUserStyleFactory.buildList(2);
+    sdkMock.getBookUserStyles.mockResolvedValue([newer, older]);
+
+    await expect(loadBookUserStyles()).resolves.toEqual([older, newer]);
+    await loadBookUserStyles();
+
+    expect(sdkMock.getBookUserStyles).toHaveBeenCalledTimes(2);
+  });
+
+  it('should find the style of your own a book has a copy of', () => {
+    const [wedding, polaroid] = bookUserStyleFactory.buildList(2, { style: bookUserStyleFactory.build().style });
+    const other = { ...polaroid, style: { ...polaroid.style, background: '#000000' } };
+
+    expect(findBookUserStyle({ ...wedding.style, background: '#F7F3E8' }, [other, wedding])).toBe(wedding);
+    expect(findBookUserStyle({ ...wedding.style, marginMm: 3 }, [other, wedding])).toBeUndefined();
+  });
+
+  it('should tell presets from the ids of styles of your own', () => {
+    expect(isBookStylePreset(BookStylePreset.Soft)).toBe(true);
+    expect(isBookStylePreset('5f0c3a52-8f4e-4a3b-9d51-7f2b9d3c1e11')).toBe(false);
+  });
+
+  it('should give every theme the look the renderer draws', () => {
+    const { style } = bookUserStyleFactory.build();
+    expect(getBookStyleLook()).toBe('plain');
+    expect(getBookStyleLook({ ...style, theme: undefined })).toBe('plain');
+    expect(getBookStyleLook({ ...style, theme: BookStyleTheme.Gallery })).toBe('gallery');
+    for (const theme of [BookStyleTheme.Food, BookStyleTheme.Wine, BookStyleTheme.Cookbook, BookStyleTheme.Travel]) {
+      expect(getBookStyleLook({ ...style, theme })).toBe('printed');
+    }
   });
 });

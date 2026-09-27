@@ -1,5 +1,10 @@
 import { faker } from '@faker-js/faker';
-import type { BookDetailResponseDto, BookResponseDto } from '@immich/sdk';
+import {
+  BookStyleTheme,
+  type BookDetailResponseDto,
+  type BookResponseDto,
+  type BookUserStyleResponseDto,
+} from '@immich/sdk';
 import { Sync } from 'factory.ts';
 
 export const bookFactory = Sync.makeFactory<BookResponseDto>({
@@ -28,4 +33,24 @@ export const bookDetailFactory = Sync.makeFactory<BookDetailResponseDto>({
   ...bookFactory.build(),
   id: Sync.each(() => faker.string.uuid()),
   pages: [],
+});
+
+/** a style of the user's own, e.g. designed with the assistant */
+export const bookUserStyleFactory = Sync.makeFactory<BookUserStyleResponseDto>({
+  id: Sync.each(() => faker.string.uuid()),
+  name: Sync.each((index) => `My style ${index}`),
+  description: 'Ivory pages, sage text and a gold accent',
+  style: {
+    marginMm: 14,
+    gutterMm: 5,
+    background: '#f7f3e8',
+    textColor: '#34402f',
+    fontFamily: 'FreeSerif, serif',
+    titleSizePt: 30,
+    captionSizePt: 10,
+    theme: BookStyleTheme.Plain,
+    accentColor: '#a8862f',
+  },
+  createdAt: Sync.each((index) => new Date(Date.UTC(2026, 8, 1 + index)).toISOString()),
+  updatedAt: Sync.each((index) => new Date(Date.UTC(2026, 8, 1 + index)).toISOString()),
 });

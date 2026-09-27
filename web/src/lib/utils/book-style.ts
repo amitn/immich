@@ -2,8 +2,10 @@ import {
   BookStylePreset,
   BookStyleTheme,
   getBookStylePresets,
+  getBookUserStyles,
   type BookStyle,
   type BookStylePresetResponseDto,
+  type BookUserStyleResponseDto,
 } from '@immich/sdk';
 import type { Translations } from 'svelte-i18n';
 import { collectionPacks } from '$lib/collections/registry';
@@ -57,6 +59,21 @@ export const resetBookStylePresets = () => {
   presets = undefined;
 };
 
+/**
+ * The styles of the user's own (e.g. designed with the assistant), oldest first like the presets. They change (the
+ * assistant saves new ones), so they are fetched every time
+ */
+export const loadBookUserStyles = async (): Promise<BookUserStyleResponseDto[]> => {
+  const result = await getBookUserStyles();
+  return [...(result ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.name.localeCompare(b.name));
+};
+
+/** a preset id, or the id of one of the user's own styles */
+export type BookStyleChoice = BookStylePreset | string;
+
+export const isBookStylePreset = (choice: BookStyleChoice): choice is BookStylePreset =>
+  (Object.values(BookStylePreset) as string[]).includes(choice);
+
 const STYLE_KEYS = [
   'background',
   'textColor',
@@ -101,3 +118,27 @@ export const findBookStylePreset = (
   available: BookStylePresetResponseDto[],
 ): BookStylePresetResponseDto | undefined =>
   available.find((preset) => STYLE_KEYS.every((key) => sameValue(valueOf(style, key), valueOf(preset.style, key))));
+
+/** The user's own style the book's style is exactly equal to (the book has a copy of it) */
+export const findBookUserStyle = (
+  style: BookStyle,
+  available: BookUserStyleResponseDto[],
+): BookUserStyleResponseDto | undefined =>
+  available.find((item) => STYLE_KEYS.every((key) => sameValue(valueOf(style, key), valueOf(item.style, key))));
+
+/** how the renderer draws a theme: plain pages, a printed menu (rules, ornaments, small caps) or a gallery catalogue */
+export type BookStyleLook = 'plain' | 'printed' | 'gallery';
+
+export const getBookStyleLook = (style?: BookStyle): BookStyleLook => {
+  switch (style ? valueOf(style, 'theme') : BookStyleTheme.Plain) {
+    case BookStyleTheme.Plain: {
+      return 'plain';
+    }
+    case BookStyleTheme.Gallery: {
+      return 'gallery';
+    }
+    default: {
+      return 'printed';
+    }
+  }
+};

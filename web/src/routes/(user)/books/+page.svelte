@@ -1,10 +1,11 @@
 <script lang="ts">
   import BookCard from '$lib/components/books/BookCard.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
+  import ManageBookStylesModal from '$lib/modals/ManageBookStylesModal.svelte';
   import { openAssistant } from '$lib/services/assistant.service';
   import { handleError } from '$lib/utils/handle-error';
-  import { Button, Icon, type ActionItem } from '@immich/ui';
-  import { mdiBookOpenPageVariantOutline, mdiCreationOutline } from '@mdi/js';
+  import { Button, Icon, modalManager, type ActionItem } from '@immich/ui';
+  import { mdiBookOpenPageVariantOutline, mdiCreationOutline, mdiPaletteSwatchOutline } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -24,6 +25,12 @@
     onAction: () => openAssistant({ prompt: $t('book_create_prompt') }),
   });
 
+  const ManageStyles: ActionItem = $derived({
+    title: $t('book_style_manage'),
+    icon: mdiPaletteSwatchOutline,
+    onAction: () => modalManager.show(ManageBookStylesModal, {}),
+  });
+
   onMount(() => {
     if (data.loadError) {
       handleError(data.loadError, $t('errors.unable_to_load_books'));
@@ -31,7 +38,7 @@
   });
 </script>
 
-<UserPageLayout title={data.meta.title} actions={[CreateWithAssistant]}>
+<UserPageLayout title={data.meta.title} actions={[CreateWithAssistant, ManageStyles]}>
   <div class="pb-20">
     {#if books.length === 0}
       <div class="mx-auto mt-16 flex max-w-md flex-col items-center gap-4 text-center">

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { getBookStyleAccent, getBookStyleTheme } from '$lib/utils/book-style';
-  import { BookStyleTheme, type BookStyle } from '@immich/sdk';
+  import { getBookStyleAccent, getBookStyleLook } from '$lib/utils/book-style';
+  import type { BookStyle } from '@immich/sdk';
 
   type Props = {
     /** Unknown while the presets load: a neutral page is shown */
@@ -16,8 +16,11 @@
   // margins are a few percent of the page: exaggerate them a little so the difference shows at this size
   const margin = $derived(style ? Math.max(1, ((style.marginMm * 1.5) / pageWidthMm) * size) : size * 0.1);
   const gutter = $derived(style ? Math.max(1, ((style.gutterMm * 1.5) / pageWidthMm) * size) : size * 0.04);
-  // the food theme draws its pages like a printed menu: a hairline frame, a rule under the photos and small caps
-  const food = $derived(getBookStyleTheme(style) === BookStyleTheme.Food);
+  // the printed look (food, wine, cookbook, travel) draws pages like a printed menu: a hairline frame, a rule under
+  // the photos and small caps; the gallery look shows the photos whole on the page, with a museum label below
+  const look = $derived(getBookStyleLook(style));
+  const printed = $derived(look === 'printed');
+  const gallery = $derived(look === 'gallery');
   const accent = $derived(getBookStyleAccent(style));
 </script>
 
@@ -31,9 +34,9 @@
   style:gap="{gutter}px"
   style:background-color={style?.background}
   aria-hidden="true"
-  data-theme={food ? 'food' : undefined}
+  data-look={style ? look : undefined}
 >
-  {#if food}
+  {#if printed}
     <span
       class="pointer-events-none absolute border"
       style:inset="{Math.max(1, margin * 0.4)}px"
@@ -41,21 +44,39 @@
       style:opacity="0.6"
     ></span>
   {/if}
-  <span class="flex min-h-0 flex-1" style:gap="{gutter}px">
-    <span class="flex-3 rounded-[1px] bg-linear-to-br from-slate-400 to-slate-500"></span>
-    <span class="flex-2 rounded-[1px] bg-linear-to-br from-slate-300 to-slate-400"></span>
-  </span>
-  {#if food}
-    <span class="mx-auto block h-px w-1/3 shrink-0" style:background-color={accent}></span>
+  {#if gallery}
+    <!-- one photo shown whole, never cropped, with space around it -->
+    <span class="flex min-h-0 flex-1 items-center justify-center">
+      <span class="block h-3/4 w-3/5 rounded-[1px] bg-linear-to-br from-slate-400 to-slate-500"></span>
+    </span>
+    <span class="flex shrink-0 flex-col items-start gap-px" style:padding-inline="20%">
+      <span
+        class="block truncate leading-none italic"
+        style:font-size="{Math.max(6, size / 8)}px"
+        style:color={style?.textColor ?? 'currentColor'}
+        style:font-family={style?.fontFamily}
+      >
+        Aa
+      </span>
+      <span class="block h-px w-2/3" style:background-color={accent}></span>
+    </span>
+  {:else}
+    <span class="flex min-h-0 flex-1" style:gap="{gutter}px">
+      <span class="flex-3 rounded-[1px] bg-linear-to-br from-slate-400 to-slate-500"></span>
+      <span class="flex-2 rounded-[1px] bg-linear-to-br from-slate-300 to-slate-400"></span>
+    </span>
+    {#if printed}
+      <span class="mx-auto block h-px w-1/3 shrink-0" style:background-color={accent}></span>
+    {/if}
+    <span
+      class="block truncate leading-none {printed ? 'text-center italic' : 'font-semibold'}"
+      style:font-size="{Math.max(7, size / 6)}px"
+      style:color={style?.textColor ?? 'currentColor'}
+      style:font-family={style?.fontFamily}
+      style:font-variant={printed ? 'small-caps' : undefined}
+      style:letter-spacing={printed ? '0.08em' : undefined}
+    >
+      Aa
+    </span>
   {/if}
-  <span
-    class="block truncate leading-none {food ? 'text-center italic' : 'font-semibold'}"
-    style:font-size="{Math.max(7, size / 6)}px"
-    style:color={style?.textColor ?? 'currentColor'}
-    style:font-family={style?.fontFamily}
-    style:font-variant={food ? 'small-caps' : undefined}
-    style:letter-spacing={food ? '0.08em' : undefined}
-  >
-    Aa
-  </span>
 </span>

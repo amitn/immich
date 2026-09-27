@@ -2,6 +2,7 @@ import { BookStylePreset } from '@immich/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import { BOOK_STYLE_PRESETS, resetBookStylePresets } from '$lib/utils/book-style';
+import { bookUserStyleFactory } from '@test-data/factories/book-factory';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
 import BookStylePresetPicker from './BookStylePresetPicker.svelte';
 
@@ -61,12 +62,7 @@ describe('BookStylePresetPicker component', () => {
       '#f6f0e4',
     ]);
     // the food swatch looks like a printed menu
-    expect(swatches.slice(0, 4).map((swatch) => swatch.dataset.theme)).toEqual([
-      undefined,
-      undefined,
-      undefined,
-      'food',
-    ]);
+    expect(swatches.slice(0, 4).map((swatch) => swatch.dataset.look)).toEqual(['plain', 'plain', 'plain', 'printed']);
     expect(swatches[3].textContent).toContain('Aa');
     expect(sdkMock.getBookStylePresets).toHaveBeenCalledTimes(1);
   });
@@ -79,5 +75,47 @@ describe('BookStylePresetPicker component', () => {
     await waitFor(() => expect(sdkMock.getBookStylePresets).toHaveBeenCalled());
     expect(screen.getAllByRole('radio')).toHaveLength(BOOK_STYLE_PRESETS.length);
     expect(screen.queryByText('book_style_margins')).not.toBeInTheDocument();
+  });
+
+  describe('your styles', () => {
+    it("should offer the user's own styles after the presets", async () => {
+      const wedding = bookUserStyleFactory.build({ name: 'Wedding', description: 'Ivory, sage and gold' });
+      sdkMock.getBookUserStyles.mockResolvedValue([wedding]);
+      const onUserStyles = vi.fn();
+
+      render(BookStylePresetPicker, { props: { onUserStyles } });
+
+      const radio = await screen.findByRole('radio', { name: /Wedding/ });
+      expect(radio).toHaveAttribute('value', wedding.id);
+      expect(screen.getByText('book_style_yours')).toBeInTheDocument();
+      expect(onUserStyles).toHaveBeenCalledWith([wedding]);
+
+      await fireEvent.click(radio);
+      expect(radio).toBeChecked();
+      expect(screen.getByText('Ivory, sage and gold')).toBeInTheDocument();
+    });
+
+    it('should hide the section without styles of your own', async () => {
+      sdkMock.getBookUserStyles.mockResolvedValue([]);
+
+      render(BookStylePresetPicker);
+
+      await waitFor(() => expect(sdkMock.getBookUserStyles).toHaveBeenCalled());
+      expect(screen.queryByText('book_style_yours')).not.toBeInTheDocument();
+    });
+
+    it('should offer to create a style with the assistant', async () => {
+      const onCreateWithAssistant = vi.fn();
+
+      render(BookStylePresetPicker, { props: { onCreateWithAssistant } });
+      await fireEvent.click(screen.getByRole('button', { name: 'style_creator_create_with_assistant' }));
+
+      expect(onCreateWithAssistant).toHaveBeenCalled();
+    });
+
+    it('should not offer the assistant without a handler', () => {
+      render(BookStylePresetPicker);
+      expect(screen.queryByRole('button', { name: 'style_creator_create_with_assistant' })).not.toBeInTheDocument();
+    });
   });
 });
