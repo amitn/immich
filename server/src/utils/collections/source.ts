@@ -216,10 +216,12 @@ export type MergedSourceEntry = {
 /**
  * The entries of the sources of a visit, without the entries another page (or photo) of it already listed, in source
  * order. The longest column of any page is the sequence (e.g. the courses of a tasting menu): its entries, and the
- * entries of other photos that name them again, get their place in it.
+ * entries of other photos that name them again, get their place in it. With `repeats`, an entry read again on another
+ * photo is kept as an entry of that photo too (the same species labelled on two trees, each beside its own label).
  */
 export const mergeSourceEntries = <T extends { items: SourceEntry[] }>(
   readings: Array<T & { assetId: string }>,
+  { repeats = false }: { repeats?: boolean } = {},
 ): MergedSourceEntry[] => {
   let courses: string[] = [];
   for (const reading of readings) {
@@ -234,12 +236,14 @@ export const mergeSourceEntries = <T extends { items: SourceEntry[] }>(
   const seen: string[] = [];
   const items: MergedSourceEntry[] = [];
   for (const reading of readings) {
+    // with repeats, only the entries this photo already listed are dropped
+    const read = repeats ? [] : seen;
     for (const item of reading.items) {
       const key = entryKey(item.name);
-      if (seen.some((other) => isSameKey(other, key))) {
+      if (read.some((other) => isSameKey(other, key))) {
         continue;
       }
-      seen.push(key);
+      read.push(key);
       const course = courses.findIndex((other) => isSameKey(other, key));
       items.push({ sourceId: reading.assetId, item, ...(course !== -1 && { course }) });
     }

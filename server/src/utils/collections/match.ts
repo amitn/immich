@@ -655,6 +655,9 @@ export const applySequencePrior = (
 /** a subject photo for a pack's own assignment: the text read on it (OCR) too */
 export type AssignPhoto = SubjectPhoto & {
   text?: string;
+  /** where the photo was taken, when it is located (e.g. the stage of a festival it was taken at) */
+  latitude?: number;
+  longitude?: number;
   /**
    * the OCR boxes of the photo, for a pack whose subjects carry their source (`source.onSubjects`, e.g. the label of
    * a bottle): read at full resolution, with the words only the stored OCR has

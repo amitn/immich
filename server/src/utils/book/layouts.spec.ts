@@ -60,6 +60,8 @@ describe('book layouts', () => {
       'tasting-note',
       'tasting-note-wide',
       'tasting-notes',
+      // the setlist page of the concerts pack
+      'setlist',
     ]);
     for (const layout of bookLayouts) {
       const captions = layout.text.filter((area) => area.kind === 'slotCaption');

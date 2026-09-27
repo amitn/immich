@@ -31,6 +31,8 @@ export type CollectionPack = {
   tagRoot: string;
   /** the leaf that marks a photo of the source instead of an entry, e.g. Menu */
   sourceLeaf: string;
+  /** other leaves that mark a source photo of another kind, e.g. Line-up beside Setlist */
+  otherSourceLeaves?: string[];
   /** the words of the domain, used in messages, tool results and reviews */
   names: CollectionNames;
 
@@ -49,6 +51,12 @@ export type CollectionPack = {
     prompt: (entry: Pick<SourceEntry, 'name' | 'description'>) => string;
     /** fewer entries than this read on a source is worth a warning, default 3 */
     minEntries?: number;
+    /**
+     * an entry read again on another source photo stays an entry of that photo too (the same species labelled on two
+     * trees), so that the subjects photographed beside each source are matched with it (see `MatchOptions.sequence`);
+     * by default an entry is listed once, where it was first read (the same dish on the menu and on the specials board)
+     */
+    repeats?: boolean;
     /**
      * the source is printed on the subjects themselves, e.g. the label of a bottle: match_subjects reads every subject
      * photo at full resolution for the pack's `match.assign` (see `AssignPhoto.ocr`), a visit needs no other source,
@@ -307,11 +315,12 @@ export type CollectionMessages = {
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
 export const getCollectionTagRules = (
-  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names'>,
+  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names' | 'otherSourceLeaves'>,
 ): CollectionTagRules => ({
   tagRoot: pack.tagRoot,
   sourceLeaf: pack.sourceLeaf,
   subject: pack.names.subject,
+  ...(pack.otherSourceLeaves && pack.otherSourceLeaves.length > 0 && { otherSourceLeaves: pack.otherSourceLeaves }),
 });
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -362,7 +371,7 @@ export const validateCollectionPack = (pack: CollectionPack, others: readonly Co
   if (!PACK_ID.test(pack.id)) {
     errors.push(`id "${pack.id}" must be lowercase letters, digits and dashes`);
   }
-  if (!TAG_NAME.test(pack.tagRoot) || !TAG_NAME.test(pack.sourceLeaf)) {
+  if ([pack.tagRoot, pack.sourceLeaf, ...(pack.otherSourceLeaves ?? [])].some((name) => !TAG_NAME.test(name))) {
     errors.push('the tag root and the source leaf cannot contain "/"');
   }
   if (pack.prompts.subject.length === 0 || pack.prompts.other.length === 0) {

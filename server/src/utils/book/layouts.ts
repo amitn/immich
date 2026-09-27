@@ -39,6 +39,9 @@ export type PageSize = { pageWidthMm: number; pageHeightMm: number };
 /** a page typeset from the text of a source instead of its photo, see `CollectionPack.book.sourcePage` */
 export const TICKET_STUB_LAYOUT = 'ticket-stub';
 
+/** the setlist of an act in a concert book, typeset beside the photo of the sheet (see `setlist-page.ts`) */
+export const SETLIST_LAYOUT = 'setlist';
+
 /**
  * the tasting notes of wine books (see `CollectionPack.book.entryLayouts`): a portrait bottle with its fiche beside it,
  * a landscape one with its fiche below, and two bottles with theirs
@@ -404,6 +407,19 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 0, x: 0.35, y: 0, width: 0.65, height: 0.5, align: 'left' },
       { kind: 'slotCaption', slot: 1, x: 0.35, y: 0.5, width: 0.65, height: 0.5, align: 'left' },
     ],
+    orientation: 'portrait',
+    collection: true,
+  },
+  {
+    id: SETLIST_LAYOUT,
+    name: 'Setlist',
+    description:
+      'Opens the chapter of an act of a concert book with its setlist (or a line-up): the photo of the sheet (slot 1) ' +
+      'beside the caption typeset in bold capitals: a first paragraph with the act and lines such as the venue and ' +
+      'the date, then numbered songs "1. Ohio" (or acts with their start, "20:20 Malihini") and other lines ' +
+      '("Encore"), under optional headings that end with a colon ("Saturday:"), separated by blank lines.',
+    slots: [{ x: 0, y: 0, width: 0.44, height: 1 }],
+    text: [{ kind: 'caption', x: 0.48, y: 0, width: 0.52, height: 1, align: 'left' }],
     orientation: 'portrait',
     collection: true,
   },
