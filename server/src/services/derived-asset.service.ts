@@ -57,6 +57,18 @@ export const getBackfillTag = (asset: { artJobId: string | null; style: string |
   return suffix ? DERIVED_ASSET_TAGS[suffix]?.[0] : undefined;
 };
 
+export type GeneratedAssetOptions = {
+  fileName: string;
+  description?: string;
+  tags?: string[];
+  /** the asset whose date the new asset gets, e.g. the last photo of the trip */
+  dateOf: {
+    fileCreatedAt: Date;
+    localDateTime: Date;
+    exifInfo?: Pick<SourceExif, 'dateTimeOriginal' | 'timeZone'> | null;
+  };
+};
+
 export type DerivedAssetResult = {
   id: string;
   /** an identical derived asset already existed and was returned instead */
@@ -270,27 +282,31 @@ export class DerivedAssetService extends BaseService {
   async createGeneratedVideo(
     auth: AuthDto,
     source: string,
-    {
-      fileName,
-      description,
-      tags = [],
-      dateOf,
-    }: {
-      fileName: string;
-      description?: string;
-      tags?: string[];
-      /** the asset whose date the video gets, e.g. the last photo of the trip */
-      dateOf: {
-        fileCreatedAt: Date;
-        localDateTime: Date;
-        exifInfo?: Pick<SourceExif, 'dateTimeOriginal' | 'timeZone'> | null;
-      };
-    },
+    options: GeneratedAssetOptions,
   ): Promise<DerivedAssetResult> {
-    if (!mimeTypes.isVideo(fileName)) {
-      throw new BadRequestException(`Unsupported video type: ${fileName}`);
+    if (!mimeTypes.isVideo(options.fileName)) {
+      throw new BadRequestException(`Unsupported video type: ${options.fileName}`);
     }
+    return this.createGeneratedAsset(auth, { path: source }, AssetType.Video, options);
+  }
 
+  /**
+   * Creates an image asset of the user from an image the server made of several photos (a collage), with no source
+   * asset: like a generated video, it gets the date of `dateOf` and its description and tags, and is not stacked
+   */
+  async createGeneratedImage(auth: AuthDto, data: Buffer, options: GeneratedAssetOptions): Promise<DerivedAssetResult> {
+    if (!mimeTypes.isImage(options.fileName)) {
+      throw new BadRequestException(`Unsupported image type: ${options.fileName}`);
+    }
+    return this.createGeneratedAsset(auth, { buffer: data }, AssetType.Image, options);
+  }
+
+  private async createGeneratedAsset(
+    auth: AuthDto,
+    file: { path: string } | { buffer: Buffer },
+    type: AssetType.Image | AssetType.Video,
+    { fileName, description, tags = [], dateOf }: GeneratedAssetOptions,
+  ): Promise<DerivedAssetResult> {
     const id = this.cryptoRepository.randomUUID();
     const extension = parse(fileName).ext.toLowerCase();
     const path = StorageCore.getNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
@@ -298,13 +314,17 @@ export class DerivedAssetService extends BaseService {
 
     let created = false;
     try {
-      try {
-        await this.storageRepository.rename(source, path);
-      } catch {
-        // another file system: the source is removed with its folder
-        await this.storageRepository.copyFile(source, path);
+      if ('buffer' in file) {
+        await this.storageRepository.createFile(path, file.buffer);
+      } else {
+        try {
+          await this.storageRepository.rename(file.path, path);
+        } catch {
+          // another file system: the source is removed with its folder
+          await this.storageRepository.copyFile(file.path, path);
+        }
       }
-      // the date of the asset, and nothing of its camera or place: a video has no orientation tag
+      // the date of the asset, and nothing of its camera or place
       const exif: SourceExif = {
         dateTimeOriginal: dateOf.exifInfo?.dateTimeOriginal ?? null,
         timeZone: dateOf.exifInfo?.timeZone ?? null,
@@ -314,8 +334,12 @@ export class DerivedAssetService extends BaseService {
         model: null,
         lensModel: null,
       };
-      const { Orientation: _, ...tagsToWrite } = getDerivedExifTags(exif, dateOf.localDateTime, description, tags);
-      await this.metadataRepository.writeTags(path, tagsToWrite);
+      const { Orientation, ...otherTags } = getDerivedExifTags(exif, dateOf.localDateTime, description, tags);
+      // a video has no orientation tag; the pixels of an image are upright
+      await this.metadataRepository.writeTags(
+        path,
+        type === AssetType.Image ? { Orientation, ...otherTags } : otherTags,
+      );
 
       const { size } = await this.storageRepository.stat(path);
       this.requireQuota(auth, size);
@@ -327,7 +351,7 @@ export class DerivedAssetService extends BaseService {
           id,
           ownerId: auth.user.id,
           libraryId: null,
-          type: AssetType.Video,
+          type,
           checksum,
           checksumAlgorithm: ChecksumAlgorithm.sha1File,
           originalPath: path,

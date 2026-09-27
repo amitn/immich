@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Put, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
@@ -9,6 +9,8 @@ import {
   CollectionMatchResponseDto,
   CollectionPackParamDto,
   CollectionPackResponseDto,
+  CollectionSearchDto,
+  CollectionSearchResponseDto,
   CollectionSummaryResponseDto,
   CollectionVisitsDto,
   CollectionVisitsResponseDto,
@@ -46,6 +48,18 @@ export class CollectionController {
   })
   getCollectionSummary(@Auth() auth: AuthDto): Promise<CollectionSummaryResponseDto> {
     return this.service.getSummary(auth);
+  }
+
+  @Get('search')
+  @Authenticated({ permission: Permission.AssetRead })
+  @Endpoint({
+    summary: 'Search the collections',
+    description:
+      'Find the visits of the collections that match a question or words typed in the search bar ("what did we eat at noma", "which museums did we visit in 2025"), without AI: the pack the words point to, the years they name and the names left are matched against the tags of the collections. Only the user\'s own photos are read.',
+    history: history(),
+  })
+  searchCollections(@Auth() auth: AuthDto, @Query() { q }: CollectionSearchDto): Promise<CollectionSearchResponseDto> {
+    return this.service.searchCollections(auth, q);
   }
 
   @Post(':pack/visits')

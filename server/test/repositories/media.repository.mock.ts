@@ -38,6 +38,7 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     transcode: vitest.fn(),
     getImageMetadata: vitest.fn(),
     resizeToJpeg: vitest.fn(),
+    turnToJpeg: vitest.fn(),
     createContactSheet: vitest.fn(),
     analyzeImage: vitest.fn(),
     upscaleImage: vitest.fn(),

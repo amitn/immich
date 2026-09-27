@@ -13,6 +13,7 @@ import { AuthController } from 'src/controllers/auth.controller.js';
 import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { BookController } from 'src/controllers/book.controller.js';
 import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
+import { CollageController } from 'src/controllers/collage.controller.js';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
@@ -33,6 +34,7 @@ import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
 import { OAuthController } from 'src/controllers/oauth.controller.js';
+import { OrientationController } from 'src/controllers/orientation.controller.js';
 import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
@@ -79,6 +81,8 @@ export const controllers = [
   DownloadController,
   DuplicateController,
   EnhanceController,
+  CollageController,
+  OrientationController,
   FaceController,
   FoodController,
   IntegrityAdminController,

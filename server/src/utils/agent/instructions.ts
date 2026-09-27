@@ -39,6 +39,8 @@ Typical workflows:
 - Suggested books: Immich drafts books for the user in the background (a year of a collection such as "2026 in food", a trip, the year before a birthday). When the user asks which books were made for them, call list_book_drafts and give the titles and why each was suggested. To keep one, call keep_book_draft; to drop it, discard_book_draft (it is never suggested again); only when the user asks. To polish a draft, call edit_existing_book and follow the photo book workflow (review_book, better photos, captions).
 ${getCollectionInstructions()}
 - Highlight videos: make_highlight_video makes a 30–120 second film of an album, a book or a selection (the best photos as slow pans and zooms, short clips of the videos, a map or a title card per chapter, lower thirds naming the dishes, artworks and places), saved as a new video; then follow it with get_highlight_video and give the user its assetId. Name the collections first (the dishes, artworks, wines) so that the film names them too. Use only music the user uploaded (list_highlight_music); never promise or pick other music, and leave it silent by default.
+- Collages: preview_collage draws 2 to 9 photos on one page (1:1, 4:5, 9:16 or 16:9) with the book layouts and styles and lists the layouts that fit them; make_collage saves it as a new photo tagged Collages/<title or dates>. When the user asks for collages of a trip or an album, suggest sets first, e.g. the best 4 photos of each day (find_events, then select_best with count 4 per day, different moments rather than a burst), preview them and make the collages the user agrees to.
+- Orientation: find_rotated_photos lists the photos stored sideways or upside down that the background check found (or checks an album, a date range or given photos now), with the turn that fixes each; fix_rotation turns them upright with a reversible edit, never a copy. Show the user what you found and fix only what they agree to; mention the Orientation page under Utilities to review the rest.
 - For large requests, work in steps and tell the user what you're doing; ask a short clarifying question only when the request is ambiguous.
 
 Questions about the library:
@@ -68,20 +70,36 @@ export const buildRecap = (messages: RecapMessage[]) => {
   return `This conversation continues an earlier one. Recap of the most recent messages:\n${lines.join('\n')}`;
 };
 
+/** the line an answer in the search bar ends with, which the web app turns into photo and tag chips */
+export const ANSWER_SOURCES_PREFIX = 'Sources:';
+
+/** how to answer a question typed in the search bar, shown beside the search results (see `AgentPromptDto.answer`) */
+export const QUICK_ANSWER_INSTRUCTIONS = `This question was typed into the search bar of Immich. Your answer is shown in a small panel beside the search results, which the user already sees.
+- Answer in one to three short sentences, with the dates and places. Use query_collections first for places, dishes, artworks, wines, recipes and trips, then search_photos or find_events; don't show contact sheets.
+- Never change the library and don't ask questions back. If nothing matches, say so in one sentence.
+- End with one line that starts with "${ANSWER_SOURCES_PREFIX}" and lists the ids of the photos your answer rests on (at most 6) and the collection tags you used, e.g. "${ANSWER_SOURCES_PREFIX} photos 1f0c…, 9a2b…; tags Food/Noma Australia, Wine/Noma Australia". Write "${ANSWER_SOURCES_PREFIX} none" when there are none.`;
+
 export const buildPromptText = ({
   text,
   assetIds,
   instructions,
   recap,
+  answer,
 }: {
   text: string;
   assetIds?: string[];
   instructions: boolean;
   recap?: string;
+  /** a question typed in the search bar */
+  answer?: boolean;
 }) => {
   const parts: string[] = [];
   if (instructions) {
     parts.push(`<instructions>\n${ASSISTANT_INSTRUCTIONS}\n</instructions>`);
+  }
+
+  if (answer) {
+    parts.push(`<quick-answer>\n${QUICK_ANSWER_INSTRUCTIONS}\n</quick-answer>`);
   }
 
   if (recap) {

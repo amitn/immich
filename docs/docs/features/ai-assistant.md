@@ -18,10 +18,11 @@ With its tools, the assistant can:
 
 - understand your library: search by meaning and filters, find people, split a date range or album into events and trips, read metadata, and look at photos on a contact sheet;
 - choose photos: group bursts and near-duplicates, score sharpness, exposure and faces, and pick a balanced selection (for example _"the 30 best photos of last year, no more than 2 per event"_);
-- crop photos around faces, straighten tilted photos and enhance dull ones;
+- crop photos around faces, straighten tilted photos, enhance dull ones and [turn sideways ones upright](#sideways-and-upside-down-photos);
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
+- make [collages](#collages) of a few photos;
 - create [artistic versions](#artistic-styles) of photos;
 - [design book and artistic styles of your own](#designing-your-own-styles) from a description;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
@@ -44,7 +45,7 @@ The assistant can search and look at your photos freely. Actions that change you
 - **Allow all in this chat** runs it and turns on auto-approve for the rest of the chat.
 - **Deny** refuses it. The assistant is told not to retry and asks you what to do instead.
 
-Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
+Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing, improving or turning photos, saving a collage, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
 
 To skip the prompts, turn on **Auto-approve** at the top of a chat. It only applies to that chat. An administrator can also turn on **Auto-approve changes** in the settings, which skips approvals for every user.
 
@@ -73,6 +74,15 @@ Keep in mind:
 - **Travel stays private.** The names of legs are redacted as everywhere else, and travel documents are never shown.
 
 The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
+
+### Asking from the search bar
+
+You can also type a question straight into the search bar, such as _"what did we eat at noma"_ or _"which museums did we visit in 2025?"_. A search counts as a question when it has a question mark or starts with a question word (what, which, when, where, who, how, did…); no AI decides that. The usual results show at once, as for any search, and never wait for the assistant. Beside them:
+
+- **From your collections** lists the visits whose names match the question (the restaurant, the dishes, the museum), found without AI from its words: _eat_ points to food, _museums_ to museum visits, a year to that year, and the words left are looked for in the names. Each visit links to its tag.
+- **Answer from the assistant** streams in when the assistant is enabled: a short answer with the dates and places, followed by the photos and the tags it used, as thumbnails and tag chips. **Stop** cancels it, and **Continue in chat** opens it as a chat, where you can ask a follow-up. Each answer is a chat of its own, titled with the question, in the **Assistant** page.
+
+To turn the answers off, select **×** on the panel, or turn off **Answers in search** under **Account Settings → Features**. The results and the collection matches stay.
 
 ## Photos are never changed
 
@@ -254,6 +264,19 @@ Rendering takes about half a minute to a few minutes on the CPU, depending on th
 
 You can also ask the assistant: _"make a one-minute video of our trip to Sicily"_. It uses `make_highlight_video`, which asks for approval, and tells you when the video is ready.
 
+## Collages
+
+A collage puts 2 to 9 photos on one page. Select the photos in the timeline or in an album, then **Make a collage…** in the **⋮** menu. The dialog shows a live preview drawn by the server, and lets you choose:
+
+- **Aspect ratio**: 1:1 (square), 4:5 (portrait, e.g. for a feed), 9:16 (a phone screen or a story) or 16:9 (a screen).
+- **Layout**: the layouts for that number of photos, from the [photo book](#photo-books) catalogue plus denser ones made for collages. The one that fits your photos best comes first: portrait photos go into tall slots and landscapes into wide ones, and faces are kept whole. **Shuffle layout** goes through the others.
+- **Style**: a book style preset, or one of [your own styles](#designing-your-own-styles), with its margins, gaps, page colour and font.
+- **Title**: optional, drawn in a band at the foot of the collage.
+
+**Download** saves the collage (3000 pixels on the long side) to your computer. **Save collage** adds it to your timeline as a new photo, dated like its last photo and tagged `Collages/<title>` (or `Collages/<dates>` without a title), then opens it. A collage made in an album you can add to is added to that album. The photos themselves are never changed.
+
+You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 photos of each day"_. It picks the photos, previews the collages with `preview_collage`, and saves the ones you agree to with `make_collage`, which asks for approval.
+
 ## Artistic styles
 
 Artistic styles are made by the **art agent**: an ACP agent whose model can generate images, such as Codex. An administrator chooses it as the **Art profile**. The art agent receives the preview of the photo and a prompt, and returns one image. It gets no Immich tools.
@@ -353,6 +376,19 @@ GIF, SVG and panorama images can't be enhanced.
 The assistant measures how tilted a photo is from its level and plumb lines, such as horizons, buildings, poles and door frames. It suggests straightening only for small tilts that it measures with confidence: at least 0.4° (smaller tilts aren't visible) and at most 8°. Larger angles are usually perspective lines, such as a table or a shop front, and are left alone. So are photos whose lines already look level. When photos are improved automatically, only tilts up to 4° are corrected.
 
 A straightened copy keeps the original shape and crops away the blank corners, and it is tagged `Edits/Straightened`.
+
+## Sideways and upside-down photos
+
+Immich looks for photos that are stored sideways (turned 90° either way) or upside down, and lists them under **Utilities → Fix photo orientation**. It needs smart search (CLIP) to be enabled; face detection and OCR make it more reliable. For each photo it compares the preview in its four turns with CLIP, then reads the faces (they should be upright) and the text (it should read left to right) of the turn it prefers. Only confident cases are suggested, each with the turn, how sure it is and why.
+
+- **Every night**, the photos uploaded since the night before are checked, up to 500 per user (the first night, the uploads of the last 30 days).
+- **Check photos** checks all your photos (newest first, up to 5000 at a time), those of an album, or those taken between two dates, in the background.
+
+On the page, each photo is shown turned as suggested. **Turn upright** fixes one, **Keep as it is** rejects the suggestion (it isn't made again), and **Fix all** fixes every photo on the list. A fix is an edit, the same as the rotate button of the photo editor: no copy is made, the photo's other edits are kept, and **Undo** (under **Fixed**) or the editor turns it back. Photos you have already edited, videos, live photos, panoramas and GIFs are not checked or turned.
+
+You can also ask the assistant: _"find the sideways photos of our trip and fix them"_. It uses `find_rotated_photos`, which lists the suggestions or checks an album, a date range or chosen photos on the spot, and `fix_rotation`, which asks for approval.
+
+On a benchmark of 37 upright photos from the demo library (a trip to Sicily and three restaurant meals) turned every way, it fixes 96 of the 111 turned cases, never turns a photo the wrong way, and leaves all 37 upright photos alone. Photos that look the same every way, such as a dish seen from above, are often left unflagged; that is on purpose.
 
 ## Food
 

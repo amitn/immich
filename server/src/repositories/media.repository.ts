@@ -824,6 +824,11 @@ export class MediaRepository {
       .toBuffer();
   }
 
+  /** an image turned clockwise by a quarter-turn angle (as displayed), e.g. to check which way up a preview is */
+  turnToJpeg(input: string | Buffer, angle: number, quality = 85): Promise<Buffer> {
+    return sharp(input, { failOn: 'none' }).rotate().rotate(angle).jpeg({ quality }).toBuffer();
+  }
+
   /** up to three lines of text on a dark band at the bottom of a contact sheet tile, each cut to fit */
   private getCaptionOverlay(caption: string, tileSize: number, left: number, top: number) {
     const fontSize = Math.max(11, Math.round(tileSize * 0.055));

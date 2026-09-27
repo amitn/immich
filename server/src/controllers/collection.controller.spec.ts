@@ -32,6 +32,28 @@ describe(CollectionController.name, () => {
     });
   });
 
+  describe('GET /collections/search', () => {
+    it('should be an authenticated route', async () => {
+      await request(ctx.getHttpServer()).get('/collections/search?q=noma');
+      expect(ctx.authenticate).toHaveBeenCalled();
+    });
+
+    it('should search the collections for a question', async () => {
+      service.searchCollections.mockResolvedValue({ terms: { pack: 'food', text: ['noma'] }, visits: [], total: 0 });
+      const { status, body } = await request(ctx.getHttpServer()).get(
+        `/collections/search?q=${encodeURIComponent('what did we eat at noma?')}`,
+      );
+      expect(status).toBe(200);
+      expect(body.terms).toEqual({ pack: 'food', text: ['noma'] });
+      expect(service.searchCollections).toHaveBeenCalledWith(undefined, 'what did we eat at noma?');
+    });
+
+    it('should require a question', async () => {
+      const { status } = await request(ctx.getHttpServer()).get('/collections/search?q=');
+      expect(status).toBe(400);
+    });
+  });
+
   describe('GET /collections/summary', () => {
     it('should be an authenticated route', async () => {
       await request(ctx.getHttpServer()).get('/collections/summary');

@@ -45,6 +45,7 @@ describe(QueueService.name, () => {
         { name: JobName.AuditTableCleanup },
         { name: JobName.MemoryGenerate },
         { name: JobName.BookDraftsQueueAll },
+        { name: JobName.OrientationCheckQueueAll },
         { name: JobName.UserSyncUsage },
         { name: JobName.AssetGenerateThumbnailsQueueAll, data: { force: false } },
         { name: JobName.FacialRecognitionQueueAll, data: { force: false, nightly: true } },

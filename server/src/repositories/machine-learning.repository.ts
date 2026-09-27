@@ -187,14 +187,16 @@ export class MachineLearningRepository {
     throw new Error(`Machine learning request '${JSON.stringify(config)}' failed for all URLs`);
   }
 
-  async detectFaces(imagePath: string, { modelName, minScore }: FaceDetectionOptions) {
+  /** faces in an image file, or in an encoded image (e.g. a preview turned to check its orientation) */
+  async detectFaces(image: string | Buffer, { modelName, minScore }: FaceDetectionOptions) {
     const request = {
       [ModelTask.FACIAL_RECOGNITION]: {
         [ModelType.DETECTION]: { modelName, options: { minScore } },
         [ModelType.RECOGNITION]: { modelName },
       },
     };
-    const response = await this.predict<FacialRecognitionResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<FacialRecognitionResponse>(payload, request);
     return {
       imageHeight: response.imageHeight,
       imageWidth: response.imageWidth,
@@ -202,9 +204,11 @@ export class MachineLearningRepository {
     };
   }
 
-  async encodeImage(imagePath: string, { modelName }: MachineLearningConfig['clip']) {
+  /** the CLIP embedding of an image file, or of an encoded image (e.g. a preview turned to check its orientation) */
+  async encodeImage(image: string | Buffer, { modelName }: MachineLearningConfig['clip']) {
     const request = { [ModelTask.SEARCH]: { [ModelType.VISUAL]: { modelName } } };
-    const response = await this.predict<ClipVisualResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<ClipVisualResponse>(payload, request);
     return response[ModelTask.SEARCH];
   }
 

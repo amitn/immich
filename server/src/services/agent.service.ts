@@ -540,6 +540,7 @@ export class AgentService extends BaseService {
         assetIds: dto.assetIds,
         instructions: !run.primed,
         recap: run.recap,
+        answer: dto.answer,
       });
       run.primed = true;
       run.recap = undefined;

@@ -714,6 +714,10 @@ export type CalendarHeatmapResponseDto = {
     /** Total activity count over the period */
     totalCount: number;
 };
+export type AiAnswersResponse = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled: boolean;
+};
 export type AlbumsResponse = {
     defaultAssetOrder: AssetOrder;
 };
@@ -788,6 +792,7 @@ export type TagsResponse = {
     sidebarWeb: boolean;
 };
 export type UserPreferencesResponseDto = {
+    aiAnswers: AiAnswersResponse;
     albums: AlbumsResponse;
     bookDrafts: BookDraftsResponse;
     cast: CastResponse;
@@ -801,6 +806,10 @@ export type UserPreferencesResponseDto = {
     recentlyAdded: RecentlyAddedResponse;
     sharedLinks: SharedLinksResponse;
     tags: TagsResponse;
+};
+export type AiAnswersUpdate = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled?: boolean;
 };
 export type AlbumsUpdate = {
     defaultAssetOrder?: AssetOrder;
@@ -879,6 +888,7 @@ export type TagsUpdate = {
     sidebarWeb?: boolean;
 };
 export type UserPreferencesUpdateDto = {
+    aiAnswers?: AiAnswersUpdate;
     albums?: AlbumsUpdate;
     avatar?: AvatarUpdate;
     bookDrafts?: BookDraftsUpdate;
@@ -1030,6 +1040,8 @@ export type AgentPermissionResponseDto = {
     optionId?: string;
 };
 export type AgentPromptDto = {
+    /** A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a "Sources:" line of the photos and tags used */
+    answer?: boolean;
     /** Assets selected by the user, passed as context */
     assetIds?: string[];
     /** Message for the assistant */
@@ -2400,6 +2412,74 @@ export type ClusterGroupRequestCreateDto = {
     /** User to invite into the cluster group */
     userId: string;
 };
+export type CollageCreateDto = {
+    /** Album to add the collage to, e.g. the album the photos were picked in */
+    albumId?: string;
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageResponseDto = {
+    /** The new image asset */
+    assetId: string;
+    /** An identical collage had already been saved, and is returned instead */
+    duplicate: boolean;
+    /** Layout the collage was drawn with */
+    layout: string;
+    /** Tag of the collage, Collages/<title or dates> */
+    tag: string;
+};
+export type CollageDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageLayoutResponseDto = {
+    /** What the layout looks like */
+    description: string;
+    /** Layout ID */
+    id: string;
+    /** Name of the layout */
+    name: string;
+};
+export type CollageLayoutsResponseDto = {
+    /** The layouts for the number of photos, the one that fits them best first */
+    layouts: CollageLayoutResponseDto[];
+};
+export type CollageRenderDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview */
+    full?: boolean;
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
 export type CollectionNamesDto = {
     /** Plural of entry */
     entries: string;
@@ -2436,6 +2516,49 @@ export type CollectionPackResponseDto = {
     tagRoot: string;
     /** Pack title, e.g. Food */
     title: string;
+};
+export type CollectionSearchTermsDto = {
+    /** First year named */
+    "from"?: string;
+    /** The pack the words point to, e.g. food for "what did we eat" */
+    pack?: string;
+    /** Names looked for in the places and entries, e.g. noma */
+    text: string[];
+    /** Last year named */
+    to?: string;
+};
+export type CollectionSearchEntryDto = {
+    /** Name of the entry, e.g. a dish */
+    name: string;
+    /** Photos of the entry */
+    photoIds: string[];
+};
+export type CollectionSearchVisitDto = {
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    date: string;
+    /** Local last day of a visit of several days */
+    endDate?: string;
+    /** Entries named on the visit, up to 6 */
+    entries: CollectionSearchEntryDto[];
+    /** Pack ID */
+    pack: string;
+    /** Photos of the visit, up to 6 */
+    photoIds: string[];
+    /** Name of the place, as in the tags */
+    place: string;
+    /** Tag of the place, e.g. Food/Noma Australia */
+    tag: string;
+};
+export type CollectionSearchResponseDto = {
+    terms: CollectionSearchTermsDto;
+    /** Matching visits in all */
+    total: number;
+    /** Matching visits, newest first */
+    visits: CollectionSearchVisitDto[];
 };
 export type CollectionPlaceSummaryDto = {
     /** Local day of the last visit, e.g. 2016-03-23 */
@@ -3325,6 +3448,37 @@ export type OAuthCallbackDto = {
     state?: string;
     /** OAuth callback URL */
     url: string;
+};
+export type OrientationFixDto = {
+    /** Photos to turn */
+    assetIds: string[];
+    /** Clockwise turn in degrees (90, 180 or 270); default: the suggested one */
+    rotate?: number;
+};
+export type OrientationAssetsDto = {
+    /** Photos */
+    assetIds: string[];
+};
+export type OrientationScanDto = {
+    /** Only the photos of this album */
+    albumId?: string;
+    /** Only the photos taken at or after this date */
+    takenAfter?: string;
+    /** Only the photos taken before this date */
+    takenBefore?: string;
+};
+export type OrientationSuggestionResponseDto = {
+    /** Asset ID */
+    assetId: string;
+    /** When the photo was checked */
+    checkedAt: string;
+    /** How sure the check is, 0 to 1 */
+    confidence: number;
+    /** What the check saw: CLIP, faces, text */
+    reasons: string[];
+    /** Clockwise turn in degrees that makes the photo upright: 90, 180 or 270 */
+    rotate: number;
+    status: OrientationStatus;
 };
 export type PartnerResponseDto = {
     avatarColor: UserAvatarColor;
@@ -7415,6 +7569,51 @@ export function getClusterGroupUsers({ id }: {
     }));
 }
 /**
+ * Save a collage
+ */
+export function createCollage({ collageCreateDto }: {
+    collageCreateDto: CollageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CollageResponseDto;
+    }>("/collages", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageCreateDto
+    })));
+}
+/**
+ * List the layouts of a collage
+ */
+export function getCollageLayouts({ collageDto }: {
+    collageDto: CollageDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollageLayoutsResponseDto;
+    }>("/collages/layouts", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageDto
+    })));
+}
+/**
+ * Render a collage
+ */
+export function renderCollage({ collageRenderDto }: {
+    collageRenderDto: CollageRenderDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>("/collages/render", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageRenderDto
+    })));
+}
+/**
  * List collection packs
  */
 export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
@@ -7422,6 +7621,21 @@ export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
         status: 200;
         data: CollectionPackResponseDto[];
     }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Search the collections
+ */
+export function searchCollections({ q }: {
+    q: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSearchResponseDto;
+    }>(`/collections/search${QS.query(QS.explode({
+        q
+    }))}`, {
         ...opts
     }));
 }
@@ -8283,6 +8497,78 @@ export function unlinkOAuthAccount(opts?: Oazapfts.RequestOpts) {
         ...opts,
         method: "POST"
     }));
+}
+/**
+ * Fix the orientation of photos
+ */
+export function fixOrientation({ orientationFixDto }: {
+    orientationFixDto: OrientationFixDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/fix", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationFixDto
+    })));
+}
+/**
+ * Reject orientation suggestions
+ */
+export function rejectOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/reject", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
+}
+/**
+ * Check the orientation of photos
+ */
+export function scanOrientation({ orientationScanDto }: {
+    orientationScanDto: OrientationScanDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/orientation/scan", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationScanDto
+    })));
+}
+/**
+ * List orientation suggestions
+ */
+export function getOrientationSuggestions({ status }: {
+    status?: OrientationStatus;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: OrientationSuggestionResponseDto[];
+    }>(`/orientation/suggestions${QS.query(QS.explode({
+        status
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo orientation fixes
+ */
+export function undoOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
 }
 /**
  * Retrieve partners
@@ -10695,6 +10981,12 @@ export enum Type {
     MissingDishName = "missing-dish-name",
     MissingMenuPage = "missing-menu-page"
 }
+export enum CollageAspectRatio {
+    $11 = "1:1",
+    $45 = "4:5",
+    $916 = "9:16",
+    $169 = "16:9"
+}
 export enum CollectionPlaceSource {
     Tag = "tag",
     Sign = "sign",
@@ -10792,6 +11084,11 @@ export enum MemoryType {
     OnThisDay = "on_this_day",
     Birthday = "birthday"
 }
+export enum OrientationStatus {
+    Suggested = "suggested",
+    Fixed = "fixed",
+    Rejected = "rejected"
+}
 export enum PartnerDirection {
     SharedBy = "shared-by",
     SharedWith = "shared-with"
@@ -10834,6 +11131,8 @@ export enum JobName {
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
+    OrientationCheckQueueAll = "OrientationCheckQueueAll",
+    OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",

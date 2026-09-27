@@ -397,6 +397,7 @@ export enum SystemMetadataKey {
   VersionCheckState = 'version-check-state',
   License = 'license',
   IntegrityChecksumCheckpoint = 'integrity-checksum-checkpoint',
+  OrientationCheckState = 'orientation-check-state',
 }
 
 export enum UserMetadataKey {
@@ -412,6 +413,8 @@ export const UserMetadataKeySchema = z
 
 export enum AssetMetadataKey {
   MobileApp = 'mobile-app',
+  /** a suggested orientation fix and its review, see `OrientationService` */
+  Orientation = 'immich.orientation',
 }
 
 export enum UserAvatarColor {
@@ -905,6 +908,9 @@ export enum JobName {
 
   HighlightRender = 'HighlightRender',
 
+  OrientationCheckQueueAll = 'OrientationCheckQueueAll',
+  OrientationCheck = 'OrientationCheck',
+
   DatabaseBackup = 'DatabaseBackup',
 
   FacialRecognitionQueueAll = 'FacialRecognitionQueueAll',
@@ -1262,6 +1268,7 @@ export enum ApiTag {
   Assets = 'Assets',
   AssetFiles = 'Asset files',
   Books = 'Books',
+  Collages = 'Collages',
   Collections = 'Collections',
   ConfigUser = 'Config (user)',
   ConfigAdmin = 'Config (admin)',
@@ -1281,6 +1288,7 @@ export enum ApiTag {
   Memories = 'Memories',
   Notifications = 'Notifications',
   NotificationsAdmin = 'Notifications (admin)',
+  Orientation = 'Orientation',
   ClusterGroups = 'Cluster groups',
   Partners = 'Partners',
   People = 'People',
@@ -1383,6 +1391,20 @@ export enum ArtJobStatus {
 }
 
 export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+export enum OrientationStatus {
+  /** found by the check, waiting for the user */
+  Suggested = 'suggested',
+  /** turned with an edit (reversible) */
+  Fixed = 'fixed',
+  /** the user kept the photo as it is; it is not suggested again */
+  Rejected = 'rejected',
+}
+
+export const OrientationStatusSchema = z
+  .enum(OrientationStatus)
+  .describe('Review status of an orientation suggestion')
+  .meta({ id: 'OrientationStatus' });
 
 export enum HighlightJobStatus {
   Pending = 'pending',
