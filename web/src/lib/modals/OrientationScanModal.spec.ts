@@ -23,7 +23,7 @@ describe('OrientationScanModal component', () => {
   });
 
   it('should check all the photos by default', async () => {
-    sdkMock.scanOrientation.mockResolvedValue();
+    sdkMock.scanOrientation.mockResolvedValue(undefined as never);
     render(OrientationScanModal, { props: { onClose } });
 
     await fireEvent.click(screen.getByRole('button', { name: 'orientation_check' }));
