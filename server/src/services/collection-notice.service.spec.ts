@@ -190,7 +190,7 @@ describe(CollectionNoticeService.name, () => {
 
   describe('handleQueueAll', () => {
     it('should check the users who want the notifications', async () => {
-      mocks.systemMetadata.get.mockResolvedValue({});
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: true } } });
       mocks.user.getList.mockResolvedValue([
         { id: 'user-1', metadata: [] },
         {
@@ -206,6 +206,13 @@ describe(CollectionNoticeService.name, () => {
       ]);
     });
 
+    it('should do nothing by default, until the administrator turns the notifications on', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({});
+      await expect(sut.handleQueueAll()).resolves.toBe(JobStatus.Skipped);
+      await expect(sut.handleCheck({ id: auth.user.id })).resolves.toBe(JobStatus.Skipped);
+      expect(mocks.job.queueAll).not.toHaveBeenCalled();
+    });
+
     it('should do nothing when the administrator turned the notifications off', async () => {
       mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: false } } });
       await expect(sut.handleQueueAll()).resolves.toBe(JobStatus.Skipped);
@@ -213,14 +220,17 @@ describe(CollectionNoticeService.name, () => {
     });
 
     it('should do nothing without smart search, which finds the photos of the collections', async () => {
-      mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { clip: { enabled: false } } });
+      mocks.systemMetadata.get.mockResolvedValue({
+        collections: { notifications: { enabled: true } },
+        machineLearning: { clip: { enabled: false } },
+      });
       await expect(sut.handleQueueAll()).resolves.toBe(JobStatus.Skipped);
     });
   });
 
   describe('handleCheck', () => {
     it('should skip a user who turned the notifications off', async () => {
-      mocks.systemMetadata.get.mockResolvedValue({});
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: true } } });
       mocks.user.get.mockResolvedValue({
         id: auth.user.id,
         metadata: [{ key: 'preferences', value: { collectionNotifications: { enabled: false } } }],
@@ -230,7 +240,7 @@ describe(CollectionNoticeService.name, () => {
     });
 
     it('should notify a user who wants the notifications', async () => {
-      mocks.systemMetadata.get.mockResolvedValue({});
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: true } } });
       mocks.user.get.mockResolvedValue({ ...auth.user, metadata: [] } as never);
       setup({ food: [visit()] });
       await expect(sut.handleCheck({ id: auth.user.id })).resolves.toBe(JobStatus.Success);
@@ -396,7 +406,7 @@ describe(CollectionNoticeService.name, () => {
     });
   });
 
-  it('should be on by default for everyone', () => {
-    expect(defaults.collections.notifications).toEqual({ enabled: true, maxPerRun: 3, windowDays: 14 });
+  it('should be off by default for now, and on for the users once the administrator turns it on', () => {
+    expect(defaults.collections.notifications).toEqual({ enabled: false, maxPerRun: 3, windowDays: 14 });
   });
 });

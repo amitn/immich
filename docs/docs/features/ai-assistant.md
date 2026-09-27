@@ -560,7 +560,7 @@ The **Gallery** style (_Like an exhibition catalogue: white pages, every artwork
 
 ## New collection found
 
-Every night, Immich looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the collections: a meal, a museum visit, a tasting, a cooking session or a trip. A visit that nobody named yet (none of its photos has tags of that collection) gets a notification in the words of its collection, which you click to open the naming dialog on exactly those photos:
+When your administrator turns them on (they are off by default for now, see below), every night Immich looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the collections: a meal, a museum visit, a tasting, a cooking session or a trip. A visit that nobody named yet (none of its photos has tags of that collection) gets a notification in the words of its collection, which you click to open the naming dialog on exactly those photos:
 
 - _Name the dishes from last night at Taormina?_
 - _Name the artworks from your visit to the Museu de Évora?_
@@ -572,7 +572,7 @@ The day is said from today where you take photos (_today_, _last night_, _on Sat
 
 A visit is notified when it has enough photos of its subjects: 3 dishes or cooking photos, 2 bottles, 5 artworks, or a trip with a travel document (every photo of a trip counts as a trip photo). Photos of a visit named in one collection are never offered to another, and photos that two collections both find are offered once, in the one that finds more of them. At most 3 visits are notified per night, the newest first, and the others wait for the next night. Each visit is notified once: dismissing or deleting the notification never brings it back.
 
-Turn the notifications off for yourself under **Account Settings > Features > New collection found notifications**. Administrators can turn them off for everyone, or change the number per night and the days of uploads looked at, in **Administration > Settings > Collections**, and look for new visits now with **Look for new collections to name** under **Administration > Jobs > Create job**.
+The notifications are off by default for now: until the collections of concerts, nature, gardens, reading and children's art exist, their photos would be offered to the wrong collections (a garden as a museum visit, a concert as a trip). Administrators turn them on for everyone in **Administration > Settings > Collections**, where they can also change the number per night and the days of uploads looked at, and look for new visits now with **Look for new collections to name** under **Administration > Jobs > Create job**. Once they are on, turn them off for yourself under **Account Settings > Features > New collection found notifications**.
 
 ## Tags
 

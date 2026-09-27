@@ -12,8 +12,12 @@ vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
 
 vi.mock(import('$lib/managers/system-config-manager.svelte'), () => ({
   systemConfigManager: {
-    value: { collections: structuredClone(collections) },
-    defaultValue: { collections: structuredClone(collections) },
+    get value() {
+      return { collections: structuredClone(collections) };
+    },
+    get defaultValue() {
+      return { collections: structuredClone(collections) };
+    },
     cloneValue: () => ({ collections: structuredClone(collections) }),
   } as never,
 }));
@@ -22,7 +26,7 @@ describe('CollectionSettings component', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     Element.prototype.animate = getAnimateMock();
-    sdkMock.getConfig.mockResolvedValue({ collections: structuredClone(collections) } as never);
+    sdkMock.getConfig.mockImplementation(() => Promise.resolve({ collections: structuredClone(collections) } as never));
     sdkMock.updateConfig.mockImplementation(({ adminConfigDto }) => Promise.resolve(adminConfigDto));
   });
 
@@ -47,6 +51,27 @@ describe('CollectionSettings component', () => {
         adminConfigDto: { collections: { notifications: { enabled: false, maxPerRun: 3, windowDays: 14 } } },
       }),
     );
+  });
+
+  it('should turn on the notifications, which are off by default', async () => {
+    collections.notifications.enabled = false;
+    try {
+      renderWithTooltips(CollectionSettings, {});
+      expect(screen.getByRole('switch')).not.toBeChecked();
+      expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument();
+
+      await fireEvent.click(screen.getByRole('switch'));
+      expect(screen.getByRole('spinbutton', { name: /admin.collection_notifications_max_per_run/ })).toHaveValue(3);
+      await fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+      await waitFor(() =>
+        expect(sdkMock.updateConfig).toHaveBeenCalledWith({
+          adminConfigDto: { collections: { notifications: { enabled: true, maxPerRun: 3, windowDays: 14 } } },
+        }),
+      );
+    } finally {
+      collections.notifications.enabled = true;
+    }
   });
 
   it('should save the number of notifications per night', async () => {

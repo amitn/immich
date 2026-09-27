@@ -689,7 +689,9 @@ export const defaults = Object.freeze<SystemConfig>({
   },
   collections: {
     notifications: {
-      enabled: true,
+      // off until the packs of the other photos (concerts, nature, gardens, reading, children's art) exist: their
+      // photos are found as the visits of the wrong packs
+      enabled: false,
       maxPerRun: 3,
       windowDays: 14,
     },
