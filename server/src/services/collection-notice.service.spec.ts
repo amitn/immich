@@ -109,6 +109,19 @@ describe('new collection messages', () => {
     );
   });
 
+  it("should name a year of a child's artworks, and the scans added lately", () => {
+    const kidsArt = pack('kids-art');
+    const year = (day: string) => visit({ type: undefined, city: undefined, day });
+    // scans have the date they were imported: "today" is when they were added, not when they were made
+    expect(getNoticeText(kidsArt, year('2026-09-27'), today).title).toBe('Name the artworks you added today?');
+    expect(getNoticeText(kidsArt, year('2026-09-26'), today).title).toBe('Name the artworks you added yesterday?');
+    expect(getNoticeText(kidsArt, year('2026-03-02'), today).title).toBe('Name the artworks from this year?');
+    expect(getNoticeText(kidsArt, year('2020-07-06'), today)).toEqual({
+      title: 'Name the artworks from 2020?',
+      description: '4 artworks · 6 July 2020',
+    });
+  });
+
   it('should hide the private text of a trip', () => {
     const trip = visit({
       type: undefined,

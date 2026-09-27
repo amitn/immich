@@ -1,4 +1,4 @@
-import { CollectionPack } from 'src/utils/collections/pack.js';
+import { CollectionPack, getNoticeDay } from 'src/utils/collections/pack.js';
 import { parseArtwork } from 'src/utils/collections/packs/kids-art/artwork.js';
 import { assignArtworks } from 'src/utils/collections/packs/kids-art/artworks.js';
 import { KIDS_ART_PACK, getArtworkCaption, reviewKidsArtBook } from 'src/utils/collections/packs/kids-art/book.js';
@@ -146,6 +146,16 @@ export const kidsArtPack: CollectionPack = {
     cannotMatch: 'Smart search is disabled: the artworks are named from what is written on them only',
     placeNeedsName: 'The year needs the first name of the child (or the family), e.g. "Hanako, 2017"',
     noLocation: 'Places of artworks are never looked up: ask the user whose artworks they are',
+    // a year of artworks, and scans have the date they were imported: "today" is when they were added, not made
+    newVisit: ({ day, today }) => {
+      const { days, text } = getNoticeDay(day, today);
+      if (days >= 0 && days < 7) {
+        return `Name the artworks you added ${text}?`;
+      }
+      return day.slice(0, 4) === today.slice(0, 4)
+        ? 'Name the artworks from this year?'
+        : `Name the artworks from ${day.slice(0, 4)}?`;
+    },
   },
 
   privacy: { redact: redactChildNames, location: false },
