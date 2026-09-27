@@ -65,6 +65,7 @@ from
   "book"
 where
   "book"."ownerId" = $2
+  and "book"."status" = $3
 order by
   "book"."updatedAt" desc
 
