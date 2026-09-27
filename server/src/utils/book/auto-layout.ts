@@ -1359,7 +1359,11 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
   // a collection book has a chapter for every visit of a place (a restaurant), and the photos between them are split
   // by event as usual
-  const sections = splitChapters(kept, { collection: collectionBook, maxChapters: maxSections, events: options.events });
+  const sections = splitChapters(kept, {
+    collection: collectionBook,
+    maxChapters: maxSections,
+    events: options.events,
+  });
   const singleDay =
     sections.length > 1 &&
     formatDateRange(photos[0].takenAt, photos.at(-1)!.takenAt) === dateFormat.format(photos[0].takenAt);
