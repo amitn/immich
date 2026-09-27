@@ -11,6 +11,7 @@ import {
   LayoutTextArea,
   PageSize,
   PxRect,
+  SETLIST_LAYOUT,
   TASTING_LAYOUTS,
   TICKET_STUB_LAYOUT,
   getLayout,
@@ -29,6 +30,7 @@ import {
   insetForMount,
 } from 'src/utils/book/mounted.js';
 import { getRecipeBlocks } from 'src/utils/book/recipe-page.js';
+import { getSetlistBlocks } from 'src/utils/book/setlist-page.js';
 import { getTastingNoteBlocks } from 'src/utils/book/tasting-note.js';
 import { getTicketStub } from 'src/utils/book/ticket-stub.js';
 
@@ -171,12 +173,14 @@ export type SmartCrop = {
 
 /**
  * The largest crop with the slot's aspect ratio that keeps the faces whole, with headroom and the eyes on the upper
- * third (see `suggestCrop`); centred when there are no faces.
+ * third (see `suggestCrop`); centred on the focus point (as fractions of the image), or on the image, when there are
+ * no faces.
  */
 export const getSmartCrop = (
   image: { width: number; height: number },
   faces: NormalizedRect[],
   slotAspect: number,
+  focus?: { x: number; y: number } | null,
 ): SmartCrop => {
   if (!image.width || !image.height || !(slotAspect > 0)) {
     return { crop: { ...FULL_CROP }, feasible: true, kept: 1, droppedFaces: 0 };
@@ -193,6 +197,7 @@ export const getSmartCrop = (
       x2: (face.x + face.width) * width,
       y2: (face.y + face.height) * height,
     })),
+    ...(focus && { saliency: { x: clamp(focus.x, 0, 1) * width, y: clamp(focus.y, 0, 1) * height } }),
   });
 
   const rect = normalizeRect(suggestion.rect, width, height);
@@ -1014,6 +1019,20 @@ export const planPage = (
           );
           decorations.push(...stub.decorations);
           blocks.push(...stub.blocks);
+        } else if (page.caption && layout.id === SETLIST_LAYOUT) {
+          // the setlist typeset beside the photo of the sheet: the act, then the songs in bold capitals
+          const setlist = getSetlistBlocks(page.caption, rect, {
+            fontPx: captionPx * 1.05,
+            ink,
+            accent: food ? accent : (style.accentColor ?? ink),
+            pxPerMm: mmToPx(1, dpi),
+            wrap: wrapText,
+            lineHeight: LINE_HEIGHT,
+            capsCharWidth: SMALL_CAPS_CHAR_WIDTH,
+            charWidth: CHAR_WIDTH,
+          });
+          blocks.push(...setlist.blocks);
+          decorations.push(...setlist.decorations);
         } else if (page.caption && layout.id === 'recipe') {
           // the recipe typeset below the photo of the card: meta, ingredients and method
           const recipe = getRecipeBlocks(page.caption, rect, {

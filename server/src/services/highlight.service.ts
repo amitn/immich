@@ -45,6 +45,7 @@ import { isAssetChecksumConstraint } from 'src/utils/database.js';
 import { ToneMapper, getHighlightEncoder } from 'src/utils/highlight/ffmpeg.js';
 import {
   DEFAULT_HIGHLIGHT_DURATION,
+  HighlightFormat,
   HighlightPhoto,
   HighlightPlan,
   HighlightVideo,
@@ -73,7 +74,9 @@ class HighlightCancelledError extends Error {
 
 export const getHighlightTag = (title: string) => `Highlights/${title.replaceAll('/', '-').trim() || 'Highlights'}`;
 
-const getFileName = (title: string) => `${title.replaceAll(/[\\/:*?"<>|]/g, '_').trim() || 'Highlights'}.mp4`;
+/** the name of the video file: the title, and `-vertical` for a vertical video, which is shared to social apps */
+export const getHighlightFileName = (title: string, format: HighlightFormat = 'landscape') =>
+  `${title.replaceAll(/[\\/:*?"<>|]/g, '_').trim() || 'Highlights'}${format === 'vertical' ? '-vertical' : ''}.mp4`;
 
 const formatLength = (seconds: number) => {
   const rounded = Math.round(seconds);
@@ -154,12 +157,13 @@ export class HighlightService extends BaseService {
         includeMaps: dto.includeMaps ?? true,
         captions: dto.captions ?? true,
         addToAlbum: dto.addToAlbum ?? true,
+        format: dto.format ?? 'landscape',
       },
     });
     await this.jobRepository.queue({ name: JobName.HighlightRender, data: { id: job.id } });
     await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
       action: ActivityLogAction.HighlightCreate,
-      summary: `Made the highlight video ${quote(job.title)}`,
+      summary: `Made the ${job.options.format === 'vertical' ? 'vertical ' : ''}highlight video ${quote(job.title)}`,
       targetId: job.id,
       undo: { highlightId: job.id },
     });
@@ -393,9 +397,10 @@ export class HighlightService extends BaseService {
       const last = plan.usedIds.at(-1)!;
       const dateOf = await this.assetRepository.getById(last, { exifInfo: true });
       const derivedAssetService = BaseService.create(DerivedAssetService, this);
+      const vertical = plan.format === 'vertical';
       const { id: assetId } = await derivedAssetService.createGeneratedVideo(auth, output, {
-        fileName: getFileName(job.title),
-        description: `Highlight video of “${job.title}” (${formatLength(result.durationSeconds)})`,
+        fileName: getHighlightFileName(job.title, plan.format),
+        description: `${vertical ? 'Vertical highlight' : 'Highlight'} video of “${job.title}” (${formatLength(result.durationSeconds)})`,
         tags: [getHighlightTag(job.title)],
         dateOf: dateOf ?? { fileCreatedAt: new Date(), localDateTime: new Date() },
       });
@@ -418,13 +423,13 @@ export class HighlightService extends BaseService {
         warnings: [...new Set(warnings)],
       });
       this.logger.log(
-        `Made highlight video ${job.id} (${result.shots} shots, ${result.durationSeconds.toFixed(1)} s, ${encoder.codec})`,
+        `Made highlight video ${job.id} (${plan.format}, ${result.shots} shots, ${result.durationSeconds.toFixed(1)} s, ${encoder.codec})`,
       );
       await this.notifyOwner(job, {
         level: NotificationLevel.Success,
         title: 'Your highlight video is ready',
         description: `“${job.title}” (${formatLength(result.durationSeconds)}) is ready to watch`,
-        data: { assetId, highlightId: job.id },
+        data: { assetId, highlightId: job.id, format: plan.format },
       });
       return JobStatus.Success;
     } catch (error: any) {
@@ -528,6 +533,7 @@ export class HighlightService extends BaseService {
       title: job.title,
       style,
       durationSeconds: job.options.durationSeconds,
+      format: job.options.format ?? 'landscape',
       includeMaps: job.options.includeMaps,
       captions: job.options.captions,
       heroIds: [...heroIds],

@@ -327,7 +327,7 @@ const runSet = (set: GardenSet, texts: Map<string, Float32Array>, plantOptions: 
     const sources = visit.filter((photo) => kinds[Number(photo.id)] === 'source');
     // what OCR reads on the tags and packets, as matchVisit reads the sourceIds
     const readings = sources.map((photo) => ({ ...gardenPack.source.parse(photo.read), assetId: photo.id }));
-    const merged = mergeSourceEntries(readings);
+    const merged = mergeSourceEntries(readings, { repeats: gardenPack.source.repeats });
     result.read.unread += readings.filter(({ items }) => items.length === 0).length;
     result.read.names.push(...merged.map(({ item }) => item.name));
     const read = merged.map(({ sourceId, item }) => ({ name: item.name, sourceId }));

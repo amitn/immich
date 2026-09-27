@@ -170,7 +170,12 @@ export const travelPack: CollectionPack = {
     noSource: 'No travel documents: name the legs or days of the trip with the user',
     placeNeedsName: 'The trip needs a name, e.g. "Crete, October 2016"',
     noLocation: 'Trips are never looked up: ask the user for the name of the trip',
+    // the place of a trip is read on its tickets: the notification redacts it (see `privacy.redact`)
+    newVisit: ({ place, city }) =>
+      place || city ? `Name the legs of your trip to ${place ?? city}?` : 'Name the legs of your trip?',
   },
+  // every photo of a trip is a trip photo: a trip is worth naming when it has a ticket or another travel document
+  notices: { minSubjects: 3, requireSource: true },
 
   privacy: { redact: redactTravelText, sourceImages: false },
 };

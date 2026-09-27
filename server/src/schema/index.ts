@@ -62,6 +62,7 @@ import { BookStyleTable } from 'src/schema/tables/book-style.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
+import { CollectionNoticeCheckTable, CollectionNoticeTable } from 'src/schema/tables/collection-notice.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { HighlightJobTable } from 'src/schema/tables/highlight-job.table.js';
@@ -140,6 +141,8 @@ export class ImmichDatabase {
     AssetExifTable,
     BookTable,
     BookDraftTable,
+    CollectionNoticeTable,
+    CollectionNoticeCheckTable,
     BookPageTable,
     BookRevisionTable,
     BookStyleTable,
@@ -264,6 +267,8 @@ export interface DB {
 
   book: BookTable;
   book_draft: BookDraftTable;
+  collection_notice: CollectionNoticeTable;
+  collection_notice_check: CollectionNoticeCheckTable;
   book_page: BookPageTable;
   book_style: BookStyleTable;
   book_page_asset: BookPageAssetTable;

@@ -62,6 +62,16 @@ describe(QueueService.name, () => {
         expect.not.arrayContaining([{ name: JobName.BookDraftsQueueAll }]),
       );
     });
+
+    it('should look for new collections only when their notifications are turned on (off by default)', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: true } } });
+
+      await sut.handleNightlyJobs();
+
+      expect(mocks.job.queueAll).toHaveBeenCalledWith(
+        expect.arrayContaining([{ name: JobName.CollectionNoticesQueueAll }]),
+      );
+    });
   });
 
   describe('getAllJobStatus', () => {

@@ -2,17 +2,18 @@
   import { highlightManager } from '$lib/managers/highlight-manager.svelte';
   import { BOOK_STYLE_PRESETS, BOOK_STYLE_PRESET_LABEL_KEYS } from '$lib/utils/book-style';
   import { handleError } from '$lib/utils/handle-error';
-  import { HIGHLIGHT_DURATIONS, HIGHLIGHT_MUSIC_ACCEPT, NO_MUSIC } from '$lib/utils/highlight';
+  import { HIGHLIGHT_DURATIONS, HIGHLIGHT_FORMATS, HIGHLIGHT_MUSIC_ACCEPT, NO_MUSIC } from '$lib/utils/highlight';
   import {
     createHighlight,
     getHighlightMusic,
+    HighlightFormat,
     HighlightStyle,
     uploadHighlightMusic,
     type HighlightCreateDto,
     type HighlightMusicResponseDto,
   } from '@immich/sdk';
-  import { Button, Field, FormModal, Input, Select, Switch, Text } from '@immich/ui';
-  import { mdiMovieOpenPlayOutline, mdiUpload } from '@mdi/js';
+  import { Button, Field, FormModal, Icon, Input, Select, Switch, Text } from '@immich/ui';
+  import { mdiCellphone, mdiMonitor, mdiMovieOpenPlayOutline, mdiUpload } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -30,6 +31,12 @@
   // svelte-ignore state_referenced_locally
   let title = $state(initialTitle);
   let durationSeconds = $state<number>(60);
+  let format = $state<HighlightFormat>(HighlightFormat.Landscape);
+
+  const FORMAT_LABELS = {
+    [HighlightFormat.Landscape]: { label: 'highlight_video_format_landscape', icon: mdiMonitor },
+    [HighlightFormat.Vertical]: { label: 'highlight_video_format_vertical', icon: mdiCellphone },
+  } as const;
   let style = $state<HighlightStyle>(HighlightStyle.Auto);
   let includeMaps = $state(true);
   let captions = $state(true);
@@ -94,6 +101,7 @@
       ...(assetIds && { assetIds }),
       title: title.trim() || undefined,
       durationSeconds,
+      format,
       style,
       includeMaps,
       captions,
@@ -138,6 +146,25 @@
           >
             <input type="radio" name="highlight-length" class="sr-only" value={seconds} bind:group={durationSeconds} />
             {$t('highlight_video_seconds', { values: { seconds } })}
+          </label>
+        {/each}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend class="mb-1 text-sm font-medium">{$t('highlight_video_format')}</legend>
+      <Text size="tiny" color="muted" class="mb-2">{$t('highlight_video_format_description')}</Text>
+      <div class="flex flex-wrap gap-2">
+        {#each HIGHLIGHT_FORMATS as value (value)}
+          {@const checked = format === value}
+          <label
+            class="flex cursor-pointer items-center gap-1.5 rounded-full border-2 px-4 py-1.5 text-sm transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-primary {checked
+              ? 'border-primary bg-primary/10 font-medium text-primary'
+              : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
+          >
+            <input type="radio" name="highlight-format" class="sr-only" {value} bind:group={format} />
+            <Icon icon={FORMAT_LABELS[value].icon} size="16" aria-hidden />
+            {$t(FORMAT_LABELS[value].label)}
           </label>
         {/each}
       </div>

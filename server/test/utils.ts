@@ -36,6 +36,7 @@ import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -248,6 +249,7 @@ export type ServiceOverrides = {
   highlightJob: HighlightJobRepository;
   book: BookRepository;
   bookDraft: BookDraftRepository;
+  collectionNotice: CollectionNoticeRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -343,6 +345,7 @@ export const getMocks = () => {
     highlightJob: automock(HighlightJobRepository),
     book: automock(BookRepository),
     bookDraft: automock(BookDraftRepository),
+    collectionNotice: automock(CollectionNoticeRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -423,6 +426,7 @@ export const newTestService = <T extends BaseService>(
     overrides.highlightJob || (mocks.highlightJob as As<HighlightJobRepository>),
     overrides.book || (mocks.book as As<BookRepository>),
     overrides.bookDraft || (mocks.bookDraft as As<BookDraftRepository>),
+    overrides.collectionNotice || (mocks.collectionNotice as As<CollectionNoticeRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

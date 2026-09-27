@@ -23567,6 +23567,44 @@
         ],
         "type": "object"
       },
+      "AdminConfigCollectionNotificationsDto": {
+        "properties": {
+          "enabled": {
+            "description": "Notify the users of new visits of the collections (a meal, a museum visit, a tasting) in their new uploads that nobody named yet, with the nightly tasks",
+            "type": "boolean"
+          },
+          "maxPerRun": {
+            "description": "Most notifications sent to a user per run",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "windowDays": {
+            "description": "Only photos uploaded in this many days are looked at, however long ago the last run was",
+            "maximum": 90,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "maxPerRun",
+          "windowDays"
+        ],
+        "type": "object"
+      },
+      "AdminConfigCollectionsDto": {
+        "description": "Collections config",
+        "properties": {
+          "notifications": {
+            "$ref": "#/components/schemas/AdminConfigCollectionNotificationsDto"
+          }
+        },
+        "required": [
+          "notifications"
+        ],
+        "type": "object"
+      },
       "AdminConfigDatabaseBackupDto": {
         "properties": {
           "cronExpression": {
@@ -23602,6 +23640,9 @@
           },
           "books": {
             "$ref": "#/components/schemas/AdminConfigBooksDto"
+          },
+          "collections": {
+            "$ref": "#/components/schemas/AdminConfigCollectionsDto"
           },
           "ffmpeg": {
             "$ref": "#/components/schemas/AdminConfigFFmpegDto"
@@ -23674,6 +23715,7 @@
           "agent",
           "backup",
           "books",
+          "collections",
           "ffmpeg",
           "food",
           "image",
@@ -28875,7 +28917,7 @@
         "type": "object"
       },
       "BookStylePreset": {
-        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos), food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit), museum (an exhibition catalogue: white pages, artworks shown whole with museum-label captions and catalogue numbers; lays out one chapter per museum visit), wine (a tasting notebook: cream paper, burgundy ink, a tasting-note page per bottle with its fiche and the note from its description; lays out one chapter per tasting), cookbook (a family recipe book: warm paper, serif headings, a typeset recipe page (ingredients and steps) beside the photo of the recipe, step captions; lays out one chapter per recipe), travel (a travel journal: cream paper, passport-blue ink, stamps and ticket stubs typeset from the legs (never the documents themselves); lays out one chapter per leg of the trip), reading (a reading journal: off-white paper, ink blue, a page per book with its cover, title, author, the date it was read and the note from its description; lays out one chapter per reading period), kids-art (a refrigerator gallery: warm paper, artworks shown whole on white mats with tape at the corners and handwritten-style labels (title, age, date); lays out one chapter per child and year) or garden (a garden journal: herbarium paper, leaf green, a chapter per plant and a growth timeline of its dated photos with their stages; lays out one chapter per plant). The style options override its values",
+        "description": "Style preset: classic (white, 12 mm margins, serif), soft (warm cream, muted brown text, 18 mm margins, serif), bold (small margins, tight gutters, sans-serif; suits full-bleed photos), food (a printed menu: warm paper, small-caps serif headings, thin rules and ornaments, dish names below the photos; lays out one chapter per restaurant visit), museum (an exhibition catalogue: white pages, artworks shown whole with museum-label captions and catalogue numbers; lays out one chapter per museum visit), wine (a tasting notebook: cream paper, burgundy ink, a tasting-note page per bottle with its fiche and the note from its description; lays out one chapter per tasting), cookbook (a family recipe book: warm paper, serif headings, a typeset recipe page (ingredients and steps) beside the photo of the recipe, step captions; lays out one chapter per recipe), travel (a travel journal: cream paper, passport-blue ink, stamps and ticket stubs typeset from the legs (never the documents themselves); lays out one chapter per leg of the trip), concerts (a gig poster: dark paper, a bright screen-print accent, bold capitals, the setlist of each act typeset beside the photo of the sheet; lays out one chapter per act), nature (a field guide: cream paper, fine ink, numbered plates shown whole with the scientific name in italics, the common name and the family; lays out one chapter per garden or zoo visit), reading (a reading journal: off-white paper, ink blue, a page per book with its cover, title, author, the date it was read and the note from its description; lays out one chapter per reading period), kids-art (a refrigerator gallery: warm paper, artworks shown whole on white mats with tape at the corners and handwritten-style labels (title, age, date); lays out one chapter per child and year) or garden (a garden journal: herbarium paper, leaf green, a chapter per plant and a growth timeline of its dated photos with their stages; lays out one chapter per plant). The style options override its values",
         "enum": [
           "classic",
           "soft",
@@ -28885,6 +28927,8 @@
           "wine",
           "cookbook",
           "travel",
+          "concerts",
+          "nature",
           "reading",
           "kids-art",
           "garden"
@@ -28917,7 +28961,7 @@
         "type": "object"
       },
       "BookStyleTheme": {
-        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos), or gallery (an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title in italics, then the artist, the date and the medium) and catalogue numbers), or wine (a tasting notebook: small-caps headings, thin rules, and a typeset fiche beside each bottle with room for the tasting note), or cookbook (a family recipe book: serif headings, thin rules, the recipe typeset on its page, and the steps captioned below their photos), or travel (a travel journal: small-caps headings, thin rules, and ticket stubs with a route line and a date stamp for the legs), or reading (a reading journal: small-caps headings, thin rules, and the title, author and reading date typeset beside each cover with room for a note), or kids-art (a refrigerator gallery: artworks shown whole on paper mats, taped at the corners, with handwritten-style labels and crayon underlines), or garden (a garden journal: small-caps headings, thin rules, and growth timelines with a dot, a date and a stage for each photo of a plant)",
+        "description": "Typography and ornaments: plain, or food (a printed menu: small-caps headings, thin rules and ornaments, and the names of the dishes set below the photos), or gallery (an exhibition catalogue: photos shown whole on white, never cropped, with museum-label captions (the title in italics, then the artist, the date and the medium) and catalogue numbers), or wine (a tasting notebook: small-caps headings, thin rules, and a typeset fiche beside each bottle with room for the tasting note), or cookbook (a family recipe book: serif headings, thin rules, the recipe typeset on its page, and the steps captioned below their photos), or travel (a travel journal: small-caps headings, thin rules, and ticket stubs with a route line and a date stamp for the legs), or gig-poster (a gig poster: the printed look on dark paper, headings in spaced capitals with the accent, and setlists typeset in bold capitals), or field-guide (a field guide: plates shown whole on cream paper, never cropped, numbered, with the scientific name in italics, then the common name and the family), or reading (a reading journal: small-caps headings, thin rules, and the title, author and reading date typeset beside each cover with room for a note), or kids-art (a refrigerator gallery: artworks shown whole on paper mats, taped at the corners, with handwritten-style labels and crayon underlines), or garden (a garden journal: small-caps headings, thin rules, and growth timelines with a dot, a date and a stage for each photo of a plant)",
         "enum": [
           "plain",
           "food",
@@ -28925,6 +28969,8 @@
           "wine",
           "cookbook",
           "travel",
+          "gig-poster",
+          "field-guide",
           "reading",
           "kids-art",
           "garden"
@@ -29869,6 +29915,27 @@
           "visit",
           "visits"
         ],
+        "type": "object"
+      },
+      "CollectionNotificationsResponse": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the user is notified of new visits of the collections (meals, museum visits) to name",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "CollectionNotificationsUpdate": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the user is notified of new visits of the collections (meals, museum visits) to name",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "CollectionPackResponseDto": {
@@ -32322,6 +32389,10 @@
             "minimum": 15,
             "type": "integer"
           },
+          "format": {
+            "$ref": "#/components/schemas/HighlightFormat",
+            "description": "Landscape (default) or vertical"
+          },
           "includeMaps": {
             "description": "Open the chapters with GPS locations with a map (default true)",
             "type": "boolean"
@@ -32343,6 +32414,14 @@
           }
         },
         "type": "object"
+      },
+      "HighlightFormat": {
+        "description": "The shape of the video: landscape (16:9, 1920×1080) or vertical (9:16, 1080×1920, for phones and social apps, with the text clear of the apps’ buttons)",
+        "enum": [
+          "landscape",
+          "vertical"
+        ],
+        "type": "string"
       },
       "HighlightJobResponseDto": {
         "properties": {
@@ -32377,6 +32456,9 @@
             "description": "Why the video could not be made",
             "nullable": true,
             "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/HighlightFormat"
           },
           "id": {
             "description": "Highlight video ID",
@@ -32426,6 +32508,7 @@
           "createdAt",
           "durationSeconds",
           "error",
+          "format",
           "id",
           "progress",
           "resultAssetId",
@@ -32495,6 +32578,8 @@
           "wine",
           "cookbook",
           "travel",
+          "concerts",
+          "nature",
           "reading",
           "kids-art",
           "garden"
@@ -32688,6 +32773,8 @@
           "ActivityLogCleanup",
           "BookDraftsQueueAll",
           "BookDraftsGenerate",
+          "CollectionNoticesQueueAll",
+          "CollectionNoticesCheck",
           "BookExport",
           "BookExportHtml",
           "HighlightRender",
@@ -33085,6 +33172,7 @@
           "memory-cleanup",
           "memory-create",
           "book-drafts-create",
+          "collection-notices-create",
           "backup-database",
           "integrity-missing-files",
           "integrity-untracked-files",
@@ -43248,6 +43336,9 @@
           "cast": {
             "$ref": "#/components/schemas/CastResponse"
           },
+          "collectionNotifications": {
+            "$ref": "#/components/schemas/CollectionNotificationsResponse"
+          },
           "download": {
             "$ref": "#/components/schemas/DownloadResponse"
           },
@@ -43284,6 +43375,7 @@
           "albums",
           "bookDrafts",
           "cast",
+          "collectionNotifications",
           "download",
           "emailNotifications",
           "folders",
@@ -43313,6 +43405,9 @@
           },
           "cast": {
             "$ref": "#/components/schemas/CastUpdate"
+          },
+          "collectionNotifications": {
+            "$ref": "#/components/schemas/CollectionNotificationsUpdate"
           },
           "download": {
             "$ref": "#/components/schemas/DownloadUpdate"

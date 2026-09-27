@@ -11,6 +11,9 @@ export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
   bookDrafts: {
     enabled: true,
   },
+  collectionNotifications: {
+    enabled: true,
+  },
   cast: {
     gCastEnabled: false,
   },

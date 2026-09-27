@@ -63,6 +63,8 @@ describe('book layouts', () => {
       // the growth timelines of the garden pack
       'growth-timeline',
       'growth-timeline-two',
+      // the setlist page of the concerts pack
+      'setlist',
     ]);
     for (const layout of bookLayouts) {
       const captions = layout.text.filter((area) => area.kind === 'slotCaption');

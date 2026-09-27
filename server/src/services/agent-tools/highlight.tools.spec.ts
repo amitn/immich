@@ -73,6 +73,22 @@ describe(HighlightAgentTools.name, () => {
     expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.HighlightRender, data: { id: result.highlightId } });
   });
 
+  it('should start a vertical video for a phone', async () => {
+    const assetIds = [newUuid()];
+    mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(assetIds));
+    mocks.highlightJob.create.mockImplementation((row) => Promise.resolve(job(row as never)) as never);
+
+    const result = parse(await call('make_highlight_video', { assetIds, format: 'vertical' }));
+
+    expect(result).toMatchObject({ format: 'vertical' });
+    expect(mocks.highlightJob.create).toHaveBeenCalledWith(
+      expect.objectContaining({ options: expect.objectContaining({ format: 'vertical' }) }),
+    );
+    const tool = sut.getTools().find((tool) => tool.name === 'make_highlight_video')!;
+    expect(tool.description).toMatch(/vertical/);
+    expect(() => tool.input.parse({ assetIds, format: 'square' })).toThrow();
+  });
+
   it('should ask for exactly one source', async () => {
     const result = await call('make_highlight_video', { albumId: newUuid(), bookId: newUuid() });
     expect(result.isError).toBe(true);

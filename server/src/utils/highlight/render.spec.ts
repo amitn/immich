@@ -8,6 +8,9 @@ import { HighlightRenderContext, renderHighlight } from 'src/utils/highlight/ren
 const style = bookStylePresets.classic.style;
 
 const plan = (): HighlightPlan => ({
+  format: 'landscape',
+  width: 1920,
+  height: 1080,
   fps: 30,
   fade: 0.6,
   durationSeconds: 10.2,
@@ -96,6 +99,27 @@ describe('renderHighlight', () => {
 
     expect(result).toEqual({ frames: 108 + 102 + 90 + 120 - 3 * 18, durationSeconds: 12.2, shots: 4 });
     expect(ctx.onProgress).toHaveBeenLastCalledWith(1);
+  });
+
+  it('should render a vertical film in portrait, with the map clear of the covered edges', async () => {
+    const { ctx, media } = context({
+      clips: new Map([['clip-1', { input: '/videos/1.mov', width: 1920, height: 1080, hasAudio: true, hdr: false }]]),
+    });
+    await renderHighlight({ ...plan(), format: 'vertical', width: 1080, height: 1920 }, ctx);
+
+    expect(media.composeHighlightStill).toHaveBeenCalledWith(
+      expect.objectContaining({ input: '/photos/1.jpg', frame: 'cover', width: 1620, height: 2880 }),
+    );
+    expect(ctx.renderMap).toHaveBeenCalledWith(expect.objectContaining({ title: 'Taormina' }), {
+      width: 1620,
+      height: 2880,
+      safeArea: { top: 403, bottom: 806 },
+    });
+    // the title card, the map and the photo are moved in portrait; the landscape clip is shown whole
+    for (const call of [0, 1, 2]) {
+      expect(commandOf(media, call).join(' ')).toContain(':s=1080x1920:fps=30');
+    }
+    expect(commandOf(media, 3).join(' ')).toContain('boxblur=10:2,scale=1080:1920');
   });
 
   it('should leave out a shot that cannot be rendered', async () => {

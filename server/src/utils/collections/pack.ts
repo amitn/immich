@@ -32,8 +32,8 @@ export type CollectionPack = {
   /** the leaf that marks a photo of the source instead of an entry, e.g. Menu */
   sourceLeaf: string;
   /**
-   * other leaves that mark a photo of a source of another kind, e.g. Seed packet beside Tag; save_entries gives one to
-   * a photo whose entry is named like it
+   * other leaves that mark a source photo of another kind, e.g. Line-up beside Setlist, or Seed packet beside Tag;
+   * save_entries gives one to a photo whose entry is named like it
    */
   otherSourceLeaves?: string[];
   /** the words of the domain, used in messages, tool results and reviews */
@@ -54,6 +54,12 @@ export type CollectionPack = {
     prompt: (entry: Pick<SourceEntry, 'name' | 'description'>) => string;
     /** fewer entries than this read on a source is worth a warning, default 3 */
     minEntries?: number;
+    /**
+     * an entry read again on another source photo stays an entry of that photo too (the same species labelled on two
+     * trees), so that the subjects photographed beside each source are matched with it (see `MatchOptions.sequence`);
+     * by default an entry is listed once, where it was first read (the same dish on the menu and on the specials board)
+     */
+    repeats?: boolean;
     /**
      * the source is printed on the subjects themselves, e.g. the label of a bottle: match_subjects reads every subject
      * photo at full resolution for the pack's `match.assign` (see `AssignPhoto.ocr`), a visit needs no other source,
@@ -182,6 +188,14 @@ export type CollectionPack = {
 
   /** messages of the engine in the words of the pack, over the defaults made from `names` */
   messages?: Partial<CollectionMessages>;
+
+  /** the "new collection found" notifications of the pack's new visits that nobody named yet */
+  notices?: {
+    /** a new visit is notified when it has at least this many subject photos, default 3 */
+    minSubjects?: number;
+    /** only a visit with a source photo is notified, e.g. a trip with a ticket: its subjects are any photos */
+    requireSource?: boolean;
+  };
 
   privacy?: {
     /**
@@ -333,16 +347,88 @@ export type CollectionMessages = {
   lookupDisabled: string;
   /** entries that no subject matched, for packs that report them */
   unmatchedEntries: (entries: string[]) => string;
+  /**
+   * the question of a "new collection found" notification of a new visit nobody named yet, e.g. "Name the dishes from
+   * last night at Taormina?"
+   */
+  newVisit: (visit: CollectionNoticeVisit) => string;
 };
+
+/** a new visit of a pack, as its "new collection found" notification tells it */
+export type CollectionNoticeVisit = {
+  /** the kind of visit (the pack's `visits.type`), e.g. Dinner */
+  type?: string;
+  /** the place read on the photos, or named by a linked pack (the restaurant of the wines), when there is one */
+  place?: string;
+  city?: string;
+  /** the local day of the visit, and today in the time zone the user takes photos in, e.g. 2026-09-26 */
+  day: string;
+  today: string;
+  /** the subject photos of the visit */
+  subjects: number;
+};
+
+/** the default of `notices.minSubjects` */
+export const DEFAULT_NOTICE_MIN_SUBJECTS = 3;
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "26 September 2026" */
+export const formatNoticeDate = (day: string) => {
+  const date = new Date(`${day}T00:00:00Z`);
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+};
+
+/**
+ * When a visit was, from today: `today`, `yesterday`, `on Saturday` (within the week), `on 12 June` (this year) or
+ * `on 12 June 2025`
+ */
+export const getNoticeDay = (day: string, today: string): { days: number; text: string } => {
+  const date = new Date(`${day}T00:00:00Z`);
+  const days = Math.round((new Date(`${today}T00:00:00Z`).getTime() - date.getTime()) / DAY_MS);
+  if (days === 0) {
+    return { days, text: 'today' };
+  }
+  if (days === 1) {
+    return { days, text: 'yesterday' };
+  }
+  if (days > 1 && days < 7) {
+    return { days, text: `on ${WEEKDAYS[date.getUTCDay()]}` };
+  }
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  return {
+    days,
+    text: `on ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}${sameYear ? '' : ` ${date.getUTCFullYear()}`}`,
+  };
+};
+
+/** where a visit was, for its notification: at its place, or in its city */
+const getNoticePlace = ({ place, city }: Pick<CollectionNoticeVisit, 'place' | 'city'>) =>
+  place ? ` at ${place}` : city ? ` in ${city}` : '';
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
 export const getCollectionTagRules = (
-  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names'> & Partial<Pick<CollectionPack, 'otherSourceLeaves'>>,
+  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names' | 'otherSourceLeaves'>,
 ): CollectionTagRules => ({
   tagRoot: pack.tagRoot,
   sourceLeaf: pack.sourceLeaf,
   subject: pack.names.subject,
-  ...(pack.otherSourceLeaves?.length && { otherSourceLeaves: pack.otherSourceLeaves }),
+  ...(pack.otherSourceLeaves && pack.otherSourceLeaves.length > 0 && { otherSourceLeaves: pack.otherSourceLeaves }),
 });
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -365,6 +451,8 @@ export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'mess
     lookupDisabled:
       'The OpenStreetMap lookup is disabled in the server settings (Food > OpenStreetMap). Ask the user for the ' +
       `name of the ${place} instead.`,
+    newVisit: (visit) =>
+      `Name the ${subjects} from your ${pack.names.visit}${getNoticePlace(visit)} ${getNoticeDay(visit.day, visit.today).text}?`,
     unmatchedEntries: (names) =>
       `${names.length === 1 ? `1 ${entry}` : `${names.length} ${entries}`} matched no ${subject} (${names
         .slice(0, 5)
@@ -393,11 +481,7 @@ export const validateCollectionPack = (pack: CollectionPack, others: readonly Co
   if (!PACK_ID.test(pack.id)) {
     errors.push(`id "${pack.id}" must be lowercase letters, digits and dashes`);
   }
-  if (
-    !TAG_NAME.test(pack.tagRoot) ||
-    !TAG_NAME.test(pack.sourceLeaf) ||
-    (pack.otherSourceLeaves ?? []).some((leaf) => !TAG_NAME.test(leaf))
-  ) {
+  if ([pack.tagRoot, pack.sourceLeaf, ...(pack.otherSourceLeaves ?? [])].some((name) => !TAG_NAME.test(name))) {
     errors.push('the tag root and the source leaf cannot contain "/"');
   }
   if (pack.prompts.subject.length === 0 || pack.prompts.other.length === 0) {

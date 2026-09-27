@@ -3,6 +3,7 @@
   import AuthSettings from './AuthSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
   import BookSettings from './BookSettings.svelte';
+  import CollectionSettings from './CollectionSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
   import FoodSettings from './FoodSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
@@ -32,6 +33,7 @@
     mdiBackupRestore,
     mdiBellOutline,
     mdiBookOpenPageVariantOutline,
+    mdiBellBadgeOutline,
     mdiBookshelf,
     mdiClockOutline,
     mdiDatabaseOutline,
@@ -89,6 +91,13 @@
       subtitle: $t('admin.backup_settings_description'),
       key: 'backup',
       icon: mdiBackupRestore,
+    },
+    {
+      component: CollectionSettings,
+      title: $t('admin.collection_settings'),
+      subtitle: $t('admin.collection_settings_description'),
+      key: 'collections',
+      icon: mdiBellBadgeOutline,
     },
     {
       component: FoodSettings,

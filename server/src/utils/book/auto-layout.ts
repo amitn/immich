@@ -24,6 +24,7 @@ import {
   BookLayout,
   LayoutRect,
   PageSize,
+  SETLIST_LAYOUT,
   TICKET_STUB_LAYOUT,
   bookLayouts,
   getLayout,
@@ -202,7 +203,15 @@ const COPY_MARGIN = 0.05;
 const IMPROVED_MARGIN = 0.02;
 const MAIN_PERSON_BONUS = 0.05;
 /** layouts that open a chapter with its title (and a photo) */
-const TITLE_LAYOUTS = new Set(['section-opener', 'dish-opener', 'menu', 'menu-wide', 'recipe', TICKET_STUB_LAYOUT]);
+const TITLE_LAYOUTS = new Set([
+  'section-opener',
+  'dish-opener',
+  'menu',
+  'menu-wide',
+  'recipe',
+  SETLIST_LAYOUT,
+  TICKET_STUB_LAYOUT,
+]);
 /** the source pages of the collections: a printed page (a menu, a wall label...) opens the chapter of a visit */
 const SOURCE_LAYOUTS = ['menu', 'menu-wide'];
 /** the entries of a source page are listed one per line up to this many */

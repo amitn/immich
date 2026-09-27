@@ -43,6 +43,9 @@
   // Answers of the assistant in search
   let aiAnswersEnabled = $state(authManager.preferences.aiAnswers?.enabled ?? true);
 
+  // New collection found
+  let collectionNotificationsEnabled = $state(authManager.preferences.collectionNotifications?.enabled ?? true);
+
   // Cast
   let gCastEnabled = $state(authManager.preferences.cast?.gCastEnabled ?? false);
 
@@ -64,6 +67,7 @@
           recentlyAdded: { sidebarWeb: recentlyAddedSidebar },
           bookDrafts: { enabled: bookDraftsEnabled },
           aiAnswers: { enabled: aiAnswersEnabled },
+          collectionNotifications: { enabled: collectionNotificationsEnabled },
         },
       });
 
@@ -171,6 +175,18 @@
             </div>
           </SettingAccordion>
         {/if}
+
+        <SettingAccordion
+          key="collection-notifications"
+          title={$t('collection_notifications_setting')}
+          subtitle={$t('collection_notifications_setting_description')}
+        >
+          <div class="mt-4 flex flex-col gap-4 sm:ms-4">
+            <Field label={$t('enable')}>
+              <Switch bind:checked={collectionNotificationsEnabled} />
+            </Field>
+          </div>
+        </SettingAccordion>
 
         <SettingAccordion key="rating" title={$t('rating')} subtitle={$t('rating_description')}>
           <div class="mt-4 flex flex-col gap-4 sm:ms-4">

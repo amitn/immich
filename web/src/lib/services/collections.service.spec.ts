@@ -3,7 +3,11 @@ import type { MessageFormatter } from 'svelte-i18n';
 import type { WebCollectionPack } from '$lib/collections/pack';
 import { foodPack } from '$lib/collections/packs/food';
 import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
-import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
+import {
+  getAlbumCollectionActions,
+  getCollectionBulkActions,
+  openCollectionNotice,
+} from '$lib/services/collections.service';
 import { albumFactory } from '@test-data/factories/album-factory';
 
 const { flags, selection } = vi.hoisted(() => ({
@@ -80,6 +84,24 @@ describe('collections service', () => {
     it('should only be offered for photos the user owns', () => {
       selection.isAllUserOwned = false;
       expect(getCollectionBulkActions($t)[0].$if?.()).toBe(false);
+    });
+  });
+
+  describe(openCollectionNotice.name, () => {
+    it('should open the naming dialog of the pack on the photos of the visit', () => {
+      expect(openCollectionNotice({ pack: 'food', assetIds: ['a', 'b'] })).toBe(true);
+      expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, { pack: foodPack, assetIds: ['a', 'b'] });
+    });
+
+    it('should not open a pack that is unknown or not available', () => {
+      const show = vi.mocked(modalManager.show);
+      show.mockClear();
+      expect(openCollectionNotice({ pack: 'unknown', assetIds: ['a'] })).toBe(false);
+      flags.smartSearch = false;
+      expect(openCollectionNotice({ pack: 'food', assetIds: ['a'] })).toBe(false);
+      expect(show).not.toHaveBeenCalled();
+      expect(openCollectionNotice({ pack: 'labels', assetIds: ['a'] }, () => labelsPack)).toBe(true);
+      expect(show).toHaveBeenCalledWith(CollectionNameModal, { pack: labelsPack, assetIds: ['a'] });
     });
   });
 });

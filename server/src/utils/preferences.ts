@@ -60,6 +60,9 @@ const getDefaultPreferences = (): UserPreferences => {
     aiAnswers: {
       enabled: true,
     },
+    collectionNotifications: {
+      enabled: true,
+    },
   };
 };
 

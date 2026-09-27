@@ -1,4 +1,4 @@
-import { HighlightJobStatus, HighlightStyle, type HighlightJobResponseDto } from '@immich/sdk';
+import { HighlightFormat, HighlightJobStatus, HighlightStyle, type HighlightJobResponseDto } from '@immich/sdk';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import { getIntersectionObserverMock } from '$lib/__mocks__/intersection-observer.mock';
@@ -15,6 +15,7 @@ const job = (overrides: Partial<HighlightJobResponseDto> = {}): HighlightJobResp
   albumId: 'album-id',
   bookId: null,
   durationSeconds: 60,
+  format: HighlightFormat.Landscape,
   resultAssetId: null,
   error: null,
   warnings: [],
@@ -53,6 +54,7 @@ describe('HighlightVideoModal component', () => {
         albumId: 'album-id',
         title: 'Sicily',
         durationSeconds: 60,
+        format: HighlightFormat.Landscape,
         style: HighlightStyle.Auto,
         includeMaps: true,
         captions: true,
@@ -81,6 +83,23 @@ describe('HighlightVideoModal component', () => {
         includeMaps: false,
         captions: false,
       }),
+    });
+  });
+
+  it('should make a vertical video for phones', async () => {
+    sdkMock.createHighlight.mockResolvedValue(job({ format: HighlightFormat.Vertical }));
+
+    render(HighlightVideoModal, { props: { albumId: 'album-id', title: 'Sicily', onClose } });
+    const landscape = screen.getByLabelText('highlight_video_format_landscape') as HTMLInputElement;
+    const vertical = screen.getByLabelText('highlight_video_format_vertical') as HTMLInputElement;
+    expect(landscape.checked).toBe(true);
+    await fireEvent.click(vertical);
+    expect(vertical.checked).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: 'highlight_video_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createHighlight).toHaveBeenCalledWith({
+      highlightCreateDto: expect.objectContaining({ albumId: 'album-id', format: HighlightFormat.Vertical }),
     });
   });
 

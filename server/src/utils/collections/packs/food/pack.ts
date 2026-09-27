@@ -1,4 +1,4 @@
-import { CollectionPack } from 'src/utils/collections/pack.js';
+import { CollectionNoticeVisit, CollectionPack, getNoticeDay } from 'src/utils/collections/pack.js';
 import { FOOD_CLASSIFY_RULES, FOOD_PROMPTS, RECEIPT_WORDS } from 'src/utils/collections/packs/food/classify.js';
 import { parseMenu } from 'src/utils/collections/packs/food/menu.js';
 import { RESTAURANT_NAME_RULES } from 'src/utils/collections/packs/food/restaurant.js';
@@ -28,6 +28,32 @@ export const getMealType = (time: number): MealType => {
     return 'Lunch';
   }
   return 'Dinner';
+};
+
+/**
+ * The meal of a visit, from today, and where it was: "last night at Taormina" (yesterday's dinner), "tonight",
+ * "today's lunch at Trattoria da Nino", "yesterday's breakfast", or "your lunch at Nino on Saturday"
+ */
+export const getMealPhrase = ({
+  type,
+  day,
+  today,
+  place,
+  city,
+}: Pick<CollectionNoticeVisit, 'type' | 'day' | 'today' | 'place' | 'city'>) => {
+  const meal = (type ?? 'meal').toLowerCase();
+  const when = getNoticeDay(day, today);
+  const at = (place ?? city) ? ` at ${place ?? city}` : '';
+  if (meal === 'dinner' && when.days === 1) {
+    return `last night${at}`;
+  }
+  if (meal === 'dinner' && when.days === 0) {
+    return `tonight${at}`;
+  }
+  if (when.days === 0 || when.days === 1) {
+    return `${when.text}'s ${meal}${at}`;
+  }
+  return `your ${meal}${at} ${when.text}`;
 };
 
 /** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
@@ -141,5 +167,6 @@ export const foodPack: CollectionPack = {
     smartSearchDisabled:
       'Smart search is disabled: dishes cannot be recognized, only menus, signs and receipts by their text',
     ocrDisabled: 'OCR is disabled: menus, signs and receipts are recognized by their look only',
+    newVisit: (visit) => `Name the dishes from ${getMealPhrase(visit)}?`,
   },
 };

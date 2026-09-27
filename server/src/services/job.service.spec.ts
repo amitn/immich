@@ -1,5 +1,5 @@
 import type { JobItem } from 'src/types.js';
-import { AssetType, ImmichWorker, JobName, JobStatus, QueueName } from 'src/enum.js';
+import { AssetType, ImmichWorker, JobName, JobStatus, ManualJobName, QueueName } from 'src/enum.js';
 import { JobService } from 'src/services/job.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { newUuid } from 'test/small.factory.js';
@@ -17,6 +17,14 @@ describe(JobService.name, () => {
 
   it('should work', () => {
     expect(sut).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should look for new collections to name for every user when asked', async () => {
+      mocks.job.queue.mockResolvedValue();
+      await sut.create({ name: ManualJobName.CollectionNoticesCreate });
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.CollectionNoticesQueueAll });
+    });
   });
 
   describe('onJobRun', () => {

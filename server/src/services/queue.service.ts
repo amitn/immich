@@ -289,6 +289,10 @@ export class QueueService extends BaseService {
       jobs.push({ name: JobName.BookDraftsQueueAll });
     }
 
+    if (config.collections.notifications.enabled) {
+      jobs.push({ name: JobName.CollectionNoticesQueueAll });
+    }
+
     if (isSmartSearchEnabled(config.machineLearning)) {
       // the photos uploaded since the last night that are sideways or upside down
       jobs.push({ name: JobName.OrientationCheckQueueAll });

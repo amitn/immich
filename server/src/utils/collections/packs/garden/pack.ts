@@ -73,7 +73,8 @@ export const gardenPack: CollectionPack = {
   prompts: GARDEN_PROMPTS,
   classify: { ...GARDEN_CLASSIFY_RULES, receiptWords: GARDEN_RECEIPT_WORDS },
 
-  source: { parse: parsePlantLabel, prompt: plantPrompt, minEntries: 1 },
+  // a tag photographed again on another round is the tag of that round too, which the photos after it follow
+  source: { parse: parsePlantLabel, prompt: plantPrompt, minEntries: 1, repeats: true },
 
   place: {
     words: GARDEN_WORDS,

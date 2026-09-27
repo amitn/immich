@@ -45,11 +45,14 @@ export const getHighlightViewerRoute = (
 
 /**
  * The highlight videos being rendered: their progress (see `HighlightProgress`), and when one is done and its thumbnail
- * is made, a toast offers to open it; a video made from this tab opens in the asset viewer over the page the user is
- * on, when that page shows it (its album, or the timeline)
+ * is made, a card that stays until it is closed offers to open, share (to a messaging or social app, on phones) or
+ * download it; a video made from this tab opens in the asset viewer over the page the user is on, when that page shows
+ * it (its album, or the timeline)
  */
 class HighlightManager {
   jobs = $state<HighlightJobResponseDto[]>([]);
+  /** the finished videos, until their card is closed */
+  ready = $state<HighlightJobResponseDto[]>([]);
   #openWhenDone = new Set<string>();
   #finished = new Set<string>();
   #timer?: ReturnType<typeof setInterval>;
@@ -72,6 +75,23 @@ class HighlightManager {
     }
 
     void this.#finish(job);
+  }
+
+  /** closes the card of a finished video */
+  dismiss(id: string) {
+    this.ready = this.ready.filter((item) => item.id !== id);
+  }
+
+  /** opens a finished video over the page the user is on, or in its album or the timeline */
+  async open(job: HighlightJobResponseDto) {
+    const assetId = job.resultAssetId;
+    if (!assetId) {
+      return;
+    }
+    await goto(
+      getHighlightViewerRoute(job, assetId, page.url.pathname) ??
+        (job.albumId ? Route.viewAlbumAsset({ albumId: job.albumId, assetId }) : Route.viewAsset({ id: assetId })),
+    );
   }
 
   async cancel(id: string) {
@@ -117,26 +137,9 @@ class HighlightManager {
         this.#show(job);
         await this.#waitForThumbnail(assetId);
         this.#remove(job.id);
+        // then it offers to open, share and download the video
+        this.ready = [job, ...this.ready.filter((item) => item.id !== job.id)];
 
-        toastManager.success(
-          {
-            title: translate('highlight_video_ready'),
-            description: job.title,
-            button: (close) => ({
-              label: translate('open'),
-              onclick: async () => {
-                close();
-                await goto(
-                  getHighlightViewerRoute(job, assetId, page.url.pathname) ??
-                    (job.albumId
-                      ? Route.viewAlbumAsset({ albumId: job.albumId, assetId })
-                      : Route.viewAsset({ id: assetId })),
-                );
-              },
-            }),
-          },
-          { timeout: TOAST_TIMEOUT },
-        );
         const route = openWhenDone ? getHighlightViewerRoute(job, assetId, page.url.pathname) : undefined;
         if (route) {
           await goto(route);

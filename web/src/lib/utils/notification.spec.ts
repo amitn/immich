@@ -1,5 +1,5 @@
 import { NotificationType } from '@immich/sdk';
-import { getNotificationRoute } from '$lib/utils/notification';
+import { getCollectionNotice, getNotificationRoute } from '$lib/utils/notification';
 
 describe('getNotificationRoute', () => {
   it('should open the album of album notifications', () => {
@@ -44,5 +44,30 @@ describe('getNotificationRoute', () => {
     expect(getNotificationRoute({ type: NotificationType.Custom })).toBeUndefined();
     expect(getNotificationRoute({ type: NotificationType.Custom, data: 'not json' })).toBeUndefined();
     expect(getNotificationRoute({ type: NotificationType.Custom, data: '{"assetId":42}' })).toBeUndefined();
+  });
+});
+
+describe('getCollectionNotice', () => {
+  it('should read the pack and the photos of a new collection', () => {
+    expect(
+      getCollectionNotice({ data: '{"collectionPack":"food","assetIds":["a","b"],"visitKey":"2026-09-26|Dinner|"}' }),
+    ).toEqual({ pack: 'food', assetIds: ['a', 'b'] });
+    expect(getCollectionNotice({ data: { collectionPack: 'museum', assetIds: ['a', 7, ''] } })).toEqual({
+      pack: 'museum',
+      assetIds: ['a'],
+    });
+  });
+
+  it('should ignore other notifications', () => {
+    expect(getCollectionNotice({ data: '{"bookId":"book-1"}' })).toBeUndefined();
+    expect(getCollectionNotice({ data: '{"collectionPack":"food","assetIds":[]}' })).toBeUndefined();
+    expect(getCollectionNotice({ data: 'not json' })).toBeUndefined();
+    expect(getCollectionNotice({})).toBeUndefined();
+  });
+
+  it('should not open a page for a new collection, which opens its naming dialog instead', () => {
+    expect(
+      getNotificationRoute({ type: NotificationType.Custom, data: '{"collectionPack":"food","assetIds":["a"]}' }),
+    ).toBeUndefined();
   });
 });

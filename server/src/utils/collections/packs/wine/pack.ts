@@ -1,5 +1,5 @@
 import { TASTING_LAYOUTS } from 'src/utils/book/layouts.js';
-import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
+import { CollectionPack, getDefaultFallbackName, getNoticeDay } from 'src/utils/collections/pack.js';
 import { getWineCaption, getWineCoverPreference, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
 import { assignBottles } from 'src/utils/collections/packs/wine/bottles.js';
 import {
@@ -164,5 +164,9 @@ export const winePack: CollectionPack = {
     noEntriesRead: 'No wine could be read on the list: look at it yourself and pass its wines as entries',
     noSource: 'No label could be read: look at the bottles and name them yourself',
     cannotMatch: 'Smart search is disabled: the bottles are named from their labels only',
+    newVisit: ({ place, day, today }) =>
+      `Name the wines from your tasting${place ? ` at ${place}` : ''} ${getNoticeDay(day, today).text}?`,
   },
+  // two bottles are already a tasting
+  notices: { minSubjects: 2 },
 };

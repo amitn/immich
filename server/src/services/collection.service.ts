@@ -654,7 +654,9 @@ export class CollectionService extends BaseService {
         warnings.push(...reading.warnings);
       }
       const readings = await this.snapPlaces(auth, read, [...subjectIds, ...sourceIds], warnings);
-      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
+      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings), {
+        repeats: pack.source.repeats,
+      });
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
         name: item.name,
@@ -798,7 +800,7 @@ export class CollectionService extends BaseService {
    */
   private async assignSubjects(
     pack: CollectionPack,
-    rows: Array<{ id: string; localDateTime: Date }>,
+    rows: Array<{ id: string; localDateTime: Date; latitude?: number | null; longitude?: number | null }>,
     embeddings: Map<string, Float32Array>,
     entries: CollectionEntryResponse[],
     courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
@@ -832,6 +834,8 @@ export class CollectionService extends BaseService {
         id: row.id,
         time: row.localDateTime.getTime(),
         embedding: embeddings.get(row.id) ?? new Float32Array(0),
+        ...(typeof row.latitude === 'number' &&
+          typeof row.longitude === 'number' && { latitude: row.latitude, longitude: row.longitude }),
         ...(ocr.has(row.id) && {
           text: redactText(
             pack,
@@ -1001,9 +1005,10 @@ export class CollectionService extends BaseService {
     const byId = new Map<string, { entry?: string; source: boolean; leaf?: string }>();
     for (const photo of dto.photos) {
       const entry = photo.entry?.trim();
-      // an entry named like a source leaf ("Menu", or another leaf of the pack such as "Seed packet") is a source
-      const leaf = entry ? findSourceLeaf(rules, entry) : undefined;
-      const source = photo.source === true || !!leaf;
+      // a source leaf as the entry (e.g. "menu", or another leaf of the pack such as "Line-up" or "Seed packet") marks
+      // a source
+      const leaf = findSourceLeaf(rules, entry);
+      const source = photo.source === true || leaf !== undefined;
       if (!source && !entry) {
         throw new BadRequestException(`Photo ${photo.id} needs an entry, or source: true`);
       }

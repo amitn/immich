@@ -1,14 +1,18 @@
 import { TranscodeHardwareAcceleration } from 'src/enum.js';
 import {
   SOFTWARE_ENCODER,
+  getClipFrame,
   getCrossfadeOffsets,
   getFilmCommand,
   getHighlightEncoder,
   getRenderDevice,
   getSegmentCommand,
+  getStillSize,
   getZoompanFilter,
   toFfmpegArgs,
 } from 'src/utils/highlight/ffmpeg.js';
+
+const VERTICAL = { width: 1080, height: 1920 };
 
 describe('getZoompanFilter', () => {
   it('should move linearly from one square to the other over the frames', () => {
@@ -21,6 +25,35 @@ describe('getZoompanFilter', () => {
   it('should hold a square that does not move', () => {
     const filter = getZoompanFilter({ x: 0, y: 0, size: 1 }, { x: 0, y: 0, size: 1 }, 75, 30);
     expect(filter).toBe("zoompan=z='1':x='iw*0':y='ih*0':d=75:s=1920x1080:fps=30");
+  });
+
+  it('should write vertical frames', () => {
+    const filter = getZoompanFilter({ x: 0, y: 0, size: 1 }, { x: 0.1, y: 0.05, size: 0.8 }, 101, 30, VERTICAL);
+    expect(filter).toBe(
+      "zoompan=z='1/(1+-0.002*on)':x='iw*(0+0.001*on)':y='ih*(0+0.0005*on)':d=101:s=1080x1920:fps=30",
+    );
+  });
+});
+
+describe('getStillSize', () => {
+  it('should draw the stills half as large again as the frame', () => {
+    expect(getStillSize()).toEqual({ width: 2880, height: 1620 });
+    expect(getStillSize(VERTICAL)).toEqual({ width: 1620, height: 2880 });
+  });
+});
+
+describe('getClipFrame', () => {
+  it('should fill a landscape frame only with a 16:9 clip', () => {
+    expect(getClipFrame({ width: 1920, height: 1080 })).toBe('cover');
+    expect(getClipFrame({ width: 1440, height: 1080 })).toBe('contain');
+    expect(getClipFrame({ width: 1080, height: 1920 })).toBe('contain');
+  });
+
+  it('should fill a vertical frame with a portrait clip, and show a landscape clip whole', () => {
+    expect(getClipFrame({ width: 1080, height: 1920 }, VERTICAL)).toBe('cover');
+    expect(getClipFrame({ width: 1080, height: 1440 }, VERTICAL)).toBe('cover');
+    expect(getClipFrame({ width: 1920, height: 1080 }, VERTICAL)).toBe('contain');
+    expect(getClipFrame({ width: 1440, height: 1080 }, VERTICAL)).toBe('contain');
   });
 });
 
@@ -100,6 +133,52 @@ describe('getSegmentCommand', () => {
     expect(command.filterComplex).toContain('force_original_aspect_ratio=decrease');
     expect(command.filterComplex).toContain('tonemap=tonemap=hable');
     expect(command.filterComplex).toContain('anullsrc');
+  });
+});
+
+const verticalClip = (width: number, height: number) =>
+  getSegmentCommand({
+    kind: 'clip',
+    input: '/videos/c.mov',
+    start: 1,
+    frames: 90,
+    fps: 30,
+    width,
+    height,
+    hasAudio: true,
+    fade: 0.6,
+    output: '/tmp/3.mkv',
+    size: VERTICAL,
+  });
+
+describe('getSegmentCommand in a vertical film', () => {
+  it('should move a still in portrait', () => {
+    const command = getSegmentCommand({
+      kind: 'still',
+      input: '/tmp/still.png',
+      frames: 96,
+      fps: 30,
+      from: { x: 0, y: 0, size: 1 },
+      to: { x: 0.1, y: 0.1, size: 0.85 },
+      fade: 0.6,
+      output: '/tmp/0.mkv',
+      size: VERTICAL,
+    });
+    expect(command.filterComplex).toContain(':s=1080x1920:fps=30');
+  });
+
+  it('should crop a portrait clip to fill the frame', () => {
+    const command = verticalClip(1080, 1440);
+    expect(command.filterComplex).toContain('scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920');
+    expect(command.filterComplex).not.toContain('boxblur');
+  });
+
+  it('should show a landscape clip whole over a blurred copy of itself', () => {
+    const command = verticalClip(1920, 1080);
+    expect(command.filterComplex).toContain('scale=270:480:force_original_aspect_ratio=increase,crop=270:480');
+    expect(command.filterComplex).toContain('boxblur=10:2,scale=1080:1920');
+    expect(command.filterComplex).toContain('[fg]scale=1080:1920:force_original_aspect_ratio=decrease[whole]');
+    expect(command.filterComplex).toContain('[blurred][whole]overlay=(W-w)/2:(H-h)/2');
   });
 });
 

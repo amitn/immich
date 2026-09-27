@@ -34,6 +34,10 @@ const asJobItem = (dto: JobCreateDto): JobItem => {
       return { name: JobName.BookDraftsQueueAll };
     }
 
+    case ManualJobName.CollectionNoticesCreate: {
+      return { name: JobName.CollectionNoticesQueueAll };
+    }
+
     case ManualJobName.BackupDatabase: {
       return { name: JobName.DatabaseBackup };
     }

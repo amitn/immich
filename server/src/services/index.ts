@@ -17,6 +17,7 @@ import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { CollectionNoticeService } from 'src/services/collection-notice.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
 import { DatabaseService } from 'src/services/database.service.js';
@@ -76,6 +77,7 @@ export const services = [
   ArtService,
   BookService,
   BookDraftService,
+  CollectionNoticeService,
   BookStyleService,
   HighlightService,
   ApiService,

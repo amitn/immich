@@ -126,6 +126,16 @@ const AiAnswersUpdateSchema = z
   .optional()
   .meta({ id: 'AiAnswersUpdate' });
 
+const CollectionNotificationsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .optional()
+  .meta({ id: 'CollectionNotificationsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
     aiAnswers: AiAnswersUpdateSchema,
@@ -133,6 +143,7 @@ const UserPreferencesUpdateSchema = z
     avatar: AvatarUpdateSchema,
     bookDrafts: BookDraftsUpdateSchema,
     cast: CastUpdateSchema,
+    collectionNotifications: CollectionNotificationsUpdateSchema,
     download: DownloadUpdateSchema,
     emailNotifications: EmailNotificationsUpdateSchema,
     folders: FoldersUpdateSchema,
@@ -235,6 +246,14 @@ const BookDraftsResponseSchema = z
   })
   .meta({ id: 'BookDraftsResponse' });
 
+const CollectionNotificationsResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .meta({ id: 'CollectionNotificationsResponse' });
+
 const AiAnswersResponseSchema = z
   .object({
     enabled: z
@@ -259,6 +278,7 @@ const UserPreferencesResponseSchema = z
     cast: CastResponseSchema,
     recentlyAdded: RecentlyAddedResponseSchema,
     bookDrafts: BookDraftsResponseSchema,
+    collectionNotifications: CollectionNotificationsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 

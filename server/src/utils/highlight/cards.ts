@@ -14,12 +14,15 @@ import {
   getReadableColor,
   renderDecoration,
 } from 'src/utils/book/render.js';
-import { HIGHLIGHT_HEIGHT, HIGHLIGHT_WIDTH } from 'src/utils/highlight/plan.js';
+import { HIGHLIGHT_HEIGHT, HIGHLIGHT_WIDTH, getSafeArea } from 'src/utils/highlight/plan.js';
 
 /**
  * The title cards and lower thirds of a highlight video, drawn like the pages of a photo book in the same style: the
  * colors and fonts of the style, the small caps, hairline frame and ornament of a printed theme (a menu, a travel
  * journal, a tasting notebook), the left-aligned labels of the gallery theme (an exhibition catalogue).
+ *
+ * In a vertical frame, the text is larger (it is watched on a phone) and stays in its safe band, clear of the top and
+ * bottom of the frame where the phone apps draw their buttons and captions (see `getSafeArea`).
  */
 
 export type HighlightCardText = { title: string; subtitle?: string; detail?: string };
@@ -86,10 +89,15 @@ export const getCardSvg = (
   const fontFamily = getFontStack(style.fontFamily);
   const ink = getReadableColor(style.textColor, style.background, 4.5);
   const accent = getReadableColor(style.accentColor, style.background, 2.5);
-  const u = height / 1080;
-  const titlePx = (kind === 'title' ? 112 : 84) * u;
-  const subtitlePx = (kind === 'title' ? 40 : 36) * u;
-  const detailPx = 30 * u;
+  const portrait = height > width;
+  // the text is laid out in the band of the frame that phone apps leave free (all of a landscape frame)
+  const safe = getSafeArea(size);
+  const bandTop = safe.top * height;
+  const band = height * (1 - safe.top - safe.bottom);
+  const u = (portrait ? width : height) / 1080;
+  const titlePx = (kind === 'title' ? (portrait ? 124 : 112) : portrait ? 100 : 84) * u;
+  const subtitlePx = (kind === 'title' ? (portrait ? 52 : 40) : portrait ? 46 : 36) * u;
+  const detailPx = (portrait ? 40 : 30) * u;
   const smallCaps = look === 'printed';
   const titleWidth = smallCaps ? SMALL_CAPS_WIDTH + 0.12 : CHAR_WIDTH;
 
@@ -99,11 +107,11 @@ export const getCardSvg = (
 
   if (look === 'gallery') {
     // an exhibition wall: the title left-aligned under a thin rule, then the dates and places in grey
-    const left = 200 * u;
-    const box = { width: width - 2 * left, height: height * 0.4 };
+    const left = (portrait ? 96 : 200) * u;
+    const box = { width: width - 2 * left, height: band * 0.4 };
     const title = wrapBlock(text.title, box, titlePx, CHAR_WIDTH);
     const blockHeight = title.height + (text.subtitle ? subtitlePx * 1.8 : 0) + (text.detail ? detailPx * 1.6 : 0);
-    let y = (height - blockHeight) / 2;
+    let y = bandTop + (band - blockHeight) / 2;
     decorations.push({
       kind: 'line',
       x1: left,
@@ -127,12 +135,12 @@ export const getCardSvg = (
     }
   } else {
     // centred: the title, a rule (an ornament in a printed theme), the dates and the places
-    const box = { width: width * 0.78, height: height * 0.42 };
+    const box = { width: width * (portrait ? 0.84 : 0.78), height: band * (portrait ? 0.5 : 0.42) };
     const title = wrapBlock(text.title, box, titlePx, titleWidth);
     const ruleGap = 44 * u;
     const blockHeight =
       title.height + ruleGap * 2 + (text.subtitle ? subtitlePx * 1.4 : 0) + (text.detail ? detailPx * 1.6 : 0);
-    let y = (height - blockHeight) / 2;
+    let y = bandTop + (band - blockHeight) / 2;
     for (const line of title.lines) {
       y += title.fontPx * LINE_HEIGHT;
       lines.push({
@@ -202,7 +210,8 @@ export const getCardSvg = (
 /**
  * A lower third over a photo: a label in the paper color of the style at the bottom left, with the caption in its ink:
  * the first line (the name of the dish, the title of the artwork) larger, in small caps in a printed theme and in
- * italics in the gallery theme, the others (the artist and date) smaller. Transparent elsewhere.
+ * italics in the gallery theme, the others (the artist and date) smaller. Transparent elsewhere. In a vertical frame
+ * it is larger, and sits just above the bottom of the safe band, clear of the buttons on the right.
  */
 export const getLowerThirdSvg = (
   caption: string,
@@ -214,7 +223,9 @@ export const getLowerThirdSvg = (
   const fontFamily = getFontStack(style.fontFamily);
   const ink = getReadableColor(style.textColor, style.background, 4.5);
   const accent = getReadableColor(style.accentColor, style.background, 2.5);
-  const u = height / 1080;
+  const portrait = height > width;
+  const safe = getSafeArea(size);
+  const u = (portrait ? width : height) / 1080;
   const [first, ...rest] = caption
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -223,9 +234,9 @@ export const getLowerThirdSvg = (
     return svg(width, height, '');
   }
 
-  const maxWidth = width * 0.5;
-  const firstPx = 46 * u;
-  const restPx = 30 * u;
+  const maxWidth = width * (portrait ? 0.74 : 0.5);
+  const firstPx = (portrait ? 56 : 46) * u;
+  const restPx = (portrait ? 38 : 30) * u;
   const smallCaps = look === 'printed';
   const firstWidth = smallCaps ? SMALL_CAPS_WIDTH + 0.08 : CHAR_WIDTH;
   const title = wrapBlock(first, { width: maxWidth, height: firstPx * LINE_HEIGHT * 2 }, firstPx, firstWidth);
@@ -241,10 +252,11 @@ export const getLowerThirdSvg = (
   const padX = 34 * u;
   const padY = 24 * u;
   const bar = look === 'gallery' ? 0 : 8 * u;
-  const boxWidth = Math.min(width - 192 * u, longest + 2 * padX + bar);
+  const left = (portrait ? 64 : 96) * u;
+  const boxWidth = Math.min(width - 2 * left, longest + 2 * padX + bar);
   const boxHeight = title.height + (details ? details.height + 8 * u : 0) + 2 * padY;
-  const left = 96 * u;
-  const top = height - 96 * u - boxHeight;
+  const bottom = portrait ? height * (1 - safe.bottom) - 24 * u : height - 96 * u;
+  const top = bottom - boxHeight;
 
   const parts = [
     `<rect x="${px(left)}" y="${px(top)}" width="${px(boxWidth)}" height="${px(boxHeight)}" fill="${escapeXml(style.background)}" fill-opacity="0.92"${look === 'gallery' ? '' : ` rx="${px(4 * u)}"`}/>`,

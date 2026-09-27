@@ -1,6 +1,6 @@
 import { ClassifyRules, CollectionPrompts, OcrSummary, scoreText } from 'src/utils/collections/classify.js';
 import { MatchOptions } from 'src/utils/collections/match.js';
-import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
+import { CollectionPack, getDefaultFallbackName, getNoticeDay } from 'src/utils/collections/pack.js';
 import { captionArtwork, describeArtwork, getArtworkPrompt } from 'src/utils/collections/packs/museum/artwork.js';
 import { GALLERY_THEME, reviewMuseumBook } from 'src/utils/collections/packs/museum/book.js';
 import { parseWallLabel } from 'src/utils/collections/packs/museum/label.js';
@@ -213,5 +213,11 @@ export const museumPack: CollectionPack = {
       'Smart search is disabled: artworks cannot be recognized, only wall labels, signs and tickets by their text',
     ocrDisabled: 'OCR is disabled: wall labels, signs and tickets are recognized by their look only',
     fewEntries: 'No artwork could be read on this label: look at the label image and read it yourself',
+    newVisit: ({ place, city, day, today }) =>
+      place
+        ? `Name the artworks from your visit to ${/^the /i.test(place) ? '' : 'the '}${place}?`
+        : `Name the artworks from your museum visit${city ? ` in ${city}` : ''} ${getNoticeDay(day, today).text}?`,
   },
+  // a museum visit is more than a few photos that look like art
+  notices: { minSubjects: 5 },
 };

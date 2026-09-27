@@ -15,6 +15,7 @@ import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -71,6 +72,7 @@ export const repositories = [
   HighlightJobRepository,
   BookRepository,
   BookDraftRepository,
+  CollectionNoticeRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,
