@@ -1,11 +1,13 @@
 import { Severity, Type } from '@immich/sdk';
-import type { MessageFormatter } from 'svelte-i18n';
+import { init, register, t, waitLocale, type MessageFormatter } from 'svelte-i18n';
+import { get } from 'svelte/store';
 import {
   formatBookPageList,
   formatBookReviewLocation,
   getBookReviewBadgeCount,
   getBookReviewFixAllPrompt,
   getBookReviewFixPrompt,
+  getBookReviewSummary,
   getBookSlotRect,
   groupBookReviewIssues,
 } from '$lib/utils/book-review';
@@ -40,6 +42,29 @@ describe('getBookReviewBadgeCount', () => {
 
     expect(getBookReviewBadgeCount(review)).toBe(5);
     expect(getBookReviewBadgeCount()).toBe(0);
+  });
+});
+
+describe('getBookReviewSummary', () => {
+  beforeAll(async () => {
+    await init({ fallbackLocale: 'en-US' });
+    register('en-US', () => import('$i18n/en.json'));
+    await waitLocale('en-US');
+  });
+
+  it('should say what the badge counts, and the issues that could be better apart', () => {
+    const translate = get(t);
+
+    expect(getBookReviewSummary(translate, buildBookReview({ counts: { high: 1, medium: 2, low: 5 } }))).toBe(
+      'Review: 3 to fix, 5 could be better',
+    );
+    expect(getBookReviewSummary(translate, buildBookReview({ counts: { high: 0, medium: 1, low: 0 } }))).toBe(
+      'Review: 1 to fix',
+    );
+    expect(getBookReviewSummary(translate, buildBookReview({ counts: { high: 0, medium: 0, low: 2 } }))).toBe(
+      'Review: nothing to fix, 2 could be better',
+    );
+    expect(getBookReviewSummary(translate)).toBe('Review');
   });
 });
 

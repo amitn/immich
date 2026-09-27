@@ -39,7 +39,7 @@
     isExportActive,
     isMapPage,
   } from '$lib/utils/book-export';
-  import { getBookReviewBadgeCount } from '$lib/utils/book-review';
+  import { getBookReviewBadgeCount, getBookReviewSummary } from '$lib/utils/book-review';
   import { handleError } from '$lib/utils/handle-error';
   import {
     AgentMessageKind,
@@ -594,6 +594,7 @@
             size="small"
             color="secondary"
             leadingIcon={mdiClipboardCheckOutline}
+            title={getBookReviewSummary($t, review.review)}
             aria-expanded={reviewOpen}
             aria-controls={reviewOpen ? REVIEW_PANEL_ID : undefined}
             onclick={toggleReview}

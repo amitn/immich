@@ -189,6 +189,21 @@ describe('reviewBook', () => {
     expect(review(pages, []).issues).toEqual([]);
   });
 
+  it('should make the verb of a message agree with its pages', () => {
+    const map = { style: 'watercolor' as const, showRoute: true, labels: true };
+    const [one] = review([page('map', [], { map })], [], { stadiaApiKey: '' }).issues;
+    expect(one.message).toMatch(/^Page 1 asks for watercolor maps, /);
+
+    const [two] = review([page('map', [], { map }), page('map', [], { map })], [], { stadiaApiKey: '' }).issues;
+    expect(two.message).toMatch(/^Pages 1 and 2 ask for watercolor maps, /);
+
+    const photos = Array.from({ length: 2 }, (_, i) => photo({ embedding: embedding(i) }));
+    const uncaptioned = review([page('full-bleed', [photos[0]], { caption: null })], photos).issues.find(
+      (issue) => issue.type === 'missing-captions',
+    )!;
+    expect(uncaptioned.message).toMatch(/^Page 1 has no caption; after looking at it, /);
+  });
+
   it('should report repeated layouts and pages without captions', () => {
     const photos = Array.from({ length: 4 }, (_, i) => photo({ embedding: embedding(i) }));
     const pages = [
@@ -298,6 +313,7 @@ describe('reviewBook', () => {
       const issue = result.issues.find((item) => item.type === 'missing-dish-name')!;
       expect(issue).toMatchObject({ severity: 'low', pages: [1], assetIds: [dishes[0].id, dishes[1].id] });
       expect(issue.message).toContain('Caponata');
+      expect(issue.message).toMatch(/^Page 1 shows 2 dishes without their names/);
     });
 
     it('should report a restaurant whose menu is in the album but not in the book', () => {
@@ -310,6 +326,7 @@ describe('reviewBook', () => {
         expect.objectContaining({ severity: 'medium', pages: [1, 2], assetIds: [photos[0].id] }),
       ]);
       expect(issues[0].message).toContain(nino);
+      expect(issues[0].message).toMatch(/^Pages 1 and 2 show dishes from /);
     });
 
     it('should not ask for a menu that does not exist or is already in the book', () => {
