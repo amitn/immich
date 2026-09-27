@@ -49,7 +49,7 @@
   {#if mounted}
     <span class="flex min-h-0 flex-1 items-center justify-center">
       <span class="relative block h-3/4 w-3/5 bg-white shadow-sm" style:padding="{Math.max(1, size / 28)}px">
-        <span class="block h-full w-full bg-linear-to-br from-amber-300 to-sky-400"></span>
+        <span class="block size-full bg-linear-to-br from-amber-300 to-sky-400"></span>
         <span class="absolute -top-0.5 left-1/2 block h-1 w-1/2 -translate-x-1/2 -rotate-3 bg-yellow-200/80" data-tape
         ></span>
       </span>
