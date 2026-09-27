@@ -48,6 +48,27 @@ on conflict ("userId") do update
 set
   "checkedAt" = $3
 
+-- CollectionNoticeRepository.getHome
+select
+  round(asset_exif.latitude::numeric, 1)::float8 as "latitude",
+  round(asset_exif.longitude::numeric, 1)::float8 as "longitude",
+  count(distinct asset."localDateTime"::date)::int as "days"
+from
+  "asset"
+  inner join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "asset"."ownerId" = $1
+  and "asset"."deletedAt" is null
+  and "asset_exif"."latitude" is not null
+  and "asset_exif"."longitude" is not null
+group by
+  1,
+  2
+order by
+  "days" desc
+limit
+  $2
+
 -- CollectionNoticeRepository.getUploads
 select
   "asset"."id",

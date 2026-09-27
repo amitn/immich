@@ -195,6 +195,12 @@ export type CollectionPack = {
     minSubjects?: number;
     /** only a visit with a source photo is notified, e.g. a trip with a ticket: its subjects are any photos */
     requireSource?: boolean;
+    /**
+     * only a visit at least this far from the user's home is notified, and only with a place or a city to name it
+     * after: a trip. Home is where the user takes located photos on the most days; a visit without a location, or a
+     * user whose home is not known, is not notified
+     */
+    awayFromHomeKm?: number;
   };
 
   privacy?: {

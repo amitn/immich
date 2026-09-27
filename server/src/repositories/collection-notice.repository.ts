@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { type Insertable, type Kysely } from 'kysely';
+import { type Insertable, type Kysely, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetType, AssetVisibility } from 'src/enum.js';
@@ -67,6 +67,30 @@ export class CollectionNoticeRepository {
       .values({ userId, checkedAt })
       .onConflict((oc) => oc.column('userId').doUpdateSet({ checkedAt }))
       .execute();
+  }
+
+  /**
+   * Where the user takes photos on the most days, to about ten kilometres (a tenth of a degree): the place, and on how
+   * many days they took located photos there; undefined without located photos
+   */
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getHome(userId: string) {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        sql<number>`round(asset_exif.latitude::numeric, 1)::float8`.as('latitude'),
+        sql<number>`round(asset_exif.longitude::numeric, 1)::float8`.as('longitude'),
+        sql<number>`count(distinct asset."localDateTime"::date)::int`.as('days'),
+      ])
+      .where('asset.ownerId', '=', userId)
+      .where('asset.deletedAt', 'is', null)
+      .where('asset_exif.latitude', 'is not', null)
+      .where('asset_exif.longitude', 'is not', null)
+      .groupBy([sql`1`, sql`2`])
+      .orderBy('days', 'desc')
+      .limit(1)
+      .executeTakeFirst();
   }
 
   /**

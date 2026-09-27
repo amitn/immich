@@ -2,8 +2,15 @@ import { vitest } from 'vitest';
 import { CollectionVisitResponse, CollectionVisitsResponseDto } from 'src/dtos/collection.dto.js';
 import { defaults } from 'src/dtos/config.dto.js';
 import { JobName, JobStatus, NotificationLevel, NotificationType } from 'src/enum.js';
-import { CollectionNoticeService, getNoticeText, getVisitKey } from 'src/services/collection-notice.service.js';
+import {
+  CollectionNoticeService,
+  HOME_MIN_DAYS,
+  getNoticeText,
+  getVisitKey,
+  isAwayFromHome,
+} from 'src/services/collection-notice.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
+import { PackFit } from 'src/utils/collections/arbitration.js';
 import { getCollectionMessages, getNoticeDay } from 'src/utils/collections/pack.js';
 import { REDACTED } from 'src/utils/collections/packs/travel/privacy.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
@@ -159,7 +166,11 @@ describe(CollectionNoticeService.name, () => {
   const setup = (
     byPack: Record<string, CollectionVisitResponse[]>,
     notices: Array<{ pack: string; key: string; assetIds: string[] }> = [],
+    fits: Map<string, PackFit> = new Map(),
   ) => {
+    vitest.spyOn(CollectionService.prototype, 'getPackFits').mockResolvedValue(fits);
+    // home is in Taormina, where the user took photos on 200 days
+    mocks.collectionNotice.getHome.mockResolvedValue({ latitude: 37.9, longitude: 15.3, days: 200 });
     mocks.collectionNotice.getCheckedAt.mockResolvedValue(undefined);
     mocks.collectionNotice.getUploads.mockResolvedValue([
       {
@@ -257,7 +268,12 @@ describe(CollectionNoticeService.name, () => {
 
       expect(notified).toHaveLength(1);
       const assetIds = [...meal.subjectIds, ...meal.sourceIds];
-      expect(findVisits).toHaveBeenCalledWith(auth, 'food', { assetIds: [expect.any(String)] });
+      expect(findVisits).toHaveBeenCalledWith(
+        auth,
+        'food',
+        { assetIds: [expect.any(String)] },
+        { foreign: expect.any(Map) },
+      );
       expect(mocks.collectionNotice.claim).toHaveBeenCalledWith({
         userId: auth.user.id,
         pack: 'food',
@@ -301,12 +317,122 @@ describe(CollectionNoticeService.name, () => {
     });
 
     it('should only notify a trip with a travel document', async () => {
-      setup({ travel: [visit({ type: undefined, sourceIds: [] }), visit({ type: undefined, day: '2026-09-20' })] });
+      const crete = { type: undefined, city: 'Chania', latitude: 35.51, longitude: 24.02 };
+      setup({ travel: [visit({ ...crete, sourceIds: [] }), visit({ ...crete, day: '2026-09-20' })] });
       const found = await sut.findNewVisits(auth, config, NOW);
       expect(found.map(({ status }) => status)).toEqual(['small', 'new']);
     });
 
-    it('should notify photos found by several packs once, in the pack with the most subjects', async () => {
+    it('should only notify a trip away from home, with a place to name it after', async () => {
+      const trip = { type: undefined, sourceIds: [newUuid()] };
+      setup({
+        travel: [
+          // Chania, 700 km from home
+          visit({ ...trip, day: '2026-09-26', city: 'Chania', latitude: 35.51, longitude: 24.02 }),
+          // Taormina: home
+          visit({ ...trip, day: '2026-09-25', city: 'Taormina', latitude: 37.85, longitude: 15.29 }),
+          // nowhere known
+          visit({ ...trip, day: '2026-09-24', city: undefined }),
+          // far, but without a place or a city
+          visit({ ...trip, day: '2026-09-23', city: undefined, latitude: 35.51, longitude: 24.02 }),
+        ],
+      });
+      const found = await sut.findNewVisits(auth, config, NOW);
+      expect(found.map(({ status }) => status)).toEqual(['new', 'not-away', 'not-away', 'not-away']);
+
+      // a user whose home is not known yet
+      mocks.collectionNotice.getHome.mockResolvedValue({ latitude: 37.9, longitude: 15.3, days: HOME_MIN_DAYS - 1 });
+      const unknown = await sut.findNewVisits(auth, config, NOW);
+      expect(unknown[0].status).toBe('not-away');
+    });
+
+    it('should not look for home without a pack that needs it', async () => {
+      setup({ food: [visit()] });
+      await sut.findNewVisits(auth, config, NOW);
+      expect(mocks.collectionNotice.getHome).toHaveBeenCalledTimes(1);
+      expect(isAwayFromHome(pack('food'), visit({ city: undefined }), undefined)).toBe(true);
+    });
+
+    it('should notify the stage shots of a gig in the concerts, not as a trip', async () => {
+      const shots = six();
+      const stage: PackFit = { concerts: { subject: 0.27 }, travel: { subject: 0.2, source: 0.22 } };
+      const ticket = newUuid();
+      const crete = { type: undefined, city: 'Chania', latitude: 35.51, longitude: 24.02 };
+      const findVisits = setup(
+        {
+          travel: [visit({ ...crete, subjectIds: shots, sourceIds: [ticket] })],
+          concerts: [visit({ ...crete, subjectIds: shots.slice(0, 5), sourceIds: [] })],
+        },
+        [],
+        new Map([...shots, ticket].map((id) => [id, stage])),
+      );
+
+      const found = await sut.findNewVisits(auth, config, NOW);
+
+      expect(found.map(({ pack, status, share }) => [pack, status, share])).toEqual([
+        ['travel', 'unsure', 0],
+        ['concerts', 'new', 1],
+      ]);
+      // the stage shots (and the ticket, the travel pack's for a subject) are another pack's for sure: the trip is
+      // found without them as subjects
+      const travelCall = findVisits.mock.calls.find(([, packId]) => packId === 'travel')!;
+      expect([...travelCall[3]!.foreign!.get('subject')!]).toEqual([...shots, ticket]);
+    });
+
+    it('should notify a visit without the photos another pack won, from its first photo left', async () => {
+      const [a, b, c, d, e] = [newUuid(), newUuid(), newUuid(), newUuid(), newUuid()];
+      const tree: PackFit = { garden: { subject: 0.3 }, nature: { subject: 0.27 } };
+      const book: PackFit = { reading: { subject: 0.32 }, garden: { subject: 0.2, source: 0.22 } };
+      mocks.collectionNotice.getUploads.mockResolvedValue([]);
+      setup(
+        {
+          garden: [visit({ type: undefined, city: undefined, subjectIds: [a, b, c], sourceIds: [d] })],
+          reading: [
+            visit({
+              type: undefined,
+              city: undefined,
+              day: '2026-09-25',
+              subjectIds: [d, e, newUuid()],
+              sourceIds: [],
+              place: { name: 'Ransom Center', source: 'sign', confidence: 0.9, assetIds: [d] },
+            }),
+          ],
+        },
+        [],
+        new Map([
+          [a, tree],
+          [b, tree],
+          [c, tree],
+          [d, book],
+          [e, book],
+        ]),
+      );
+      mocks.collectionNotice.getUploads.mockResolvedValue(
+        [a, b, c, d, e].map((id, index) => ({
+          id,
+          localDateTime: new Date(`2026-09-2${index + 3}T10:00:00Z`),
+          fileCreatedAt: new Date(`2026-09-2${index + 3}T08:00:00Z`),
+          createdAt: new Date('2026-09-27T07:00:00Z'),
+        })) as never,
+      );
+
+      const found = await sut.findNewVisits(auth, config, NOW);
+
+      const reading = found.find(({ pack }) => pack === 'reading')!;
+      // the book is sure of its title page, which the garden took for a plant tag
+      expect(reading).toMatchObject({ status: 'new', subjects: 3 });
+      expect(found.find(({ pack }) => pack === 'garden')).toMatchObject({ status: 'new', subjects: 3 });
+      expect(found.find(({ pack }) => pack === 'garden')!.assetIds).toEqual([a, b, c]);
+      // and starts at the first photo it kept
+      expect(found.find(({ pack }) => pack === 'garden')).toMatchObject({
+        start: '2026-09-23T10:00:00',
+        key: '2026-09-23T10||',
+      });
+      // the name was read on the photo it kept
+      expect(reading.title).toContain('Ransom Center');
+    });
+
+    it('should notify photos found by several packs once, without smart search in the pack with the most subjects', async () => {
       const dishes = [newUuid(), newUuid(), newUuid(), newUuid()];
       const named = [newUuid(), newUuid(), newUuid()];
       setup({
