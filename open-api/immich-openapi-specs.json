@@ -7728,6 +7728,123 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/map-preview": {
+      "get": {
+        "description": "Render a small preview of a map in a map style (and look), for a page of a book, the first map of a book, or the photos of an album for a book not made yet. A JPEG image.",
+        "operationId": "previewBookMap",
+        "parameters": [
+          {
+            "name": "albumId",
+            "required": false,
+            "in": "query",
+            "description": "Album whose photos are mapped, for a book not made yet",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookId",
+            "required": false,
+            "in": "query",
+            "description": "Book whose map is previewed",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "look",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/BookMapLookOption"
+            }
+          },
+          {
+            "name": "pageId",
+            "required": false,
+            "in": "query",
+            "description": "Map page of the book (default: the book's first map page, or else the photos of its album)",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "size",
+            "required": false,
+            "in": "query",
+            "description": "Length of the long edge of the preview in pixels (default 320)",
+            "schema": {
+              "minimum": 64,
+              "maximum": 1200,
+              "type": "integer"
+            }
+          },
+          {
+            "name": "style",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/BookMapStyle"
+            }
+          },
+          {
+            "name": "stylePreset",
+            "required": false,
+            "in": "query",
+            "description": "Style of the book not made yet (default classic)",
+            "schema": {
+              "$ref": "#/components/schemas/BookStylePreset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Preview a map style",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.0.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.0.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/books/style-presets": {
       "get": {
         "description": "Retrieve the style presets (background, text color, margins, gutters, font) for photo books.",
@@ -22259,8 +22376,9 @@
       "AdminConfigBookMapsDto": {
         "properties": {
           "defaultStyle": {
-            "description": "Map style used when a book asks for the automatic style",
+            "description": "Map style used when a book asks for the automatic style; styled maps draw the map data of the Map page",
             "enum": [
+              "styled",
               "sketch",
               "watercolor",
               "toner",
@@ -22269,7 +22387,7 @@
             "type": "string"
           },
           "stadiaApiKey": {
-            "description": "Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only)",
+            "description": "Stadia Maps API key for the watercolor, toner and terrain map styles (not needed for styled and sketch maps)",
             "type": "string"
           }
         },
@@ -26038,6 +26156,9 @@
             "description": "Append the new pages to the existing ones instead of replacing them (default false)",
             "type": "boolean"
           },
+          "mapLook": {
+            "$ref": "#/components/schemas/BookMapLookOption"
+          },
           "mapStyle": {
             "$ref": "#/components/schemas/BookMapStyleOption"
           },
@@ -26567,6 +26688,9 @@
             "description": "Open the sections that have GPS locations with a map page (default true)",
             "type": "boolean"
           },
+          "mapLook": {
+            "$ref": "#/components/schemas/BookMapLookOption"
+          },
           "mapStyle": {
             "$ref": "#/components/schemas/BookMapStyleOption"
           },
@@ -26793,6 +26917,10 @@
             "description": "Label the places",
             "type": "boolean"
           },
+          "look": {
+            "$ref": "#/components/schemas/BookMapLook",
+            "description": "Look of a styled map (default: the look that suits the style of the book)"
+          },
           "showRoute": {
             "description": "Connect the locations in time order",
             "type": "boolean"
@@ -26813,9 +26941,31 @@
         ],
         "type": "object"
       },
-      "BookMapStyle": {
-        "description": "Map style; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key",
+      "BookMapLook": {
+        "description": "Look of a styled map: wash (soft watercolour washes on warm paper), engraved (a fine-ink atlas with water lines and sepia land), minimal (thin grey lines on white, small sans-serif labels) or vintage (a cream and navy chart with a compass rose and a graticule)",
         "enum": [
+          "wash",
+          "engraved",
+          "minimal",
+          "vintage"
+        ],
+        "type": "string"
+      },
+      "BookMapLookOption": {
+        "description": "Look of styled maps; auto picks the look that suits the style of the book",
+        "enum": [
+          "auto",
+          "wash",
+          "engraved",
+          "minimal",
+          "vintage"
+        ],
+        "type": "string"
+      },
+      "BookMapStyle": {
+        "description": "Map style: styled draws the real map data of the Map page (streets, water, parks, places) in the look of the book, and falls back to sketch when the Map feature is disabled or its data cannot be loaded; sketch is drawn offline; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key",
+        "enum": [
+          "styled",
           "sketch",
           "watercolor",
           "toner",
@@ -26827,6 +26977,7 @@
         "description": "Map style; auto uses the default style from the server config",
         "enum": [
           "auto",
+          "styled",
           "sketch",
           "watercolor",
           "toner",

@@ -112,9 +112,9 @@ export type AdminConfigBookDraftsDto = {
     yearly: boolean;
 };
 export type AdminConfigBookMapsDto = {
-    /** Map style used when a book asks for the automatic style */
+    /** Map style used when a book asks for the automatic style; styled maps draw the map data of the Map page */
     defaultStyle: DefaultStyle;
-    /** Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only) */
+    /** Stadia Maps API key for the watercolor, toner and terrain map styles (not needed for styled and sketch maps) */
     stadiaApiKey: string;
 };
 export type AdminConfigBooksDto = {
@@ -2003,6 +2003,8 @@ export type BookMapDto = {
     illustratedAssetId?: string;
     /** Label the places */
     labels: boolean;
+    /** Look of a styled map (default: the look that suits the style of the book) */
+    look?: BookMapLook;
     /** Connect the locations in time order */
     showRoute: boolean;
     style: BookMapStyle;
@@ -2117,6 +2119,7 @@ export type BookFromAlbumDto = {
     improvePhotos?: boolean;
     /** Open the sections that have GPS locations with a map page (default true) */
     includeMaps?: boolean;
+    mapLook?: BookMapLookOption;
     mapStyle?: BookMapStyleOption;
     /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
     maxArtworkShare?: number;
@@ -2265,6 +2268,7 @@ export type BookAutoLayoutDto = {
     includeMaps?: boolean;
     /** Append the new pages to the existing ones instead of replacing them (default false) */
     keepExisting?: boolean;
+    mapLook?: BookMapLookOption;
     mapStyle?: BookMapStyleOption;
     /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
     maxArtworkShare?: number;
@@ -6968,6 +6972,33 @@ export function getBookLayouts(opts?: Oazapfts.RequestOpts) {
     }));
 }
 /**
+ * Preview a map style
+ */
+export function previewBookMap({ albumId, bookId, look, pageId, size, style, stylePreset }: {
+    albumId?: string;
+    bookId?: string;
+    look?: BookMapLookOption;
+    pageId?: string;
+    size?: number;
+    style: BookMapStyle;
+    stylePreset?: BookStylePreset;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/map-preview${QS.query(QS.explode({
+        albumId,
+        bookId,
+        look,
+        pageId,
+        size,
+        style,
+        stylePreset
+    }))}`, {
+        ...opts
+    }));
+}
+/**
  * List book style presets
  */
 export function getBookStylePresets(opts?: Oazapfts.RequestOpts) {
@@ -10114,6 +10145,7 @@ export enum UserAvatarColor {
     Amber = "amber"
 }
 export enum DefaultStyle {
+    Styled = "styled",
     Sketch = "sketch",
     Watercolor = "watercolor",
     Toner = "toner",
@@ -10568,7 +10600,14 @@ export enum BookStylePreset {
     Cookbook = "cookbook",
     Travel = "travel"
 }
+export enum BookMapLook {
+    Wash = "wash",
+    Engraved = "engraved",
+    Minimal = "minimal",
+    Vintage = "vintage"
+}
 export enum BookMapStyle {
+    Styled = "styled",
     Sketch = "sketch",
     Watercolor = "watercolor",
     Toner = "toner",
@@ -10586,8 +10625,16 @@ export enum BookCaptionMode {
     People = "people",
     Dish = "dish"
 }
+export enum BookMapLookOption {
+    Auto = "auto",
+    Wash = "wash",
+    Engraved = "engraved",
+    Minimal = "minimal",
+    Vintage = "vintage"
+}
 export enum BookMapStyleOption {
     Auto = "auto",
+    Styled = "styled",
     Sketch = "sketch",
     Watercolor = "watercolor",
     Toner = "toner",
