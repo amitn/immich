@@ -227,6 +227,24 @@ const AdminConfigSchemaWithVisibility = z
       })
       .describe('Photo book config')
       .meta({ id: 'AdminConfigBooksDto' }),
+    collections: z
+      .object({
+        notifications: z
+          .object({
+            enabled: configBool.describe(
+              'Notify the users of new visits of the collections (a meal, a museum visit, a tasting) in their new uploads that nobody named yet, with the nightly tasks',
+            ),
+            maxPerRun: z.int().min(1).max(20).describe('Most notifications sent to a user per run'),
+            windowDays: z
+              .int()
+              .min(1)
+              .max(90)
+              .describe('Only photos uploaded in this many days are looked at, however long ago the last run was'),
+          })
+          .meta({ id: 'AdminConfigCollectionNotificationsDto' }),
+      })
+      .describe('Collections config')
+      .meta({ id: 'AdminConfigCollectionsDto' }),
     ffmpeg: AdminConfigFFmpegSchema,
     food: z
       .object({
@@ -661,6 +679,13 @@ export const defaults = Object.freeze<SystemConfig>({
       yearly: true,
       trips: true,
       birthdays: true,
+    },
+  },
+  collections: {
+    notifications: {
+      enabled: true,
+      maxPerRun: 3,
+      windowDays: 14,
     },
   },
   food: {

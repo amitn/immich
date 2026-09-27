@@ -173,6 +173,12 @@ export type CollectionPack = {
   /** messages of the engine in the words of the pack, over the defaults made from `names` */
   messages?: Partial<CollectionMessages>;
 
+  /** the "new collection found" notifications of the pack's new visits that nobody named yet */
+  notices?: {
+    /** a new visit is notified when it has at least this many subject photos, default 3 */
+    minSubjects?: number;
+  };
+
   privacy?: {
     /**
      * runs on every text read on the photos (entries, titles, place names) before it is returned, stored or matched,
@@ -303,7 +309,79 @@ export type CollectionMessages = {
   lookupDisabled: string;
   /** entries that no subject matched, for packs that report them */
   unmatchedEntries: (entries: string[]) => string;
+  /**
+   * the question of a "new collection found" notification of a new visit nobody named yet, e.g. "Name the dishes from
+   * last night at Taormina?"
+   */
+  newVisit: (visit: CollectionNoticeVisit) => string;
 };
+
+/** a new visit of a pack, as its "new collection found" notification tells it */
+export type CollectionNoticeVisit = {
+  /** the kind of visit (the pack's `visits.type`), e.g. Dinner */
+  type?: string;
+  /** the place read on the photos, or named by a linked pack (the restaurant of the wines), when there is one */
+  place?: string;
+  city?: string;
+  /** the local day of the visit, and today in the time zone the user takes photos in, e.g. 2026-09-26 */
+  day: string;
+  today: string;
+  /** the subject photos of the visit */
+  subjects: number;
+};
+
+/** the default of `notices.minSubjects` */
+export const DEFAULT_NOTICE_MIN_SUBJECTS = 3;
+
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** "26 September 2026" */
+export const formatNoticeDate = (day: string) => {
+  const date = new Date(`${day}T00:00:00Z`);
+  return `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+};
+
+/**
+ * When a visit was, from today: `today`, `yesterday`, `on Saturday` (within the week), `on 12 June` (this year) or
+ * `on 12 June 2025`
+ */
+export const getNoticeDay = (day: string, today: string): { days: number; text: string } => {
+  const date = new Date(`${day}T00:00:00Z`);
+  const days = Math.round((new Date(`${today}T00:00:00Z`).getTime() - date.getTime()) / DAY_MS);
+  if (days === 0) {
+    return { days, text: 'today' };
+  }
+  if (days === 1) {
+    return { days, text: 'yesterday' };
+  }
+  if (days > 1 && days < 7) {
+    return { days, text: `on ${WEEKDAYS[date.getUTCDay()]}` };
+  }
+  const sameYear = day.slice(0, 4) === today.slice(0, 4);
+  return {
+    days,
+    text: `on ${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]}${sameYear ? '' : ` ${date.getUTCFullYear()}`}`,
+  };
+};
+
+/** where a visit was, for its notification: at its place, or in its city */
+const getNoticePlace = ({ place, city }: Pick<CollectionNoticeVisit, 'place' | 'city'>) =>
+  place ? ` at ${place}` : city ? ` in ${city}` : '';
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
 export const getCollectionTagRules = (
@@ -334,6 +412,8 @@ export const getCollectionMessages = (pack: Pick<CollectionPack, 'names' | 'mess
     lookupDisabled:
       'The OpenStreetMap lookup is disabled in the server settings (Food > OpenStreetMap). Ask the user for the ' +
       `name of the ${place} instead.`,
+    newVisit: (visit) =>
+      `Name the ${subjects} from your ${pack.names.visit}${getNoticePlace(visit)} ${getNoticeDay(visit.day, visit.today).text}?`,
     unmatchedEntries: (names) =>
       `${names.length === 1 ? `1 ${entry}` : `${names.length} ${entries}`} matched no ${subject} (${names
         .slice(0, 5)

@@ -1,4 +1,4 @@
-import { CollectionPack } from 'src/utils/collections/pack.js';
+import { CollectionNoticeVisit, CollectionPack, getNoticeDay } from 'src/utils/collections/pack.js';
 import { FOOD_CLASSIFY_RULES, FOOD_PROMPTS, RECEIPT_WORDS } from 'src/utils/collections/packs/food/classify.js';
 import { parseMenu } from 'src/utils/collections/packs/food/menu.js';
 import { RESTAURANT_NAME_RULES } from 'src/utils/collections/packs/food/restaurant.js';
@@ -28,6 +28,25 @@ export const getMealType = (time: number): MealType => {
     return 'Lunch';
   }
   return 'Dinner';
+};
+
+/**
+ * The meal of a visit, from today: "last night" (yesterday's dinner), "tonight", "today's lunch", "yesterday's
+ * breakfast", or "your lunch on Saturday"
+ */
+export const getMealPhrase = ({ type, day, today }: Pick<CollectionNoticeVisit, 'type' | 'day' | 'today'>) => {
+  const meal = (type ?? 'meal').toLowerCase();
+  const when = getNoticeDay(day, today);
+  if (meal === 'dinner' && when.days === 1) {
+    return 'last night';
+  }
+  if (meal === 'dinner' && when.days === 0) {
+    return 'tonight';
+  }
+  if (when.days === 0 || when.days === 1) {
+    return `${when.text}'s ${meal}`;
+  }
+  return `your ${meal} ${when.text}`;
 };
 
 /** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
@@ -141,5 +160,9 @@ export const foodPack: CollectionPack = {
     smartSearchDisabled:
       'Smart search is disabled: dishes cannot be recognized, only menus, signs and receipts by their text',
     ocrDisabled: 'OCR is disabled: menus, signs and receipts are recognized by their look only',
+    newVisit: (visit) => {
+      const at = visit.place ?? visit.city;
+      return `Name the dishes from ${getMealPhrase(visit)}${at ? ` at ${at}` : ''}?`;
+    },
   },
 };

@@ -472,6 +472,7 @@ export enum ManualJobName {
   MemoryCleanup = 'memory-cleanup',
   MemoryCreate = 'memory-create',
   BookDraftsCreate = 'book-drafts-create',
+  CollectionNoticesCreate = 'collection-notices-create',
   BackupDatabase = 'backup-database',
   IntegrityMissingFiles = `integrity-missing-files`,
   IntegrityUntrackedFiles = `integrity-untracked-files`,
@@ -900,6 +901,8 @@ export enum JobName {
 
   BookDraftsQueueAll = 'BookDraftsQueueAll',
   BookDraftsGenerate = 'BookDraftsGenerate',
+  CollectionNoticesQueueAll = 'CollectionNoticesQueueAll',
+  CollectionNoticesCheck = 'CollectionNoticesCheck',
   BookExport = 'BookExport',
   BookExportHtml = 'BookExportHtml',
 

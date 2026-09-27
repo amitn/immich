@@ -85,6 +85,13 @@ const updatedConfig = Object.freeze<SystemConfig>({
       birthdays: true,
     },
   },
+  collections: {
+    notifications: {
+      enabled: true,
+      maxPerRun: 3,
+      windowDays: 14,
+    },
+  },
   food: {
     openStreetMap: {
       enabled: false,

@@ -288,6 +288,10 @@ export class QueueService extends BaseService {
       jobs.push({ name: JobName.BookDraftsQueueAll });
     }
 
+    if (config.collections.notifications.enabled) {
+      jobs.push({ name: JobName.CollectionNoticesQueueAll });
+    }
+
     if (config.nightlyTasks.syncQuotaUsage) {
       jobs.push({ name: JobName.UserSyncUsage });
     }

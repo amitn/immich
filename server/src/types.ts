@@ -416,6 +416,10 @@ export type JobItem =
   // Books
   | { name: JobName.BookDraftsQueueAll; data?: IBaseJob }
   | { name: JobName.BookDraftsGenerate; data: IEntityJob }
+
+  // Collections
+  | { name: JobName.CollectionNoticesQueueAll; data?: IBaseJob }
+  | { name: JobName.CollectionNoticesCheck; data: IEntityJob }
   | { name: JobName.BookExport; data: IEntityJob }
   | { name: JobName.BookExportHtml; data: IEntityJob }
 
@@ -621,6 +625,9 @@ export type UserPreferences = {
     sidebarWeb: boolean;
   };
   bookDrafts: {
+    enabled: boolean;
+  };
+  collectionNotifications: {
     enabled: boolean;
   };
 };

@@ -57,6 +57,9 @@ const getDefaultPreferences = (): UserPreferences => {
     bookDrafts: {
       enabled: true,
     },
+    collectionNotifications: {
+      enabled: true,
+    },
   };
 };
 

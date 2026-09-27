@@ -4,6 +4,7 @@ import {
   CollectionReviewInput,
   CollectionReviewIssue,
   getDefaultFallbackName,
+  getNoticeDay,
 } from 'src/utils/collections/pack.js';
 import { COOKBOOK_CLASSIFY_RULES, COOKBOOK_PROMPTS } from 'src/utils/collections/packs/cookbook/classify.js';
 import {
@@ -250,5 +251,9 @@ export const cookbookPack: CollectionPack = {
     fewEntries:
       'Few steps could be read: look at the recipe image and read the steps yourself (pages photographed at an ' +
       'angle lose their far edge)',
+    newVisit: ({ place, day, today }) =>
+      place
+        ? `Name the steps of the ${place} you cooked ${getNoticeDay(day, today).text}?`
+        : `Name the recipe you cooked ${getNoticeDay(day, today).text}?`,
   },
 };
