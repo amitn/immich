@@ -3,6 +3,7 @@ import { FoodController } from 'src/controllers/food.controller.js';
 import { FoodService } from 'src/services/food.service.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(FoodController.name, () => {
   let ctx: ControllerContext;
@@ -89,10 +90,11 @@ describe(FoodController.name, () => {
 
       expect(status).toBe(200);
       expect(body).toEqual({ restaurant: 'Nino', results: [{ id, success: true, tag: 'Food/Nino/Carbonara' }] });
-      expect(service.setDishNames).toHaveBeenCalledWith(undefined, {
-        restaurant: 'Nino',
-        photos: [{ id, dish: 'Carbonara' }],
-      });
+      expect(service.setDishNames).toHaveBeenCalledWith(
+        undefined,
+        { restaurant: 'Nino', photos: [{ id, dish: 'Carbonara' }] },
+        expect.any(ActivityRecorder),
+      );
     });
   });
 });

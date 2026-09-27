@@ -84,7 +84,7 @@ describe(BookDraftAgentTools.name, () => {
 
       const result = await call('keep_book_draft', { bookId: book.id });
 
-      expect(keep).toHaveBeenCalledWith(ctx.auth, book.id);
+      expect(keep).toHaveBeenCalledWith(ctx.auth, book.id, undefined);
       expect(JSON.parse(text(result))).toEqual({ bookId: book.id, title: 'Our trip to Rome', status: 'active' });
     });
 
@@ -105,7 +105,7 @@ describe(BookDraftAgentTools.name, () => {
 
       const result = await call('discard_book_draft', { bookId: id });
 
-      expect(discard).toHaveBeenCalledWith(ctx.auth, id);
+      expect(discard).toHaveBeenCalledWith(ctx.auth, id, undefined);
       expect(JSON.parse(text(result))).toEqual({ bookId: id, discarded: true });
     });
   });

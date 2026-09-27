@@ -11,6 +11,7 @@ import { ImmichFileResponse } from 'src/utils/file.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(BookController.name, () => {
   let ctx: ControllerContext;
@@ -71,7 +72,7 @@ describe(BookController.name, () => {
       const id = factory.uuid();
       const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/keep`);
       expect(status).toBe(201);
-      expect(draftService.keep).toHaveBeenCalledWith(undefined, id);
+      expect(draftService.keep).toHaveBeenCalledWith(undefined, id, expect.any(ActivityRecorder));
     });
   });
 
@@ -85,7 +86,7 @@ describe(BookController.name, () => {
       const id = factory.uuid();
       const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/discard`);
       expect(status).toBe(204);
-      expect(draftService.discard).toHaveBeenCalledWith(undefined, id);
+      expect(draftService.discard).toHaveBeenCalledWith(undefined, id, expect.any(ActivityRecorder));
     });
   });
 
@@ -183,7 +184,7 @@ describe(BookController.name, () => {
       const styleId = factory.uuid();
       const { status } = await request(ctx.getHttpServer()).patch(`/books/${id}`).send({ styleId });
       expect(status).toBe(200);
-      expect(service.update).toHaveBeenCalledWith(undefined, id, { styleId });
+      expect(service.update).toHaveBeenCalledWith(undefined, id, { styleId }, expect.any(ActivityRecorder));
     });
 
     it('should not take a preset and a style of your own', async () => {

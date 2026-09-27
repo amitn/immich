@@ -3,6 +3,7 @@ import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { HighlightService } from 'src/services/highlight.service.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(HighlightController.name, () => {
   let ctx: ControllerContext;
@@ -52,21 +53,25 @@ describe(HighlightController.name, () => {
         .post('/highlights')
         .send({ albumId, title: 'Sicily', durationSeconds: 90, style: 'food', music, includeMaps: false });
       expect(status).toBe(201);
-      expect(service.create).toHaveBeenCalledWith(undefined, {
-        albumId,
-        title: 'Sicily',
-        durationSeconds: 90,
-        style: 'food',
-        music,
-        includeMaps: false,
-      });
+      expect(service.create).toHaveBeenCalledWith(
+        undefined,
+        {
+          albumId,
+          title: 'Sicily',
+          durationSeconds: 90,
+          style: 'food',
+          music,
+          includeMaps: false,
+        },
+        expect.any(ActivityRecorder),
+      );
     });
 
     it('should accept a selection of assets', async () => {
       const assetIds = [factory.uuid(), factory.uuid()];
       const { status } = await request(ctx.getHttpServer()).post('/highlights').send({ assetIds, style: 'auto' });
       expect(status).toBe(201);
-      expect(service.create).toHaveBeenCalledWith(undefined, { assetIds, style: 'auto' });
+      expect(service.create).toHaveBeenCalledWith(undefined, { assetIds, style: 'auto' }, expect.any(ActivityRecorder));
     });
   });
 

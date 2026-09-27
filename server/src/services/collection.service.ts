@@ -17,10 +17,17 @@ import {
   CollectionVisitsDto,
   CollectionVisitsResponseDto,
 } from 'src/dtos/collection.dto.js';
-import { AssetFileType, AssetType, Permission } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, AssetType, Permission } from 'src/enum.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import {
+  ActivityCollectionPhoto,
+  ActivityRecorder,
+  countPhotos,
+  quote,
+  recordActivity,
+} from 'src/utils/activity-log.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import {
@@ -818,7 +825,12 @@ export class CollectionService extends BaseService {
    * replacing the tag of the pack it had, and a subject photo without a description gets the pack's description,
    * e.g. "Dish · Restaurant". Running it again with the same names changes nothing.
    */
-  async saveEntries(auth: AuthDto, packId: string, dto: CollectionEntriesDto): Promise<CollectionEntriesResponseDto> {
+  async saveEntries(
+    auth: AuthDto,
+    packId: string,
+    dto: CollectionEntriesDto,
+    activity?: ActivityRecorder,
+  ): Promise<CollectionEntriesResponseDto> {
     const pack = this.requirePack(packId);
     const rules = getCollectionTagRules(pack);
     const prefix = getTagPrefix(rules);
@@ -900,6 +912,7 @@ export class CollectionService extends BaseService {
     const rows = await this.assetJobRepository.getForAgent(targets, auth.user.id);
     const descriptions = new Map(rows.map((row) => [row.id, row.description ?? '']));
     const assetService = BaseService.create(AssetService, this);
+    const logged: ActivityCollectionPhoto[] = [];
     for (const id of targets) {
       if (results.has(id)) {
         continue;
@@ -924,6 +937,28 @@ export class CollectionService extends BaseService {
         }
       }
       results.set(id, result);
+      const tagAdded = existing.every(({ assetId, value }) => !(assetId === id && value === result.tag));
+      if (result.description || tagAdded) {
+        logged.push({
+          id,
+          tag: result.tag!,
+          tagAdded,
+          previousTags: previous.get(id) ?? [],
+          ...(result.description && {
+            description: result.description,
+            previousDescription: descriptions.get(id) ?? '',
+          }),
+        });
+      }
+    }
+
+    if (logged.length > 0) {
+      await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+        action: ActivityLogAction.CollectionEntries,
+        summary: `Named ${countPhotos(logged.length)} of ${quote(place)} (${pack.title})`,
+        assetIds: logged.map(({ id }) => id),
+        undo: { pack: pack.id, photos: logged },
+      });
     }
 
     return { place, results: ids.map((id) => results.get(id)!) };

@@ -13,6 +13,7 @@ import {
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
 import { ArtService } from 'src/services/art.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { UUIDParamDto } from 'src/validation.js';
 
 const history = () => new HistoryBuilder().added('v3.3.0').alpha('v3.3.0');
@@ -45,7 +46,7 @@ export class ArtController {
     history: history(),
   })
   createArtUserStyle(@Auth() auth: AuthDto, @Body() dto: ArtUserStyleCreateDto): Promise<ArtUserStyleResponseDto> {
-    return this.service.createStyle(auth, dto);
+    return this.service.createStyle(auth, dto, ActivityRecorder.web());
   }
 
   @Get('styles/:id')

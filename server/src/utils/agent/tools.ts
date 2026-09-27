@@ -1,5 +1,6 @@
 import z from 'zod';
 import { AuthDto } from 'src/dtos/auth.dto.js';
+import type { ActivityRecorder } from 'src/utils/activity-log.js';
 
 export type AgentToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
 
@@ -13,6 +14,8 @@ export type AgentToolContext = {
   auth: AuthDto;
   /** the assistant session that made the call, if any */
   sessionId: string | null;
+  /** records the changes the call makes in the activity log, so the user can undo them */
+  activity?: ActivityRecorder;
 };
 
 export type AgentTool<S extends z.ZodObject = z.ZodObject> = {

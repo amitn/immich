@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import z from 'zod';
+import { ActivityLogAction } from 'src/enum.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService, PRIVATE_SOURCE_NOTE } from 'src/services/collection.service.js';
 import { EnhanceService } from 'src/services/enhance.service.js';
 import { ImproveService, ImprovedCopyResult } from 'src/services/improve.service.js';
+import { countPhotos } from 'src/utils/activity-log.js';
 import { MAX_STRAIGHTEN_DEGREES } from 'src/utils/agent/straighten.js';
 import { AgentTool, defineTool, toolError, toolImage, toolJson } from 'src/utils/agent/tools.js';
 import { enhanceCorrectionTypes, enhanceStrengths } from 'src/utils/enhance.js';
@@ -87,7 +90,7 @@ export class EnhanceAgentTools extends BaseService {
           auto: z.boolean().optional().describe('Choose the fixes of the ids automatically, default true'),
         }),
         mutating: true,
-        handler: async ({ auth }, { photos = [], ids = [], auto }) => {
+        handler: async ({ auth, activity }, { photos = [], ids = [], auto }) => {
           const jobs = [
             ...photos.map(({ id, enhance, rotate, crop }) => ({ id, recipe: { enhance, rotate, crop } })),
             ...(auto === false ? [] : ids.map((id) => ({ id, recipe: 'auto' as const }))),
@@ -122,6 +125,16 @@ export class EnhanceAgentTools extends BaseService {
             }
           }
 
+          const created = improved.filter(({ duplicate }) => !duplicate);
+          if (created.length > 0) {
+            await BaseService.create(ActivityLogService, this).record(auth, activity, {
+              action: ActivityLogAction.AssetCopy,
+              summary: `Made improved copies of ${countPhotos(created.length)}`,
+              assetIds: created.flatMap(({ id, sourceId }) => [id, sourceId]),
+              undo: { copies: created.map(({ id, sourceId }) => ({ id, sourceId })) },
+            });
+          }
+
           if (improved.length === 0) {
             return toolError(
               `No photo was improved: ${skipped.map(({ id, reason }) => `${id}: ${reason}`).join('; ')}`,
@@ -149,9 +162,18 @@ export class EnhanceAgentTools extends BaseService {
             .describe('Only apply these kinds of correction, e.g. ["whiteBalance", "exposure"]'),
         }),
         mutating: true,
-        handler: async ({ auth }, { id, strength, only }) => {
+        handler: async ({ auth, activity }, { id, strength, only }) => {
           try {
-            return toolJson(await enhanceService.createEnhancedCopy(auth, id, { strength, only }));
+            const copy = await enhanceService.createEnhancedCopy(auth, id, { strength, only });
+            if (!copy.duplicate) {
+              await BaseService.create(ActivityLogService, this).record(auth, activity, {
+                action: ActivityLogAction.AssetCopy,
+                summary: 'Enhanced a photo',
+                assetIds: [copy.id, copy.sourceId],
+                undo: { copies: [{ id: copy.id, sourceId: copy.sourceId }] },
+              });
+            }
+            return toolJson(copy);
           } catch (error) {
             return toolError(`Could not enhance ${id}: ${errorMessage(error)}`);
           }

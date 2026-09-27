@@ -16,6 +16,7 @@ import { defineTool, toolJson } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { factory } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 type Row = {
   id: string;
@@ -653,7 +654,10 @@ describe(AgentService.name, () => {
       const result = await pending;
 
       expect(result.isError).toBeUndefined();
-      expect(writeTool.handler).toHaveBeenCalledWith({ auth, sessionId }, input);
+      expect(writeTool.handler).toHaveBeenCalledWith(
+        { auth, sessionId, activity: expect.any(ActivityRecorder) },
+        input,
+      );
       expect(rows.get(permission.id)?.content.status).toBe('approved');
     });
 
@@ -709,7 +713,10 @@ describe(AgentService.name, () => {
       const result = await sut.runTool({ auth, sessionId }, writeTool, input);
 
       expect(result.isError).toBeUndefined();
-      expect(writeTool.handler).toHaveBeenCalledWith({ auth, sessionId }, input);
+      expect(writeTool.handler).toHaveBeenCalledWith(
+        { auth, sessionId, activity: expect.any(ActivityRecorder) },
+        input,
+      );
       expect(messages().some((message) => message.kind === AgentMessageKind.Permission)).toBe(false);
     });
 

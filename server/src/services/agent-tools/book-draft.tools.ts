@@ -61,7 +61,7 @@ export class BookDraftAgentTools extends BaseService {
         mutating: true,
         handler: (ctx, input) =>
           this.run(async () => {
-            const book = await this.drafts.keep(ctx.auth, input.bookId);
+            const book = await this.drafts.keep(ctx.auth, input.bookId, ctx.activity);
             return toolJson({ bookId: book.id, title: book.title, status: book.status });
           }),
       }),
@@ -76,7 +76,7 @@ export class BookDraftAgentTools extends BaseService {
         mutating: true,
         handler: (ctx, input) =>
           this.run(async () => {
-            await this.drafts.discard(ctx.auth, input.bookId);
+            await this.drafts.discard(ctx.auth, input.bookId, ctx.activity);
             return toolJson({ bookId: input.bookId, discarded: true });
           }),
       }),

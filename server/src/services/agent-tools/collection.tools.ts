@@ -366,8 +366,8 @@ export class CollectionAgentTools extends BaseService {
             .max(COLLECTION_LIMITS.photos),
         }),
         mutating: true,
-        handler: handle(async ({ auth }, { pack: packId, ...input }) => {
-          const { place, results } = await collections.saveEntries(auth, packId, input);
+        handler: handle(async ({ auth, activity }, { pack: packId, ...input }) => {
+          const { place, results } = await collections.saveEntries(auth, packId, input, activity);
           const failed = results.filter(({ success }) => !success).map(({ id, error }) => ({ id, error }));
           return toolJson({
             place,

@@ -5,6 +5,7 @@ import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { errorDto } from 'test/medium/responses.js';
 import { factory, newUuid } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 describe(SharedLinkController.name, () => {
   let ctx: ControllerContext;
@@ -44,7 +45,11 @@ describe(SharedLinkController.name, () => {
       await request(ctx.getHttpServer())
         .post('/shared-links')
         .send({ expiresAt: null, type: SharedLinkType.Individual, assetIds: [newUuid()] });
-      expect(service.create).toHaveBeenCalledWith(undefined, expect.objectContaining({ expiresAt: null }));
+      expect(service.create).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ expiresAt: null }),
+        expect.any(ActivityRecorder),
+      );
     });
 
     it('should require a bookId for share type Book', async () => {
@@ -74,6 +79,7 @@ describe(SharedLinkController.name, () => {
       expect(service.create).toHaveBeenCalledWith(
         undefined,
         expect.objectContaining({ type: SharedLinkType.Book, bookId, password: 'secret' }),
+        expect.any(ActivityRecorder),
       );
     });
 
@@ -116,6 +122,7 @@ describe(SharedLinkController.name, () => {
       expect(service.create).toHaveBeenCalledWith(
         undefined,
         expect.objectContaining({ type: SharedLinkType.Album, albumId }),
+        expect.any(ActivityRecorder),
       );
     });
   });
