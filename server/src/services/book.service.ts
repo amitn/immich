@@ -42,8 +42,10 @@ import {
   ArtJobStatus,
   AssetFileType,
   AssetType,
+  BookDraftState,
   BookExportFormat,
   BookExportStatus,
+  BookStatus,
   CacheControl,
   JobName,
   JobStatus,
@@ -175,6 +177,16 @@ export type BookAutoLayoutResult = {
   improvements: BookImprovement[];
   /** improved copies that were created and placed instead of their originals */
   improved: BookImprovedPhoto[];
+};
+
+/** a book drafted in the background (see `BookDraftService`), laid out from photos with a style preset */
+export type BookDraftInput = {
+  title: string;
+  subtitle?: string;
+  stylePreset: BookStylePreset;
+  assetIds: string[];
+  includeMaps: boolean;
+  targetPageCount?: number;
 };
 
 export type BookApplyImprovementsResult = {
@@ -423,6 +435,40 @@ export class BookService extends BaseService {
     }
   }
 
+  /**
+   * Creates a draft book (left out of the list of books until the user keeps it) and lays out the photos with the
+   * server's automatic layout only: no image analysis beyond the cached one, no improved copies and no illustrated
+   * maps. The draft is deleted when the layout fails.
+   */
+  async createDraft(auth: AuthDto, dto: BookDraftInput): Promise<BookAutoLayoutResult> {
+    const size = { pageWidthMm: DEFAULT_PAGE_SIZE_MM, pageHeightMm: DEFAULT_PAGE_SIZE_MM };
+    const style = this.mergeStyle(undefined, undefined, dto.stylePreset);
+    this.requireValidStyle(size, style);
+
+    const book = await this.bookRepository.create({
+      ownerId: auth.user.id,
+      albumId: null,
+      title: dto.title,
+      subtitle: dto.subtitle ?? null,
+      ...size,
+      style,
+      status: BookStatus.Draft,
+    });
+
+    try {
+      return await this.layOut(auth, book.id, {
+        assetIds: dto.assetIds,
+        targetPageCount: dto.targetPageCount,
+        includeMaps: dto.includeMaps,
+        considerImprovements: false,
+        improvePhotos: false,
+      });
+    } catch (error) {
+      await this.bookRepository.delete(book.id);
+      throw error;
+    }
+  }
+
   /** Lays out a book again from its album (or the given photos), replacing its pages unless `keepExisting` */
   async autoLayout(auth: AuthDto, id: string, dto: BookAutoLayoutDto): Promise<BookAutoLayoutResponseDto> {
     const { book, warnings } = await this.autoLayoutWithPlan(auth, id, dto);
@@ -524,6 +570,13 @@ export class BookService extends BaseService {
   async delete(auth: AuthDto, id: string): Promise<void> {
     await this.requireAccess({ auth, permission: Permission.BookDelete, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
+    if (book.status === BookStatus.Draft) {
+      // a deleted draft is a discarded suggestion: it is not suggested again
+      const draft = await this.bookDraftRepository.getByBookId(id);
+      if (draft?.state === BookDraftState.Drafted) {
+        await this.bookDraftRepository.update(draft.id, { state: BookDraftState.Discarded });
+      }
+    }
     await this.bookRepository.delete(id);
 
     const files = [

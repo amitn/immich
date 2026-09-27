@@ -44,10 +44,21 @@ describe(QueueService.name, () => {
         { name: JobName.HlsSessionCleanup },
         { name: JobName.AuditTableCleanup },
         { name: JobName.MemoryGenerate },
+        { name: JobName.BookDraftsQueueAll },
         { name: JobName.UserSyncUsage },
         { name: JobName.AssetGenerateThumbnailsQueueAll, data: { force: false } },
         { name: JobName.FacialRecognitionQueueAll, data: { force: false, nightly: true } },
       ]);
+    });
+
+    it('should not draft books when suggested books are disabled', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ books: { drafts: { enabled: false } } });
+
+      await sut.handleNightlyJobs();
+
+      expect(mocks.job.queueAll).toHaveBeenCalledWith(
+        expect.not.arrayContaining([{ name: JobName.BookDraftsQueueAll }]),
+      );
     });
   });
 

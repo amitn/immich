@@ -11,6 +11,7 @@ import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
@@ -65,6 +66,7 @@ export const repositories = [
   AcpRepository,
   ArtJobRepository,
   BookRepository,
+  BookDraftRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,

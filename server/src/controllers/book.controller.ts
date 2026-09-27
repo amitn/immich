@@ -24,6 +24,7 @@ import {
   BookAutoLayoutResponseDto,
   BookCreateDto,
   BookDetailResponseDto,
+  BookDraftResponseDto,
   BookExportDto,
   BookFromAlbumDto,
   BookLayoutResponseDto,
@@ -44,6 +45,7 @@ import {
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { sendFile } from 'src/utils/file.js';
 import { UUIDParamDto } from 'src/validation.js';
@@ -55,6 +57,7 @@ const history = () => new HistoryBuilder().added('v3.0.0').alpha('v3.0.0');
 export class BookController {
   constructor(
     private service: BookService,
+    private draftService: BookDraftService,
     private logger: LoggingRepository,
   ) {}
 
@@ -106,6 +109,57 @@ export class BookController {
   })
   getBookStylePresets(): BookStylePresetResponseDto[] {
     return this.service.getStylePresets();
+  }
+
+  @Get('drafts')
+  @Authenticated({ permission: Permission.BookRead })
+  @Endpoint({
+    summary: 'List suggested books',
+    description:
+      'Retrieve the photo books drafted for the current user in the background (a year of a collection, a trip, a ' +
+      'birthday), waiting to be kept or discarded, with the reason each one is suggested. Drafts are not in the list ' +
+      'of books until they are kept.',
+    history: history(),
+  })
+  getBookDrafts(@Auth() auth: AuthDto): Promise<BookDraftResponseDto[]> {
+    return this.draftService.getDrafts(auth);
+  }
+
+  @Post('drafts/refresh')
+  @Authenticated({ permission: Permission.BookCreate })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Endpoint({
+    summary: 'Look for books to suggest',
+    description:
+      'Look for new photo books to draft for the current user now, in the background, instead of waiting for the ' +
+      'nightly tasks. The user is notified of every book drafted.',
+    history: history(),
+  })
+  refreshBookDrafts(@Auth() auth: AuthDto): Promise<void> {
+    return this.draftService.refresh(auth);
+  }
+
+  @Post(':id/keep')
+  @Authenticated({ permission: Permission.BookUpdate })
+  @Endpoint({
+    summary: 'Keep a suggested book',
+    description: 'Keep a photo book drafted for the user: it becomes one of their books.',
+    history: history(),
+  })
+  keepBookDraft(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<BookResponseDto> {
+    return this.draftService.keep(auth, id);
+  }
+
+  @Post(':id/discard')
+  @Authenticated({ permission: Permission.BookDelete })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Endpoint({
+    summary: 'Discard a suggested book',
+    description: 'Discard a photo book drafted for the user: it is deleted and not suggested again.',
+    history: history(),
+  })
+  discardBookDraft(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
+    return this.draftService.discard(auth, id);
   }
 
   @Get(':id')

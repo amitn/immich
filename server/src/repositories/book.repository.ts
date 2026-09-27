@@ -3,7 +3,7 @@ import { type Insertable, type Kysely, type Transaction, type Updateable, sql } 
 import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { BookExportStatus } from 'src/enum.js';
+import { BookExportStatus, BookStatus } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
@@ -61,10 +61,12 @@ export class BookRepository {
     return book ? { ...book, pageCount: Number(book.pageCount ?? 0) } : undefined;
   }
 
+  /** a user's books, without the drafts suggested to them (see `BookDraftService`) */
   @GenerateSql({ params: [DummyValue.UUID] })
   async getAll(ownerId: string) {
     const books = await this.selectBooks()
       .where('book.ownerId', '=', ownerId)
+      .where('book.status', '=', BookStatus.Active)
       .orderBy('book.updatedAt', 'desc')
       .execute();
     return books.map((book) => ({ ...book, pageCount: Number(book.pageCount ?? 0) }));

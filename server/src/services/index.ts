@@ -10,6 +10,7 @@ import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { AuthAdminService } from 'src/services/auth-admin.service.js';
 import { AuthService } from 'src/services/auth.service.js';
+import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
@@ -68,6 +69,7 @@ export const services = [
   AlbumService,
   ArtService,
   BookService,
+  BookDraftService,
   ApiService,
   AssetFileService,
   AssetMediaService,

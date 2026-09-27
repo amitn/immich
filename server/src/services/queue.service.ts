@@ -284,6 +284,10 @@ export class QueueService extends BaseService {
       jobs.push({ name: JobName.MemoryGenerate });
     }
 
+    if (config.books.drafts.enabled) {
+      jobs.push({ name: JobName.BookDraftsQueueAll });
+    }
+
     if (config.nightlyTasks.syncQuotaUsage) {
       jobs.push({ name: JobName.UserSyncUsage });
     }

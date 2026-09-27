@@ -3,7 +3,13 @@ import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import type { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import type { BookTable } from 'src/schema/tables/book.table.js';
-import { BookExportFormat, BookExportFormatSchema, BookExportStatusSchema } from 'src/enum.js';
+import {
+  BookDraftKindSchema,
+  BookExportFormat,
+  BookExportFormatSchema,
+  BookExportStatusSchema,
+  BookStatusSchema,
+} from 'src/enum.js';
 import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
 import { bookMapStyles } from 'src/utils/book/map-styles.js';
 import { BUILT_IN_COLLECTION_PACKS } from 'src/utils/collections/registry.js';
@@ -427,6 +433,7 @@ const BookResponseSchema = z
     pageWidthMm: z.int().describe('Page width in millimeters'),
     pageHeightMm: z.int().describe('Page height in millimeters'),
     style: BookStyleSchema,
+    status: BookStatusSchema,
     exportStatus: BookExportStatusSchema.nullable().describe('Status of the PDF export'),
     htmlExportStatus: BookExportStatusSchema.nullable().describe('Status of the single-file HTML export'),
     exportedAt: isoDatetimeToDate.nullable().describe('When the PDF export last completed'),
@@ -439,6 +446,21 @@ const BookResponseSchema = z
     updatedAt: isoDatetimeToDate.describe('Last update date'),
   })
   .meta({ id: 'BookResponseDto' });
+
+const BookDraftResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Suggestion ID'),
+    key: z
+      .string()
+      .describe(
+        'Stable key of the suggestion, e.g. food:2026, trip:Travel/<Trip>, trip:<first day> or birthday:<personId>:<age>',
+      ),
+    kind: BookDraftKindSchema,
+    reason: z.string().describe('Why the book is suggested, e.g. "You visited 6 restaurants in 2026"'),
+    createdAt: isoDatetimeToDate.describe('When the book was drafted'),
+    book: BookResponseSchema.describe('The draft book'),
+  })
+  .meta({ id: 'BookDraftResponseDto' });
 
 const BookDetailResponseSchema = BookResponseSchema.extend({
   pages: z.array(BookPageResponseSchema).describe('Pages in book order'),
@@ -582,6 +604,7 @@ export class BookSlotResponseDto extends createZodDto(BookSlotResponseSchema) {}
 export class BookPageResponseDto extends createZodDto(BookPageResponseSchema) {}
 export class BookResponseDto extends createZodDto(BookResponseSchema) {}
 export class BookDetailResponseDto extends createZodDto(BookDetailResponseSchema) {}
+export class BookDraftResponseDto extends createZodDto(BookDraftResponseSchema) {}
 export class BookAutoLayoutResponseDto extends createZodDto(BookAutoLayoutResponseSchema) {}
 export class BookStylePresetResponseDto extends createZodDto(BookStylePresetResponseSchema) {}
 export class BookReviewResponseDto extends createZodDto(BookReviewResponseSchema) {}
@@ -605,6 +628,7 @@ export const mapBook = (book: BookRow): BookResponseDto => ({
   pageWidthMm: book.pageWidthMm,
   pageHeightMm: book.pageHeightMm,
   style: resolveBookStyle(book.style),
+  status: book.status,
   exportStatus: book.exportStatus,
   htmlExportStatus: book.htmlExportStatus,
   exportedAt: book.exportedAt,

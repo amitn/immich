@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import { BookController } from 'src/controllers/book.controller.js';
 import { CacheControl } from 'src/enum.js';
+import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { errorDto } from 'test/medium/responses.js';
@@ -13,15 +14,73 @@ import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.
 describe(BookController.name, () => {
   let ctx: ControllerContext;
   const service = mockBaseService(BookService);
+  const draftService = mockBaseService(BookDraftService);
 
   beforeAll(async () => {
-    ctx = await controllerSetup(BookController, [{ provide: BookService, useValue: service }]);
+    ctx = await controllerSetup(BookController, [
+      { provide: BookService, useValue: service },
+      { provide: BookDraftService, useValue: draftService },
+    ]);
     return () => ctx.close();
   });
 
   beforeEach(() => {
     service.resetAllMocks();
+    draftService.resetAllMocks();
     ctx.reset();
+  });
+
+  describe('GET /books/drafts', () => {
+    it('should be an authenticated route', async () => {
+      await request(ctx.getHttpServer()).get('/books/drafts');
+      expect(ctx.authenticate).toHaveBeenCalled();
+    });
+
+    it('should list the drafts, not read "drafts" as a book id', async () => {
+      draftService.getDrafts.mockResolvedValue([]);
+      const { status, body } = await request(ctx.getHttpServer()).get('/books/drafts');
+      expect(status).toBe(200);
+      expect(body).toEqual([]);
+      expect(draftService.getDrafts).toHaveBeenCalled();
+      expect(service.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /books/drafts/refresh', () => {
+    it('should look for books to draft', async () => {
+      const { status } = await request(ctx.getHttpServer()).post('/books/drafts/refresh');
+      expect(status).toBe(204);
+      expect(draftService.refresh).toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /books/:id/keep', () => {
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).post('/books/not-a-uuid/keep');
+      expect(status).toBe(400);
+      expect(draftService.keep).not.toHaveBeenCalled();
+    });
+
+    it('should keep the draft', async () => {
+      const id = factory.uuid();
+      const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/keep`);
+      expect(status).toBe(201);
+      expect(draftService.keep).toHaveBeenCalledWith(undefined, id);
+    });
+  });
+
+  describe('POST /books/:id/discard', () => {
+    it('should require a valid id', async () => {
+      const { status } = await request(ctx.getHttpServer()).post('/books/not-a-uuid/discard');
+      expect(status).toBe(400);
+    });
+
+    it('should discard the draft', async () => {
+      const id = factory.uuid();
+      const { status } = await request(ctx.getHttpServer()).post(`/books/${id}/discard`);
+      expect(status).toBe(204);
+      expect(draftService.discard).toHaveBeenCalledWith(undefined, id);
+    });
   });
 
   describe('POST /books', () => {
