@@ -189,6 +189,27 @@ You can also ask the assistant to share a book. It uses `share_book`, which asks
 Anyone with the link can read the book, so check what the pages show before you share it. A page that prints a travel document shows it to the visitors too.
 :::
 
+### Suggested books
+
+Every night, Immich looks for books your photos are enough for, and drafts them in the background for you to review. The drafts are laid out by the server's own automatic layout, like **Export as book**: no assistant is involved, nothing leaves your server, and it costs no AI credits.
+
+| Kind              | Example                                                                                  | Drafted when                                                                                                                                                                                              | Style                        |
+| ----------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Yearly collection | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [collection](#tags).                          | The collection's book style  |
+| Trip              | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, or, without travel tags, the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
+| Birthday          | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                          | Soft                         |
+
+When a draft is ready you get a notification, "A new photo book is ready to review: 2026 in food", which opens it. On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
+
+- **Keep** makes the draft one of your books. Until then, drafts aren't in the list of books or in the sidebar.
+- **Discard** deletes the draft. It is never suggested again, and neither is a draft you delete from the book viewer.
+
+Open a draft to look at its pages. The viewer shows a banner with the same buttons, and **Polish with assistant**, which opens a chat to review the book, swap in better photos and write captions.
+
+Every suggestion is made once. At most 3 books are drafted per night for each user (**Books per night**), and none while 6 drafts are waiting to be reviewed. You can also ask the assistant "what books have you made for me?": it lists the drafts with `list_book_drafts`, and keeps or discards one with `keep_book_draft` or `discard_book_draft`, which ask for approval.
+
+Turn suggestions off for yourself under **Account Settings > Features > Suggested books**. Administrators can turn them off for everyone, or choose the kinds, in **Administration > Settings > Photo books**, and draft books now with **Draft suggested books** under **Administration > Jobs > Create job**.
+
 ### Map pages
 
 Map pages show the route, the stops, place names, a compass rose, a scale bar and the section title. Choose the **Map style** when you create or re-lay out a book:
@@ -414,6 +435,11 @@ See [Tags](/features/tags) for more.
 | `agent.mcpUrl`                   | _(empty)_                                            | **MCP URL** the agent uses to reach Immich's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                  |
 | `books.maps.stadiaApiKey`        | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Empty draws every map as an offline sketch.                                                                                                                                    |
 | `books.maps.defaultStyle`        | `watercolor`                                         | **Default map style** used when a book's map style is **Auto**: `sketch`, `watercolor`, `toner` or `terrain`. Without an API key, **Auto** uses the sketch style.                                                                                        |
+| `books.drafts.enabled`           | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                   |
+| `books.drafts.maxPerRun`         | `3`                                                  | **Books per night**: the most books drafted for a user per run.                                                                                                                                                                                          |
+| `books.drafts.yearly`            | `true`                                               | **Yearly collection books**, e.g. "2026 in food".                                                                                                                                                                                                        |
+| `books.drafts.trips`             | `true`                                               | **Trip books**.                                                                                                                                                                                                                                          |
+| `books.drafts.birthdays`         | `true`                                               | **Birthday books**.                                                                                                                                                                                                                                      |
 | `food.openStreetMap.enabled`     | `false`                                              | **Look up restaurants on OpenStreetMap**: lets the assistant look up the restaurants near a meal when their name can't be read on the photos. It sends the location of the meal to the Overpass API, only when the assistant asks and the user approves. |
 | `food.openStreetMap.overpassUrl` | `https://overpass-api.de/api/interpreter`            | **Overpass API URL**: the Overpass API interpreter that is asked for the restaurants near a meal.                                                                                                                                                        |
 
