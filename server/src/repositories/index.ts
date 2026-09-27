@@ -1,5 +1,6 @@
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
 import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
@@ -63,6 +64,7 @@ import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
 export const repositories = [
   AccessRepository,
   ActivityRepository,
+  ActivityLogRepository,
   AgentRepository,
   AcpRepository,
   ArtJobRepository,

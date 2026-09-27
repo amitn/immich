@@ -22,6 +22,7 @@ import {
 } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
 import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
@@ -482,6 +483,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case AlbumRepository:
     case AlbumUserRepository:
     case ActivityRepository:
+    case ActivityLogRepository:
     case ApiKeyRepository:
     case AssetRepository:
     case AssetEditRepository:
@@ -554,6 +556,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
 const newMockRepository = <T>(key: ClassConstructor<T>) => {
   switch (key) {
     case ActivityRepository:
+    case ActivityLogRepository:
     case AlbumRepository:
     case AssetRepository:
     case AssetJobRepository:

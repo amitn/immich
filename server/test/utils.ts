@@ -21,6 +21,7 @@ import { FileUploadInterceptor } from 'src/middleware/file-upload.interceptor.js
 import { GlobalExceptionFilter } from 'src/middleware/global-exception.filter.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
 import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
@@ -240,6 +241,7 @@ export const automock = <T>(
 export type ServiceOverrides = {
   access: AccessRepository;
   activity: ActivityRepository;
+  activityLog: ActivityLogRepository;
   agent: AgentRepository;
   acp: AcpRepository;
   artJob: ArtJobRepository;
@@ -334,6 +336,7 @@ export const getMocks = () => {
     cron: automock(CronRepository, { args: [, loggerMock] }),
     crypto: newCryptoRepositoryMock(),
     activity: automock(ActivityRepository),
+    activityLog: automock(ActivityLogRepository),
     agent: automock(AgentRepository),
     acp: automock(AcpRepository, { args: [loggerMock] }),
     artJob: automock(ArtJobRepository),
@@ -413,6 +416,7 @@ export const newTestService = <T extends BaseService>(
     overrides.logger || (mocks.logger as As<LoggingRepository>),
     overrides.access || (mocks.access as IAccessRepository as AccessRepository),
     overrides.activity || (mocks.activity as As<ActivityRepository>),
+    overrides.activityLog || (mocks.activityLog as As<ActivityLogRepository>),
     overrides.agent || (mocks.agent as As<AgentRepository>),
     overrides.acp || (mocks.acp as As<AcpRepository>),
     overrides.artJob || (mocks.artJob as As<ArtJobRepository>),

@@ -46,6 +46,7 @@ const updatedConfig = Object.freeze<SystemConfig>({
     maxConcurrentSessions: 3,
     idleTimeoutMinutes: 15,
     autoApproveWrites: false,
+    activityRetentionDays: 90,
     mcpUrl: '',
   },
   job: {

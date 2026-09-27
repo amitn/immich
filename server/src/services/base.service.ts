@@ -8,6 +8,7 @@ import { UserAdmin } from 'src/database.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
 import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
@@ -75,6 +76,7 @@ export const BASE_SERVICE_DEPENDENCIES = [
   LoggingRepository,
   AccessRepository,
   ActivityRepository,
+  ActivityLogRepository,
   AgentRepository,
   AcpRepository,
   ArtJobRepository,
@@ -143,6 +145,7 @@ export class BaseService {
     protected logger: LoggingRepository,
     protected accessRepository: AccessRepository,
     protected activityRepository: ActivityRepository,
+    protected activityLogRepository: ActivityLogRepository,
     protected agentRepository: AgentRepository,
     protected acpRepository: AcpRepository,
     protected artJobRepository: ArtJobRepository,
@@ -220,6 +223,7 @@ export class BaseService {
       LoggingRepository.create(),
       ctx.accessRepository,
       ctx.activityRepository,
+      ctx.activityLogRepository,
       ctx.agentRepository,
       ctx.acpRepository,
       ctx.artJobRepository,

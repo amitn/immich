@@ -178,6 +178,11 @@ const AdminConfigSchemaWithVisibility = z
         maxConcurrentSessions: z.int().min(1).max(100).describe('Maximum number of running agent processes'),
         idleTimeoutMinutes: z.int().min(1).max(1440).describe('Stop an idle agent process after this many minutes'),
         autoApproveWrites: configBool.describe('Allow the agent to modify the library without asking for approval'),
+        activityRetentionDays: z
+          .int()
+          .min(1)
+          .max(3650)
+          .describe('Days the activity log keeps the changes made by the assistant, which can be undone until then'),
         mcpUrl: emptyOrUrl('MCP URL must be an empty string or a valid URL').describe(
           'URL the agent uses to reach the Immich MCP endpoint (empty for http://127.0.0.1:<port>/api/agent/mcp)',
         ),
@@ -641,6 +646,7 @@ export const defaults = Object.freeze<SystemConfig>({
     maxConcurrentSessions: 3,
     idleTimeoutMinutes: 15,
     autoApproveWrites: false,
+    activityRetentionDays: 90,
     mcpUrl: '',
   },
   backup: {
