@@ -412,6 +412,9 @@ importers:
       '@immich/sql-tools':
         specifier: ^0.6.3
         version: 0.6.3
+      '@mapbox/vector-tile':
+        specifier: ^3.0.0
+        version: 3.0.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.30.1
         version: 1.30.1(supports-color@8.1.1)(zod@4.4.3)
@@ -589,6 +592,9 @@ importers:
       openid-client:
         specifier: ^6.3.3
         version: 6.8.8
+      pbf:
+        specifier: ^5.1.2
+        version: 5.1.2
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1

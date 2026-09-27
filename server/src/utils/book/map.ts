@@ -1,11 +1,29 @@
 import { minBy } from 'lodash-es';
 import { LRUMap } from 'mnemonist';
 import sharp, { type Sharp } from 'sharp';
-import type { BookMap } from 'src/dtos/book.dto.js';
+import type { BookMap, BookStyle } from 'src/dtos/book.dto.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import { isMapLayout } from 'src/utils/book/layouts.js';
+import { MapLook, getMapLook, resolveMapLook } from 'src/utils/book/map-looks.js';
 import { TileStyle, getTileStyle } from 'src/utils/book/map-styles.js';
 import { escapeXml } from 'src/utils/book/render.js';
+import {
+  getMapLabelCandidates,
+  placeMapLabels,
+  renderMapLabels,
+  renderStyledBasemap,
+  renderStyledFrame,
+} from 'src/utils/book/styled-map.js';
+import {
+  MapFeature,
+  TileKey,
+  VectorTileSource,
+  chooseVectorZoom,
+  decodeVectorTile,
+  getMapCredit,
+  getTilePlacement,
+  getTilesInView,
+} from 'src/utils/book/vector-tiles.js';
 
 export type MapPoint = { lat: number; lon: number; time: number; city?: string | null };
 
@@ -14,11 +32,24 @@ export type GeoBounds = { west: number; south: number; east: number; north: numb
 /** a country polygon as rings of [lon, lat] */
 export type CountryOutline = { name: string; rings: Array<Array<[number, number]>> };
 
+/** the vector tiles of styled maps: where they come from, and how to load one (null for an empty tile) */
+export type StyledMapSource = {
+  source: VectorTileSource;
+  getTile: (tile: TileKey) => Promise<Buffer | null>;
+};
+
 export type MapRenderContext = {
   /** locations to plot, in time order */
   points: MapPoint[];
   /** needed for the watercolor, toner and terrain styles */
   stadiaApiKey?: string;
+  /**
+   * the map data of styled maps (the tiles of Immich's own Map page); throws, with the reason, when styled maps are not
+   * available (maps disabled, the style or the tiles cannot be loaded)
+   */
+  getStyledMapSource?: () => Promise<StyledMapSource>;
+  /** the style of the book, whose colours and fonts styled maps are drawn with */
+  style?: Required<BookStyle>;
   /** country outlines behind the route of long trips on sketch maps */
   getCountries?: (bounds: GeoBounds) => Promise<CountryOutline[]>;
   /** an illustrated version of the map, drawn instead of rendering one */
@@ -33,12 +64,25 @@ export type MapRenderSize = { width: number; height: number; format?: 'jpeg' | '
 
 export type MapRenderResult = {
   data: Buffer;
-  /** what was drawn: the offline sketch, Stadia tiles, or the illustrated map */
-  source: 'sketch' | 'tiles' | 'illustrated';
+  /** what was drawn: the offline sketch, Stadia tiles, the styled map, or the illustrated map */
+  source: 'sketch' | 'tiles' | 'styled' | 'illustrated';
   warnings: string[];
 };
 
 export const DEFAULT_MAP: BookMap = Object.freeze({ style: 'sketch', showRoute: true, labels: true });
+
+/** the style of a book without one, for styled maps */
+const DEFAULT_STYLED_BOOK_STYLE: Required<BookStyle> = Object.freeze({
+  marginMm: 12,
+  gutterMm: 4,
+  background: '#ffffff',
+  textColor: '#222222',
+  fontFamily: 'serif',
+  titleSizePt: 28,
+  captionSizePt: 10,
+  theme: 'plain',
+  accentColor: '#222222',
+});
 
 export const MAP_ATTRIBUTION = '© Stadia Maps © Stamen Design © OpenStreetMap contributors';
 
@@ -58,6 +102,13 @@ const EARTH_CIRCUMFERENCE_M = 40_075_016.686;
  */
 export const MIN_OUTLINE_VIEW_KM = 30;
 const MAX_LABELS = 14;
+/** styled maps show at least this much ground across their shorter side, a few streets around a single place */
+export const MIN_STYLED_VIEW_M = 1200;
+/** the most vector tiles loaded for one map */
+export const MAX_VECTOR_TILES = 20;
+const VECTOR_TILE_CONCURRENCY = 3;
+/** the layers of the vector tiles that styled maps draw */
+const STYLED_LAYERS = new Set(['earth', 'water', 'landcover', 'landuse', 'buildings', 'roads', 'boundaries', 'places']);
 
 const tileCache = new LRUMap<string, Buffer>(400);
 
@@ -98,6 +149,7 @@ export const fitViewport = (
   points: Array<{ x: number; y: number }>,
   size: { width: number; height: number },
   padding: number,
+  minSpan = MIN_SPAN,
 ): Viewport => {
   if (points.length === 0) {
     return { ...size, ...project(30, 10), scale: size.width * 1.2 };
@@ -106,8 +158,8 @@ export const fitViewport = (
   const xs = points.map((point) => point.x);
   const ys = points.map((point) => point.y);
   const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const spanX = Math.max(maxX - minX, MIN_SPAN);
-  const spanY = Math.max(maxY - minY, MIN_SPAN);
+  const spanX = Math.max(maxX - minX, minSpan);
+  const spanY = Math.max(maxY - minY, minSpan);
   const scale = Math.min(Math.max(1, size.width - 2 * padding) / spanX, Math.max(1, size.height - 2 * padding) / spanY);
   return { ...size, x: (minX + maxX) / 2, y: (minY + maxY) / 2, scale };
 };
@@ -124,6 +176,10 @@ export const getViewportBounds = (viewport: Viewport): GeoBounds => {
   const bottomRight = unproject(viewport.x + halfWidth, clamp(viewport.y + halfHeight, 0, 1));
   return { west: topLeft.lon, north: topLeft.lat, east: bottomRight.lon, south: bottomRight.lat };
 };
+
+/** the span in world units of `meters` of ground at a latitude */
+export const metersToWorld = (meters: number, lat: number) =>
+  meters / (EARTH_CIRCUMFERENCE_M * Math.max(0.01, Math.cos((clamp(lat, -MAX_LAT, MAX_LAT) * Math.PI) / 180)));
 
 /** metres per pixel at the centre of the viewport */
 export const getMetersPerPixel = (viewport: Viewport) => {
@@ -430,8 +486,17 @@ type Theme = {
   label: string;
   halo: string;
   ink: string;
+  /** serif: the book's font; sans-serif; or a font stack */
   labelFont: string;
   italic: boolean;
+  /** a dashed route (default) or a solid one */
+  routeDash?: boolean;
+  /** how much the route wobbles, in design pixels (default 2.5) */
+  routeWobble?: number;
+  /** numbers the stops in the heads of their pins, in this colour */
+  pinText?: string;
+  cartouche?: { fill: string; stroke: string; text: string; italic: boolean; upper: boolean };
+  compass?: 'simple' | 'rose' | 'arrow';
 };
 
 const SKETCH_THEME: Theme = {
@@ -458,9 +523,55 @@ const TILE_THEME: Theme = {
   italic: false,
 };
 
+const DEFAULT_CARTOUCHE: NonNullable<Theme['cartouche']> = {
+  fill: '#fbf7ec',
+  stroke: '#5b4a33',
+  text: '#3d3122',
+  italic: true,
+  upper: false,
+};
+
+/** the overlay of a styled map, in the colours and fonts of its look */
+const getStyledTheme = (look: MapLook): Theme => ({
+  ...look.overlay,
+  labelFont: look.overlay.labelFont,
+  routeWobble: look.id === 'minimal' ? 0.6 : look.id === 'wash' ? 2.5 : 1.2,
+  compass: look.compass,
+});
+
 const renderCompass = (x: number, y: number, size: number, theme: Theme, fontFamily: string) => {
   const r = size / 2;
   const s = fmt;
+  if (theme.compass === 'arrow') {
+    return [
+      `<g opacity="0.8">`,
+      `<path d="M${s(x)},${s(y - r * 0.75)} L${s(x + r * 0.22)},${s(y + r * 0.45)} L${s(x)},${s(y + r * 0.25)} L${s(x - r * 0.22)},${s(y + r * 0.45)} Z" fill="${theme.ink}"/>`,
+      `<text x="${s(x)}" y="${s(y - r * 0.95)}" font-family="${escapeXml(fontFamily)}" font-size="${s(size * 0.26)}" fill="${theme.ink}" text-anchor="middle">N</text>`,
+      `</g>`,
+    ].join('');
+  }
+  if (theme.compass === 'rose') {
+    const point = (angle: number, length: number, width: number) => {
+      const a = (angle * Math.PI) / 180;
+      const tip = { x: x + Math.sin(a) * length, y: y - Math.cos(a) * length };
+      const left = { x: x + Math.sin(a - Math.PI / 2) * width, y: y - Math.cos(a - Math.PI / 2) * width };
+      const right = { x: x + Math.sin(a + Math.PI / 2) * width, y: y - Math.cos(a + Math.PI / 2) * width };
+      return [
+        `<polygon points="${s(x)},${s(y)} ${s(tip.x)},${s(tip.y)} ${s(left.x)},${s(left.y)}" fill="${theme.ink}"/>`,
+        `<polygon points="${s(x)},${s(y)} ${s(tip.x)},${s(tip.y)} ${s(right.x)},${s(right.y)}" fill="${theme.halo}" stroke="${theme.ink}" stroke-width="${s(size * 0.012)}" stroke-linejoin="round"/>`,
+      ].join('');
+    };
+    return [
+      `<g opacity="0.9">`,
+      `<circle cx="${s(x)}" cy="${s(y)}" r="${s(r * 0.78)}" fill="${theme.halo}" fill-opacity="0.55" stroke="${theme.ink}" stroke-width="${s(size * 0.012)}"/>`,
+      `<circle cx="${s(x)}" cy="${s(y)}" r="${s(r * 0.7)}" fill="none" stroke="${theme.ink}" stroke-width="${s(size * 0.008)}" stroke-dasharray="${s(size * 0.01)} ${s(size * 0.025)}"/>`,
+      ...[45, 135, 225, 315].map((angle) => point(angle, r * 0.55, r * 0.09)),
+      ...[0, 90, 180, 270].map((angle) => point(angle, r * 0.95, r * 0.13)),
+      `<circle cx="${s(x)}" cy="${s(y)}" r="${s(r * 0.05)}" fill="${theme.halo}" stroke="${theme.ink}" stroke-width="${s(size * 0.01)}"/>`,
+      `<text x="${s(x)}" y="${s(y - r * 1.07)}" font-family="${escapeXml(fontFamily)}" font-size="${s(size * 0.22)}" font-weight="bold" fill="${theme.ink}" text-anchor="middle">N</text>`,
+      `</g>`,
+    ].join('');
+  }
   return [
     `<g opacity="0.85">`,
     `<circle cx="${s(x)}" cy="${s(y)}" r="${s(r * 0.72)}" fill="none" stroke="${theme.ink}" stroke-width="${s(size * 0.025)}"/>`,
@@ -472,12 +583,12 @@ const renderCompass = (x: number, y: number, size: number, theme: Theme, fontFam
   ].join('');
 };
 
-const renderScaleBar = (viewport: Viewport, u: number, theme: Theme, fontFamily: string, bottom: number) => {
+const renderScaleBar = (viewport: Viewport, u: number, theme: Theme, fontFamily: string, bottom: number, left = 24) => {
   const bar = getScaleBar(getMetersPerPixel(viewport), viewport.width * 0.18);
   if (!Number.isFinite(bar.pixels) || bar.pixels <= 0) {
     return '';
   }
-  const x = 24 * u;
+  const x = left * u;
   const y = viewport.height - bottom;
   const h = 5 * u;
   const half = bar.pixels / 2;
@@ -490,16 +601,25 @@ const renderScaleBar = (viewport: Viewport, u: number, theme: Theme, fontFamily:
   ].join('');
 };
 
-const renderTitle = (title: string, width: number, u: number, fontFamily: string) => {
-  const fontPx = Math.min(44 * u, (width * 0.8) / Math.max(4, title.length * 0.55));
-  const boxWidth = Math.min(width * 0.9, title.length * fontPx * 0.56 + fontPx * 2);
+const renderTitle = (
+  title: string,
+  width: number,
+  u: number,
+  fontFamily: string,
+  cartouche: NonNullable<Theme['cartouche']> = DEFAULT_CARTOUCHE,
+) => {
+  const text = cartouche.upper ? title.toLocaleUpperCase() : title;
+  const spacing = cartouche.upper ? 0.14 : 0;
+  const charWidth = (cartouche.upper ? 0.68 : 0.56) + spacing;
+  const fontPx = Math.min((cartouche.upper ? 36 : 44) * u, (width * 0.8) / Math.max(4, text.length * charWidth));
+  const boxWidth = Math.min(width * 0.9, text.length * fontPx * charWidth + fontPx * 2);
   const boxHeight = fontPx * 1.8;
   const x = (width - boxWidth) / 2;
   const y = 22 * u;
   return [
-    `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(boxWidth)}" height="${fmt(boxHeight)}" rx="${fmt(6 * u)}" fill="#fbf7ec" fill-opacity="0.9" stroke="#5b4a33" stroke-width="${fmt(1.5 * u)}"/>`,
-    `<rect x="${fmt(x + 4 * u)}" y="${fmt(y + 4 * u)}" width="${fmt(boxWidth - 8 * u)}" height="${fmt(boxHeight - 8 * u)}" rx="${fmt(4 * u)}" fill="none" stroke="#5b4a33" stroke-opacity="0.5" stroke-width="${fmt(0.8 * u)}"/>`,
-    `<text x="${fmt(width / 2)}" y="${fmt(y + boxHeight / 2 + fontPx * 0.34)}" font-family="${escapeXml(fontFamily)}" font-size="${fmt(fontPx)}" font-style="italic" fill="#3d3122" text-anchor="middle">${escapeXml(title)}</text>`,
+    `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(boxWidth)}" height="${fmt(boxHeight)}" rx="${fmt(6 * u)}" fill="${cartouche.fill}" fill-opacity="0.9" stroke="${cartouche.stroke}" stroke-width="${fmt(1.5 * u)}"/>`,
+    `<rect x="${fmt(x + 4 * u)}" y="${fmt(y + 4 * u)}" width="${fmt(boxWidth - 8 * u)}" height="${fmt(boxHeight - 8 * u)}" rx="${fmt(4 * u)}" fill="none" stroke="${cartouche.stroke}" stroke-opacity="0.5" stroke-width="${fmt(0.8 * u)}"/>`,
+    `<text x="${fmt(width / 2)}" y="${fmt(y + boxHeight / 2 + fontPx * 0.34)}" font-family="${escapeXml(fontFamily)}" font-size="${fmt(fontPx)}"${cartouche.italic ? ' font-style="italic"' : ''}${spacing ? ` letter-spacing="${fmt(fontPx * spacing)}"` : ''} fill="${cartouche.text}" text-anchor="middle">${escapeXml(text)}</text>`,
   ].join('');
 };
 
@@ -606,18 +726,36 @@ const renderFrame = (width: number, height: number, u: number) =>
 /** label size of the places, in thousandths of the shorter side of the map */
 const LABEL_PX = 30;
 
-/** a map pin whose tip marks the stop, with a soft shadow; the first stop has a filled head */
-const renderPin = (stop: { x: number; y: number }, r: number, theme: Theme, u: number, first: boolean) => {
+/**
+ * a map pin whose tip marks the stop, with a soft shadow; the first stop has a filled head, unless the stops are
+ * numbered in the order they were visited
+ */
+const renderPin = (
+  stop: { x: number; y: number },
+  r: number,
+  theme: Theme,
+  u: number,
+  first: boolean,
+  number?: number,
+  fontFamily?: string,
+) => {
   const { x, y } = stop;
   const cy = y - r * 1.9;
   const side = r * Math.sin(Math.PI / 3);
   const shoulder = cy + r * Math.cos(Math.PI / 3);
+  const head =
+    number === undefined
+      ? `<circle cx="${fmt(x)}" cy="${fmt(cy)}" r="${fmt(r * 0.42)}" fill="${first ? theme.ink : theme.pinStroke}" stroke="${theme.pinStroke}" stroke-width="${fmt(first ? 2 * u : 0)}"/>`
+      : `<text x="${fmt(x)}" y="${fmt(cy + r * 0.36)}" font-family="${escapeXml(fontFamily ?? getFontStack('sans-serif'))}" font-size="${fmt(r * (number >= 10 ? 0.9 : 1.05))}" font-weight="bold" fill="${theme.pinText ?? theme.pinStroke}" text-anchor="middle">${number}</text>`;
   return [
     `<ellipse cx="${fmt(x)}" cy="${fmt(y)}" rx="${fmt(r * 0.7)}" ry="${fmt(r * 0.25)}" fill="#2b2115" fill-opacity="0.3"/>`,
     `<path d="M${fmt(x)},${fmt(y)} L${fmt(x - side)},${fmt(shoulder)} A${fmt(r)},${fmt(r)} 0 1 1 ${fmt(x + side)},${fmt(shoulder)} Z" fill="${theme.pin}" stroke="${theme.pinStroke}" stroke-width="${fmt(2 * u)}" stroke-linejoin="round"/>`,
-    `<circle cx="${fmt(x)}" cy="${fmt(cy)}" r="${fmt(r * 0.42)}" fill="${first ? theme.ink : theme.pinStroke}" stroke="${theme.pinStroke}" stroke-width="${fmt(first ? 2 * u : 0)}"/>`,
+    head,
   ].join('');
 };
+
+/** the most stops numbered on a map; more are drawn as plain pins */
+const MAX_NUMBERED_STOPS = 30;
 
 type OverlayInput = {
   viewport: Viewport;
@@ -625,50 +763,89 @@ type OverlayInput = {
   map: BookMap;
   theme: Theme;
   fontFamily: string;
-  attribution: boolean;
+  /** the Stadia credit (true), a credit of the map data, or none */
+  attribution: boolean | string;
   seed: number;
+  /** room kept free along the edges, e.g. for a frame, in design pixels */
+  inset?: number;
+};
+
+type OverlayResult = {
+  svg: string;
+  /** what the overlay covers: pins, labels, title, compass, scale bar and credit */
+  taken: Box[];
+  /** the place names the overlay shows, lower case */
+  names: Set<string>;
 };
 
 /** route, pins, labels, compass, scale bar, title and attribution */
-const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, seed }: OverlayInput) => {
+const renderOverlay = (input: OverlayInput): OverlayResult => {
+  const { viewport, points, map, theme, fontFamily, attribution, seed } = input;
   const { width, height } = viewport;
   const u = Math.min(width, height) / 1000;
+  const inset = (input.inset ?? 0) * u;
   const parts: string[] = [];
-  const labelFont = theme.labelFont === 'serif' ? fontFamily : getFontStack('sans-serif');
+  const labelFont =
+    theme.labelFont === 'serif'
+      ? fontFamily
+      : theme.labelFont === 'sans-serif'
+        ? getFontStack('sans-serif')
+        : theme.labelFont;
 
   const route = points.filter(
     (point, i) => i === 0 || Math.hypot(point.x - points[i - 1].x, point.y - points[i - 1].y) >= 6 * u,
   );
   if (map.showRoute && route.length > 1) {
-    const path = getRoutePath(route, 2.5 * u, seed);
+    const path = getRoutePath(route, (theme.routeWobble ?? 2.5) * u, seed);
+    const dash = theme.routeDash === false ? '' : ` stroke-dasharray="${fmt(12 * u)} ${fmt(7 * u)}"`;
     parts.push(
-      `<path d="${path}" fill="none" stroke="${theme.routeShadow}" stroke-opacity="0.35" stroke-width="${fmt(7 * u)}" stroke-linecap="round" stroke-linejoin="round"/>`,
-      `<path d="${path}" fill="none" stroke="${theme.route}" stroke-width="${fmt(3.2 * u)}" stroke-dasharray="${fmt(12 * u)} ${fmt(7 * u)}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path d="${path}" fill="none" stroke="${theme.routeShadow}" stroke-opacity="${theme.routeDash === false ? 0.75 : 0.35}" stroke-width="${fmt(7 * u)}" stroke-linecap="round" stroke-linejoin="round"/>`,
+      `<path d="${path}" fill="none" stroke="${theme.route}" stroke-width="${fmt(3.2 * u)}"${dash} stroke-linecap="round" stroke-linejoin="round"/>`,
     );
   }
 
   const stops = getStops(points, 14 * u);
-  const radius = (stop: Stop) => (11 + 2.5 * Math.log2(stop.count)) * u;
+  const numbered = !!theme.pinText && stops.length > 1 && stops.length <= MAX_NUMBERED_STOPS;
+  const radius = (stop: Stop) => (numbered ? 13 + 2 * Math.log2(stop.count) : 11 + 2.5 * Math.log2(stop.count)) * u;
   const obstacles: Box[] = [];
   for (const [index, stop] of stops.entries()) {
     const r = radius(stop);
     obstacles.push({ x: stop.x - r * 1.1, y: stop.y - r * 2.9, width: r * 2.2, height: r * 3 });
-    parts.push(renderPin(stop, r, theme, u, index === 0));
+    parts.push(renderPin(stop, r, theme, u, index === 0, numbered ? index + 1 : undefined, labelFont));
   }
 
   const titleHeight = map.title ? 22 * u + Math.min(44 * u, width) * 1.8 : 0;
   if (map.title) {
     obstacles.push({ x: 0, y: 0, width, height: titleHeight + 12 * u });
   }
-  const compassSize = 56 * u;
+  const compassSize = (theme.compass === 'rose' ? 76 : 56) * u;
+  const compass = {
+    x: width - inset - compassSize * 0.85,
+    y: inset + compassSize * 1.05 + 16 * u,
+  };
   obstacles.push(
-    { x: width - compassSize * 1.7, y: 0, width: compassSize * 1.7, height: compassSize * 1.9 + 16 * u },
-    { x: 0, y: height - 70 * u, width: width * 0.3, height: 70 * u },
+    {
+      x: compass.x - compassSize * 0.85,
+      y: compass.y - compassSize * 1.05 - 16 * u,
+      width: compassSize * 1.7 + inset,
+      height: compassSize * 1.9 + 16 * u,
+    },
+    { x: 0, y: height - 70 * u - inset, width: width * 0.3 + inset, height: 70 * u + inset },
   );
-  if (attribution) {
-    obstacles.push({ x: width * 0.45, y: height - 26 * u, width: width * 0.55, height: 26 * u });
+  const credit = attribution === true ? MAP_ATTRIBUTION : attribution || '';
+  const creditPx = Math.max(9, 11 * u);
+  const creditWidth = credit.length * creditPx * 0.52 + 12 * u;
+  if (credit) {
+    obstacles.push({
+      x: width - inset - creditWidth,
+      y: height - inset - creditPx * 2,
+      width: creditWidth + inset,
+      height: creditPx * 2 + inset,
+    });
   }
 
+  const taken = [...obstacles];
+  const names = new Set<string>();
   if (map.labels) {
     const fontPx = LABEL_PX * u;
     // labels sit next to the pin closest to the middle of their photos
@@ -678,7 +855,7 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
       const r = radius(stop);
       return { ...label, x: stop.x, y: stop.y - r * 1.9, offset: r + 6 * u };
     });
-    const labels = placeLabels(candidates, { width, height, fontPx, obstacles, margin: 14 * u });
+    const labels = placeLabels(candidates, { width, height, fontPx, obstacles, margin: 14 * u + inset });
     for (const label of labels) {
       const x =
         label.anchor === 'start'
@@ -686,30 +863,37 @@ const renderOverlay = ({ viewport, points, map, theme, fontFamily, attribution, 
           : label.anchor === 'end'
             ? label.box.x + label.box.width
             : label.box.x + label.box.width / 2;
+      taken.push(label.box);
+      names.add(label.text.toLocaleLowerCase('en'));
       parts.push(
         `<text x="${fmt(x)}" y="${fmt(label.baseline)}" font-family="${escapeXml(labelFont)}" font-size="${fmt(fontPx)}"${theme.italic ? ' font-style="italic"' : ' font-weight="bold"'} fill="${theme.label}" stroke="${theme.halo}" stroke-opacity="0.9" stroke-width="${fmt(6 * u)}" stroke-linejoin="round" paint-order="stroke" text-anchor="${label.anchor}">${escapeXml(label.text)}</text>`,
       );
     }
   }
 
+  // the compass, scale bar and title of styled maps use the font of their look, the others the book's font
+  const chromeFont = theme.compass ? labelFont : fontFamily;
   parts.push(
-    renderCompass(width - compassSize * 0.85, compassSize * 1.05 + 16 * u, compassSize, theme, fontFamily),
-    renderScaleBar(viewport, u, theme, fontFamily, 28 * u),
+    renderCompass(compass.x, compass.y, compassSize, theme, chromeFont),
+    renderScaleBar(viewport, u, theme, chromeFont, 28 * u + inset, 24 + (input.inset ?? 0)),
   );
 
   if (map.title) {
-    parts.push(renderTitle(map.title, width, u, fontFamily));
+    parts.push(renderTitle(map.title, width, u, chromeFont, theme.cartouche));
   }
 
-  if (attribution) {
-    const fontPx = Math.max(9, 11 * u);
+  if (attribution === true) {
     parts.push(
-      `<rect x="${fmt(width - MAP_ATTRIBUTION.length * fontPx * 0.52 - 12 * u)}" y="${fmt(height - fontPx * 1.7)}" width="${fmt(MAP_ATTRIBUTION.length * fontPx * 0.52 + 12 * u)}" height="${fmt(fontPx * 1.7)}" fill="#ffffff" fill-opacity="0.7"/>`,
-      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - fontPx * 0.5)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(fontPx)}" fill="#333333" text-anchor="end">${escapeXml(MAP_ATTRIBUTION)}</text>`,
+      `<rect x="${fmt(width - creditWidth)}" y="${fmt(height - creditPx * 1.7)}" width="${fmt(creditWidth)}" height="${fmt(creditPx * 1.7)}" fill="#ffffff" fill-opacity="0.7"/>`,
+      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - creditPx * 0.5)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="#333333" text-anchor="end">${escapeXml(credit)}</text>`,
+    );
+  } else if (credit) {
+    parts.push(
+      `<text x="${fmt(width - inset - 8 * u)}" y="${fmt(height - inset - creditPx * 0.7)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="${theme.ink}" fill-opacity="0.85" stroke="${theme.halo}" stroke-opacity="0.8" stroke-width="${fmt(creditPx * 0.25)}" stroke-linejoin="round" paint-order="stroke" text-anchor="end">${escapeXml(credit)}</text>`,
     );
   }
 
-  return parts.join('');
+  return { svg: parts.join(''), taken, names };
 };
 
 const svg = (width: number, height: number, body: string) =>
@@ -726,10 +910,104 @@ const seedOf = (points: MapPoint[]) => {
   return hash;
 };
 
+/** The features of the vector tiles that cover the view, at the zoom that suits the size of the map */
+export const loadStyledFeatures = async (
+  mapSource: StyledMapSource,
+  view: Viewport,
+  u: number,
+): Promise<{ zoom: number; features: MapFeature[]; tiles: TileKey[] }> => {
+  const { source } = mapSource;
+  const zoom = chooseVectorZoom(view, u, {
+    minZoom: source.minZoom,
+    maxZoom: source.maxZoom,
+    maxTiles: MAX_VECTOR_TILES,
+  });
+  const tiles = getTilesInView(view, zoom);
+  const data = await mapLimit(tiles, VECTOR_TILE_CONCURRENCY, (tile) => mapSource.getTile(tile));
+  const features = tiles.flatMap((tile, index) => {
+    const tileData = data[index];
+    return tileData
+      ? decodeVectorTile(tileData, getTilePlacement(view, tile), {
+          layers: STYLED_LAYERS,
+          maxFeatureZoom: zoom,
+          maxLabelZoom: zoom + 1,
+          tolerance: 0.5 * u,
+        })
+      : [];
+  });
+  return { zoom, features, tiles };
+};
+
+/** the most names of places drawn on a styled map, by its size */
+const getMaxMapLabels = (width: number, height: number) =>
+  Math.round(Math.min(18, Math.max(6, (width * height) / Math.min(width, height) ** 2) * 9));
+
+type StyledMapInput = {
+  mapSource: StyledMapSource;
+  view: Viewport;
+  points: Array<{ x: number; y: number; city?: string | null }>;
+  map: BookMap;
+  look: MapLook;
+  fontFamily: string;
+  seed: number;
+  size: MapRenderSize;
+};
+
+/**
+ * A styled map: the vector tiles of the map data drawn in the look of the book, with the names of places, then the
+ * route, pins, title and the credit of the data over it
+ */
+const renderStyledMap = async ({ mapSource, view, points, map, look, fontFamily, seed, size }: StyledMapInput) => {
+  const { width, height } = view;
+  const u = Math.min(width, height) / 1000;
+  const { zoom, features } = await loadStyledFeatures(mapSource, view, u);
+  const bounds = getViewportBounds(view);
+  const pixel = (lat: number, lon: number) => toPixel(view, project(lat, lon));
+
+  const inset = look.frame === 'neatline' ? 20 : look.frame === 'double' ? 14 : 0;
+  const overlay = renderOverlay({
+    viewport: view,
+    points,
+    map,
+    theme: getStyledTheme(look),
+    fontFamily,
+    attribution: getMapCredit(mapSource.source.attribution),
+    seed,
+    inset,
+  });
+
+  const basemap = renderStyledBasemap({ width, height, u, zoom, features, look, bounds, toPixel: pixel, seed });
+  const frame = renderStyledFrame({ width, height, u, look, graticule: basemap.graticule, taken: overlay.taken });
+  const labels = placeMapLabels(getMapLabelCandidates(features, zoom, look), {
+    width,
+    height,
+    u,
+    zoom,
+    look,
+    obstacles: [...overlay.taken, ...frame.taken],
+    max: getMaxMapLabels(width, height),
+    exclude: overlay.names,
+    inset,
+  });
+
+  let image = sharp(Buffer.from(svg(width, height, `<defs>${basemap.defs}</defs>${basemap.body}`)));
+  if (look.grain) {
+    const paper = await image.png().toBuffer();
+    image = sharp(paper).composite(await renderPaperTexture(width, height, u, seed));
+  }
+  const vignette = look.vignette
+    ? `<defs><radialGradient id="vignette" cx="50%" cy="48%" r="75%"><stop offset="65%" stop-color="${look.labels.color}" stop-opacity="0"/><stop offset="100%" stop-color="${look.labels.color}" stop-opacity="0.16"/></radialGradient></defs><rect width="${width}" height="${height}" fill="url(#vignette)"/>`
+    : '';
+  const top = svg(width, height, vignette + renderMapLabels(labels, look, u) + frame.svg + overlay.svg);
+  const flattened = await image.png().toBuffer();
+  return encode(sharp(flattened).composite([{ input: Buffer.from(top), left: 0, top: 0 }]), size);
+};
+
 /**
  * Renders the map of a book page: the illustrated version when there is one, otherwise the route, stops and place
- * names over Stadia tiles (watercolor, toner, terrain) or on an offline sketch. Tile styles fall back to the sketch
- * without an API key or when the tiles cannot be fetched.
+ * names over the real map data drawn in the look of the book (styled), over Stadia tiles (watercolor, toner, terrain)
+ * or on an offline sketch. The styled and tile styles fall back to the sketch when their data cannot be loaded, and
+ * the tile styles without an API key.
  */
 export const renderMap = async (
   ctx: MapRenderContext,
@@ -759,11 +1037,33 @@ export const renderMap = async (
   const u = Math.min(width, height) / 1000;
   const padding = Math.max(70 * u, Math.min(width, height) * 0.12);
   const titleRoom = map.title ? 90 * u : 0;
-  const viewport = fitViewport(projected, { width, height: Math.max(1, height - titleRoom) }, padding);
-  const view: Viewport = { ...viewport, height, y: viewport.y - titleRoom / 2 / viewport.scale };
-  const points = projected.map((point) => ({ ...toPixel(view, point), city: point.city }));
+  const fit = (minSpan: number) => {
+    const viewport = fitViewport(projected, { width, height: Math.max(1, height - titleRoom) }, padding, minSpan);
+    const view: Viewport = { ...viewport, height, y: viewport.y - titleRoom / 2 / viewport.scale };
+    return { view, points: projected.map((point) => ({ ...toPixel(view, point), city: point.city })) };
+  };
+  const { view, points } = fit(MIN_SPAN);
   if (located.length === 0) {
     warnings.push('None of the photos of this map have a GPS location');
+  }
+
+  const seed = seedOf(located);
+  if (map.style === 'styled' && located.length > 0) {
+    if (ctx.getStyledMapSource) {
+      try {
+        const mapSource = await ctx.getStyledMapSource();
+        const center = unproject(view.x, view.y);
+        const styled = fit(metersToWorld(MIN_STYLED_VIEW_M, center.lat));
+        const style = ctx.style ?? { ...DEFAULT_STYLED_BOOK_STYLE, fontFamily: ctx.fontFamily ?? 'serif' };
+        const look = getMapLook(resolveMapLook(style, map.look), style);
+        const data = await renderStyledMap({ mapSource, ...styled, map, look, fontFamily, seed, size });
+        return { data, source: 'styled', warnings };
+      } catch (error: any) {
+        warnings.push(`The map data could not be loaded (${error?.message ?? error}), so a sketch map is drawn instead`);
+      }
+    } else {
+      warnings.push('Styled maps are not available here, so a sketch map is drawn instead');
+    }
   }
 
   const tileStyle = getTileStyle(map.style);
@@ -778,7 +1078,6 @@ export const renderMap = async (
     }
   }
 
-  const seed = seedOf(located);
   if (basemap) {
     const overlay = renderOverlay({
       viewport: view,
@@ -789,7 +1088,7 @@ export const renderMap = async (
       attribution: true,
       seed,
     });
-    const image = sharp(basemap).composite([{ input: Buffer.from(svg(width, height, overlay)), left: 0, top: 0 }]);
+    const image = sharp(basemap).composite([{ input: Buffer.from(svg(width, height, overlay.svg)), left: 0, top: 0 }]);
     return { data: await encode(image, size), source: 'tiles', warnings };
   }
 
@@ -813,7 +1112,7 @@ export const renderMap = async (
     width,
     height,
     renderFrame(width, height, u) +
-      renderOverlay({ viewport: view, points, map, theme: SKETCH_THEME, fontFamily, attribution: false, seed }),
+      renderOverlay({ viewport: view, points, map, theme: SKETCH_THEME, fontFamily, attribution: false, seed }).svg,
   );
   const paper = await sharp(Buffer.from(background))
     .composite(await renderPaperTexture(width, height, u, seed))

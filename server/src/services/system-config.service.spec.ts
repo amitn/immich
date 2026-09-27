@@ -75,7 +75,7 @@ const updatedConfig = Object.freeze<SystemConfig>({
   books: {
     maps: {
       stadiaApiKey: '',
-      defaultStyle: 'watercolor',
+      defaultStyle: 'styled',
     },
     drafts: {
       enabled: true,

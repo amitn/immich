@@ -202,9 +202,13 @@ const AdminConfigSchemaWithVisibility = z
             stadiaApiKey: z
               .string()
               .describe(
-                'Stadia Maps API key for the watercolor, toner and terrain map styles (empty for sketch maps only)',
+                'Stadia Maps API key for the watercolor, toner and terrain map styles (not needed for styled and sketch maps)',
               ),
-            defaultStyle: z.enum(bookMapStyles).describe('Map style used when a book asks for the automatic style'),
+            defaultStyle: z
+              .enum(bookMapStyles)
+              .describe(
+                'Map style used when a book asks for the automatic style; styled maps draw the map data of the Map page',
+              ),
           })
           .meta({ id: 'AdminConfigBookMapsDto' }),
         drafts: z
@@ -649,7 +653,7 @@ export const defaults = Object.freeze<SystemConfig>({
   books: {
     maps: {
       stadiaApiKey: '',
-      defaultStyle: 'watercolor',
+      defaultStyle: 'styled',
     },
     drafts: {
       enabled: true,

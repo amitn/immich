@@ -1489,10 +1489,22 @@ describe(BookService.name, () => {
         expect(plannedPages().find((page) => page.map)?.map?.style).toBe('watercolor');
       });
 
-      it('should keep the default map style for auto and warn when it needs a key', async () => {
+      it('should use styled maps by default', async () => {
         const { albumId } = setupAlbum(trip());
 
-        // the default is watercolor, without a key
+        const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'auto' });
+
+        expect(result.warnings).toEqual([]);
+        const styles = plannedPages()
+          .filter((page) => page.map)
+          .map((page) => page.map!.style);
+        expect(new Set(styles)).toEqual(new Set(['styled']));
+      });
+
+      it('should keep the default map style for auto and warn when it needs a key', async () => {
+        const { albumId } = setupAlbum(trip());
+        mocks.systemMetadata.get.mockResolvedValue({ books: { maps: { defaultStyle: 'watercolor' } } });
+
         const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'auto' });
 
         expect(result.warnings).toEqual([expect.stringMatching(/^Watercolor maps need a Stadia Maps API key/)]);
@@ -1500,6 +1512,18 @@ describe(BookService.name, () => {
           .filter((page) => page.map)
           .map((page) => page.map!.style);
         expect(new Set(styles)).toEqual(new Set(['watercolor']));
+      });
+
+      it('should keep styled maps and warn when the map is disabled', async () => {
+        const { albumId } = setupAlbum(trip());
+        mocks.systemMetadata.get.mockResolvedValue({ map: { enabled: false } });
+
+        const result = await sut.createFromAlbum(auth, { albumId, mapStyle: 'styled', mapLook: 'vintage' });
+
+        expect(result.warnings).toEqual([expect.stringMatching(/^Styled maps use the map data of the Map page/)]);
+        const maps = plannedPages().flatMap((page) => (page.map ? [page.map] : []));
+        expect(maps.length).toBeGreaterThan(0);
+        expect(maps.every((map) => map.style === 'styled' && map.look === 'vintage')).toBe(true);
       });
 
       it('should not add maps when they are turned off', async () => {

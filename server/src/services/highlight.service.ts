@@ -35,6 +35,7 @@ import { BaseService } from 'src/services/base.service.js';
 import { BookService, getRenderInput } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { scorePhoto } from 'src/utils/agent/scoring.js';
+import { getStyledMapSource } from 'src/utils/book/map-source.js';
 import { resolveMapStyle } from 'src/utils/book/map-styles.js';
 import { parsePolygon, renderMap } from 'src/utils/book/map.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
@@ -317,7 +318,8 @@ export class HighlightService extends BaseService {
         warnings.push('The music was deleted, so the video is silent');
       }
 
-      const { ffmpeg, books } = await this.getConfig({ withCache: true });
+      const config = await this.getConfig({ withCache: true });
+      const { ffmpeg, books } = config;
       const { dri } = await this.storageCore.getVideoInterfaces();
       const encoder = getHighlightEncoder(ffmpeg, dri);
       const filters = await this.mediaRepository.getFfmpegFilters();
@@ -326,7 +328,8 @@ export class HighlightService extends BaseService {
         : filters.has('zscale') && filters.has('tonemap')
           ? 'zscale'
           : null;
-      const { style: mapStyle } = resolveMapStyle('auto', books.maps);
+      const { style: mapStyle } = resolveMapStyle('auto', { ...books.maps, mapEnabled: config.map.enabled });
+      const styledMapSource = getStyledMapSource(this.mapRepository, config);
 
       let lastSave = 0;
       let saved = 0;
@@ -343,6 +346,8 @@ export class HighlightService extends BaseService {
             {
               points: shot.points,
               stadiaApiKey: books.maps.stadiaApiKey || undefined,
+              getStyledMapSource: styledMapSource,
+              style,
               getCountries: async (bounds) => {
                 const rows = await this.bookRepository.getCountryOutlines(bounds);
                 return rows.map((row) => ({ name: row.admin, rings: [parsePolygon(row.coordinates)] }));

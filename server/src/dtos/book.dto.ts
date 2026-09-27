@@ -12,7 +12,7 @@ import {
   BookStatusSchema,
 } from 'src/enum.js';
 import { BookLayout, PageSize, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
-import { bookMapStyles } from 'src/utils/book/map-styles.js';
+import { bookMapLooks, bookMapStyles } from 'src/utils/book/map-styles.js';
 import { BUILT_IN_COLLECTION_PACKS } from 'src/utils/collections/registry.js';
 import { isoDatetimeToDate } from 'src/validation.js';
 
@@ -175,7 +175,11 @@ export type BookStyleUpdate = z.infer<typeof BookStyleUpdateSchema>;
 
 export const BookMapStyleSchema = z
   .enum(bookMapStyles)
-  .describe('Map style; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key')
+  .describe(
+    'Map style: styled draws the real map data of the Map page (streets, water, parks, places) in the look of the ' +
+      'book, and falls back to sketch when the Map feature is disabled or its data cannot be loaded; sketch is drawn ' +
+      'offline; watercolor, toner and terrain use Stadia Maps tiles and fall back to sketch without an API key',
+  )
   .meta({ id: 'BookMapStyle' });
 
 export const BookMapStyleOptionSchema = z
@@ -183,9 +187,26 @@ export const BookMapStyleOptionSchema = z
   .describe('Map style; auto uses the default style from the server config')
   .meta({ id: 'BookMapStyleOption' });
 
+export const BookMapLookSchema = z
+  .enum(bookMapLooks)
+  .describe(
+    'Look of a styled map: wash (soft watercolour washes on warm paper), engraved (a fine-ink atlas with water lines ' +
+      'and sepia land), minimal (thin grey lines on white, small sans-serif labels) or vintage (a cream and navy ' +
+      'chart with a compass rose and a graticule)',
+  )
+  .meta({ id: 'BookMapLook' });
+
+export const BookMapLookOptionSchema = z
+  .enum(['auto', ...bookMapLooks])
+  .describe('Look of styled maps; auto picks the look that suits the style of the book')
+  .meta({ id: 'BookMapLookOption' });
+
 export const BookMapSchema = z
   .object({
     style: BookMapStyleSchema,
+    look: BookMapLookSchema.optional().describe(
+      'Look of a styled map (default: the look that suits the style of the book)',
+    ),
     title: z.string().trim().max(200).optional().describe('Title drawn on the map'),
     assetIds: z
       .array(z.uuidv4())
@@ -330,6 +351,7 @@ const BookFromAlbumSchema = z
     targetPageCount,
     includeMaps,
     mapStyle: BookMapStyleOptionSchema.optional(),
+    mapLook: BookMapLookOptionSchema.optional(),
     illustratedMaps,
     ...layoutTuning,
   })
@@ -346,6 +368,7 @@ const BookAutoLayoutSchema = z
     targetPageCount,
     includeMaps,
     mapStyle: BookMapStyleOptionSchema.optional(),
+    mapLook: BookMapLookOptionSchema.optional(),
     illustratedMaps,
     heroAssetIds: z.array(z.uuidv4()).max(100).optional().describe('Photos that get a page of their own'),
     keepExisting: z
@@ -399,6 +422,27 @@ const BookRenderQuerySchema = z
       .describe('Length of the long edge of the rendered page in pixels (default 1200)'),
   })
   .meta({ id: 'BookRenderQueryDto' });
+
+const BookMapPreviewQuerySchema = z
+  .object({
+    bookId: z.uuidv4().optional().describe('Book whose map is previewed'),
+    pageId: z
+      .uuidv4()
+      .optional()
+      .describe("Map page of the book (default: the book's first map page, or else the photos of its album)"),
+    albumId: z.uuidv4().optional().describe('Album whose photos are mapped, for a book not made yet'),
+    style: BookMapStyleSchema,
+    look: BookMapLookOptionSchema.optional(),
+    stylePreset: BookStylePresetSchema.optional().describe('Style of the book not made yet (default classic)'),
+    size: z.coerce
+      .number()
+      .int()
+      .min(64)
+      .max(1200)
+      .optional()
+      .describe('Length of the long edge of the preview in pixels (default 320)'),
+  })
+  .meta({ id: 'BookMapPreviewQueryDto' });
 
 const BookExportSchema = z
   .object({
@@ -639,6 +683,7 @@ export class BookSlotPatchDto extends createZodDto(BookSlotPatchSchema) {}
 export class BookSlotParamDto extends createZodDto(BookSlotParamSchema) {}
 export class BookRenderQueryDto extends createZodDto(BookRenderQuerySchema) {}
 export class BookExportDto extends createZodDto(BookExportSchema) {}
+export class BookMapPreviewQueryDto extends createZodDto(BookMapPreviewQuerySchema) {}
 export class BookSlotResponseDto extends createZodDto(BookSlotResponseSchema) {}
 export class BookPageResponseDto extends createZodDto(BookPageResponseSchema) {}
 export class BookResponseDto extends createZodDto(BookResponseSchema) {}

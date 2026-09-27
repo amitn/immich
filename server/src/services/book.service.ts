@@ -13,6 +13,7 @@ import {
   BookFromAlbumDto,
   BookLayoutResponseDto,
   BookMap,
+  BookMapPreviewQueryDto,
   BookPageCreateDto,
   BookPageMoveDto,
   BookPageResponseDto,
@@ -115,6 +116,8 @@ import {
   toPxRect,
   validatePageStyle,
 } from 'src/utils/book/layouts.js';
+import { getStyledMapError, getStyledMapSource } from 'src/utils/book/map-source.js';
+import { BookMapLookOption } from 'src/utils/book/map-looks.js';
 import { BookMapStyleOption, resolveMapStyle } from 'src/utils/book/map-styles.js';
 import {
   MapPoint,
@@ -203,6 +206,7 @@ type LayOutOptions = {
   targetPageCount?: number;
   includeMaps?: boolean;
   mapStyle?: BookMapStyleOption;
+  mapLook?: BookMapLookOption;
   illustratedMaps?: boolean;
   heroAssetIds?: string[];
   keepExisting?: boolean;
@@ -217,6 +221,8 @@ const DEFAULT_PAGE_SIZE_MM = 210;
 /** most photos an automatic layout considers; larger albums are narrowed down first */
 export const MAX_LAYOUT_PHOTOS = 600;
 const MAX_ALBUM_PHOTOS = 3000;
+/** the long edge of a map style preview */
+const MAP_PREVIEW_PX = 320;
 /** image analysis is skipped for more uncached photos than this, using metadata-only scores */
 const MAX_ANALYZED_PHOTOS = 300;
 const ILLUSTRATED_MAP_LONG_EDGE = 1536;
@@ -433,6 +439,7 @@ export class BookService extends BaseService {
         targetPageCount: dto.targetPageCount,
         includeMaps: dto.includeMaps,
         mapStyle: dto.mapStyle,
+        mapLook: dto.mapLook,
         illustratedMaps: dto.illustratedMaps,
         captions: dto.captions,
         maxArtworkShare: dto.maxArtworkShare,
@@ -537,7 +544,7 @@ export class BookService extends BaseService {
       only: placed,
       addGain: false,
     });
-    const { books } = await this.getConfig({ withCache: true });
+    const { books, map } = await this.getConfig({ withCache: true });
     return reviewBook({
       size: book,
       style: resolveBookStyle(book.style),
@@ -546,6 +553,8 @@ export class BookService extends BaseService {
       candidateIds: albumIds,
       coverAssetId: book.coverAssetId,
       stadiaApiKey: books.maps.stadiaApiKey,
+      mapEnabled: map.enabled,
+      styledMapError: getStyledMapError(),
     });
   }
 
@@ -1236,12 +1245,12 @@ export class BookService extends BaseService {
       throw new BadRequestException(`Layout "${layout.id}" has no map; use the map or map-photo layout`);
     }
 
-    const { agent } = await this.getConfig({ withCache: true });
+    const { agent, books } = await this.getConfig({ withCache: true });
     if (!isArtEnabled(agent)) {
       throw new BadRequestException('Illustrated maps need an art agent profile (Administration → AI assistant)');
     }
 
-    const map: BookMap = { style: 'sketch', showRoute: true, labels: true, ...page.map };
+    const map: BookMap = { style: books.maps.defaultStyle, showRoute: true, labels: true, ...page.map };
     delete map.artJobId;
     delete map.illustratedAssetId;
     const assetIds = getMapAssetIds(pages, index);
@@ -1266,18 +1275,87 @@ export class BookService extends BaseService {
     return mapBookPage(updated, book);
   }
 
+  /**
+   * A small preview of a map in a style: of a page, of the first map of a book, or of the photos of an album for a
+   * book not made yet; without the title, which would fill a thumbnail
+   */
+  async renderMapPreview(auth: AuthDto, dto: BookMapPreviewQueryDto): Promise<Buffer> {
+    let style: Required<BookStyle>;
+    let assetIds: string[] = [];
+    let map: BookMap | null = null;
+    let aspect = 1;
+    let pointsAuth = auth;
+
+    if (dto.bookId) {
+      await this.requireAccess({ auth, permission: Permission.BookRead, ids: [dto.bookId] });
+      const book = await findOrFail(() => this.bookRepository.get(dto.bookId!), 'Book');
+      style = resolveBookStyle(book.style);
+      pointsAuth = await this.getRenderAuth(auth, book);
+      const pages = await this.bookRepository.getPages(book.id);
+      const index = dto.pageId
+        ? pages.findIndex((page) => page.id === dto.pageId)
+        : pages.findIndex((page) => page.map || getLayout(page.layout)?.map);
+      if (dto.pageId && index === -1) {
+        throw new BadRequestException('Page not found');
+      }
+      if (index === -1) {
+        if (book.albumId) {
+          const albums = await this.checkAccess({ auth, permission: Permission.AlbumRead, ids: new Set([book.albumId]) });
+          assetIds = albums.has(book.albumId) ? await this.getAlbumAssetIds(auth, book.albumId) : [];
+        }
+      } else {
+        const page = pages[index];
+        map = page.map ?? null;
+        assetIds = getMapAssetIds(pages, index);
+        const layout = getLayout(page.layout);
+        const rect = layout ? getMapRectMm(layout, book, style) : null;
+        aspect = rect ? rect.width / rect.height : 1;
+      }
+    } else if (dto.albumId) {
+      await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [dto.albumId] });
+      style = resolveBookStyle(bookStylePresets[dto.stylePreset ?? 'classic']?.style);
+      assetIds = await this.getAlbumAssetIds(auth, dto.albumId);
+    } else {
+      throw new BadRequestException('Pass a bookId or an albumId');
+    }
+
+    const longEdge = dto.size ?? MAP_PREVIEW_PX;
+    const size =
+      aspect >= 1
+        ? { width: longEdge, height: Math.round(longEdge / aspect) }
+        : { width: Math.round(longEdge * aspect), height: longEdge };
+    const ctx = await this.newMapContext(style, await this.getMapPoints(pointsAuth, assetIds));
+    const { data } = await renderMap(
+      ctx,
+      {
+        map: {
+          showRoute: map?.showRoute ?? true,
+          labels: map?.labels ?? true,
+          ...(map?.assetIds && { assetIds: map.assetIds }),
+          style: dto.style,
+          ...(dto.look && dto.look !== 'auto' && { look: dto.look }),
+        },
+      },
+      { ...size, format: 'jpeg', quality: 82 },
+    );
+    return data;
+  }
+
   private async newMapContext(
-    book: Book,
+    book: Book | Required<BookStyle>,
     points: MapPoint[],
     illustrated?: string | Buffer,
   ): Promise<MapRenderContext> {
-    const { books } = await this.getConfig({ withCache: true });
+    const config = await this.getConfig({ withCache: true });
+    const style = 'marginMm' in book ? book : resolveBookStyle(book.style);
     return {
       points,
-      stadiaApiKey: books.maps.stadiaApiKey || undefined,
+      stadiaApiKey: config.books.maps.stadiaApiKey || undefined,
       getCountries: async (bounds) => toCountryOutlines(await this.bookRepository.getCountryOutlines(bounds)),
+      getStyledMapSource: getStyledMapSource(this.mapRepository, config),
+      style,
       illustrated,
-      fontFamily: resolveBookStyle(book.style).fontFamily,
+      fontFamily: style.fontFamily,
     };
   }
 
@@ -1458,8 +1536,11 @@ export class BookService extends BaseService {
       );
     }
 
-    const { books } = await this.getConfig({ withCache: true });
-    const { style: mapStyle, warning: mapWarning } = resolveMapStyle(options.mapStyle, books.maps);
+    const { books, map } = await this.getConfig({ withCache: true });
+    const { style: mapStyle, warning: mapWarning } = resolveMapStyle(options.mapStyle, {
+      ...books.maps,
+      mapEnabled: map.enabled,
+    });
     const includeMaps = options.includeMaps ?? true;
 
     const plan = planAutoLayout(photos, {
@@ -1468,6 +1549,7 @@ export class BookService extends BaseService {
       targetPageCount: options.targetPageCount,
       includeMaps,
       mapStyle,
+      mapLook: options.mapLook,
       heroIds: [...heroIds],
       cover: existing.length === 0,
       captions: options.captions,

@@ -588,8 +588,27 @@ describe(BookAgentTools.name, () => {
       expect(result.warnings).toBeUndefined();
     });
 
+    it('should add a styled map with a look by default', async () => {
+      const { book } = await createBook();
+      mocks.book.addPage.mockImplementation((bookId, values) =>
+        Promise.resolve(BookPageFactory.create({ bookId, layout: values.layout, map: values.map })),
+      );
+
+      const result = JSON.parse(text(await call('add_map_page', { bookId: book.id, look: 'engraved' })));
+
+      expect(result.map).toEqual({ style: 'styled', look: 'engraved' });
+      expect(mocks.book.addPage.mock.calls[0][1].map).toEqual({
+        style: 'styled',
+        look: 'engraved',
+        showRoute: true,
+        labels: true,
+      });
+      expect(result.warnings).toBeUndefined();
+    });
+
     it('should keep the default style for auto and warn without a Stadia Maps API key', async () => {
       const { book } = await createBook();
+      mocks.systemMetadata.get.mockResolvedValue({ books: { maps: { defaultStyle: 'watercolor' } } });
       mocks.book.addPage.mockImplementation((bookId, values) =>
         Promise.resolve(BookPageFactory.create({ bookId, layout: values.layout, map: values.map })),
       );

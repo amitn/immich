@@ -4,6 +4,7 @@ import {
   BookCaptionModeSchema,
   BookDetailResponseDto,
   BookMap,
+  BookMapLookOptionSchema,
   BookMapStyleOptionSchema,
   BookPageResponseDto,
   BookStylePresetSchema,
@@ -29,6 +30,7 @@ import {
   toolJson,
 } from 'src/utils/agent/tools.js';
 import { bookLayouts, getLayout, getSlotAspectRatios } from 'src/utils/book/layouts.js';
+import { BookMapLookOption } from 'src/utils/book/map-looks.js';
 import { BookMapStyleOption, resolveMapStyle } from 'src/utils/book/map-styles.js';
 import { BookRenderWarning } from 'src/utils/book/render.js';
 
@@ -72,8 +74,17 @@ const WORKFLOW =
   'slots in one call).';
 
 const mapStyle = BookMapStyleOptionSchema.describe(
-  'Map style: sketch (offline, hand-drawn look), watercolor, toner or terrain (Stadia Maps tiles; without an API ' +
-    'key they are drawn as sketches and the result warns about it), or auto for the server default when it works',
+  'Map style: styled (recommended: the real streets, water, parks and place names of the Map page, drawn in the ' +
+    "look of the book; drawn as a sketch when the Map feature is disabled), sketch (offline, a route on paper), " +
+    'watercolor, toner or terrain (Stadia Maps tiles; without an API key they are drawn as sketches and the result ' +
+    'warns about it), or auto for the server default',
+);
+
+const mapLook = BookMapLookOptionSchema.describe(
+  'Look of a styled map: wash (soft watercolour washes on warm paper), engraved (a fine-ink atlas, sepia land), ' +
+    'minimal (thin grey lines on white), vintage (a cream and navy chart with a compass rose), or auto (default) for ' +
+    'the look that suits the style of the book (gallery → minimal, travel → vintage, wine and classic → engraved, ' +
+    'soft, food and cookbook → wash)',
 );
 
 const stylePreset = BookStylePresetSchema.describe(
@@ -82,6 +93,7 @@ const stylePreset = BookStylePresetSchema.describe(
 
 const mapOptions = {
   style: mapStyle.optional(),
+  look: mapLook.optional(),
   title: z.string().max(200).optional().describe('Title drawn on the map'),
   assetIds: z
     .array(z.uuidv4())
@@ -103,6 +115,7 @@ const round = (value: number) => Math.round(value * 1000) / 1000;
 
 const summarizeMap = (map: BookMap) => ({
   style: map.style,
+  ...(map.look && { look: map.look }),
   ...(map.title && { title: map.title }),
   ...(map.assetIds && { photos: map.assetIds.length }),
   ...(!map.showRoute && { showRoute: false }),
@@ -357,6 +370,7 @@ export class BookAgentTools extends BaseService {
           targetPageCount: z.int().min(1).max(200).optional().describe('Default: about one page per 2.5 photos'),
           includeMaps: z.boolean().optional().describe('Open sections with GPS locations with a map, default true'),
           mapStyle: mapStyle.optional(),
+          mapLook: mapLook.optional(),
           illustratedMaps: z
             .boolean()
             .optional()
@@ -402,6 +416,7 @@ export class BookAgentTools extends BaseService {
                 targetPageCount: options.targetPageCount,
                 includeMaps: options.includeMaps,
                 mapStyle: options.mapStyle,
+                mapLook: options.mapLook,
                 captions: options.captions,
                 maxArtworkShare: options.maxArtworkShare,
                 maxStackPairs: options.maxStackPairs,
@@ -630,8 +645,11 @@ export class BookAgentTools extends BaseService {
             }
 
             const current = page.map;
+            const style = options.style ?? current?.style;
             const { map, warning } = await this.toMap({
-              style: options.style ?? current?.style,
+              style,
+              // a look is kept while the map stays styled
+              look: options.look ?? (style === current?.style ? current?.look : undefined),
               title: options.title ?? current?.title,
               assetIds: options.assetIds ?? current?.assetIds,
               showRoute: options.showRoute ?? current?.showRoute,
@@ -647,7 +665,8 @@ export class BookAgentTools extends BaseService {
         name: 'illustrate_map',
         title: 'Illustrate a map',
         description:
-          'Have the art agent redraw the map of a page as a hand-illustrated watercolor travel map (the rendered map ' +
+          'Have the art agent redraw the map of a page as a hand-illustrated watercolor travel map, decorative rather ' +
+          'than exact (the rendered map, styled by default, ' +
           'is saved as a photo next to the first photo of the section, and the artwork as another one). It takes a ' +
           'minute or two; render_page shows the plain map until the illustration is done. Without a page, every map ' +
           'page that is not illustrated yet is. Only for photos the user owns, and only when an art agent is ' +
@@ -978,16 +997,18 @@ export class BookAgentTools extends BaseService {
   /** the map, and a warning when its style can't be drawn yet */
   private async toMap(options: {
     style?: BookMapStyleOption;
+    look?: BookMapLookOption;
     title?: string;
     assetIds?: string[];
     showRoute?: boolean;
     labels?: boolean;
   }): Promise<{ map: BookMap; warning?: string }> {
-    const { books } = await this.getConfig({ withCache: true });
-    const { style, warning } = resolveMapStyle(options.style, books.maps);
+    const { books, map: mapConfig } = await this.getConfig({ withCache: true });
+    const { style, warning } = resolveMapStyle(options.style, { ...books.maps, mapEnabled: mapConfig.enabled });
     return {
       map: {
         style,
+        ...(style === 'styled' && options.look && options.look !== 'auto' && { look: options.look }),
         ...(options.title && { title: options.title }),
         ...(options.assetIds?.length && { assetIds: options.assetIds }),
         showRoute: options.showRoute ?? true,

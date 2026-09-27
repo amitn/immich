@@ -67,6 +67,10 @@ export type BookReviewInput = {
   candidateIds?: string[];
   coverAssetId?: string | null;
   stadiaApiKey?: string;
+  /** whether the Map feature is enabled, whose map data styled maps draw (default true) */
+  mapEnabled?: boolean;
+  /** why the map data of styled maps could not be loaded lately, if it could not */
+  styledMapError?: string;
   /** default: the people who appear most often in the photos */
   mainPersonIds?: string[];
   maxArtworkShare?: number;
@@ -302,25 +306,41 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
     });
   }
 
-  // maps drawn as sketches for lack of an API key
-  const fallbackPages = pages.flatMap((page, index) =>
-    page.map &&
-    getLayout(page.layout)?.map &&
-    !page.map.illustratedAssetId &&
-    !page.map.artJobId &&
-    isMapStyleFallback(page.map.style, input.stadiaApiKey)
-      ? [index + 1]
+  // maps drawn as sketches: Stadia styles without an API key, styled maps without their map data
+  const drawnMaps = pages.flatMap((page, index) =>
+    page.map && getLayout(page.layout)?.map && !page.map.illustratedAssetId && !page.map.artJobId
+      ? [{ number: index + 1, style: page.map.style }]
       : [],
   );
-  if (fallbackPages.length > 0) {
-    const styles = [...new Set(fallbackPages.map((number) => pages[number - 1].map!.style))].join(' and ');
+  const stadiaPages = drawnMaps
+    .filter(({ style }) => style !== 'styled' && isMapStyleFallback(style, { stadiaApiKey: input.stadiaApiKey }))
+    .map(({ number }) => number);
+  if (stadiaPages.length > 0) {
+    const styles = [...new Set(stadiaPages.map((number) => pages[number - 1].map!.style))].join(' and ');
     add({
       severity: 'medium',
       type: 'map-style-fallback',
       message:
-        `${pagesVerb(fallbackPages, 'asks', 'ask')} for ${styles} maps, which need a Stadia Maps API key (Administration → ` +
-        'Settings → Photo books), so they are drawn as sketches; set the style to sketch or add the key',
-      pages: fallbackPages,
+        `${pagesVerb(stadiaPages, 'asks', 'ask')} for ${styles} maps, which need a Stadia Maps API key (Administration → ` +
+        'Settings → Photo books), so they are drawn as sketches; set the style to styled or sketch, or add the key',
+      pages: stadiaPages,
+    });
+  }
+  const styledPages = drawnMaps.filter(({ style }) => style === 'styled').map(({ number }) => number);
+  if (styledPages.length > 0 && (input.mapEnabled === false || input.styledMapError)) {
+    const one = styledPages.length === 1;
+    const subject = `${formatPages(styledPages)} ${one ? 'is a styled map' : 'are styled maps'}`;
+    const drawn = `so ${one ? 'it is' : 'they are'} drawn as ${one ? 'a sketch' : 'sketches'}`;
+    add({
+      severity: 'medium',
+      type: 'map-style-fallback',
+      message:
+        input.mapEnabled === false
+          ? `${subject}, but the Map feature ${one ? 'it takes its' : 'they take their'} map data from is disabled ` +
+            `(Administration → Settings → Map), ${drawn}; enable the map or set the style to sketch`
+          : `${subject}, but the map data could not be loaded lately (${input.styledMapError}), ${drawn}; check the ` +
+            'map settings or set the style to sketch',
+      pages: styledPages,
     });
   }
 

@@ -29,6 +29,7 @@ import {
   BookExportDto,
   BookFromAlbumDto,
   BookLayoutResponseDto,
+  BookMapPreviewQueryDto,
   BookPageCreateDto,
   BookPageMoveDto,
   BookPageParamDto,
@@ -111,6 +112,21 @@ export class BookController {
   })
   getBookStylePresets(): BookStylePresetResponseDto[] {
     return this.service.getStylePresets();
+  }
+
+  @Get('map-preview')
+  @Authenticated({ permission: Permission.BookRead })
+  @FileResponse()
+  @Endpoint({
+    summary: 'Preview a map style',
+    description:
+      'Render a small preview of a map in a map style (and look), for a page of a book, the first map of a book, or ' +
+      'the photos of an album for a book not made yet. A JPEG image.',
+    history: history(),
+  })
+  async previewBookMap(@Auth() auth: AuthDto, @Query() dto: BookMapPreviewQueryDto): Promise<StreamableFile> {
+    const data = await this.service.renderMapPreview(auth, dto);
+    return new StreamableFile(data, { type: 'image/jpeg', length: data.length });
   }
 
   @Get('drafts')

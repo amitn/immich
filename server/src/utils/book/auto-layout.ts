@@ -28,6 +28,7 @@ import {
   getSlotRectsMm,
   isMapLayout,
 } from 'src/utils/book/layouts.js';
+import { BookMapLookOption } from 'src/utils/book/map-looks.js';
 import { BookMapStyle } from 'src/utils/book/map-styles.js';
 import { FULL_CROP, MIN_PRINT_DPI, SmartCrop, getEffectiveDpi, getSmartCrop } from 'src/utils/book/render.js';
 import { CollectionSourcePage } from 'src/utils/collections/pack.js';
@@ -95,6 +96,8 @@ export type AutoLayoutOptions = {
   /** open the sections with GPS locations with a map page, default true */
   includeMaps?: boolean;
   mapStyle?: BookMapStyle;
+  /** the look of styled maps; default: the one that suits the style of the book */
+  mapLook?: BookMapLookOption;
   /** photos that get a page of their own */
   heroIds?: string[];
   /** start with a cover page, default true */
@@ -1562,6 +1565,7 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   const newMap = (extra: Partial<BookMap> = {}): BookMap => ({
     style: mapStyle,
+    ...(mapStyle === 'styled' && options.mapLook && options.mapLook !== 'auto' && { look: options.mapLook }),
     showRoute: true,
     labels: true,
     ...extra,
