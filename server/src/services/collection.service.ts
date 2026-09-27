@@ -39,7 +39,13 @@ import {
   scoreText,
   summarizeText,
 } from 'src/utils/collections/classify.js';
-import { AssignResult, DEFAULT_MATCH_OPTIONS, EntryCandidate, matchSubjects } from 'src/utils/collections/match.js';
+import {
+  AssignResult,
+  DEFAULT_MATCH_OPTIONS,
+  EntryCandidate,
+  SubjectPhoto,
+  matchSubjects,
+} from 'src/utils/collections/match.js';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
 import {
   DEFAULT_LOOKUP_RADIUS,
@@ -81,6 +87,7 @@ import {
   snapEntryPlaces,
 } from 'src/utils/collections/source.js';
 import {
+  findSourceLeaf,
   getEntryTag,
   getSourceTag,
   getTagPlaceName,
@@ -688,12 +695,22 @@ export class CollectionService extends BaseService {
       baselines = baselineTexts.map((text) => parseEmbedding(text));
     }
 
+    // what the pack's own assignment compares each subject photo with, e.g. the growth stages of a plant
+    const photoPromptTexts =
+      pack.match.assign && pack.match.photoPrompts?.length && isSmartSearchEnabled(machineLearning) && photos.length > 0
+        ? await this.encodeTexts(pack.match.photoPrompts)
+        : [];
+    const photoPrompts = photoPromptTexts.map((text) => parseEmbedding(text));
+
     const {
       matches,
       ordered,
       entries: added = [],
     }: AssignResult = pack.match.assign
-      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines)
+      ? await this.assignSubjects(pack, rows, embeddings, entries, courses, entryEmbeddings, baselines, {
+          sourceIds,
+          ...(photoPrompts.length > 0 && { prompts: photoPrompts }),
+        })
       : matchSubjects(
           photos,
           entryEmbeddings.length === entries.length
@@ -787,6 +804,7 @@ export class CollectionService extends BaseService {
     courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
     entryEmbeddings: Float32Array[],
     baselines: Float32Array[],
+    extra: { sourceIds: string[]; prompts?: Float32Array[] },
   ) {
     const ocr = new Map<string, OcrBoxInput[]>();
     for (const chunk of chunks(rows.map(({ id }) => id))) {
@@ -808,6 +826,7 @@ export class CollectionService extends BaseService {
     const sourceIds = unique(entries.flatMap(({ sourceId }) => (sourceId ? [sourceId] : [])));
     const sources = sourceIds.length > 0 ? await this.assetRepository.getByIds(sourceIds) : [];
     const sourceTimes = new Map(sources.map((source) => [source.id, source.localDateTime.getTime()]));
+    const givenSources = await this.getGivenSources(extra.sourceIds);
     return pack.match.assign!(
       rows.map((row) => ({
         id: row.id,
@@ -830,8 +849,61 @@ export class CollectionService extends BaseService {
         ...courses[index],
         ...(entryEmbeddings.length === entries.length && { embedding: entryEmbeddings[index] }),
         ...(entry.sourceId && sourceTimes.has(entry.sourceId) && { sourceTime: sourceTimes.get(entry.sourceId) }),
+        ...(entry.sourceId && { sourceId: entry.sourceId }),
       })),
-      { ...DEFAULT_MATCH_OPTIONS, ...pack.match.options, baselines, suggestions: 3 },
+      {
+        ...DEFAULT_MATCH_OPTIONS,
+        ...pack.match.options,
+        baselines,
+        suggestions: 3,
+        ...(givenSources.length > 0 && { sources: givenSources }),
+        ...(extra.prompts && { prompts: extra.prompts }),
+      },
+    );
+  }
+
+  /**
+   * The source photos given to match_subjects, in their order, whether an entry was read on them or not (a plant tag
+   * of embossed metal): when each was taken, and its CLIP embedding (empty without one)
+   */
+  private async getGivenSources(ids: string[]): Promise<SubjectPhoto[]> {
+    if (ids.length === 0) {
+      return [];
+    }
+    const assets = await this.assetRepository.getByIds(ids);
+    const times = new Map(
+      assets.flatMap((asset) => (asset.localDateTime ? [[asset.id, asset.localDateTime.getTime()] as const] : [])),
+    );
+    const stored = await this.searchRepository.getEmbeddings(ids);
+    const embeddings = new Map(stored.map(({ assetId, embedding }) => [assetId, parseEmbedding(embedding)]));
+    return ids.flatMap((id) =>
+      times.has(id) ? [{ id, time: times.get(id)!, embedding: embeddings.get(id) ?? new Float32Array(0) }] : [],
+    );
+  }
+
+  /**
+   * The CLIP similarities of each photo with the pack's `match.photoPrompts` (e.g. the growth stages of a plant), for
+   * the descriptions of the pack; empty when it has none, smart search is disabled, or a photo has no embedding
+   */
+  private async getPhotoPromptSimilarities(pack: CollectionPack, ids: string[]): Promise<Map<string, number[]>> {
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (!pack.match.photoPrompts?.length || ids.length === 0 || !isSmartSearchEnabled(machineLearning)) {
+      return new Map();
+    }
+    const stored = await this.searchRepository.getEmbeddings(ids);
+    if (stored.length === 0) {
+      return new Map();
+    }
+    const texts = await this.encodeTexts(pack.match.photoPrompts);
+    const prompts = texts.map((text) => parseEmbedding(text));
+    return new Map(
+      stored.map(({ assetId, embedding }) => {
+        const vector = parseEmbedding(embedding);
+        return [
+          assetId,
+          prompts.map((prompt) => prompt.reduce((sum, value, index) => sum + value * vector[index], 0)),
+        ] as const;
+      }),
     );
   }
 
@@ -926,15 +998,16 @@ export class CollectionService extends BaseService {
       throw new BadRequestException(getCollectionMessages(pack).placeNeedsName);
     }
 
-    const sourceLeaf = pack.sourceLeaf.toLowerCase();
-    const byId = new Map<string, { entry?: string; source: boolean }>();
+    const byId = new Map<string, { entry?: string; source: boolean; leaf?: string }>();
     for (const photo of dto.photos) {
       const entry = photo.entry?.trim();
-      const source = photo.source === true || entry?.toLowerCase() === sourceLeaf;
+      // an entry named like a source leaf ("Menu", or another leaf of the pack such as "Seed packet") is a source
+      const leaf = entry ? findSourceLeaf(rules, entry) : undefined;
+      const source = photo.source === true || !!leaf;
       if (!source && !entry) {
         throw new BadRequestException(`Photo ${photo.id} needs an entry, or source: true`);
       }
-      byId.set(photo.id, source ? { source } : { entry: redactText(pack, entry!), source });
+      byId.set(photo.id, source ? { source, ...(leaf && { leaf }) } : { entry: redactText(pack, entry!), source });
     }
     const ids = byId.keys().toArray();
     if (ids.length > COLLECTION_LIMITS.photos) {
@@ -954,8 +1027,8 @@ export class CollectionService extends BaseService {
 
     const tagValues = new Map(
       targets.map((id) => {
-        const { entry, source } = byId.get(id)!;
-        return [id, source ? getSourceTag(rules, place) : getEntryTag(rules, place, entry!)];
+        const { entry, source, leaf } = byId.get(id)!;
+        return [id, source ? getSourceTag(rules, place, leaf) : getEntryTag(rules, place, entry!)];
       }),
     );
     const tags = await upsertTags(this.tagRepository, {
@@ -998,6 +1071,11 @@ export class CollectionService extends BaseService {
     // descriptions: only set on subject photos that have none, or still have the one an earlier run wrote
     const rows = await this.assetJobRepository.getForAgent(targets, auth.user.id);
     const descriptions = new Map(rows.map((row) => [row.id, row.description ?? '']));
+    // what a pack's descriptions say of each photo, e.g. the growth stage of a plant
+    const similarities = await this.getPhotoPromptSimilarities(
+      pack,
+      targets.filter((id) => !byId.get(id)!.source),
+    );
     const assetService = BaseService.create(AssetService, this);
     const logged: ActivityCollectionPhoto[] = [];
     for (const id of targets) {
@@ -1013,11 +1091,12 @@ export class CollectionService extends BaseService {
       };
       if (!source) {
         const current = descriptions.get(id)?.trim() ?? '';
+        const photo = similarities.has(id) ? { similarities: similarities.get(id) } : undefined;
         const written = (previous.get(id) ?? []).flatMap((value) => {
           const tag = parseCollectionTag(rules, value);
-          return tag?.kind === 'entry' ? [pack.describe(tag.entry, tag.place)] : [];
+          return tag?.kind === 'entry' ? [pack.describe(tag.entry, tag.place, photo)] : [];
         });
-        const description = pack.describe(entry!, place);
+        const description = pack.describe(entry!, place, photo);
         if ((current === '' || written.includes(current)) && current !== description) {
           await assetService.update(auth, id, { description });
           result.description = description;

@@ -60,6 +60,9 @@ describe('book layouts', () => {
       'tasting-note',
       'tasting-note-wide',
       'tasting-notes',
+      // the growth timelines of the garden pack
+      'growth-timeline',
+      'growth-timeline-two',
     ]);
     for (const layout of bookLayouts) {
       const captions = layout.text.filter((area) => area.kind === 'slotCaption');

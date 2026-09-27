@@ -4,6 +4,8 @@ import { cookbookPack } from 'src/utils/collections/packs/cookbook/pack.js';
 // (keep this line)
 import { foodPack } from 'src/utils/collections/packs/food/pack.js';
 // (keep this line)
+import { gardenPack } from 'src/utils/collections/packs/garden/pack.js';
+// (keep this line)
 import { kidsArtPack } from 'src/utils/collections/packs/kids-art/pack.js';
 // (keep this line)
 import { museumPack } from 'src/utils/collections/packs/museum/pack.js';
@@ -34,6 +36,8 @@ export const BUILT_IN_COLLECTION_PACKS: readonly CollectionPack[] = [
   readingPack,
   // (keep this line)
   kidsArtPack,
+  // (keep this line)
+  gardenPack,
   // (keep this line)
 ];
 

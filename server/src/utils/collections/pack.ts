@@ -31,6 +31,11 @@ export type CollectionPack = {
   tagRoot: string;
   /** the leaf that marks a photo of the source instead of an entry, e.g. Menu */
   sourceLeaf: string;
+  /**
+   * other leaves that mark a photo of a source of another kind, e.g. Seed packet beside Tag; save_entries gives one to
+   * a photo whose entry is named like it
+   */
+  otherSourceLeaves?: string[];
   /** the words of the domain, used in messages, tool results and reviews */
   names: CollectionNames;
 
@@ -83,6 +88,11 @@ export type CollectionPack = {
     /** CLIP texts of subjects that are usually not on the source; the best of them is "off the list" */
     offListPrompts: string[];
     /**
+     * CLIP texts each subject photo is compared with, e.g. the growth stages of a plant: their text embeddings go to
+     * `assign` (`AssignOptions.prompts`), and the similarities of a photo with them to `describe`
+     */
+    photoPrompts?: string[];
+    /**
      * whether entries that no subject matched are worth a warning, e.g. a wall label read next to no artwork (the
      * items of a menu that nobody ordered are not)
      */
@@ -95,7 +105,7 @@ export type CollectionPack = {
   };
 
   /** the description a subject photo gets when it has none, e.g. "Caponata · Trattoria da Nino" */
-  describe: (entry: string, place: string) => string;
+  describe: (entry: string, place: string, photo?: CollectionDescribedPhoto) => string;
 
   book: {
     /** the style preset of the pack's books; its id is a `BookStylePreset`, e.g. food */
@@ -191,6 +201,12 @@ export type CollectionPack = {
     location?: boolean;
   };
 };
+
+/**
+ * the photo a description is written for: its CLIP similarities with the pack's `match.photoPrompts`, in their order,
+ * when the pack has them and smart search is enabled
+ */
+export type CollectionDescribedPhoto = { similarities?: number[] };
 
 /**
  * where a caption is set: the layout of its page, the description of its photo, and when the photo was taken (local
@@ -321,11 +337,12 @@ export type CollectionMessages = {
 
 /** what the tags of a pack look like: `<tagRoot>/<Place>/<Entry>` and `<tagRoot>/<Place>/<sourceLeaf>` */
 export const getCollectionTagRules = (
-  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names'>,
+  pack: Pick<CollectionPack, 'tagRoot' | 'sourceLeaf' | 'names'> & Partial<Pick<CollectionPack, 'otherSourceLeaves'>>,
 ): CollectionTagRules => ({
   tagRoot: pack.tagRoot,
   sourceLeaf: pack.sourceLeaf,
   subject: pack.names.subject,
+  ...(pack.otherSourceLeaves?.length && { otherSourceLeaves: pack.otherSourceLeaves }),
 });
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -376,7 +393,11 @@ export const validateCollectionPack = (pack: CollectionPack, others: readonly Co
   if (!PACK_ID.test(pack.id)) {
     errors.push(`id "${pack.id}" must be lowercase letters, digits and dashes`);
   }
-  if (!TAG_NAME.test(pack.tagRoot) || !TAG_NAME.test(pack.sourceLeaf)) {
+  if (
+    !TAG_NAME.test(pack.tagRoot) ||
+    !TAG_NAME.test(pack.sourceLeaf) ||
+    (pack.otherSourceLeaves ?? []).some((leaf) => !TAG_NAME.test(leaf))
+  ) {
     errors.push('the tag root and the source leaf cannot contain "/"');
   }
   if (pack.prompts.subject.length === 0 || pack.prompts.other.length === 0) {

@@ -48,7 +48,35 @@ export const TASTING_NOTE_WIDE_LAYOUT = 'tasting-note-wide';
 export const TASTING_NOTES_LAYOUT = 'tasting-notes';
 export const TASTING_LAYOUTS: readonly string[] = [TASTING_NOTE_LAYOUT, TASTING_NOTE_WIDE_LAYOUT, TASTING_NOTES_LAYOUT];
 
+/**
+ * the growth timelines of garden journals (see `CollectionPack.book.entryLayouts`): the photos of one plant down the
+ * page in the order they were taken, each with its date and stage beside it on a line with a dot per photo
+ */
+export const GROWTH_TIMELINE_LAYOUT = 'growth-timeline';
+export const GROWTH_TIMELINE_TWO_LAYOUT = 'growth-timeline-two';
+export const GROWTH_TIMELINE_LAYOUTS: readonly string[] = [GROWTH_TIMELINE_LAYOUT, GROWTH_TIMELINE_TWO_LAYOUT];
+
+/** the x of the line of a growth timeline, normalized like the slots */
+export const GROWTH_TIMELINE_X = 0.615;
+
 const third = 1 / 3;
+
+/** the rows of a growth timeline: a landscape photo on the left, its caption beside it on the right of the line */
+const timelineRows = (count: number) => {
+  const row = 1 / count;
+  return {
+    slots: Array.from({ length: count }, (_, index) => ({ x: 0, y: index * row, width: 0.56, height: row })),
+    text: Array.from({ length: count }, (_, index) => ({
+      kind: 'slotCaption' as const,
+      slot: index,
+      x: 0.66,
+      y: index * row + row * 0.3,
+      width: 0.34,
+      height: row * 0.4,
+      align: 'left' as const,
+    })),
+  };
+};
 
 export const bookLayouts: readonly BookLayout[] = [
   {
@@ -405,6 +433,25 @@ export const bookLayouts: readonly BookLayout[] = [
       { kind: 'slotCaption', slot: 1, x: 0.35, y: 0.5, width: 0.65, height: 0.5, align: 'left' },
     ],
     orientation: 'portrait',
+    collection: true,
+  },
+  {
+    id: GROWTH_TIMELINE_LAYOUT,
+    name: 'Growth timeline',
+    description:
+      'Three photos of one plant down the page in the order they were taken (slots 1 to 3, landscape), each with ' +
+      'its date and growth stage (the slot caption, "date" then "stage" on the next line) beside it, on a line with ' +
+      'a dot per photo.',
+    ...timelineRows(3),
+    orientation: 'landscape',
+    collection: true,
+  },
+  {
+    id: GROWTH_TIMELINE_TWO_LAYOUT,
+    name: 'Growth timeline, two',
+    description: 'Two photos of one plant down the page on its growth timeline, like the growth timeline.',
+    ...timelineRows(2),
+    orientation: 'landscape',
     collection: true,
   },
   {

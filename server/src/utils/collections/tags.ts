@@ -10,7 +10,13 @@ export type CollectionTagRules = {
   sourceLeaf: string;
   /** the name of a subject, e.g. dish: an entry named like the source leaf gets it, "Menu (dish)" */
   subject: string;
+  /** other leaves that mark a source photo, e.g. Seed packet beside Tag */
+  otherSourceLeaves?: string[];
 };
+
+/** the leaf of a source photo named `name` (case aside), e.g. "Seed packet", or undefined for an entry */
+export const findSourceLeaf = (rules: CollectionTagRules, name: string) =>
+  [rules.sourceLeaf, ...(rules.otherSourceLeaves ?? [])].find((leaf) => leaf.toLowerCase() === name.toLowerCase());
 
 export type CollectionTag = { place: string } & ({ kind: 'entry'; entry: string } | { kind: 'source' });
 
@@ -26,11 +32,12 @@ export const getTagPlaceName = (rules: CollectionTagRules, place: string) =>
 export const getEntryTag = (rules: CollectionTagRules, place: string, entry: string) => {
   const name = cleanName(entry);
   // an entry that happens to be called like the source leaf ("Menu") would read as a source photo
-  return `${getPlaceTag(rules, place)}/${name.toLowerCase() === rules.sourceLeaf.toLowerCase() ? `${name} (${rules.subject})` : name}`;
+  return `${getPlaceTag(rules, place)}/${findSourceLeaf(rules, name) ? `${name} (${rules.subject})` : name}`;
 };
 
-export const getSourceTag = (rules: CollectionTagRules, place: string) =>
-  `${getPlaceTag(rules, place)}/${rules.sourceLeaf}`;
+/** the tag of a source photo, with the pack's source leaf or another of its source leaves (`leaf`) */
+export const getSourceTag = (rules: CollectionTagRules, place: string, leaf = rules.sourceLeaf) =>
+  `${getPlaceTag(rules, place)}/${leaf}`;
 
 /** the prefix of every tag of the collection, e.g. `Food/` */
 export const getTagPrefix = (rules: CollectionTagRules) => `${rules.tagRoot}/`;
@@ -42,5 +49,7 @@ export const parseCollectionTag = (rules: CollectionTagRules, value: string): Co
     return;
   }
   const [, place, leaf] = parts;
-  return leaf === rules.sourceLeaf ? { place, kind: 'source' } : { place, kind: 'entry', entry: leaf };
+  return leaf === rules.sourceLeaf || rules.otherSourceLeaves?.includes(leaf)
+    ? { place, kind: 'source' }
+    : { place, kind: 'entry', entry: leaf };
 };
