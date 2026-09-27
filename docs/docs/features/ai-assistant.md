@@ -18,7 +18,7 @@ With its tools, the assistant can:
 
 - understand your library: search by meaning and filters, find people, split a date range or album into events and trips, read metadata, and look at photos on a contact sheet;
 - choose photos: group bursts and near-duplicates, score sharpness, exposure and faces, and pick a balanced selection (for example _"the 30 best photos of last year, no more than 2 per event"_);
-- crop photos around faces, straighten tilted photos and enhance dull ones;
+- crop photos around faces, straighten tilted photos, enhance dull ones and [turn sideways ones upright](#sideways-and-upside-down-photos);
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
@@ -45,7 +45,7 @@ The assistant can search and look at your photos freely. Actions that change you
 - **Allow all in this chat** runs it and turns on auto-approve for the rest of the chat.
 - **Deny** refuses it. The assistant is told not to retry and asks you what to do instead.
 
-Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, saving a collage, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
+Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing, improving or turning photos, saving a collage, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
 
 To skip the prompts, turn on **Auto-approve** at the top of a chat. It only applies to that chat. An administrator can also turn on **Auto-approve changes** in the settings, which skips approvals for every user.
 
@@ -358,6 +358,19 @@ GIF, SVG and panorama images can't be enhanced.
 The assistant measures how tilted a photo is from its level and plumb lines, such as horizons, buildings, poles and door frames. It suggests straightening only for small tilts that it measures with confidence: at least 0.4° (smaller tilts aren't visible) and at most 8°. Larger angles are usually perspective lines, such as a table or a shop front, and are left alone. So are photos whose lines already look level. When photos are improved automatically, only tilts up to 4° are corrected.
 
 A straightened copy keeps the original shape and crops away the blank corners, and it is tagged `Edits/Straightened`.
+
+## Sideways and upside-down photos
+
+Immich looks for photos that are stored sideways (turned 90° either way) or upside down, and lists them under **Utilities → Fix photo orientation**. It needs smart search (CLIP) to be enabled; face detection and OCR make it more reliable. For each photo it compares the preview in its four turns with CLIP, then reads the faces (they should be upright) and the text (it should read left to right) of the turn it prefers. Only confident cases are suggested, each with the turn, how sure it is and why.
+
+- **Every night**, the photos uploaded since the night before are checked, up to 500 per user (the first night, the uploads of the last 30 days).
+- **Check photos** checks all your photos (newest first, up to 5000 at a time), those of an album, or those taken between two dates, in the background.
+
+On the page, each photo is shown turned as suggested. **Turn upright** fixes one, **Keep as it is** rejects the suggestion (it isn't made again), and **Fix all** fixes every photo on the list. A fix is an edit, the same as the rotate button of the photo editor: no copy is made, the photo's other edits are kept, and **Undo** (under **Fixed**) or the editor turns it back. Photos you have already edited, videos, live photos, panoramas and GIFs are not checked or turned.
+
+You can also ask the assistant: _"find the sideways photos of our trip and fix them"_. It uses `find_rotated_photos`, which lists the suggestions or checks an album, a date range or chosen photos on the spot, and `fix_rotation`, which asks for approval.
+
+On a benchmark of 37 upright photos from the demo library (a trip to Sicily and three restaurant meals) turned every way, it fixes 96 of the 111 turned cases, never turns a photo the wrong way, and leaves all 37 upright photos alone. Photos that look the same every way, such as a dish seen from above, are often left unflagged; that is on purpose.
 
 ## Food
 
