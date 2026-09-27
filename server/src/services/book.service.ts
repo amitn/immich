@@ -555,12 +555,20 @@ export class BookService extends BaseService {
       await this.requireAccess({ auth, permission: Permission.AssetRead, ids: [dto.coverAssetId] });
     }
 
+    // the user's own style is copied: editing or deleting it later leaves the book as it is
+    let base: BookStyle | undefined;
+    if (dto.styleId) {
+      await this.requireAccess({ auth, permission: Permission.BookStyleRead, ids: [dto.styleId] });
+      const userStyle = await findOrFail(() => this.bookRepository.getStyle(dto.styleId!), 'Book style');
+      base = userStyle.style;
+    }
+
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
     const size = {
       pageWidthMm: dto.pageWidthMm ?? book.pageWidthMm,
       pageHeightMm: dto.pageHeightMm ?? book.pageHeightMm,
     };
-    const style = this.mergeStyle(book.style, dto.style, dto.stylePreset);
+    const style = this.mergeStyle(book.style, dto.style, dto.stylePreset, base);
     this.requireValidStyle(size, style);
 
     await this.bookRepository.update(id, {
@@ -570,7 +578,7 @@ export class BookService extends BaseService {
       coverAssetId: dto.coverAssetId,
       pageWidthMm: dto.pageWidthMm,
       pageHeightMm: dto.pageHeightMm,
-      style: dto.style || dto.stylePreset ? style : undefined,
+      style: dto.style || dto.stylePreset || dto.styleId ? style : undefined,
     });
 
     return this.getDetail(id);
@@ -1966,13 +1974,18 @@ export class BookService extends BaseService {
     }
   }
 
-  /** the current style (or the preset), with the changes */
+  /** the current style (or the preset, or a style of the user's own), with the changes */
   private mergeStyle(
     current: BookStyle | undefined,
     update: BookStyleUpdate | undefined,
     preset?: BookStylePreset,
+    userStyle?: BookStyle,
   ): BookStyle {
-    const base = preset ? bookStylePresets[preset].style : resolveBookStyle(current);
+    const base = preset
+      ? bookStylePresets[preset].style
+      : userStyle
+        ? resolveBookStyle(userStyle)
+        : resolveBookStyle(current);
     const changes = Object.fromEntries(Object.entries(update ?? {}).filter(([, value]) => value !== undefined));
     return resolveBookStyle({ ...base, ...changes });
   }

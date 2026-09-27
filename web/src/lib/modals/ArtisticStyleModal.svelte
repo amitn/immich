@@ -1,6 +1,8 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { artJobManager } from '$lib/managers/art-job-manager.svelte';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
+  import StyleCreatorModal from '$lib/modals/StyleCreatorModal.svelte';
   import { Route } from '$lib/route';
   import { websocketEvents } from '$lib/stores/websocket';
   import { getAssetMediaUrl } from '$lib/utils';
@@ -9,6 +11,7 @@
     ArtJobStatus,
     AssetMediaSize,
     createArtJob,
+    deleteArtUserStyle,
     getArtJob,
     getArtStyles,
     type ArtJobResponseDto,
@@ -21,15 +24,26 @@
     Field,
     HStack,
     Icon,
+    IconButton,
     Input,
     LoadingSpinner,
     Modal,
     ModalBody,
     ModalFooter,
+    modalManager,
     Text,
     Textarea,
+    toastManager,
   } from '@immich/ui';
-  import { mdiAlertCircleOutline, mdiCheckCircle, mdiOpenInNew, mdiPaletteOutline, mdiRefresh } from '@mdi/js';
+  import {
+    mdiAlertCircleOutline,
+    mdiCheckCircle,
+    mdiCreationOutline,
+    mdiDeleteOutline,
+    mdiOpenInNew,
+    mdiPaletteOutline,
+    mdiRefresh,
+  } from '@mdi/js';
   import { onDestroy, onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -58,6 +72,16 @@
   let clockTimer: ReturnType<typeof setInterval> | undefined;
 
   const style = $derived(styles.find(({ id }) => id === selectedStyle));
+  const builtInStyles = $derived(styles.filter(({ owned }) => !owned));
+  const ownStyles = $derived(styles.filter(({ owned }) => owned));
+  const customOption: ArtStyleDto = $derived({
+    id: CUSTOM,
+    name: $t('art_custom_style'),
+    description: $t('art_custom_style_description'),
+    usesCaption: false,
+    photoAbove: false,
+    owned: false,
+  });
   const isCustom = $derived(selectedStyle === CUSTOM);
   const phase = $derived.by(() => {
     if (!job) {
@@ -142,6 +166,32 @@
     }
   };
 
+  const deleteStyle = async (target: ArtStyleDto) => {
+    const confirmed = await modalManager.showDialog({
+      title: $t('art_style_delete'),
+      prompt: $t('art_style_delete_prompt', { values: { name: target.name } }),
+      confirmText: $t('delete'),
+    });
+    if (!confirmed) {
+      return;
+    }
+    try {
+      await deleteArtUserStyle({ id: target.id });
+      styles = styles.filter(({ id }) => id !== target.id);
+      if (selectedStyle === target.id) {
+        selectedStyle = styles[0]?.id ?? CUSTOM;
+      }
+      toastManager.success($t('art_style_deleted', { values: { name: target.name } }));
+    } catch (error) {
+      handleError(error, $t('errors.unable_to_delete_art_style'));
+    }
+  };
+
+  const createWithAssistant = () => {
+    onClose();
+    void modalManager.show(StyleCreatorModal, { target: { kind: 'art', assetId: asset.id } });
+  };
+
   const tryAgain = () => {
     stopTimers();
     job = undefined;
@@ -191,6 +241,40 @@
   onDestroy(() => stopTimers());
 </script>
 
+{#snippet styleOption(option: ArtStyleDto)}
+  {@const checked = selectedStyle === option.id}
+  <div class="relative">
+    <label
+      class="flex h-full cursor-pointer flex-col gap-1 rounded-xl border-2 p-3 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-primary {checked
+        ? 'border-primary bg-primary/5'
+        : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'} {option.owned
+        ? 'pe-10'
+        : ''}"
+    >
+      <input type="radio" name="art-style" class="sr-only" value={option.id} bind:group={selectedStyle} />
+      <span class="flex items-center gap-2 text-sm font-medium">
+        {option.name}
+        {#if checked}
+          <Icon icon={mdiCheckCircle} size="16" class="ms-auto text-primary" aria-hidden />
+        {/if}
+      </span>
+      <span class="text-xs text-gray-600 dark:text-gray-400">{option.description}</span>
+    </label>
+    {#if option.owned}
+      <IconButton
+        class="absolute inset-e-1 top-1"
+        icon={mdiDeleteOutline}
+        size="small"
+        shape="round"
+        color="secondary"
+        variant="ghost"
+        aria-label={$t('art_style_delete_named', { values: { name: option.name } })}
+        onclick={() => deleteStyle(option)}
+      />
+    {/if}
+  </div>
+{/snippet}
+
 <Modal title={$t('artistic_style_title')} icon={mdiPaletteOutline} {onClose} size="large">
   <ModalBody>
     {#if phase === 'select'}
@@ -211,24 +295,30 @@
           <fieldset>
             <legend class="mb-2 text-sm font-medium">{$t('art_choose_style')}</legend>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {#each [...styles, { id: CUSTOM, name: $t('art_custom_style'), description: $t('art_custom_style_description'), usesCaption: false }] as option (option.id)}
-                {@const checked = selectedStyle === option.id}
-                <label
-                  class="flex cursor-pointer flex-col gap-1 rounded-xl border-2 p-3 transition-colors has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-primary {checked
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
-                >
-                  <input type="radio" name="art-style" class="sr-only" value={option.id} bind:group={selectedStyle} />
-                  <span class="flex items-center gap-2 text-sm font-medium">
-                    {option.name}
-                    {#if checked}
-                      <Icon icon={mdiCheckCircle} size="16" class="ms-auto text-primary" aria-hidden />
-                    {/if}
-                  </span>
-                  <span class="text-xs text-gray-600 dark:text-gray-400">{option.description}</span>
-                </label>
+              {#each [...builtInStyles, customOption] as option (option.id)}
+                {@render styleOption(option)}
               {/each}
             </div>
+            {#if ownStyles.length > 0}
+              <p class="mt-4 mb-2 text-sm font-medium">{$t('art_your_styles')}</p>
+              <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {#each ownStyles as option (option.id)}
+                  {@render styleOption(option)}
+                {/each}
+              </div>
+            {/if}
+            {#if featureFlagsManager.value.assistant}
+              <Button
+                class="mt-2"
+                size="small"
+                variant="ghost"
+                shape="round"
+                leadingIcon={mdiCreationOutline}
+                onclick={createWithAssistant}
+              >
+                {$t('style_creator_create_with_assistant')}
+              </Button>
+            {/if}
           </fieldset>
 
           {#if style?.usesCaption}

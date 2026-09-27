@@ -1207,7 +1207,7 @@ export type ArtJobCreateDto = {
     caption?: string;
     /** Custom art direction; replaces the style prompt. `{caption}` is replaced with the caption */
     prompt?: string;
-    /** Style ID, see the art styles endpoint */
+    /** Style ID, see the art styles endpoint: a built-in style, or the UUID of one of the user's own styles */
     style?: string;
 };
 export type ArtJobResponseDto = {
@@ -1232,12 +1232,60 @@ export type ArtJobResponseDto = {
 export type ArtStyleDto = {
     /** What the style looks like */
     description: string;
+    /** Style ID: a built-in style's name, or the UUID of one of the user's own styles */
+    id: string;
+    /** Style name */
+    name: string;
+    /** Whether it is one of the user's own styles (e.g. designed with the assistant) */
+    owned: boolean;
+    /** Whether the untouched photo is placed above the artwork */
+    photoAbove: boolean;
+    /** Whether the style renders a caption into the image */
+    usesCaption: boolean;
+};
+export type ArtUserStyleCreateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name: string;
+    /** Place the untouched photo above the artwork, which then only paints the lower half (default false) */
+    photoAbove?: boolean;
+    /** Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption */
+    prompt: string;
+    /** Whether the style renders a caption into the image (default false) */
+    usesCaption?: boolean;
+};
+export type ArtUserStyleResponseDto = {
+    /** Creation date */
+    createdAt: string;
+    /** What the style looks like */
+    description: string;
     /** Style ID */
     id: string;
     /** Style name */
     name: string;
+    /** Whether it is one of the user's own styles (e.g. designed with the assistant) */
+    owned: boolean;
+    /** Whether the untouched photo is placed above the artwork */
+    photoAbove: boolean;
+    /** Image-generation prompt */
+    prompt: string;
+    /** Last update date */
+    updatedAt: string;
     /** Whether the style renders a caption into the image */
     usesCaption: boolean;
+};
+export type ArtUserStyleUpdateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name?: string;
+    /** Place the untouched photo above the artwork */
+    photoAbove?: boolean;
+    /** Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption */
+    prompt?: string;
+    /** Whether the style renders a caption into the image */
+    usesCaption?: boolean;
 };
 export type AssetFileResponseDto = {
     /** Creation date */
@@ -1844,6 +1892,54 @@ export type BookStyle = {
     /** Title font size in points */
     titleSizePt?: number;
 };
+export type BookUserStyleResponseDto = {
+    /** Creation date */
+    createdAt: string;
+    /** What the style looks like */
+    description: string;
+    /** Style ID */
+    id: string;
+    /** Style name */
+    name: string;
+    style: BookStyle;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookStyleUpdate = {
+    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
+    accentColor?: string;
+    /** Page background color (hex) */
+    background?: string;
+    /** Caption font size in points */
+    captionSizePt?: number;
+    /** Font family used for captions and titles */
+    fontFamily?: string;
+    /** Space between photos in millimeters */
+    gutterMm?: number;
+    /** Outer page margin in millimeters */
+    marginMm?: number;
+    /** Caption and title color (hex) */
+    textColor?: string;
+    theme?: BookStyleTheme;
+    /** Title font size in points */
+    titleSizePt?: number;
+};
+export type BookUserStyleCreateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name, e.g. "Wedding: ivory, sage and gold" */
+    name: string;
+    /** The style; omitted options take the values of the classic preset */
+    style: BookStyleUpdate;
+};
+export type BookUserStyleUpdateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name?: string;
+    /** Style changes; omitted options keep their value */
+    style?: BookStyleUpdate;
+};
 export type BookResponseDto = {
     /** Album the book is made from */
     albumId: string | null;
@@ -1883,25 +1979,6 @@ export type BookResponseDto = {
     title: string;
     /** Last update date */
     updatedAt: string;
-};
-export type BookStyleUpdate = {
-    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
-    accentColor?: string;
-    /** Page background color (hex) */
-    background?: string;
-    /** Caption font size in points */
-    captionSizePt?: number;
-    /** Font family used for captions and titles */
-    fontFamily?: string;
-    /** Space between photos in millimeters */
-    gutterMm?: number;
-    /** Outer page margin in millimeters */
-    marginMm?: number;
-    /** Caption and title color (hex) */
-    textColor?: string;
-    theme?: BookStyleTheme;
-    /** Title font size in points */
-    titleSizePt?: number;
 };
 export type BookCreateDto = {
     /** Album the book is made from */
@@ -2163,6 +2240,8 @@ export type BookUpdateDto = {
     /** Page width in millimeters */
     pageWidthMm?: number;
     style?: BookStyleUpdate;
+    /** Replace the style with a copy of one of the user's own styles (see GET /book-styles); style overrides its values */
+    styleId?: string;
     /** Replace the style with a preset (see GET /books/style-presets); style overrides its values */
     stylePreset?: BookStylePreset;
     /** Book subtitle */
@@ -5971,6 +6050,61 @@ export function getArtStyles(opts?: Oazapfts.RequestOpts) {
     }));
 }
 /**
+ * Create an artistic style
+ */
+export function createArtUserStyle({ artUserStyleCreateDto }: {
+    artUserStyleCreateDto: ArtUserStyleCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ArtUserStyleResponseDto;
+    }>("/art/styles", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: artUserStyleCreateDto
+    })));
+}
+/**
+ * Delete an artistic style
+ */
+export function deleteArtUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/art/styles/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve an artistic style
+ */
+export function getArtUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtUserStyleResponseDto;
+    }>(`/art/styles/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update an artistic style
+ */
+export function updateArtUserStyle({ id, artUserStyleUpdateDto }: {
+    id: string;
+    artUserStyleUpdateDto: ArtUserStyleUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtUserStyleResponseDto;
+    }>(`/art/styles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: artUserStyleUpdateDto
+    })));
+}
+/**
  * Search asset files
  */
 export function searchAssetFiles({ assetId, isEdited, isProgressive, isTransparent, $type }: {
@@ -6636,6 +6770,72 @@ export function validateAccessToken(opts?: Oazapfts.RequestOpts) {
         ...opts,
         method: "POST"
     }));
+}
+/**
+ * List your book styles
+ */
+export function getBookUserStyles(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto[];
+    }>("/book-styles", {
+        ...opts
+    }));
+}
+/**
+ * Create a book style
+ */
+export function createBookUserStyle({ bookUserStyleCreateDto }: {
+    bookUserStyleCreateDto: BookUserStyleCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookUserStyleResponseDto;
+    }>("/book-styles", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookUserStyleCreateDto
+    })));
+}
+/**
+ * Delete a book style
+ */
+export function deleteBookUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/book-styles/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a book style
+ */
+export function getBookUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto;
+    }>(`/book-styles/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update a book style
+ */
+export function updateBookUserStyle({ id, bookUserStyleUpdateDto }: {
+    id: string;
+    bookUserStyleUpdateDto: BookUserStyleUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto;
+    }>(`/book-styles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookUserStyleUpdateDto
+    })));
 }
 /**
  * List books
@@ -9946,6 +10146,10 @@ export enum Permission {
     AgentSessionDelete = "agentSession.delete",
     ArtJobCreate = "artJob.create",
     ArtJobRead = "artJob.read",
+    ArtStyleCreate = "artStyle.create",
+    ArtStyleRead = "artStyle.read",
+    ArtStyleUpdate = "artStyle.update",
+    ArtStyleDelete = "artStyle.delete",
     ApiKeyCreate = "apiKey.create",
     ApiKeyRead = "apiKey.read",
     ApiKeyUpdate = "apiKey.update",
@@ -9992,6 +10196,10 @@ export enum Permission {
     BookDelete = "book.delete",
     BookDownload = "book.download",
     BookShare = "book.share",
+    BookStyleCreate = "bookStyle.create",
+    BookStyleRead = "bookStyle.read",
+    BookStyleUpdate = "bookStyle.update",
+    BookStyleDelete = "bookStyle.delete",
     ClusterGroupRead = "clusterGroup.read",
     ClusterGroupLeave = "clusterGroup.leave",
     ClusterGroupRequestCreate = "clusterGroupRequest.create",
@@ -10181,6 +10389,14 @@ export enum AssetMediaSize {
     Preview = "preview",
     Thumbnail = "thumbnail"
 }
+export enum BookStyleTheme {
+    Plain = "plain",
+    Food = "food",
+    Gallery = "gallery",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel"
+}
 export enum BookExportStatus {
     Pending = "pending",
     Running = "running",
@@ -10190,14 +10406,6 @@ export enum BookExportStatus {
 export enum BookStatus {
     Draft = "draft",
     Active = "active"
-}
-export enum BookStyleTheme {
-    Plain = "plain",
-    Food = "food",
-    Gallery = "gallery",
-    Wine = "wine",
-    Cookbook = "cookbook",
-    Travel = "travel"
 }
 export enum BookStylePreset {
     Classic = "classic",

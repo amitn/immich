@@ -1,7 +1,9 @@
 <script lang="ts">
   import BookMapOptions from '$lib/components/books/BookMapOptions.svelte';
   import BookStylePresetPicker from '$lib/components/books/BookStylePresetPicker.svelte';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import BookExportProgressModal from '$lib/modals/BookExportProgressModal.svelte';
+  import StyleCreatorModal from '$lib/modals/StyleCreatorModal.svelte';
   import {
     BOOK_MAX_PAGES,
     BOOK_PAGE_SIZE_PRESETS,
@@ -13,7 +15,7 @@
     type BookExportChoice,
     type BookPageSizePresetId,
   } from '$lib/utils/book-export';
-  import { DEFAULT_BOOK_STYLE_PRESET } from '$lib/utils/book-style';
+  import { DEFAULT_BOOK_STYLE_PRESET, isBookStylePreset, type BookStyleChoice } from '$lib/utils/book-style';
   import { handleError } from '$lib/utils/handle-error';
   import {
     BookExportFormat,
@@ -24,6 +26,7 @@
     exportBook,
     type AlbumResponseDto,
     type BookFromAlbumDto,
+    type BookUserStyleResponseDto,
   } from '@immich/sdk';
   import { Field, FormModal, Icon, Input, modalManager, NumberInput, Switch, Text } from '@immich/ui';
   import { mdiBookOpenPageVariantOutline, mdiCheckCircle } from '@mdi/js';
@@ -43,7 +46,8 @@
   let subtitle = $state('');
   let pageSize = $state<BookPageSizePresetId>(DEFAULT_BOOK_PAGE_SIZE);
   // svelte-ignore state_referenced_locally
-  let stylePreset = $state<BookStylePreset>(initialStylePreset);
+  let stylePreset = $state<BookStyleChoice>(initialStylePreset);
+  let userStyles = $state<BookUserStyleResponseDto[]>([]);
   let targetPageCount = $state<number>();
   let includeMaps = $state(true);
   let mapStyle = $state<BookMapStyleOption>(BookMapStyleOption.Auto);
@@ -59,6 +63,11 @@
     { value: 'both', label: $t('book_format_both') },
   ]);
 
+  const createStyleWithAssistant = () => {
+    onClose();
+    void modalManager.show(StyleCreatorModal, { target: { kind: 'book', album } });
+  };
+
   const onSubmit = async () => {
     const { widthMm, heightMm } = getBookPageSizePreset(pageSize);
 
@@ -68,7 +77,10 @@
       subtitle: subtitle.trim() || undefined,
       pageWidthMm: widthMm,
       pageHeightMm: heightMm,
-      stylePreset,
+      // a style of the user's own is copied into the book, like a preset
+      ...(isBookStylePreset(stylePreset)
+        ? { stylePreset }
+        : { style: userStyles.find((style) => style.id === stylePreset)?.style }),
       targetPageCount: normalizeBookPageCount(targetPageCount),
       includeMaps,
       mapStyle: includeMaps ? mapStyle : undefined,
@@ -161,7 +173,12 @@
       </div>
     </fieldset>
 
-    <BookStylePresetPicker bind:value={stylePreset} pageWidthMm={getBookPageSizePreset(pageSize).widthMm} />
+    <BookStylePresetPicker
+      bind:value={stylePreset}
+      pageWidthMm={getBookPageSizePreset(pageSize).widthMm}
+      onUserStyles={(styles) => (userStyles = styles)}
+      onCreateWithAssistant={featureFlagsManager.value.assistant ? createStyleWithAssistant : undefined}
+    />
 
     <Field
       label={$t('book_target_page_count')}

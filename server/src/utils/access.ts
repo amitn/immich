@@ -339,6 +339,18 @@ const checkOtherAccess = async (access: AccessRepository, request: OtherAccessRe
       return access.book.checkOwnerAccess(auth.user.id, ids);
     }
 
+    case Permission.ArtStyleRead:
+    case Permission.ArtStyleUpdate:
+    case Permission.ArtStyleDelete: {
+      return access.artStyle.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.BookStyleRead:
+    case Permission.BookStyleUpdate:
+    case Permission.BookStyleDelete: {
+      return access.bookStyle.checkOwnerAccess(auth.user.id, ids);
+    }
+
     case Permission.ClusterGroupRead: {
       const isMember = await access.clusterGroup.checkOwnerAccess(auth.user.id, ids);
       const isInvited = await access.clusterGroup.checkInviteAccess(auth.user.id, setDifference(ids, isMember));

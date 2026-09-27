@@ -7,7 +7,7 @@ import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import { getVisualViewportMock } from '$lib/__mocks__/visual-viewport.mock';
 import BookExportProgressModal from '$lib/modals/BookExportProgressModal.svelte';
 import { albumFactory } from '@test-data/factories/album-factory';
-import { bookDetailFactory } from '@test-data/factories/book-factory';
+import { bookDetailFactory, bookUserStyleFactory } from '@test-data/factories/book-factory';
 import AlbumBookExportModal from './AlbumBookExportModal.svelte';
 
 vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
@@ -134,5 +134,25 @@ describe('AlbumBookExportModal component', () => {
     await waitFor(() => expect(sdkMock.createBookFromAlbum).toHaveBeenCalled());
     expect(sdkMock.exportBook).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('should create the book with a style of your own', async () => {
+    const wedding = bookUserStyleFactory.build({ name: 'Wedding' });
+    sdkMock.getBookUserStyles.mockResolvedValue([wedding]);
+    sdkMock.createBookFromAlbum.mockResolvedValue({ ...bookDetailFactory.build(), warnings: [] });
+
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    await fireEvent.click(await screen.findByRole('radio', { name: /Wedding/ }));
+    await fireEvent.click(screen.getByRole('button', { name: 'book_create' }));
+
+    await waitFor(() => expect(sdkMock.createBookFromAlbum).toHaveBeenCalled());
+    const [{ bookFromAlbumDto }] = sdkMock.createBookFromAlbum.mock.calls[0];
+    expect(bookFromAlbumDto.stylePreset).toBeUndefined();
+    expect(bookFromAlbumDto.style).toEqual(wedding.style);
+  });
+
+  it('should not offer the assistant when it is disabled', () => {
+    render(AlbumBookExportModal, { props: { album, onClose } });
+    expect(screen.queryByRole('button', { name: 'style_creator_create_with_assistant' })).not.toBeInTheDocument();
   });
 });

@@ -475,7 +475,8 @@ export class BookAgentTools extends BaseService {
         description:
           'Change the style of the whole book. A preset (classic, soft, bold or food) replaces the style first; omitted ' +
           'options keep their value. Colors are hex (#rrggbb). Larger margins/gutters give a calmer look; small ' +
-          'ones suit dense layouts.',
+          'ones suit dense layouts. To design a new look with the user, use list_book_styles, preview_book_style ' +
+          'and save_book_style; apply_book_style applies a saved one.',
         input: BookStyleUpdateSchema.extend({ bookId, preset: stylePreset.optional() }),
         mutating: false,
         handler: (ctx, { bookId, preset, ...style }) =>

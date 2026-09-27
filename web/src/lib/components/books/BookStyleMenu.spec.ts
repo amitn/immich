@@ -4,10 +4,17 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { Component, ComponentProps } from 'svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
+import StyleCreatorModal from '$lib/modals/StyleCreatorModal.svelte';
 import { resetBookStylePresets } from '$lib/utils/book-style';
-import { bookDetailFactory } from '@test-data/factories/book-factory';
+import { bookDetailFactory, bookUserStyleFactory } from '@test-data/factories/book-factory';
 import { bookStylePresets } from '@test-data/factories/book-review-factory';
 import BookStyleMenu from './BookStyleMenu.svelte';
+
+const { flags } = vi.hoisted(() => ({ flags: { assistant: true } }));
+
+vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
+  featureFlagsManager: { init: vi.fn(), loadFeatureFlags: vi.fn(), value: flags } as never,
+}));
 
 const [classic, soft, , food] = bookStylePresets;
 
@@ -172,5 +179,71 @@ describe('BookStyleMenu component', () => {
     await waitFor(() => expect(modalManager.showDialog).toHaveBeenCalled());
     expect(sdkMock.updateBook).not.toHaveBeenCalled();
     expect(onUpdated).not.toHaveBeenCalled();
+  });
+
+  describe('your styles', () => {
+    const wedding = bookUserStyleFactory.build({ name: 'Wedding', description: 'Ivory, sage and gold' });
+
+    beforeEach(() => {
+      flags.assistant = true;
+      sdkMock.getBookUserStyles.mockResolvedValue([wedding]);
+    });
+
+    it("should list the user's own styles after the presets", async () => {
+      const book = bookDetailFactory.build({ style: { ...soft.style } });
+
+      renderMenu({ book, onUpdated });
+      const entries = await openMenu();
+
+      expect(screen.getByText('book_style_yours')).toBeInTheDocument();
+      expect(entries.at(-1)).toHaveTextContent('Wedding');
+      expect(entries.at(-1)).toHaveTextContent('Ivory, sage and gold');
+      expect(entries.at(-1)).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('should apply a style of your own like a preset', async () => {
+      const book = bookDetailFactory.build({ style: { ...soft.style } });
+      const updated = { ...book, style: { ...wedding.style } };
+      sdkMock.updateBook.mockResolvedValue(updated);
+
+      renderMenu({ book, onUpdated });
+      await openMenu();
+      await fireEvent.click(screen.getByRole('menuitemradio', { name: /Wedding/ }));
+
+      await waitFor(() => expect(onUpdated).toHaveBeenCalledWith(updated));
+      expect(sdkMock.updateBook).toHaveBeenCalledWith({ id: book.id, bookUpdateDto: { styleId: wedding.id } });
+      expect(modalManager.showDialog).not.toHaveBeenCalled();
+    });
+
+    it('should mark the style of your own the book uses instead of showing a custom style', async () => {
+      const book = bookDetailFactory.build({ style: { ...wedding.style } });
+
+      renderMenu({ book, onUpdated });
+      const entries = await openMenu();
+
+      expect(entries.some((entry) => entry.textContent?.includes('book_style_custom'))).toBe(false);
+      expect(screen.getByRole('menuitemradio', { name: /Wedding/ })).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('should open the style creator for the book', async () => {
+      const show = vi.spyOn(modalManager, 'show').mockResolvedValue(undefined as never);
+      const book = bookDetailFactory.build({ style: { ...soft.style } });
+
+      renderMenu({ book, onUpdated });
+      await openMenu();
+      await fireEvent.click(screen.getByRole('menuitem', { name: 'style_creator_create_with_assistant' }));
+
+      expect(show).toHaveBeenCalledWith(StyleCreatorModal, { target: { kind: 'book', book } });
+    });
+
+    it('should not offer the assistant when it is disabled', async () => {
+      flags.assistant = false;
+      const book = bookDetailFactory.build({ style: { ...soft.style } });
+
+      renderMenu({ book, onUpdated });
+      await openMenu();
+
+      expect(screen.queryByRole('menuitem', { name: 'style_creator_create_with_assistant' })).not.toBeInTheDocument();
+    });
   });
 });

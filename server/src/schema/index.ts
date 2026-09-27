@@ -38,6 +38,7 @@ import { AlbumUserTable } from 'src/schema/tables/album-user.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { ApiKeyTable } from 'src/schema/tables/api-key.table.js';
 import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
+import { ArtStyleTable } from 'src/schema/tables/art-style.table.js';
 import { AssetAuditTable } from 'src/schema/tables/asset-audit.table.js';
 import { AssetAudioTable, AssetKeyframeTable, AssetVideoTable } from 'src/schema/tables/asset-av.table.js';
 import { AssetEditAuditTable } from 'src/schema/tables/asset-edit-audit.table.js';
@@ -55,6 +56,7 @@ import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import { BookStyleTable } from 'src/schema/tables/book-style.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
@@ -118,6 +120,7 @@ export class ImmichDatabase {
     AlbumTable,
     ApiKeyTable,
     ArtJobTable,
+    ArtStyleTable,
     AssetAuditTable,
     AssetEditTable,
     AssetEditAuditTable,
@@ -134,6 +137,7 @@ export class ImmichDatabase {
     BookTable,
     BookDraftTable,
     BookPageTable,
+    BookStyleTable,
     BookPageAssetTable,
     ClusterGroupTable,
     ClusterGroupRequestTable,
@@ -230,6 +234,7 @@ export interface DB {
   api_key: ApiKeyTable;
 
   art_job: ArtJobTable;
+  art_style: ArtStyleTable;
 
   asset: AssetTable;
   asset_audit: AssetAuditTable;
@@ -252,6 +257,7 @@ export interface DB {
   book: BookTable;
   book_draft: BookDraftTable;
   book_page: BookPageTable;
+  book_style: BookStyleTable;
   book_page_asset: BookPageAssetTable;
 
   face_search: FaceSearchTable;

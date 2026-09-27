@@ -22,6 +22,7 @@ With its tools, the assistant can:
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
 - create [artistic versions](#artistic-styles) of photos;
+- [design book and artistic styles of your own](#designing-your-own-styles) from a description;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
 - [answer questions about your library](#asking-about-your-library), such as _"when did we last make the quiche?"_, from the dishes, recipes, artworks and trips it named;
 - list and use your tags.
@@ -257,6 +258,46 @@ Select **Generate**. It usually takes 30 seconds to 2 minutes, and stops after 1
 
 - **Upscaling**: generated images are often too small for a printed page. When the long edge is under 2400 pixels, the artwork is upscaled to twice its size, between 2400 and 3000 pixels.
 - **Editorial watercolor split**: image generation redraws a photo instead of keeping it. So the art agent only paints the watercolor half, and Immich places your untouched original photo above it.
+
+## Designing your own styles
+
+When no built-in style is quite right, the assistant can design one with you. You describe a look in words, the assistant designs it and shows you a sample, and it saves the style as one of **your styles**, listed next to the built-in ones.
+
+Choose **Create with assistant…** in any of these places:
+
+- the **Style** menu of a book
+- the style picker of **Export as a book**
+- the **Artistic style** dialog of a photo
+
+Describe the style you want, or start from one of the examples, and select **Open the assistant**. The chat opens with the request written for you, with the current book and some of its photos, or the photo, already attached.
+
+### Book styles
+
+The assistant asks about the mood first, for example calm or bold, light or dark pages, or vintage or modern. When you mention colours or photos, as in _our wedding colours_ or _the colours of these photos_, it reads the main and accent colours of those photos with `get_photo_palette`.
+
+It then renders the cover and first spread of your book, or a sample book of your photos, in the proposed style with `preview_book_style`. It looks at the result, adjusts the style, and shows you the preview. Nothing is saved until you approve the style. `save_book_style` saves it, and `apply_book_style` applies it to a book. Both ask for your approval.
+
+Designed styles use the same options as the presets, and they are checked strictly:
+
+- **Fonts**: only the fonts that render on your server and in the exports, such as the serif, sans-serif and typewriter families and FreeSerif, DejaVu and Noto.
+- **Colours**: opaque colours only. The text must be readable on the page, with a contrast of at least 3:1 (4.5:1 reads well), and the accent must stay visible.
+- **Sizes**: margins, gutters and text sizes that print well, with captions smaller than titles.
+- **Theme**: plain, or the look of one of the collection books. The printed look adds a thin frame, rules, ornaments and small caps in the accent colour. The gallery look shows every photo whole, with museum-label captions.
+
+Applying one of your styles copies it into the book. If you change or delete the style later, the book keeps its look.
+
+### Artistic styles
+
+The assistant writes the prompt in the same way as the built-in styles. It turns the photo into the new medium, keeps the scene and its people recognizable, and describes the materials, marks and colours. It asks which photo to try the style on, tests it there with `test_art_style`, and shows you the artwork. Then it refines the prompt with you until you like the result, and saves it with `save_art_style`.
+
+Each test is an art job. Its artwork is saved as a new photo stacked with the original, described as a style test and tagged `AI Artwork/Style tests`, so you can find and delete the tests afterwards. Prompts are between 80 and 2000 characters long. A style can write a caption into the artwork, and it can paint only the lower half with your untouched photo above it, like the **Editorial watercolor split**.
+
+### Managing your styles
+
+- **Book styles** appear under **Your styles** in the Style menu and in the export dialog. Rename or delete them in **Photo books → Manage styles**.
+- **Artistic styles** appear under **Your styles** in the Artistic style dialog. Select one to generate artwork, or delete it with its trash icon. Artwork you made with a deleted style is kept.
+
+Your styles are private to your account. Other users, and people with a shared link, can't see them.
 
 ## Auto-enhance and straighten
 

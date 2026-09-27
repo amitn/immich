@@ -2,6 +2,7 @@ import { Selectable } from 'kysely';
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import type { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import type { BookStyleTable } from 'src/schema/tables/book-style.table.js';
 import type { BookTable } from 'src/schema/tables/book.table.js';
 import {
   BookDraftKindSchema,
@@ -227,8 +228,15 @@ const BookUpdateSchema = z
     stylePreset: BookStylePresetSchema.optional().describe(
       'Replace the style with a preset (see GET /books/style-presets); style overrides its values',
     ),
+    styleId: z
+      .uuidv4()
+      .optional()
+      .describe(
+        "Replace the style with a copy of one of the user's own styles (see GET /book-styles); style overrides its values",
+      ),
     style: BookStyleUpdateSchema.optional(),
   })
+  .refine((dto) => !(dto.stylePreset && dto.styleId), { error: 'Pass either stylePreset or styleId, not both' })
   .meta({ id: 'BookUpdateDto' });
 
 const BookPageCreateSchema = z
@@ -555,6 +563,37 @@ const BookStylePresetResponseSchema = z
   })
   .meta({ id: 'BookStylePresetResponseDto' });
 
+const userStyleName = z.string().trim().min(1).max(100);
+const userStyleDescription = z.string().trim().max(500);
+
+const BookUserStyleCreateSchema = z
+  .object({
+    name: userStyleName.describe('Style name, e.g. "Wedding: ivory, sage and gold"'),
+    description: userStyleDescription.optional().describe('What the style looks like'),
+    style: BookStyleUpdateSchema.describe('The style; omitted options take the values of the classic preset'),
+  })
+  .meta({ id: 'BookUserStyleCreateDto' });
+
+const BookUserStyleUpdateSchema = z
+  .object({
+    name: userStyleName.optional().describe('Style name'),
+    description: userStyleDescription.optional().describe('What the style looks like'),
+    style: BookStyleUpdateSchema.optional().describe('Style changes; omitted options keep their value'),
+  })
+  .meta({ id: 'BookUserStyleUpdateDto' });
+
+const BookUserStyleResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Style ID'),
+    name: z.string().describe('Style name'),
+    description: z.string().describe('What the style looks like'),
+    style: BookStyleSchema,
+    createdAt: isoDatetimeToDate.describe('Creation date'),
+    updatedAt: isoDatetimeToDate.describe('Last update date'),
+  })
+  .describe("A book style of the user's own, e.g. designed with the assistant")
+  .meta({ id: 'BookUserStyleResponseDto' });
+
 const LayoutRectSchema = z
   .object({
     x: z.number().describe('Left edge, as a fraction of the layout area').meta({ format: 'double' }),
@@ -608,6 +647,9 @@ export class BookDraftResponseDto extends createZodDto(BookDraftResponseSchema) 
 export class BookAutoLayoutResponseDto extends createZodDto(BookAutoLayoutResponseSchema) {}
 export class BookStylePresetResponseDto extends createZodDto(BookStylePresetResponseSchema) {}
 export class BookReviewResponseDto extends createZodDto(BookReviewResponseSchema) {}
+export class BookUserStyleCreateDto extends createZodDto(BookUserStyleCreateSchema) {}
+export class BookUserStyleUpdateDto extends createZodDto(BookUserStyleUpdateSchema) {}
+export class BookUserStyleResponseDto extends createZodDto(BookUserStyleResponseSchema) {}
 export class BookLayoutResponseDto extends createZodDto(BookLayoutResponseSchema) {}
 
 type BookRow = Selectable<BookTable> & { pageCount: number; firstPageId: string | null };
@@ -698,4 +740,13 @@ export const mapBookStylePreset = (id: BookStylePreset): BookStylePresetResponse
   id,
   ...bookStylePresets[id],
   style: { ...bookStylePresets[id].style },
+});
+
+export const mapBookUserStyle = (row: Selectable<BookStyleTable>): BookUserStyleResponseDto => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  style: resolveBookStyle(row.style),
+  createdAt: row.createdAt,
+  updatedAt: row.updatedAt,
 });

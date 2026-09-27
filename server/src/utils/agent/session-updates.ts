@@ -60,6 +60,7 @@ const INPUT_REF_TOOLS = new Set([
   'remove_from_album',
   'suggest_enhancement',
   'stylize_photo',
+  'test_art_style',
   'read_source',
   'save_entries',
   'read_menu',

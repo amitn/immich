@@ -190,3 +190,69 @@ export const buildArtPrompt = ({
   }
   return template.replaceAll('{caption}', () => text);
 };
+
+/** the placeholder of the caption in a prompt */
+export const CAPTION_PLACEHOLDER = '{caption}';
+
+/** the length of a designed prompt: the built-in ones are 400 to 1100 characters */
+export const ART_PROMPT_LIMITS = { min: 80, max: 2000 } as const;
+
+export type ArtPromptCheck = { errors: string[]; warnings: string[] };
+
+/**
+ * Checks a designed art prompt: its length, `{caption}` exactly when the style renders a caption (and no other
+ * placeholder), and, as warnings, what the built-in prompts all say: work from the reference photograph and keep its
+ * scene and subjects recognizable, and for `photoAbove` paint only the lower half.
+ */
+export const checkArtPrompt = (
+  prompt: string,
+  { usesCaption, photoAbove = false }: { usesCaption: boolean; photoAbove?: boolean },
+): ArtPromptCheck => {
+  const text = prompt.trim();
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (text.length < ART_PROMPT_LIMITS.min || text.length > ART_PROMPT_LIMITS.max) {
+    errors.push(
+      `The prompt must be ${ART_PROMPT_LIMITS.min} to ${ART_PROMPT_LIMITS.max} characters long, not ${text.length}`,
+    );
+  }
+
+  const placeholders = text
+    .matchAll(/\{([^{}]*)\}/g)
+    .map((match) => match[1])
+    .toArray();
+  const unknown = placeholders.filter((name) => name !== 'caption');
+  if (unknown.length > 0) {
+    errors.push(
+      `Unknown placeholder ${unknown.map((name) => '{' + name + '}').join(', ')}: only ${CAPTION_PLACEHOLDER} is replaced`,
+    );
+  }
+  const hasCaption = placeholders.includes('caption');
+  if (usesCaption && !hasCaption) {
+    errors.push(
+      'A style with usesCaption must say where the caption goes, e.g. a handwritten caption reading "{caption}"',
+    );
+  }
+  if (!usesCaption && hasCaption) {
+    errors.push('{caption} is only replaced in styles with usesCaption: remove it, or set usesCaption');
+  }
+
+  if (!/reference (photo|photograph|image)/i.test(text)) {
+    warnings.push('Say that the image is made from the reference photograph, like the built-in styles do');
+  }
+  if (!/(recogni[sz]able|exact same|same scene|faithful)/i.test(text)) {
+    warnings.push(
+      'Keep the subject recognizable, like the built-in styles: e.g. "of the exact same scene. Preserve the ' +
+        'recognizable composition, subjects, people, poses and perspective of the reference photograph."',
+    );
+  }
+  if (photoAbove && !/(above|lower half|bottom half)/i.test(text)) {
+    warnings.push(
+      'With photoAbove the photo is placed above the artwork: say that the image is the lower half and must not ' +
+        'include the photograph',
+    );
+  }
+
+  return { errors, warnings };
+};

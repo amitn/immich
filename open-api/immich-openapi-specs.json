@@ -4033,7 +4033,7 @@
     },
     "/art/styles": {
       "get": {
-        "description": "Retrieve the artistic styles that photos can be transformed into.",
+        "description": "Retrieve the artistic styles that photos can be transformed into: the built-in styles, then the user's own (owned), e.g. designed with the assistant.",
         "operationId": "getArtStyles",
         "parameters": [],
         "responses": {
@@ -4077,6 +4077,230 @@
           }
         ],
         "x-immich-permission": "artJob.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Save an artistic style of your own. Its prompt is checked: its length, and {caption} exactly when the style renders a caption.",
+        "operationId": "createArtUserStyle",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtUserStyleCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create an artistic style",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artStyle.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/art/styles/{id}": {
+      "delete": {
+        "description": "Delete one of your artistic styles. The artworks made with it are kept.",
+        "operationId": "deleteArtUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Delete an artistic style",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artStyle.delete",
+        "x-immich-state": "Alpha"
+      },
+      "get": {
+        "description": "Retrieve one of your artistic styles, with its prompt.",
+        "operationId": "getArtUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve an artistic style",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artStyle.read",
+        "x-immich-state": "Alpha"
+      },
+      "put": {
+        "description": "Rename one of your artistic styles, or change its prompt.",
+        "operationId": "updateArtUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtUserStyleUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update an artistic style",
+        "tags": [
+          "Assistant"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "artStyle.update",
         "x-immich-state": "Alpha"
       }
     },
@@ -6933,6 +7157,279 @@
           }
         ],
         "x-immich-state": "Stable"
+      }
+    },
+    "/book-styles": {
+      "get": {
+        "description": "Retrieve the book styles of the current user, e.g. designed with the assistant. They are listed next to the built-in presets (GET /books/style-presets) and applied to a book with its styleId.",
+        "operationId": "getBookUserStyles",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BookUserStyleResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List your book styles",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "bookStyle.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Save a book style of your own. It is checked strictly: fonts from the stacks that render, opaque colours, readable text on the background, and margins and sizes that print well.",
+        "operationId": "createBookUserStyle",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookUserStyleCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create a book style",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "bookStyle.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/book-styles/{id}": {
+      "delete": {
+        "description": "Delete one of your book styles. Books that use it keep their copy of the style.",
+        "operationId": "deleteBookUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Delete a book style",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "bookStyle.delete",
+        "x-immich-state": "Alpha"
+      },
+      "get": {
+        "description": "Retrieve one of your book styles.",
+        "operationId": "getBookUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve a book style",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "bookStyle.read",
+        "x-immich-state": "Alpha"
+      },
+      "put": {
+        "description": "Rename one of your book styles, or change it. Books that use it keep their copy of the style.",
+        "operationId": "updateBookUserStyle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookUserStyleUpdateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookUserStyleResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Update a book style",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "bookStyle.update",
+        "x-immich-state": "Alpha"
       }
     },
     "/books": {
@@ -23490,7 +23987,7 @@
             "type": "string"
           },
           "style": {
-            "description": "Style ID, see the art styles endpoint",
+            "description": "Style ID, see the art styles endpoint: a built-in style, or the UUID of one of the user's own styles",
             "type": "string"
           }
         },
@@ -23583,12 +24080,20 @@
             "type": "string"
           },
           "id": {
-            "description": "Style ID",
+            "description": "Style ID: a built-in style's name, or the UUID of one of the user's own styles",
             "type": "string"
           },
           "name": {
             "description": "Style name",
             "type": "string"
+          },
+          "owned": {
+            "description": "Whether it is one of the user's own styles (e.g. designed with the assistant)",
+            "type": "boolean"
+          },
+          "photoAbove": {
+            "description": "Whether the untouched photo is placed above the artwork",
+            "type": "boolean"
           },
           "usesCaption": {
             "description": "Whether the style renders a caption into the image",
@@ -23599,8 +24104,134 @@
           "description",
           "id",
           "name",
+          "owned",
+          "photoAbove",
           "usesCaption"
         ],
+        "type": "object"
+      },
+      "ArtUserStyleCreateDto": {
+        "properties": {
+          "description": {
+            "description": "What the style looks like",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "photoAbove": {
+            "description": "Place the untouched photo above the artwork, which then only paints the lower half (default false)",
+            "type": "boolean"
+          },
+          "prompt": {
+            "description": "Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption",
+            "maxLength": 2000,
+            "minLength": 80,
+            "type": "string"
+          },
+          "usesCaption": {
+            "description": "Whether the style renders a caption into the image (default false)",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "ArtUserStyleResponseDto": {
+        "properties": {
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the style looks like",
+            "type": "string"
+          },
+          "id": {
+            "description": "Style ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "type": "string"
+          },
+          "owned": {
+            "description": "Whether it is one of the user's own styles (e.g. designed with the assistant)",
+            "type": "boolean"
+          },
+          "photoAbove": {
+            "description": "Whether the untouched photo is placed above the artwork",
+            "type": "boolean"
+          },
+          "prompt": {
+            "description": "Image-generation prompt",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "usesCaption": {
+            "description": "Whether the style renders a caption into the image",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "createdAt",
+          "description",
+          "id",
+          "name",
+          "owned",
+          "photoAbove",
+          "prompt",
+          "updatedAt",
+          "usesCaption"
+        ],
+        "type": "object"
+      },
+      "ArtUserStyleUpdateDto": {
+        "properties": {
+          "description": {
+            "description": "What the style looks like",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "photoAbove": {
+            "description": "Place the untouched photo above the artwork",
+            "type": "boolean"
+          },
+          "prompt": {
+            "description": "Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption",
+            "maxLength": 2000,
+            "minLength": 80,
+            "type": "string"
+          },
+          "usesCaption": {
+            "description": "Whether the style renders a caption into the image",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "AssetBulkDeleteDto": {
@@ -26687,6 +27318,12 @@
           "style": {
             "$ref": "#/components/schemas/BookStyleUpdate"
           },
+          "styleId": {
+            "description": "Replace the style with a copy of one of the user's own styles (see GET /book-styles); style overrides its values",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
           "stylePreset": {
             "$ref": "#/components/schemas/BookStylePreset",
             "description": "Replace the style with a preset (see GET /books/style-presets); style overrides its values"
@@ -26702,6 +27339,95 @@
             "maxLength": 200,
             "minLength": 1,
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BookUserStyleCreateDto": {
+        "properties": {
+          "description": {
+            "description": "What the style looks like",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name, e.g. \"Wedding: ivory, sage and gold\"",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate",
+            "description": "The style; omitted options take the values of the classic preset"
+          }
+        },
+        "required": [
+          "name",
+          "style"
+        ],
+        "type": "object"
+      },
+      "BookUserStyleResponseDto": {
+        "description": "A book style of the user's own, e.g. designed with the assistant",
+        "properties": {
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "description": {
+            "description": "What the style looks like",
+            "type": "string"
+          },
+          "id": {
+            "description": "Style ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyle"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "description",
+          "id",
+          "name",
+          "style",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "BookUserStyleUpdateDto": {
+        "properties": {
+          "description": {
+            "description": "What the style looks like",
+            "maxLength": 500,
+            "type": "string"
+          },
+          "name": {
+            "description": "Style name",
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate",
+            "description": "Style changes; omitted options keep their value"
           }
         },
         "type": "object"
@@ -32025,6 +32751,10 @@
           "agentSession.delete",
           "artJob.create",
           "artJob.read",
+          "artStyle.create",
+          "artStyle.read",
+          "artStyle.update",
+          "artStyle.delete",
           "apiKey.create",
           "apiKey.read",
           "apiKey.update",
@@ -32071,6 +32801,10 @@
           "book.delete",
           "book.download",
           "book.share",
+          "bookStyle.create",
+          "bookStyle.read",
+          "bookStyle.update",
+          "bookStyle.delete",
           "clusterGroup.read",
           "clusterGroup.leave",
           "clusterGroupRequest.create",

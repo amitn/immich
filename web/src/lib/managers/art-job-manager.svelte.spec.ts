@@ -24,7 +24,14 @@ describe('artJobManager', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     sdkMock.getArtStyles.mockResolvedValue([
-      { id: 'watercolor', name: 'Watercolor', description: 'Soft paint', usesCaption: false },
+      {
+        id: 'watercolor',
+        name: 'Watercolor',
+        description: 'Soft paint',
+        usesCaption: false,
+        photoAbove: false,
+        owned: false,
+      },
     ]);
   });
 

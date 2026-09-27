@@ -2,12 +2,13 @@
   import BookCard from '$lib/components/books/BookCard.svelte';
   import BookDraftCard from '$lib/components/books/BookDraftCard.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
+  import ManageBookStylesModal from '$lib/modals/ManageBookStylesModal.svelte';
   import { openAssistant } from '$lib/services/assistant.service';
   import { discardBookDraftWithConfirm, keepBookDraftWithToast } from '$lib/services/book.service';
   import { handleError } from '$lib/utils/handle-error';
   import type { BookDraftResponseDto, BookResponseDto } from '@immich/sdk';
-  import { Button, Icon, type ActionItem } from '@immich/ui';
-  import { mdiBookOpenPageVariantOutline, mdiCreationOutline } from '@mdi/js';
+  import { Button, Icon, modalManager, type ActionItem } from '@immich/ui';
+  import { mdiBookOpenPageVariantOutline, mdiCreationOutline, mdiPaletteSwatchOutline } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -61,6 +62,12 @@
     onAction: () => openAssistant({ prompt: $t('book_create_prompt') }),
   });
 
+  const ManageStyles: ActionItem = $derived({
+    title: $t('book_style_manage'),
+    icon: mdiPaletteSwatchOutline,
+    onAction: () => modalManager.show(ManageBookStylesModal, {}),
+  });
+
   onMount(() => {
     if (data.loadError) {
       handleError(data.loadError, $t('errors.unable_to_load_books'));
@@ -68,7 +75,7 @@
   });
 </script>
 
-<UserPageLayout title={data.meta.title} actions={[CreateWithAssistant]}>
+<UserPageLayout title={data.meta.title} actions={[CreateWithAssistant, ManageStyles]}>
   <div class="pb-20">
     {#if drafts.length > 0}
       <section class="mt-4" aria-labelledby="book-drafts-title" data-testid="book-drafts">
