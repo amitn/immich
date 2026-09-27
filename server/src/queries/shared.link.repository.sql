@@ -122,7 +122,31 @@ select
           "asset"."fileCreatedAt" asc
       ) as agg
   ) as "assets",
-  to_json("album") as "album"
+  to_json("album") as "album",
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "book"."id",
+          "book"."title",
+          "book"."subtitle",
+          (
+            select
+              count(*) as "count"
+            from
+              "book_page"
+            where
+              "book_page"."bookId" = "book"."id"
+          ) as "pageCount",
+          "book"."exportPath" is not null as "hasPdf"
+        from
+          "book"
+        where
+          "book"."id" = "shared_link"."bookId"
+      ) as obj
+  ) as "book"
 from
   "shared_link"
   left join lateral (
@@ -256,6 +280,10 @@ where
   and (
     "shared_link"."type" = $11
     or "album"."id" is not null
+    or (
+      "shared_link"."type" = $12
+      and "shared_link"."bookId" is not null
+    )
   )
 order by
   "shared_link"."createdAt" desc
@@ -346,7 +374,31 @@ select
           $5
       ) as agg
   ) as "assets",
-  to_json("album") as "album"
+  to_json("album") as "album",
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "book"."id",
+          "book"."title",
+          "book"."subtitle",
+          (
+            select
+              count(*) as "count"
+            from
+              "book_page"
+            where
+              "book_page"."bookId" = "book"."id"
+          ) as "pageCount",
+          "book"."exportPath" is not null as "hasPdf"
+        from
+          "book"
+        where
+          "book"."id" = "shared_link"."bookId"
+      ) as obj
+  ) as "book"
 from
   "shared_link"
   left join lateral (
@@ -386,8 +438,12 @@ where
   and (
     "shared_link"."type" = $7
     or "album"."id" is not null
+    or (
+      "shared_link"."type" = $8
+      and "shared_link"."bookId" is not null
+    )
   )
-  and "shared_link"."albumId" = $8
+  and "shared_link"."albumId" = $9
 order by
   "shared_link"."createdAt" desc
 
@@ -397,6 +453,7 @@ select
   "shared_link"."userId",
   "shared_link"."albumId",
   "shared_link"."spaceId",
+  "shared_link"."bookId",
   "shared_link"."expiresAt",
   "shared_link"."showExif",
   "shared_link"."allowUpload",
@@ -428,8 +485,12 @@ where
   and (
     "shared_link"."type" = $1
     or "album"."id" is not null
+    or (
+      "shared_link"."type" = $2
+      and "shared_link"."bookId" is not null
+    )
   )
-  and "shared_link"."key" = $2
+  and "shared_link"."key" = $3
 
 -- SharedLinkRepository.getBySlug
 select
@@ -437,6 +498,7 @@ select
   "shared_link"."userId",
   "shared_link"."albumId",
   "shared_link"."spaceId",
+  "shared_link"."bookId",
   "shared_link"."expiresAt",
   "shared_link"."showExif",
   "shared_link"."allowUpload",
@@ -468,8 +530,12 @@ where
   and (
     "shared_link"."type" = $1
     or "album"."id" is not null
+    or (
+      "shared_link"."type" = $2
+      and "shared_link"."bookId" is not null
+    )
   )
-  and "shared_link"."slug" = $2
+  and "shared_link"."slug" = $3
 
 -- SharedLinkRepository.getSharedLinks
 select
@@ -480,7 +546,31 @@ select
         "assets"."id" is not null
     ),
     '[]'
-  ) as "assets"
+  ) as "assets",
+  (
+    select
+      to_json(obj)
+    from
+      (
+        select
+          "book"."id",
+          "book"."title",
+          "book"."subtitle",
+          (
+            select
+              count(*) as "count"
+            from
+              "book_page"
+            where
+              "book_page"."bookId" = "book"."id"
+          ) as "pageCount",
+          "book"."exportPath" is not null as "hasPdf"
+        from
+          "book"
+        where
+          "book"."id" = "shared_link"."bookId"
+      ) as obj
+  ) as "book"
 from
   "shared_link"
   left join "shared_link_asset" on "shared_link_asset"."sharedLinkId" = "shared_link"."id"

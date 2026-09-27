@@ -54,6 +54,95 @@ export type ActivityStatisticsResponseDto = {
     /** Number of likes */
     likes: number;
 };
+export type ActivityLogResponseDto = {
+    action: ActivityLogAction;
+    /** The photos and videos that were changed or created */
+    assetIds: string[];
+    /** Whether the undone change can be applied again */
+    canRedo: boolean;
+    /** Whether the change can be undone (it may still be refused by the safety checks) */
+    canUndo: boolean;
+    /** When the change was made */
+    createdAt: string;
+    /** Group of the change: the changes of one chat turn or one web request */
+    groupId: string;
+    /** Change ID */
+    id: string;
+    /** Assistant chat that made the change */
+    sessionId: string | null;
+    source: ActivityLogSource;
+    /** What changed */
+    summary: string;
+    /** The album, book, style, shared link or highlight video that was changed or created */
+    targetId: string | null;
+    /** Assistant tool that made the change */
+    toolName: string | null;
+    /** When the change was undone */
+    undoneAt: string | null;
+    /** Who undid the change */
+    undoneBy: (ActivityLogSource) | null;
+};
+export type ActivityUndoDto = {
+    /** Undo every change of this group (a chat turn or a web request) */
+    groupId?: string;
+    /** Changes to undo; they are undone newest first */
+    ids?: string[];
+};
+export type ActivityUndoResultDto = {
+    /** Change ID */
+    id: string;
+    /** Why the change was not undone, or not all of it */
+    message?: string;
+    status: ActivityUndoStatus;
+    /** What changed */
+    summary: string;
+    /** What undoing left as it was, e.g. a photo that was already in the trash */
+    warnings: string[];
+};
+export type ActivityUndoResponseDto = {
+    /** Number of changes that were refused or failed */
+    refused: number;
+    /** One result per change, in the order they were undone */
+    results: ActivityUndoResultDto[];
+    /** Number of changes undone (fully or partly) */
+    undone: number;
+};
+export type AdminConfigAgentEnvDto = {
+    name: string;
+    value: string;
+};
+export type AdminConfigAgentProfileDto = {
+    /** Command line arguments */
+    args: string[];
+    /** Executable that speaks the Agent Client Protocol over stdio */
+    command: string;
+    /** Environment variables passed to the agent process */
+    env: AdminConfigAgentEnvDto[];
+    /** Unique profile name */
+    name: string;
+    /** Names of server environment variables forwarded to the agent process (e.g. API keys) */
+    passEnv: string[];
+};
+export type AdminConfigAgentDto = {
+    /** Days the activity log keeps the changes made by the assistant, which can be undone until then */
+    activityRetentionDays: number;
+    /** Profile used for artistic transforms (empty to disable) */
+    artProfile: string;
+    /** Allow the agent to modify the library without asking for approval */
+    autoApproveWrites: boolean;
+    /** Profile used for assistant chat sessions */
+    chatProfile: string;
+    /** Enabled */
+    enabled: boolean;
+    /** Stop an idle agent process after this many minutes */
+    idleTimeoutMinutes: number;
+    /** Maximum number of running agent processes */
+    maxConcurrentSessions: number;
+    /** URL the agent uses to reach the Immich MCP endpoint (empty for http://127.0.0.1:<port>/api/agent/mcp) */
+    mcpUrl: string;
+    /** Available agent profiles */
+    profiles: AdminConfigAgentProfileDto[];
+};
 export type AdminConfigDatabaseBackupDto = {
     /** Cron expression */
     cronExpression: string;
@@ -64,6 +153,28 @@ export type AdminConfigDatabaseBackupDto = {
 };
 export type AdminConfigBackupsDto = {
     database: AdminConfigDatabaseBackupDto;
+};
+export type AdminConfigBookDraftsDto = {
+    /** Draft a book of the year that ended on the latest birthday of the named people with a birth date */
+    birthdays: boolean;
+    /** Draft photo books for the users in the background with the nightly tasks (a year of a collection, a trip, a birthday), for them to keep or discard */
+    enabled: boolean;
+    /** Most books drafted for a user per run */
+    maxPerRun: number;
+    /** Draft a book of every trip */
+    trips: boolean;
+    /** Draft a book of a year of a collection, e.g. "2026 in food" */
+    yearly: boolean;
+};
+export type AdminConfigBookMapsDto = {
+    /** Map style used when a book asks for the automatic style; styled maps draw the map data of the Map page */
+    defaultStyle: DefaultStyle;
+    /** Stadia Maps API key for the watercolor, toner and terrain map styles (not needed for styled and sketch maps) */
+    stadiaApiKey: string;
+};
+export type AdminConfigBooksDto = {
+    drafts: AdminConfigBookDraftsDto;
+    maps: AdminConfigBookMapsDto;
 };
 export type AdminConfigClassificationCategoryDto = {
     /** Action to take when an asset matches */
@@ -83,6 +194,17 @@ export type AdminConfigClassificationDto = {
     categories: AdminConfigClassificationCategoryDto[];
     /** Enable classification globally */
     enabled?: boolean;
+};
+export type AdminConfigCollectionNotificationsDto = {
+    /** Notify the users of new visits of the collections (a meal, a museum visit, a tasting) in their new uploads that nobody named yet, with the nightly tasks */
+    enabled: boolean;
+    /** Most notifications sent to a user per run */
+    maxPerRun: number;
+    /** Only photos uploaded in this many days are looked at, however long ago the last run was */
+    windowDays: number;
+};
+export type AdminConfigCollectionsDto = {
+    notifications: AdminConfigCollectionNotificationsDto;
 };
 export type AdminConfigFFmpegRealtimeDto = {
     /** Enable real-time HLS transcoding (alpha) */
@@ -130,6 +252,15 @@ export type AdminConfigFFmpegDto = {
     transcode: TranscodePolicy;
     /** Two pass */
     twoPass: boolean;
+};
+export type AdminConfigFoodOpenStreetMapDto = {
+    /** Let the assistant look up restaurants near the location of a meal on OpenStreetMap (sends the location to the Overpass API) */
+    enabled: boolean;
+    /** URL of the Overpass API interpreter */
+    overpassUrl: string;
+};
+export type AdminConfigFoodDto = {
+    openStreetMap: AdminConfigFoodOpenStreetMapDto;
 };
 export type AdminConfigGeneratedFullsizeImageDto = {
     /** Enabled */
@@ -482,9 +613,13 @@ export type AdminConfigUserDto = {
     deleteDelay: number;
 };
 export type AdminConfigDto = {
+    agent: AdminConfigAgentDto;
     backup: AdminConfigBackupsDto;
+    books: AdminConfigBooksDto;
     classification: AdminConfigClassificationDto;
+    collections: AdminConfigCollectionsDto;
     ffmpeg: AdminConfigFFmpegDto;
+    food: AdminConfigFoodDto;
     image: AdminConfigImageDto;
     integrityChecks: AdminConfigIntegrityChecksDto;
     job: AdminConfigJobDto;
@@ -1023,12 +1158,24 @@ export type LibraryManifestResponseDto = {
     nextCursor: string | null;
     owner: LibraryManifestOwnerDto;
 };
+export type AiAnswersResponse = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled: boolean;
+};
 export type AlbumsResponse = {
     defaultAssetOrder: AssetOrder;
+};
+export type BookDraftsResponse = {
+    /** Whether photo books are drafted for the user in the background, to keep or discard */
+    enabled: boolean;
 };
 export type CastResponse = {
     /** Whether Google Cast is enabled */
     gCastEnabled: boolean;
+};
+export type CollectionNotificationsResponse = {
+    /** Whether the user is notified of new visits of the collections (meals, museum visits) to name */
+    enabled: boolean;
 };
 export type DownloadResponse = {
     /** Maximum archive size in bytes */
@@ -1097,8 +1244,11 @@ export type TagsResponse = {
     sidebarWeb: boolean;
 };
 export type UserPreferencesResponseDto = {
+    aiAnswers: AiAnswersResponse;
     albums: AlbumsResponse;
+    bookDrafts: BookDraftsResponse;
     cast: CastResponse;
+    collectionNotifications: CollectionNotificationsResponse;
     download: DownloadResponse;
     emailNotifications: EmailNotificationsResponse;
     folders: FoldersResponse;
@@ -1110,15 +1260,27 @@ export type UserPreferencesResponseDto = {
     sharedLinks: SharedLinksResponse;
     tags: TagsResponse;
 };
+export type AiAnswersUpdate = {
+    /** Whether the assistant answers the questions typed in the search bar, beside the results */
+    enabled?: boolean;
+};
 export type AlbumsUpdate = {
     defaultAssetOrder?: AssetOrder;
 };
 export type AvatarUpdate = {
     color?: UserAvatarColor;
 };
+export type BookDraftsUpdate = {
+    /** Whether photo books are drafted for the user in the background, to keep or discard */
+    enabled?: boolean;
+};
 export type CastUpdate = {
     /** Whether Google Cast is enabled */
     gCastEnabled?: boolean;
+};
+export type CollectionNotificationsUpdate = {
+    /** Whether the user is notified of new visits of the collections (meals, museum visits) to name */
+    enabled?: boolean;
 };
 export type DownloadUpdate = {
     /** Maximum archive size in bytes */
@@ -1187,9 +1349,12 @@ export type TagsUpdate = {
     sidebarWeb?: boolean;
 };
 export type UserPreferencesUpdateDto = {
+    aiAnswers?: AiAnswersUpdate;
     albums?: AlbumsUpdate;
     avatar?: AvatarUpdate;
+    bookDrafts?: BookDraftsUpdate;
     cast?: CastUpdate;
+    collectionNotifications?: CollectionNotificationsUpdate;
     download?: DownloadUpdate;
     emailNotifications?: EmailNotificationsUpdate;
     folders?: FoldersUpdate;
@@ -1228,6 +1393,123 @@ export type AssetStatsResponseDto = {
     total: number;
     /** Number of videos */
     videos: number;
+};
+export type AgentSessionResponseDto = {
+    /** Whether changes to the library are approved automatically in this session */
+    autoApprove: boolean;
+    /** Creation date */
+    createdAt: string;
+    /** Session ID */
+    id: string;
+    /** Agent profile */
+    profile: string;
+    status: AgentSessionStatus;
+    /** Session title */
+    title: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type AgentSessionCreateDto = {
+    /** Let the assistant change the library without asking, in this session */
+    autoApprove?: boolean;
+    /** Session title */
+    title?: string;
+};
+export type AgentPlanEntryDto = {
+    /** Plan step */
+    content: string;
+    /** Priority (high, medium, low) */
+    priority: string;
+    /** Status (pending, in_progress, completed) */
+    status: string;
+};
+export type AgentPermissionOptionDto = {
+    /** Option kind */
+    kind: Kind;
+    /** Option label */
+    name: string;
+    /** Option ID */
+    optionId: string;
+};
+export type AgentMessageContentDto = {
+    /** Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call) */
+    activityIds?: string[];
+    /** Albums referenced by tool results */
+    albumIds?: string[];
+    /** Assets referenced by the message (context or tool results) */
+    assetIds?: string[];
+    /** Books referenced by tool results */
+    bookIds?: string[];
+    /** Plan entries (plan) */
+    entries?: AgentPlanEntryDto[];
+    /** Compact tool input (tool_call, permission) */
+    input?: any;
+    /** Permission options (permission) */
+    options?: AgentPermissionOptionDto[];
+    /** Truncated tool output (tool_call) */
+    output?: string;
+    /** Permission request ID, used to respond (permission) */
+    requestId?: string;
+    /** Tool call status (pending, in_progress, completed, failed) or permission status */
+    status?: string;
+    /** Human readable summary of the tool arguments (permission) */
+    summary?: string;
+    /** Text (text, thought and error messages), markdown for agent text */
+    text?: string;
+    /** Human readable title (tool_call, permission) */
+    title?: string;
+    /** Tool call ID (tool_call) */
+    toolCallId?: string;
+    /** Immich tool name, or the agent tool name (tool_call, permission) */
+    toolName?: string;
+};
+export type AgentMessageDto = {
+    content: AgentMessageContentDto;
+    /** Creation date */
+    createdAt: string;
+    /** Message ID */
+    id: string;
+    kind: AgentMessageKind;
+    role: AgentMessageRole;
+    /** Session ID */
+    sessionId: string;
+};
+export type AgentSessionDetailResponseDto = {
+    /** Whether changes to the library are approved automatically in this session */
+    autoApprove: boolean;
+    /** Creation date */
+    createdAt: string;
+    /** Session ID */
+    id: string;
+    /** Messages, oldest first */
+    messages: AgentMessageDto[];
+    /** Agent profile */
+    profile: string;
+    status: AgentSessionStatus;
+    /** Session title */
+    title: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type AgentSessionUpdateDto = {
+    /** Let the assistant change the library without asking, in this session */
+    autoApprove?: boolean;
+    /** Session title */
+    title?: string;
+};
+export type AgentPermissionResponseDto = {
+    /** Whether the request is approved (alternative to optionId) */
+    approved?: boolean;
+    /** Selected permission option ID */
+    optionId?: string;
+};
+export type AgentPromptDto = {
+    /** A question typed in the search bar: answer briefly for a panel beside the search results, without changing the library, ending with a "Sources:" line of the photos and tags used */
+    answer?: boolean;
+    /** Assets selected by the user, passed as context */
+    assetIds?: string[];
+    /** Message for the assistant */
+    text: string;
 };
 export type AlbumUserResponseDto = {
     role: AlbumUserRole;
@@ -1415,6 +1697,93 @@ export type ApiKeyUpdateDto = {
     name?: string;
     /** List of permissions */
     permissions?: Permission[];
+};
+export type ArtJobCreateDto = {
+    /** Photo to transform */
+    assetId: string;
+    /** Caption for styles that render one */
+    caption?: string;
+    /** Custom art direction; replaces the style prompt. `{caption}` is replaced with the caption */
+    prompt?: string;
+    /** Style ID, see the art styles endpoint: a built-in style, or the UUID of one of the user's own styles */
+    style?: string;
+};
+export type ArtJobResponseDto = {
+    /** Caption */
+    caption: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Why the job failed */
+    error: string | null;
+    /** Job ID */
+    id: string;
+    /** Generated artwork, once the job completed */
+    resultAssetId: string | null;
+    /** Photo that is transformed */
+    sourceAssetId: string;
+    status: ArtJobStatus;
+    /** Style ID */
+    style: string | null;
+    /** Last update date */
+    updatedAt: string;
+};
+export type ArtStyleDto = {
+    /** What the style looks like */
+    description: string;
+    /** Style ID: a built-in style's name, or the UUID of one of the user's own styles */
+    id: string;
+    /** Style name */
+    name: string;
+    /** Whether it is one of the user's own styles (e.g. designed with the assistant) */
+    owned: boolean;
+    /** Whether the untouched photo is placed above the artwork */
+    photoAbove: boolean;
+    /** Whether the style renders a caption into the image */
+    usesCaption: boolean;
+};
+export type ArtUserStyleCreateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name: string;
+    /** Place the untouched photo above the artwork, which then only paints the lower half (default false) */
+    photoAbove?: boolean;
+    /** Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption */
+    prompt: string;
+    /** Whether the style renders a caption into the image (default false) */
+    usesCaption?: boolean;
+};
+export type ArtUserStyleResponseDto = {
+    /** Creation date */
+    createdAt: string;
+    /** What the style looks like */
+    description: string;
+    /** Style ID */
+    id: string;
+    /** Style name */
+    name: string;
+    /** Whether it is one of the user's own styles (e.g. designed with the assistant) */
+    owned: boolean;
+    /** Whether the untouched photo is placed above the artwork */
+    photoAbove: boolean;
+    /** Image-generation prompt */
+    prompt: string;
+    /** Last update date */
+    updatedAt: string;
+    /** Whether the style renders a caption into the image */
+    usesCaption: boolean;
+};
+export type ArtUserStyleUpdateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name?: string;
+    /** Place the untouched photo above the artwork */
+    photoAbove?: boolean;
+    /** Image-generation prompt, written like the built-in ones: transform the reference photograph into … of the exact same scene, keeping its subjects recognizable; `{caption}` is replaced with the caption when usesCaption */
+    prompt?: string;
+    /** Whether the style renders a caption into the image */
+    usesCaption?: boolean;
 };
 export type AssetFileResponseDto = {
     /** Creation date */
@@ -1805,6 +2174,102 @@ export type AssetEditsCreateDto = {
     /** List of edit actions to apply (crop, rotate, mirror, or trim) */
     edits: AssetEditActionItemDto[];
 };
+export type EnhanceDto = {
+    /** Only consider these corrections */
+    only?: EnhanceCorrectionType[];
+    /** How strongly to correct the photo (default normal) */
+    strength?: EnhanceStrength;
+};
+export type EnhanceResponseDto = {
+    /** Human-readable list of the corrections */
+    adjustments: string[];
+    /** An identical enhanced copy already existed and was returned instead */
+    duplicate: boolean;
+    /** ID of the enhanced copy */
+    id: string;
+    /** ID of the original */
+    sourceId: string;
+};
+export type EnhancePreviewDto = {
+    /** Only consider these corrections */
+    only?: EnhanceCorrectionType[];
+    /** How strongly to correct the photo (default normal) */
+    strength?: EnhanceStrength;
+};
+export type EnhanceCorrectionDto = {
+    /** How strong the correction is, 0-1 */
+    amount: number;
+    /** What the correction does */
+    description: string;
+    /** Why it is applied */
+    reason: string;
+    "type": EnhanceCorrectionType;
+};
+export type EnhancePlanDto = {
+    /** Noise reduction */
+    denoise?: {
+        /** Median filter size */
+        size: number;
+    };
+    /** Gamma correction */
+    exposure?: {
+        /** Gamma: above 1 brightens the midtones, below 1 darkens them */
+        gamma: number;
+    };
+    /** Stretch of the tonal range */
+    levels?: {
+        /** Input value (0-255) that becomes black */
+        black: number;
+        /** Input value (0-255) that becomes white */
+        white: number;
+    };
+    /** Contrast-limited adaptive histogram equalization (CLAHE) of the brightness */
+    localContrast?: {
+        /** Blend with the original, 0-1 */
+        amount: number;
+        /** Contrast limit */
+        clipLimit: number;
+        /** Number of tiles along each side */
+        grid: number;
+    };
+    /** Saturation boost */
+    saturation?: {
+        /** Saturation multiplier */
+        factor: number;
+    };
+    /** Unsharp mask */
+    sharpen?: {
+        /** Sharpening of flat areas */
+        m1: number;
+        /** Sharpening of edges */
+        m2: number;
+        /** Radius of the unsharp mask */
+        sigma: number;
+    };
+    /** Per-channel multipliers */
+    whiteBalance?: {
+        /** Blue multiplier */
+        b: number;
+        /** Green multiplier */
+        g: number;
+        /** Red multiplier */
+        r: number;
+    };
+};
+export type EnhanceAnalysisResponseDto = {
+    /** Human-readable list of the corrections */
+    adjustments: string[];
+    /** Asset ID */
+    assetId: string;
+    /** The corrections, in the order they are applied */
+    corrections: EnhanceCorrectionDto[];
+    /** Whether the photo would change noticeably */
+    needed: boolean;
+    /** Corrections that were considered and skipped, and why */
+    notes: string[];
+    plan: EnhancePlanDto;
+    strength: EnhanceStrength;
+};
 export type AssetMetadataResponseDto = {
     /** Metadata key */
     key: string;
@@ -1930,6 +2395,892 @@ export type AuthStatusResponseDto = {
 export type ValidateAccessTokenResponseDto = {
     /** Authentication status */
     authStatus: boolean;
+};
+export type BookStyle = {
+    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
+    accentColor?: string;
+    /** Page background color (hex) */
+    background: string;
+    /** Caption font size in points */
+    captionSizePt?: number;
+    /** Font family used for captions and titles */
+    fontFamily: string;
+    /** Space between photos in millimeters */
+    gutterMm: number;
+    /** Outer page margin in millimeters */
+    marginMm: number;
+    /** Caption and title color (hex) */
+    textColor: string;
+    theme?: BookStyleTheme;
+    /** Title font size in points */
+    titleSizePt?: number;
+};
+export type BookUserStyleResponseDto = {
+    /** Creation date */
+    createdAt: string;
+    /** What the style looks like */
+    description: string;
+    /** Style ID */
+    id: string;
+    /** Style name */
+    name: string;
+    style: BookStyle;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookStyleUpdate = {
+    /** Color of the rules, ornaments and small-caps lines of the food theme (hex) */
+    accentColor?: string;
+    /** Page background color (hex) */
+    background?: string;
+    /** Caption font size in points */
+    captionSizePt?: number;
+    /** Font family used for captions and titles */
+    fontFamily?: string;
+    /** Space between photos in millimeters */
+    gutterMm?: number;
+    /** Outer page margin in millimeters */
+    marginMm?: number;
+    /** Caption and title color (hex) */
+    textColor?: string;
+    theme?: BookStyleTheme;
+    /** Title font size in points */
+    titleSizePt?: number;
+};
+export type BookUserStyleCreateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name, e.g. "Wedding: ivory, sage and gold" */
+    name: string;
+    /** The style; omitted options take the values of the classic preset */
+    style: BookStyleUpdate;
+};
+export type BookUserStyleUpdateDto = {
+    /** What the style looks like */
+    description?: string;
+    /** Style name */
+    name?: string;
+    /** Style changes; omitted options keep their value */
+    style?: BookStyleUpdate;
+};
+export type BookResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    status: BookStatus;
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookCreateDto = {
+    /** Album the book is made from */
+    albumId?: string | null;
+    /** Page height in millimeters (default 210) */
+    pageHeightMm?: number;
+    /** Page width in millimeters (default 210) */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    stylePreset?: BookStylePreset;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Book title */
+    title: string;
+};
+export type BookMapDto = {
+    /** Art job that redraws the map as an illustration */
+    artJobId?: string;
+    /** Photos whose locations are plotted; defaults to the photos of the section that follows the map */
+    assetIds?: string[];
+    /** Illustrated map drawn instead of the rendered map */
+    illustratedAssetId?: string;
+    /** Label the places */
+    labels: boolean;
+    /** Look of a styled map (default: the look that suits the style of the book) */
+    look?: BookMapLook;
+    /** Connect the locations in time order */
+    showRoute: boolean;
+    style: BookMapStyle;
+    /** Title drawn on the map */
+    title?: string;
+};
+export type NormalizedRect = {
+    /** Height, as a fraction of the image height */
+    height: number;
+    /** Width, as a fraction of the image width */
+    width: number;
+    /** Left edge, as a fraction of the image width */
+    x: number;
+    /** Top edge, as a fraction of the image height */
+    y: number;
+};
+export type BookSlotResponseDto = {
+    /** Width / height of the slot on the page */
+    aspectRatio: number;
+    /** Placed asset, null when the slot is empty */
+    assetId: string | null;
+    /** Photo caption */
+    caption: string | null;
+    /** Crop of the placed asset */
+    crop: (NormalizedRect) | null;
+    /** Zero-based slot index */
+    slot: number;
+};
+export type BookPageResponseDto = {
+    /** Page background color override */
+    background: string | null;
+    /** Page caption */
+    caption: string | null;
+    /** Page ID */
+    id: string;
+    /** Layout ID */
+    layout: string;
+    map: (BookMapDto) | null;
+    /** Zero-based position of the page in the book */
+    position: number;
+    /** Section title */
+    sectionTitle: string | null;
+    /** Photo slots of the layout */
+    slots: BookSlotResponseDto[];
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookDetailResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    /** Pages in book order */
+    pages: BookPageResponseDto[];
+    status: BookStatus;
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+};
+export type BookDraftResponseDto = {
+    /** The draft book */
+    book: BookResponseDto;
+    /** When the book was drafted */
+    createdAt: string;
+    /** Suggestion ID */
+    id: string;
+    /** Stable key of the suggestion, e.g. food:2026, trip:Travel/<Trip>, trip:<first day> or birthday:<personId>:<age> */
+    key: string;
+    kind: BookDraftKind;
+    /** Why the book is suggested, e.g. "You visited 6 restaurants in 2026" */
+    reason: string;
+};
+export type BookFromAlbumDto = {
+    /** Album whose photos are laid out */
+    albumId: string;
+    captions?: BookCaptionMode;
+    /** Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true) */
+    considerImprovements?: boolean;
+    /** Also redraw every map as an illustration with the art agent (default false) */
+    illustratedMaps?: boolean;
+    /** Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false) */
+    improvePhotos?: boolean;
+    /** Open the sections that have GPS locations with a map page (default true) */
+    includeMaps?: boolean;
+    mapLook?: BookMapLookOption;
+    mapStyle?: BookMapStyleOption;
+    /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
+    maxArtworkShare?: number;
+    /** Artworks shown next to their original on the same page (default 2) */
+    maxStackPairs?: number;
+    /** Page height in millimeters (default 210) */
+    pageHeightMm?: number;
+    /** Page width in millimeters (default 210) */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    stylePreset?: BookStylePreset;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
+    targetPageCount?: number;
+    /** Book title (default: the album name) */
+    title?: string;
+};
+export type BookAutoLayoutResponseDto = {
+    /** Album the book is made from */
+    albumId: string | null;
+    /** Cover asset ID */
+    coverAssetId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Whether the book changed after the PDF was exported */
+    exportStale: boolean;
+    /** Status of the PDF export */
+    exportStatus: (BookExportStatus) | null;
+    /** When the PDF export last completed */
+    exportedAt: string | null;
+    /** ID of the first page, e.g. to show the cover */
+    firstPageId: string | null;
+    /** Whether the book changed after the HTML file was exported */
+    htmlExportStale: boolean;
+    /** Status of the single-file HTML export */
+    htmlExportStatus: (BookExportStatus) | null;
+    /** When the HTML export last completed */
+    htmlExportedAt: string | null;
+    /** Book ID */
+    id: string;
+    /** Owner user ID */
+    ownerId: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Page height in millimeters */
+    pageHeightMm: number;
+    /** Page width in millimeters */
+    pageWidthMm: number;
+    /** Pages in book order */
+    pages: BookPageResponseDto[];
+    status: BookStatus;
+    style: BookStyle;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+    /** Problems met while laying out the book, e.g. a map style that is not available */
+    warnings: string[];
+};
+export type BookLayoutRect = {
+    /** Height, as a fraction of the layout area */
+    height: number;
+    /** Width, as a fraction of the layout area */
+    width: number;
+    /** Left edge, as a fraction of the layout area */
+    x: number;
+    /** Top edge, as a fraction of the layout area */
+    y: number;
+};
+export type BookLayoutResponseDto = {
+    /** Layout description */
+    description: string;
+    /** Whether the layout is made for food books (menu pages, dishes with their names) */
+    food: boolean;
+    /** Whether the layout ignores the page margins */
+    fullBleed: boolean;
+    /** Layout ID */
+    id: string;
+    /** Area of the page map, relative to the area inside the margins */
+    mapArea?: BookLayoutRect;
+    /** Layout name */
+    name: string;
+    /** Preferred photo orientation */
+    orientation: Orientation;
+    /** Photo slots, relative to the area inside the margins */
+    slots: BookLayoutRect[];
+    /** Text areas, relative to the area inside the margins */
+    textAreas: {
+        /** Height, as a fraction of the layout area */
+        height: number;
+        /** Text shown in the area; slotCaption is the caption of one photo, drawn beside it */
+        kind: Kind2;
+        /** Zero-based slot whose caption a slotCaption area shows */
+        slot?: number;
+        /** Width, as a fraction of the layout area */
+        width: number;
+        /** Left edge, as a fraction of the layout area */
+        x: number;
+        /** Top edge, as a fraction of the layout area */
+        y: number;
+    }[];
+};
+export type BookStylePresetResponseDto = {
+    /** Preset description */
+    description: string;
+    id: BookStylePreset;
+    /** Preset name */
+    name: string;
+    style: BookStyle;
+};
+export type BookUpdateDto = {
+    /** Album the book is made from */
+    albumId?: string | null;
+    /** Asset shown on the cover when its slot is empty */
+    coverAssetId?: string | null;
+    /** Page height in millimeters */
+    pageHeightMm?: number;
+    /** Page width in millimeters */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    /** Replace the style with a copy of one of the user's own styles (see GET /book-styles); style overrides its values */
+    styleId?: string;
+    /** Replace the style with a preset (see GET /books/style-presets); style overrides its values */
+    stylePreset?: BookStylePreset;
+    /** Book subtitle */
+    subtitle?: string | null;
+    /** Book title */
+    title?: string;
+};
+export type BookAutoLayoutDto = {
+    /** Photos to lay out (default: the photos of the book's album) */
+    assetIds?: string[];
+    captions?: BookCaptionMode;
+    /** Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true) */
+    considerImprovements?: boolean;
+    /** Photos that get a page of their own */
+    heroAssetIds?: string[];
+    /** Also redraw every map as an illustration with the art agent (default false) */
+    illustratedMaps?: boolean;
+    /** Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false) */
+    improvePhotos?: boolean;
+    /** Open the sections that have GPS locations with a map page (default true) */
+    includeMaps?: boolean;
+    /** Append the new pages to the existing ones instead of replacing them (default false) */
+    keepExisting?: boolean;
+    mapLook?: BookMapLookOption;
+    mapStyle?: BookMapStyleOption;
+    /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
+    maxArtworkShare?: number;
+    /** Artworks shown next to their original on the same page (default 2) */
+    maxStackPairs?: number;
+    /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
+    targetPageCount?: number;
+};
+export type BookExportDto = {
+    /** Export format (default pdf) */
+    format?: BookExportFormat;
+};
+export type BookPageCreateDto = {
+    /** Page background color, overriding the book style */
+    background?: string | null;
+    /** Page caption */
+    caption?: string | null;
+    /** Layout ID (see GET /books/layouts) */
+    layout: string;
+    map?: (BookMapDto) | null;
+    /** Zero-based position to insert the page at; appended when omitted */
+    position?: number;
+    /** Section title */
+    sectionTitle?: string | null;
+};
+export type BookPageUpdateDto = {
+    /** Page background color, overriding the book style */
+    background?: string | null;
+    /** Page caption */
+    caption?: string | null;
+    /** Layout ID; photos in slots the new layout lacks are removed */
+    layout?: string;
+    map?: (BookMapDto) | null;
+    /** Section title */
+    sectionTitle?: string | null;
+};
+export type BookPageMoveDto = {
+    /** New zero-based position of the page */
+    position: number;
+};
+export type BookSlotPatchDto = {
+    /** Photo caption */
+    caption?: string | null;
+    /** Crop of the placed asset */
+    crop?: (NormalizedRect) | null;
+};
+export type BookSlotUpdateDto = {
+    /** Asset to place in the slot */
+    assetId: string;
+    /** Photo caption */
+    caption?: string | null;
+    /** Crop of the asset; a default crop matching the slot is chosen when omitted */
+    crop?: (NormalizedRect) | null;
+};
+export type BookReviewIssueDto = {
+    /** Photos involved, or photos to use instead */
+    assetIds?: string[];
+    /** Print resolution of the placement */
+    dpi?: number;
+    /** What is wrong and how to fix it */
+    message: string;
+    /** One-based page numbers */
+    pages: number[];
+    /** How much the issue hurts the book */
+    severity: Severity;
+    /** One-based slot number */
+    slot?: number;
+    /** Kind of issue */
+    "type": Type2;
+};
+export type BookReviewSuggestionDto = {
+    /** Photo ID */
+    assetId: string;
+    /** Place of the photo */
+    city?: string;
+    /** Named people in the photo */
+    people?: string[];
+    /** Quality score, 0..1 */
+    score: number;
+};
+export type BookReviewPlacementDto = {
+    /** Photo ID */
+    assetId: string;
+    /** One-based page number */
+    page: number;
+    /** Quality score, 0..1 */
+    score: number;
+    /** One-based slot number */
+    slot: number;
+};
+export type BookReviewResponseDto = {
+    /** Number of issues per severity */
+    counts: {
+        high: number;
+        low: number;
+        medium: number;
+    };
+    /** Issues, most severe first */
+    issues: BookReviewIssueDto[];
+    /** Number of pages */
+    pageCount: number;
+    /** The people who appear most often in the album */
+    people: {
+        /** Person name */
+        name?: string;
+        /** Person ID */
+        personId: string;
+        /** Photos of the person in the album */
+        photos: number;
+        /** Photos of the person in the book */
+        placed: number;
+    }[];
+    /** The best photos of the album that are not in the book, photos of the main people first */
+    unusedPhotos: BookReviewSuggestionDto[];
+    /** The lowest scoring photos in the book */
+    weakestPlaced: BookReviewPlacementDto[];
+};
+export type CollageCreateDto = {
+    /** Album to add the collage to, e.g. the album the photos were picked in */
+    albumId?: string;
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageResponseDto = {
+    /** The new image asset */
+    assetId: string;
+    /** An identical collage had already been saved, and is returned instead */
+    duplicate: boolean;
+    /** Layout the collage was drawn with */
+    layout: string;
+    /** Tag of the collage, Collages/<title or dates> */
+    tag: string;
+};
+export type CollageDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageLayoutResponseDto = {
+    /** What the layout looks like */
+    description: string;
+    /** Layout ID */
+    id: string;
+    /** Name of the layout */
+    name: string;
+};
+export type CollageLayoutsResponseDto = {
+    /** The layouts for the number of photos, the one that fits them best first */
+    layouts: CollageLayoutResponseDto[];
+};
+export type CollageRenderDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview */
+    full?: boolean;
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollectionNamesDto = {
+    /** Plural of entry */
+    entries: string;
+    /** An entry of the source, e.g. menu item */
+    entry: string;
+    /** The place of a visit, e.g. restaurant */
+    place: string;
+    /** The text-source photo, e.g. menu */
+    source: string;
+    /** Plural of source */
+    sources: string;
+    /** A photographed thing, e.g. dish */
+    subject: string;
+    /** Plural of subject */
+    subjects: string;
+    /** A visit, e.g. meal */
+    visit: string;
+    /** Plural of visit */
+    visits: string;
+};
+export type CollectionPackResponseDto = {
+    /** The book style preset of the pack */
+    bookStylePreset: string;
+    /** What the pack is for */
+    description: string;
+    /** Pack ID, e.g. food */
+    id: string;
+    names: CollectionNamesDto;
+    /** Whether places can be looked up on OpenStreetMap when the admin enables it */
+    placeLookup: boolean;
+    /** The tag leaf that marks a source photo, e.g. Menu */
+    sourceLeaf: string;
+    /** First level of the tags of the pack, e.g. Food */
+    tagRoot: string;
+    /** Pack title, e.g. Food */
+    title: string;
+};
+export type CollectionSearchTermsDto = {
+    /** First year named */
+    "from"?: string;
+    /** The pack the words point to, e.g. food for "what did we eat" */
+    pack?: string;
+    /** Names looked for in the places and entries, e.g. noma */
+    text: string[];
+    /** Last year named */
+    to?: string;
+};
+export type CollectionSearchEntryDto = {
+    /** Name of the entry, e.g. a dish */
+    name: string;
+    /** Photos of the entry */
+    photoIds: string[];
+};
+export type CollectionSearchVisitDto = {
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    date: string;
+    /** Local last day of a visit of several days */
+    endDate?: string;
+    /** Entries named on the visit, up to 6 */
+    entries: CollectionSearchEntryDto[];
+    /** Pack ID */
+    pack: string;
+    /** Photos of the visit, up to 6 */
+    photoIds: string[];
+    /** Name of the place, as in the tags */
+    place: string;
+    /** Tag of the place, e.g. Food/Noma Australia */
+    tag: string;
+};
+export type CollectionSearchResponseDto = {
+    terms: CollectionSearchTermsDto;
+    /** Matching visits in all */
+    total: number;
+    /** Matching visits, newest first */
+    visits: CollectionSearchVisitDto[];
+};
+export type CollectionPlaceSummaryDto = {
+    /** Local day of the last visit, e.g. 2016-03-23 */
+    last: string;
+    /** Name of the place, as in the tags (redacted for packs that hide private text) */
+    name: string;
+    /** Visits of the place */
+    visits: number;
+};
+export type CollectionPackSummaryDto = {
+    /** Distinct entries of the places, e.g. dishes */
+    entries: number;
+    /** The word for the entries of the pack, e.g. menu items */
+    entry: string;
+    /** Local day of the first visit */
+    first?: string;
+    /** Local day of the last visit */
+    last?: string;
+    /** Pack ID, e.g. food */
+    pack: string;
+    /** Photos tagged with the pack */
+    photos: number;
+    /** The word for a place of the pack, e.g. restaurant */
+    place: string;
+    /** Distinct places */
+    places: number;
+    /** The places visited most recently, up to 5 */
+    recentPlaces: CollectionPlaceSummaryDto[];
+    /** Photos of the sources, e.g. menus */
+    sources: number;
+    /** Pack title, e.g. Food */
+    title: string;
+    /** The word for the visits of the pack, e.g. meals */
+    visit: string;
+    /** Visits: the photos of a place grouped by time */
+    visits: number;
+    /** Years with visits, in order */
+    years: number[];
+};
+export type CollectionSummaryResponseDto = {
+    /** Every pack, with zeros when it has no tagged photos */
+    packs: CollectionPackSummaryDto[];
+    /** Whether the library has more tagged photos than were read */
+    truncated: boolean;
+};
+export type CollectionEntryNameDto = {
+    /** Name of the entry; the source leaf (e.g. "menu") marks a source */
+    entry?: string;
+    /** Asset ID */
+    id: string;
+    /** The photo shows the source */
+    source?: boolean;
+};
+export type CollectionEntriesDto = {
+    /** The photos to name */
+    photos: CollectionEntryNameDto[];
+    /** Name of the place */
+    place: string;
+};
+export type CollectionEntryResultDto = {
+    /** The description set on the photo, when it had none */
+    description?: string;
+    /** Why the photo was not tagged */
+    error?: string;
+    /** Asset ID */
+    id: string;
+    /** Tags of the pack the photo had before, now removed */
+    previousTags?: string[];
+    /** Whether the photo was tagged */
+    success: boolean;
+    /** The tag of the photo */
+    tag?: string;
+};
+export type CollectionEntriesResponseDto = {
+    /** Name of the place as it is used in the tags */
+    place: string;
+    /** One result per photo */
+    results: CollectionEntryResultDto[];
+};
+export type CollectionEntryInputDto = {
+    /** Description of the entry */
+    description?: string;
+    /** Name of the entry, as printed */
+    name: string;
+};
+export type CollectionMatchDto = {
+    /** Entries to match instead of the ones read on the source photos */
+    entries?: CollectionEntryInputDto[];
+    /** Photos of the source of the visit */
+    sourceIds?: string[];
+    /** Photos of the subjects of one visit */
+    subjectIds: string[];
+};
+export type CollectionEntryDto = {
+    /** Description of the entry */
+    description?: string;
+    /** Index of the entry */
+    index: number;
+    /** Name of the entry, as printed */
+    name: string;
+    /** Price as printed */
+    price?: string;
+    /** Section of the source, e.g. "Primi piatti" */
+    section?: string;
+    /** Source photo the entry was read on */
+    sourceId?: string;
+};
+export type CollectionSuggestionDto = {
+    /** Index of the entry */
+    index: number;
+    /** Name of the entry */
+    name: string;
+    /** Probability among the entries, 0-1 */
+    score: number;
+};
+export type CollectionSubjectMatchDto = {
+    /** Photos of the same subject */
+    assetIds: string[];
+    /** Index of the matched entry */
+    index?: number;
+    /** Name of the matched entry */
+    name?: string;
+    /** Probability that the subject is not an entry of the source, 0-1 */
+    offList?: number;
+    /** Probability of the match, 0-1 */
+    score: number;
+    /** The entry is matched to other subjects too */
+    shared?: boolean;
+    /** Best entries for the photos */
+    suggestions: CollectionSuggestionDto[];
+    /** The match is weak or not the favourite of the photos: check it */
+    unsure: boolean;
+};
+export type CollectionMatchResponseDto = {
+    /** The entries */
+    entries: CollectionEntryDto[];
+    /** Subject photos that could not be matched because smart search has not run */
+    noEmbedding: string[];
+    /** The subjects were matched in the order of the source; the scores are over all such alignments */
+    ordered?: boolean;
+    /** The subjects, with their matches */
+    subjects: CollectionSubjectMatchDto[];
+    /** Why matching may be incomplete */
+    warnings: string[];
+};
+export type CollectionVisitsDto = {
+    /** Find visits among the photos of this album */
+    albumId?: string;
+    /** Find visits among these photos */
+    assetIds?: string[];
+    /** A photo further from the place of the visit starts a new visit */
+    maxDistanceMeters?: number;
+    /** A longer gap between photos starts a new visit */
+    maxGapMinutes?: number;
+    /** Only photos taken after this date (ISO 8601) */
+    takenAfter?: string;
+    /** Only photos taken before this date (ISO 8601) */
+    takenBefore?: string;
+};
+export type CollectionPlaceCandidateDto = {
+    /** Photos the name was read on */
+    assetIds: string[];
+    /** Confidence, 0-1 */
+    confidence: number;
+    /** Place name */
+    name: string;
+    source: CollectionPlaceSource;
+};
+export type CollectionSavedEntryDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Entry of the tag, absent for a source photo */
+    entry?: string;
+    /** Place of the tag */
+    place: string;
+    /** Whether the photo is tagged as the source */
+    source: boolean;
+};
+export type CollectionVisitResponseDto = {
+    /** Other names read on the photos */
+    candidates: CollectionPlaceCandidateDto[];
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the visit */
+    day: string;
+    /** Local date-time of the last photo */
+    end: string;
+    /** Position of the visit, in time order */
+    index: number;
+    /** Latitude of the visit (average of its located photos) */
+    latitude?: number;
+    /** Longitude of the visit (average of its located photos) */
+    longitude?: number;
+    /** The best name for the place */
+    place: CollectionPlaceCandidateDto;
+    /** Photos of a receipt or a ticket */
+    receiptIds: string[];
+    /** Tags of the pack already on the photos of the visit */
+    saved: CollectionSavedEntryDto[];
+    /** Photos of a sign of the place, e.g. a storefront */
+    signIds: string[];
+    /** Photos of the source, e.g. the menu */
+    sourceIds: string[];
+    /** Local date-time of the first photo */
+    start: string;
+    /** Photos of the subjects, e.g. dishes and drinks */
+    subjectIds: string[];
+    /** Kind of visit by local time, e.g. Lunch, for packs that have kinds */
+    "type"?: string;
+};
+export type CollectionVisitsResponseDto = {
+    /** Photos considered */
+    count: number;
+    /** Collection pack */
+    pack: string;
+    /** Photos found to belong to the collection: subjects, sources, signs and receipts */
+    photos: number;
+    /** Whether more than 5000 photos matched and the rest were left out */
+    truncated: boolean;
+    /** Visits, in time order */
+    visits: CollectionVisitResponseDto[];
+    /** Why the search may be incomplete, e.g. smart search is disabled */
+    warnings: string[];
 };
 export type UserConfigFFmpegRealtimeDto = {
     /** Enable real-time HLS transcoding (alpha) */
@@ -2134,6 +3485,245 @@ export type AssetFaceDeleteDto = {
 export type FaceDto = {
     /** Face ID */
     id: string;
+};
+export type FoodDishNameDto = {
+    /** Name of the dish; "menu" marks a photo of the menu */
+    dish?: string;
+    /** Asset ID */
+    id: string;
+    /** The photo shows the menu */
+    menu?: boolean;
+};
+export type FoodDishesDto = {
+    /** The photos to name */
+    photos: FoodDishNameDto[];
+    /** Name of the restaurant */
+    restaurant: string;
+};
+export type FoodDishResultDto = {
+    /** The description set on the photo, when it had none */
+    description?: string;
+    /** Why the photo was not tagged */
+    error?: string;
+    /** Asset ID */
+    id: string;
+    /** Food tags the photo had before, now removed */
+    previousTags?: string[];
+    /** Whether the photo was tagged */
+    success: boolean;
+    /** The food tag of the photo */
+    tag?: string;
+};
+export type FoodDishesResponseDto = {
+    /** Name of the restaurant as it is used in the tags */
+    restaurant: string;
+    /** One result per photo */
+    results: FoodDishResultDto[];
+};
+export type FoodMealsDto = {
+    /** Find meals among the photos of this album */
+    albumId?: string;
+    /** Find meals among these photos */
+    assetIds?: string[];
+    /** A photo further from the place of the meal starts a new meal */
+    maxDistanceMeters?: number;
+    /** A longer gap between food photos starts a new meal */
+    maxGapMinutes?: number;
+    /** Only photos taken after this date (ISO 8601) */
+    takenAfter?: string;
+    /** Only photos taken before this date (ISO 8601) */
+    takenBefore?: string;
+};
+export type FoodRestaurantCandidateDto = {
+    /** Photos the name was read on */
+    assetIds: string[];
+    /** Confidence, 0-1 */
+    confidence: number;
+    /** Restaurant name */
+    name: string;
+    source: FoodRestaurantSource;
+};
+export type FoodSavedDishDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Dish of the food tag, absent for a menu */
+    dish?: string;
+    /** Whether the photo is tagged as the menu */
+    menu: boolean;
+    /** Restaurant of the food tag */
+    restaurant: string;
+};
+export type FoodMealResponseDto = {
+    /** Other names read on the photos */
+    candidates: FoodRestaurantCandidateDto[];
+    /** City */
+    city?: string;
+    /** Country */
+    country?: string;
+    /** Local day of the meal */
+    day: string;
+    /** Photos of dishes and drinks */
+    dishIds: string[];
+    /** Local date-time of the last photo */
+    end: string;
+    /** Position of the meal, in time order */
+    index: number;
+    /** Latitude of the meal (average of its located photos) */
+    latitude?: number;
+    /** Longitude of the meal (average of its located photos) */
+    longitude?: number;
+    /** Photos of the menu */
+    menuIds: string[];
+    /** Photos of the receipt */
+    receiptIds: string[];
+    /** The best name for the restaurant */
+    restaurant: FoodRestaurantCandidateDto;
+    /** Food tags already on the photos of the meal */
+    saved: FoodSavedDishDto[];
+    /** Photos of the restaurant sign or storefront */
+    signIds: string[];
+    /** Local date-time of the first photo */
+    start: string;
+    "type": FoodMealType;
+};
+export type FoodMealsResponseDto = {
+    /** Photos considered */
+    count: number;
+    /** Photos found to show food, a menu, a restaurant sign or a receipt */
+    foodPhotos: number;
+    /** Restaurant visits, in time order */
+    meals: FoodMealResponseDto[];
+    /** Whether more than 5000 photos matched and the rest were left out */
+    truncated: boolean;
+    /** Why the search may be incomplete, e.g. smart search is disabled */
+    warnings: string[];
+};
+export type FoodMenuItemInputDto = {
+    /** Description of the item */
+    description?: string;
+    /** Name of the item, as printed */
+    name: string;
+};
+export type FoodMatchDto = {
+    /** Photos of the dishes of one meal */
+    dishIds: string[];
+    /** Menu items to match instead of the ones read on the menu photos */
+    items?: FoodMenuItemInputDto[];
+    /** Photos of the menu of the meal */
+    menuIds?: string[];
+};
+export type FoodDishSuggestionDto = {
+    /** Index of the menu item */
+    index: number;
+    /** Name of the menu item */
+    name: string;
+    /** Probability among the items, 0-1 */
+    score: number;
+};
+export type FoodDishMatchDto = {
+    /** Photos of the same dish */
+    assetIds: string[];
+    /** Index of the matched menu item */
+    index?: number;
+    /** Name of the matched menu item */
+    name?: string;
+    /** Probability that the dish is not on the menu (bread, coffee, an amuse-bouche), 0-1 */
+    offMenu?: number;
+    /** Probability of the match, 0-1 */
+    score: number;
+    /** The menu item is matched to other dishes too */
+    shared?: boolean;
+    /** Best menu items for the photos */
+    suggestions: FoodDishSuggestionDto[];
+    /** The match is weak or not the favourite of the photos: check it */
+    unsure: boolean;
+};
+export type FoodMenuItemDto = {
+    /** Description of the item */
+    description?: string;
+    /** Index of the item */
+    index: number;
+    /** Menu photo the item was read on */
+    menuId?: string;
+    /** Name of the item, as printed */
+    name: string;
+    /** Price as printed */
+    price?: string;
+    /** Section of the menu, e.g. "Primi piatti" */
+    section?: string;
+};
+export type FoodMatchResponseDto = {
+    /** The dishes, with their matches */
+    dishes: FoodDishMatchDto[];
+    /** The menu items */
+    items: FoodMenuItemDto[];
+    /** Dish photos that could not be matched because smart search has not run */
+    noEmbedding: string[];
+    /** The dishes were matched in the order of the courses of a tasting menu; the scores are then the probabilities over all such alignments */
+    ordered?: boolean;
+    /** Why matching may be incomplete */
+    warnings: string[];
+};
+export type HighlightJobResponseDto = {
+    /** Album the video is made from */
+    albumId: string | null;
+    /** Book the video is made from */
+    bookId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Length of the video in seconds, as asked for */
+    durationSeconds: number;
+    /** Why the video could not be made */
+    error: string | null;
+    format: HighlightFormat;
+    /** Highlight video ID */
+    id: string;
+    /** Share of the rendering done, 0 to 1 */
+    progress: number;
+    /** The video, once it is ready */
+    resultAssetId: string | null;
+    status: HighlightJobStatus;
+    /** Title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+    /** What was left out, e.g. photos too small for 1080p */
+    warnings: string[];
+};
+export type HighlightCreateDto = {
+    /** Add the video to the album it is made from (default true) */
+    addToAlbum?: boolean;
+    /** Album to make the video from */
+    albumId?: string;
+    /** Photos and videos to make the video from */
+    assetIds?: string[];
+    /** Book to make the video from: its photos, and the videos of its album */
+    bookId?: string;
+    /** Name the dishes, artworks, wines and recipe steps, and the places, in lower thirds (default true) */
+    captions?: boolean;
+    /** Length of the video in seconds (default 60) */
+    durationSeconds?: number;
+    /** Landscape (default) or vertical */
+    format?: HighlightFormat;
+    /** Open the chapters with GPS locations with a map (default true) */
+    includeMaps?: boolean;
+    /** An audio file of the user (see the music endpoints) played under the video */
+    music?: string;
+    style?: HighlightStyle;
+    /** Title; default: the name of the album or book */
+    title?: string;
+};
+export type HighlightMusicResponseDto = {
+    /** Length in seconds, when known */
+    durationSeconds: number | null;
+    /** Asset ID of the audio file */
+    id: string;
+    /** File name */
+    name: string;
+};
+export type HighlightMusicUploadDto = {
+    /** An audio file: MP3, M4A, AAC, WAV, FLAC, OGG or Opus */
+    file?: Blob;
 };
 export type QueueStatisticsDto = {
     /** Number of active jobs */
@@ -2368,6 +3958,37 @@ export type OAuthCallbackDto = {
     /** OAuth callback URL */
     url: string;
 };
+export type OrientationFixDto = {
+    /** Photos to turn */
+    assetIds: string[];
+    /** Clockwise turn in degrees (90, 180 or 270); default: the suggested one */
+    rotate?: number;
+};
+export type OrientationAssetsDto = {
+    /** Photos */
+    assetIds: string[];
+};
+export type OrientationScanDto = {
+    /** Only the photos of this album */
+    albumId?: string;
+    /** Only the photos taken at or after this date */
+    takenAfter?: string;
+    /** Only the photos taken before this date */
+    takenBefore?: string;
+};
+export type OrientationSuggestionResponseDto = {
+    /** Asset ID */
+    assetId: string;
+    /** When the photo was checked */
+    checkedAt: string;
+    /** How sure the check is, 0 to 1 */
+    confidence: number;
+    /** What the check saw: CLIP, faces, text */
+    reasons: string[];
+    /** Clockwise turn in degrees that makes the photo upright: 90, 180 or 270 */
+    rotate: number;
+    status: OrientationStatus;
+};
 export type PartnerResponseDto = {
     avatarColor: UserAvatarColor;
     /** User email */
@@ -2438,7 +4059,7 @@ export type ScopedPersonProfileRefDto = {
     /** Space ID for Space Person refs */
     spaceId?: string;
     /** Scoped profile type */
-    "type": Type2;
+    "type": Type3;
 };
 export type DetachScopedPersonDto = {
     /** Scoped profile to detach */
@@ -3442,6 +5063,12 @@ export type ServerConfigDto = {
     userDeleteDelay: number;
 };
 export type ServerFeaturesDto = {
+    /** Whether AI artistic style transforms are enabled */
+    artisticStyles: boolean;
+    /** Whether the AI assistant is enabled */
+    assistant: boolean;
+    /** Whether the Stadia Maps styles of book maps (watercolor, toner, terrain) have an API key */
+    bookStadiaMaps: boolean;
     /** Whether config file is available */
     configFile: boolean;
     /** Whether duplicate detection is enabled */
@@ -3466,6 +5093,8 @@ export type ServerFeaturesDto = {
     peopleStatistics: boolean;
     /** Whether real-time transcoding is enabled */
     realtimeTranscoding: boolean;
+    /** Whether the assistant may look up restaurant names on OpenStreetMap, with the user's approval */
+    restaurantLookup: boolean;
     /** Whether reverse geocoding is enabled */
     reverseGeocoding: boolean;
     /** Whether search is enabled */
@@ -3608,6 +5237,18 @@ export type SessionUpdateDto = {
     /** Reset pending sync state */
     isPendingSyncReset?: boolean;
 };
+export type SharedLinkBookResponseDto = {
+    /** Whether the PDF has been exported */
+    hasPdf: boolean;
+    /** Book ID */
+    id: string;
+    /** Number of pages */
+    pageCount: number;
+    /** Book subtitle */
+    subtitle: string | null;
+    /** Book title */
+    title: string;
+};
 export type SharedLinkResponseDto = {
     album?: AlbumResponseDto;
     /** Allow downloads */
@@ -3615,6 +5256,7 @@ export type SharedLinkResponseDto = {
     /** Allow uploads */
     allowUpload: boolean;
     assets: AssetResponseDto[];
+    book?: SharedLinkBookResponseDto;
     /** Creation date */
     createdAt: string;
     /** Link description */
@@ -3644,6 +5286,8 @@ export type SharedLinkCreateDto = {
     allowUpload?: boolean;
     /** Asset IDs (for individual assets) */
     assetIds?: string[];
+    /** Book ID (for sharing a photo book) */
+    bookId?: string;
     /** Link description */
     description?: string | null;
     /** Expiration date */
@@ -4350,6 +5994,13 @@ export type WorkflowShareResponseDto = {
     steps: WorkflowShareStepDto[];
     /** Workflow trigger type */
     trigger: WorkflowTrigger;
+};
+export type AgentUpdateDto = {
+    /** Created or updated message (replace by ID) */
+    message?: AgentMessageDto;
+    /** Session ID */
+    sessionId: string;
+    status: AgentSessionStatus;
 };
 export type LicenseResponseDto = UserLicense;
 export type ReleaseEventV1 = {
@@ -5069,6 +6720,80 @@ export function deleteActivity({ id }: {
     }));
 }
 /**
+ * Retrieve the activity log
+ */
+export function getActivityLog({ action, $from, groupId, limit, offset, sessionId, source, to, undone }: {
+    action?: ActivityLogAction;
+    $from?: string;
+    groupId?: string;
+    limit?: number;
+    offset?: number;
+    sessionId?: string;
+    source?: ActivityLogSource;
+    to?: string;
+    undone?: boolean;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto[];
+    }>(`/activity${QS.query(QS.explode({
+        action,
+        "from": $from,
+        groupId,
+        limit,
+        offset,
+        sessionId,
+        source,
+        to,
+        undone
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo changes
+ */
+export function undoActivities({ activityUndoDto }: {
+    activityUndoDto: ActivityUndoDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>("/activity/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: activityUndoDto
+    })));
+}
+/**
+ * Redo a change
+ */
+export function redoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/redo`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Undo a change
+ */
+export function undoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/undo`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
  * Unlink all OAuth accounts
  */
 export function unlinkAllOAuthAccountsAdmin(opts?: Oazapfts.RequestOpts) {
@@ -5782,6 +7507,110 @@ export function getUserStatisticsAdmin({ id, isFavorite, isTrashed, visibility }
     }));
 }
 /**
+ * Retrieve assistant sessions
+ */
+export function getAgentSessions(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionResponseDto[];
+    }>("/agent/sessions", {
+        ...opts
+    }));
+}
+/**
+ * Create an assistant session
+ */
+export function createAgentSession({ agentSessionCreateDto }: {
+    agentSessionCreateDto: AgentSessionCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: AgentSessionResponseDto;
+    }>("/agent/sessions", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentSessionCreateDto
+    })));
+}
+/**
+ * Delete an assistant session
+ */
+export function deleteAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve an assistant session
+ */
+export function getAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionDetailResponseDto;
+    }>(`/agent/sessions/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update an assistant session
+ */
+export function updateAgentSession({ id, agentSessionUpdateDto }: {
+    id: string;
+    agentSessionUpdateDto: AgentSessionUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: AgentSessionResponseDto;
+    }>(`/agent/sessions/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: agentSessionUpdateDto
+    })));
+}
+/**
+ * Cancel the current assistant turn
+ */
+export function cancelAgentSession({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Respond to an assistant permission request
+ */
+export function respondToAgentPermission({ id, requestId, agentPermissionResponseDto }: {
+    id: string;
+    requestId: string;
+    agentPermissionResponseDto: AgentPermissionResponseDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/permissions/${encodeURIComponent(requestId)}`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentPermissionResponseDto
+    })));
+}
+/**
+ * Send a message to the assistant
+ */
+export function promptAgentSession({ id, agentPromptDto }: {
+    id: string;
+    agentPromptDto: AgentPromptDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/agent/sessions/${encodeURIComponent(id)}/prompt`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: agentPromptDto
+    })));
+}
+/**
  * List all albums
  */
 export function getAllAlbums({ assetId, id, isOwned, isShared, name }: {
@@ -6085,6 +7914,100 @@ export function rotateApiKey({ id }: {
     }));
 }
 /**
+ * Transform a photo into artwork
+ */
+export function createArtJob({ artJobCreateDto }: {
+    artJobCreateDto: ArtJobCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ArtJobResponseDto;
+    }>("/art/jobs", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: artJobCreateDto
+    })));
+}
+/**
+ * Retrieve an art job
+ */
+export function getArtJob({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtJobResponseDto;
+    }>(`/art/jobs/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Retrieve artistic styles
+ */
+export function getArtStyles(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtStyleDto[];
+    }>("/art/styles", {
+        ...opts
+    }));
+}
+/**
+ * Create an artistic style
+ */
+export function createArtUserStyle({ artUserStyleCreateDto }: {
+    artUserStyleCreateDto: ArtUserStyleCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: ArtUserStyleResponseDto;
+    }>("/art/styles", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: artUserStyleCreateDto
+    })));
+}
+/**
+ * Delete an artistic style
+ */
+export function deleteArtUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/art/styles/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve an artistic style
+ */
+export function getArtUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtUserStyleResponseDto;
+    }>(`/art/styles/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update an artistic style
+ */
+export function updateArtUserStyle({ id, artUserStyleUpdateDto }: {
+    id: string;
+    artUserStyleUpdateDto: ArtUserStyleUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ArtUserStyleResponseDto;
+    }>(`/art/styles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: artUserStyleUpdateDto
+    })));
+}
+/**
  * Search asset files
  */
 export function searchAssetFiles({ assetId, isEdited, isProgressive, isTransparent, $type }: {
@@ -6355,6 +8278,54 @@ export function editAsset({ id, assetEditsCreateDto }: {
         method: "PUT",
         body: assetEditsCreateDto
     })));
+}
+/**
+ * Auto-enhance a photo
+ */
+export function enhanceAsset({ id, enhanceDto }: {
+    id: string;
+    enhanceDto: EnhanceDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: EnhanceResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/enhance`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: enhanceDto
+    })));
+}
+/**
+ * Analyze a photo for auto-enhance
+ */
+export function analyzeEnhancement({ id, enhancePreviewDto }: {
+    id: string;
+    enhancePreviewDto: EnhancePreviewDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: EnhanceAnalysisResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/enhance/preview`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: enhancePreviewDto
+    })));
+}
+/**
+ * Render an auto-enhance preview
+ */
+export function renderEnhancePreview({ id, strength }: {
+    id: string;
+    strength?: EnhanceStrength;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/assets/${encodeURIComponent(id)}/enhance/preview.jpg${QS.query(QS.explode({
+        strength
+    }))}`, {
+        ...opts
+    }));
 }
 /**
  * Get asset metadata
@@ -6708,6 +8679,488 @@ export function validateAccessToken(opts?: Oazapfts.RequestOpts) {
     }));
 }
 /**
+ * List your book styles
+ */
+export function getBookUserStyles(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto[];
+    }>("/book-styles", {
+        ...opts
+    }));
+}
+/**
+ * Create a book style
+ */
+export function createBookUserStyle({ bookUserStyleCreateDto }: {
+    bookUserStyleCreateDto: BookUserStyleCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookUserStyleResponseDto;
+    }>("/book-styles", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookUserStyleCreateDto
+    })));
+}
+/**
+ * Delete a book style
+ */
+export function deleteBookUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/book-styles/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a book style
+ */
+export function getBookUserStyle({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto;
+    }>(`/book-styles/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update a book style
+ */
+export function updateBookUserStyle({ id, bookUserStyleUpdateDto }: {
+    id: string;
+    bookUserStyleUpdateDto: BookUserStyleUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookUserStyleResponseDto;
+    }>(`/book-styles/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookUserStyleUpdateDto
+    })));
+}
+/**
+ * List books
+ */
+export function getBooks(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookResponseDto[];
+    }>("/books", {
+        ...opts
+    }));
+}
+/**
+ * Create a book
+ */
+export function createBook({ bookCreateDto }: {
+    bookCreateDto: BookCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookDetailResponseDto;
+    }>("/books", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookCreateDto
+    })));
+}
+/**
+ * List suggested books
+ */
+export function getBookDrafts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDraftResponseDto[];
+    }>("/books/drafts", {
+        ...opts
+    }));
+}
+/**
+ * Look for books to suggest
+ */
+export function refreshBookDrafts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/books/drafts/refresh", {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Create a book from an album
+ */
+export function createBookFromAlbum({ bookFromAlbumDto }: {
+    bookFromAlbumDto: BookFromAlbumDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookAutoLayoutResponseDto;
+    }>("/books/from-album", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookFromAlbumDto
+    })));
+}
+/**
+ * List book layouts
+ */
+export function getBookLayouts(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookLayoutResponseDto[];
+    }>("/books/layouts", {
+        ...opts
+    }));
+}
+/**
+ * Preview a map style
+ */
+export function previewBookMap({ albumId, bookId, look, pageId, size, style, stylePreset }: {
+    albumId?: string;
+    bookId?: string;
+    look?: BookMapLookOption;
+    pageId?: string;
+    size?: number;
+    style: BookMapStyle;
+    stylePreset?: BookStylePreset;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/map-preview${QS.query(QS.explode({
+        albumId,
+        bookId,
+        look,
+        pageId,
+        size,
+        style,
+        stylePreset
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * List book style presets
+ */
+export function getBookStylePresets(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookStylePresetResponseDto[];
+    }>("/books/style-presets", {
+        ...opts
+    }));
+}
+/**
+ * Delete a book
+ */
+export function deleteBook({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a book
+ */
+export function getBook({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDetailResponseDto;
+    }>(`/books/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update a book
+ */
+export function updateBook({ id, bookUpdateDto }: {
+    id: string;
+    bookUpdateDto: BookUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookDetailResponseDto;
+    }>(`/books/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookUpdateDto
+    })));
+}
+/**
+ * Lay out a book automatically
+ */
+export function autoLayoutBook({ id, bookAutoLayoutDto }: {
+    id: string;
+    bookAutoLayoutDto: BookAutoLayoutDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookAutoLayoutResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/auto-layout`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookAutoLayoutDto
+    })));
+}
+/**
+ * Discard a suggested book
+ */
+export function discardBookDraft({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/discard`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Export a book
+ */
+export function exportBook({ id, bookExportDto }: {
+    id: string;
+    bookExportDto?: BookExportDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/export`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookExportDto
+    })));
+}
+/**
+ * Download a book as HTML
+ */
+export function downloadBookHtml({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/html`, {
+        ...opts
+    }));
+}
+/**
+ * Keep a suggested book
+ */
+export function keepBookDraft({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/keep`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Add a book page
+ */
+export function addBookPage({ id, bookPageCreateDto }: {
+    id: string;
+    bookPageCreateDto: BookPageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookPageCreateDto
+    })));
+}
+/**
+ * Remove a book page
+ */
+export function removeBookPage({ id, pageId }: {
+    id: string;
+    pageId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Update a book page
+ */
+export function updateBookPage({ id, pageId, bookPageUpdateDto }: {
+    id: string;
+    pageId: string;
+    bookPageUpdateDto: BookPageUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookPageUpdateDto
+    })));
+}
+/**
+ * Illustrate the map of a page
+ */
+export function illustrateBookPageMap({ id, pageId }: {
+    id: string;
+    pageId: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/illustrate-map`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Move a book page
+ */
+export function moveBookPage({ id, pageId, bookPageMoveDto }: {
+    id: string;
+    pageId: string;
+    bookPageMoveDto: BookPageMoveDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/position`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookPageMoveDto
+    })));
+}
+/**
+ * Render a book page
+ */
+export function renderBookPage({ id, key, pageId, size, slug }: {
+    id: string;
+    key?: string;
+    pageId: string;
+    size?: number;
+    slug?: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/render${QS.query(QS.explode({
+        key,
+        size,
+        slug
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Clear a book page slot
+ */
+export function clearBookSlot({ id, pageId, slot }: {
+    id: string;
+    pageId: string;
+    slot: number;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Update a book page slot
+ */
+export function updateBookSlot({ id, pageId, slot, bookSlotPatchDto }: {
+    id: string;
+    pageId: string;
+    slot: number;
+    bookSlotPatchDto: BookSlotPatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: bookSlotPatchDto
+    })));
+}
+/**
+ * Place a photo in a book page slot
+ */
+export function setBookSlot({ id, pageId, slot, bookSlotUpdateDto }: {
+    id: string;
+    pageId: string;
+    slot: number;
+    bookSlotUpdateDto: BookSlotUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookPageResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/pages/${encodeURIComponent(pageId)}/slots/${encodeURIComponent(slot)}`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: bookSlotUpdateDto
+    })));
+}
+/**
+ * Download a book PDF
+ */
+export function downloadBookPdf({ id, key, slug }: {
+    id: string;
+    key?: string;
+    slug?: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/pdf${QS.query(QS.explode({
+        key,
+        slug
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Preview a book
+ */
+export function previewBook({ id, key, slug }: {
+    id: string;
+    key?: string;
+    slug?: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/books/${encodeURIComponent(id)}/preview${QS.query(QS.explode({
+        key,
+        slug
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Review a book
+ */
+export function getBookReview({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BookReviewResponseDto;
+    }>(`/books/${encodeURIComponent(id)}/review`, {
+        ...opts
+    }));
+}
+/**
  * Scan all libraries for classification
  */
 export function scanClassification(opts?: Oazapfts.RequestOpts) {
@@ -6715,6 +9168,136 @@ export function scanClassification(opts?: Oazapfts.RequestOpts) {
         ...opts,
         method: "POST"
     }));
+}
+/**
+ * Save a collage
+ */
+export function createCollage({ collageCreateDto }: {
+    collageCreateDto: CollageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CollageResponseDto;
+    }>("/collages", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageCreateDto
+    })));
+}
+/**
+ * List the layouts of a collage
+ */
+export function getCollageLayouts({ collageDto }: {
+    collageDto: CollageDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollageLayoutsResponseDto;
+    }>("/collages/layouts", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageDto
+    })));
+}
+/**
+ * Render a collage
+ */
+export function renderCollage({ collageRenderDto }: {
+    collageRenderDto: CollageRenderDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>("/collages/render", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageRenderDto
+    })));
+}
+/**
+ * List collection packs
+ */
+export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionPackResponseDto[];
+    }>("/collections", {
+        ...opts
+    }));
+}
+/**
+ * Search the collections
+ */
+export function searchCollections({ q }: {
+    q: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSearchResponseDto;
+    }>(`/collections/search${QS.query(QS.explode({
+        q
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Summarize the collections
+ */
+export function getCollectionSummary(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionSummaryResponseDto;
+    }>("/collections/summary", {
+        ...opts
+    }));
+}
+/**
+ * Name the entries of a visit
+ */
+export function saveCollectionEntries({ pack, collectionEntriesDto }: {
+    pack: string;
+    collectionEntriesDto: CollectionEntriesDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionEntriesResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/entries`, oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: collectionEntriesDto
+    })));
+}
+/**
+ * Match the subjects of a visit
+ */
+export function matchCollectionVisit({ pack, collectionMatchDto }: {
+    pack: string;
+    collectionMatchDto: CollectionMatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionMatchResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/match`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collectionMatchDto
+    })));
+}
+/**
+ * Find the visits of a collection
+ */
+export function findCollectionVisits({ pack, collectionVisitsDto }: {
+    pack: string;
+    collectionVisitsDto: CollectionVisitsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollectionVisitsResponseDto;
+    }>(`/collections/${encodeURIComponent(pack)}/visits`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collectionVisitsDto
+    })));
 }
 /**
  * Get the configuration with user visibility
@@ -6884,6 +9467,51 @@ export function reassignFacesById({ id, faceDto }: {
     })));
 }
 /**
+ * Name dishes
+ */
+export function setDishNames({ foodDishesDto }: {
+    foodDishesDto: FoodDishesDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodDishesResponseDto;
+    }>("/food/dishes", oazapfts.json({
+        ...opts,
+        method: "PUT",
+        body: foodDishesDto
+    })));
+}
+/**
+ * Find meals
+ */
+export function findMeals({ foodMealsDto }: {
+    foodMealsDto: FoodMealsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodMealsResponseDto;
+    }>("/food/meals", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: foodMealsDto
+    })));
+}
+/**
+ * Match the dishes of a meal
+ */
+export function matchMeal({ foodMatchDto }: {
+    foodMatchDto: FoodMatchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: FoodMatchResponseDto;
+    }>("/food/meals/match", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: foodMatchDto
+    })));
+}
+/**
  * Get filtered map markers
  */
 export function getFilteredMapMarkers({ albumId, city, country, description, isFavorite, isInAlbum, isNotInAlbum, lensModel, make, model, ocr, originalFileName, ownerId, personIds, rating, spaceId, state, tagIds, takenAfter, takenBefore, $type, withSharedSpaces }: {
@@ -6938,6 +9566,96 @@ export function getFilteredMapMarkers({ albumId, city, country, description, isF
         withSharedSpaces
     }))}`, {
         ...opts
+    }));
+}
+/**
+ * Retrieve highlight videos
+ */
+export function getHighlights(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightJobResponseDto[];
+    }>("/highlights", {
+        ...opts
+    }));
+}
+/**
+ * Make a highlight video
+ */
+export function createHighlight({ highlightCreateDto }: {
+    highlightCreateDto: HighlightCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightJobResponseDto;
+    }>("/highlights", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: highlightCreateDto
+    })));
+}
+/**
+ * Retrieve the music for highlight videos
+ */
+export function getHighlightMusic(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightMusicResponseDto[];
+    }>("/highlights/music", {
+        ...opts
+    }));
+}
+/**
+ * Upload music for highlight videos
+ */
+export function uploadHighlightMusic({ highlightMusicUploadDto }: {
+    highlightMusicUploadDto: HighlightMusicUploadDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightMusicResponseDto;
+    }>("/highlights/music", oazapfts.multipart({
+        ...opts,
+        method: "POST",
+        body: highlightMusicUploadDto
+    })));
+}
+/**
+ * Delete music for highlight videos
+ */
+export function deleteHighlightMusic({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/highlights/music/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a highlight video
+ */
+export function getHighlight({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightJobResponseDto;
+    }>(`/highlights/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Cancel a highlight video
+ */
+export function cancelHighlight({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightJobResponseDto;
+    }>(`/highlights/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST"
     }));
 }
 /**
@@ -7439,6 +10157,78 @@ export function unlinkOAuthAccount(opts?: Oazapfts.RequestOpts) {
         ...opts,
         method: "POST"
     }));
+}
+/**
+ * Fix the orientation of photos
+ */
+export function fixOrientation({ orientationFixDto }: {
+    orientationFixDto: OrientationFixDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/fix", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationFixDto
+    })));
+}
+/**
+ * Reject orientation suggestions
+ */
+export function rejectOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/reject", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
+}
+/**
+ * Check the orientation of photos
+ */
+export function scanOrientation({ orientationScanDto }: {
+    orientationScanDto: OrientationScanDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/orientation/scan", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationScanDto
+    })));
+}
+/**
+ * List orientation suggestions
+ */
+export function getOrientationSuggestions({ status }: {
+    status?: OrientationStatus;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: OrientationSuggestionResponseDto[];
+    }>(`/orientation/suggestions${QS.query(QS.explode({
+        status
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo orientation fixes
+ */
+export function undoOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
 }
 /**
  * Retrieve partners
@@ -8662,8 +11452,9 @@ export function lockSession({ id }: {
 /**
  * Retrieve all shared links
  */
-export function getAllSharedLinks({ albumId, id }: {
+export function getAllSharedLinks({ albumId, bookId, id }: {
     albumId?: string;
+    bookId?: string;
     id?: string;
 }, opts?: Oazapfts.RequestOpts) {
     return oazapfts.ok(oazapfts.fetchJson<{
@@ -8671,6 +11462,7 @@ export function getAllSharedLinks({ albumId, id }: {
         data: SharedLinkResponseDto[];
     }>(`/shared-links${QS.query(QS.explode({
         albumId,
+        bookId,
         id
     }))}`, {
         ...opts
@@ -10789,6 +13581,41 @@ export enum UserAvatarColor {
     Gray = "gray",
     Amber = "amber"
 }
+export enum ActivityLogAction {
+    AlbumCreate = "album.create",
+    AlbumAddAssets = "album.addAssets",
+    AlbumRemoveAssets = "album.removeAssets",
+    AssetCopy = "asset.copy",
+    AssetCreate = "asset.create",
+    ArtworkCreate = "artwork.create",
+    ArtStyleCreate = "artStyle.create",
+    BookCreate = "book.create",
+    BookEdit = "book.edit",
+    BookDraftKeep = "bookDraft.keep",
+    BookDraftDiscard = "bookDraft.discard",
+    BookStyleCreate = "bookStyle.create",
+    CollectionEntries = "collection.entries",
+    HighlightCreate = "highlight.create",
+    SharedLinkCreate = "sharedLink.create"
+}
+export enum ActivityLogSource {
+    Assistant = "assistant",
+    Web = "web"
+}
+export enum ActivityUndoStatus {
+    Undone = "undone",
+    Partial = "partial",
+    Refused = "refused",
+    AlreadyUndone = "alreadyUndone",
+    Failed = "failed"
+}
+export enum DefaultStyle {
+    Styled = "styled",
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
 export enum Action {
     Tag = "tag",
     TagAndArchive = "tag_and_archive"
@@ -10946,6 +13773,29 @@ export enum AssetVisibility {
     Hidden = "hidden",
     Locked = "locked"
 }
+export enum AgentSessionStatus {
+    Idle = "idle",
+    Running = "running",
+    Error = "error"
+}
+export enum Kind {
+    AllowOnce = "allow_once",
+    AllowAlways = "allow_always",
+    RejectOnce = "reject_once",
+    RejectAlways = "reject_always"
+}
+export enum AgentMessageKind {
+    Text = "text",
+    Thought = "thought",
+    ToolCall = "tool_call",
+    Permission = "permission",
+    Plan = "plan",
+    Error = "error"
+}
+export enum AgentMessageRole {
+    User = "user",
+    Agent = "agent"
+}
 export enum AlbumUserRole {
     Editor = "editor",
     Owner = "owner",
@@ -10965,6 +13815,18 @@ export enum Permission {
     ActivityUpdate = "activity.update",
     ActivityDelete = "activity.delete",
     ActivityStatistics = "activity.statistics",
+    ActivityLogRead = "activityLog.read",
+    ActivityLogUndo = "activityLog.undo",
+    AgentSessionCreate = "agentSession.create",
+    AgentSessionRead = "agentSession.read",
+    AgentSessionUpdate = "agentSession.update",
+    AgentSessionDelete = "agentSession.delete",
+    ArtJobCreate = "artJob.create",
+    ArtJobRead = "artJob.read",
+    ArtStyleCreate = "artStyle.create",
+    ArtStyleRead = "artStyle.read",
+    ArtStyleUpdate = "artStyle.update",
+    ArtStyleDelete = "artStyle.delete",
     ApiKeyCreate = "apiKey.create",
     ApiKeyRead = "apiKey.read",
     ApiKeyUpdate = "apiKey.update",
@@ -11005,6 +13867,19 @@ export enum Permission {
     BackupDownload = "backup.download",
     BackupUpload = "backup.upload",
     BackupDelete = "backup.delete",
+    BookCreate = "book.create",
+    BookRead = "book.read",
+    BookUpdate = "book.update",
+    BookDelete = "book.delete",
+    BookDownload = "book.download",
+    BookShare = "book.share",
+    BookStyleCreate = "bookStyle.create",
+    BookStyleRead = "bookStyle.read",
+    BookStyleUpdate = "bookStyle.update",
+    BookStyleDelete = "bookStyle.delete",
+    HighlightCreate = "highlight.create",
+    HighlightRead = "highlight.read",
+    HighlightDelete = "highlight.delete",
     ClusterGroupRead = "clusterGroup.read",
     ClusterGroupLeave = "clusterGroup.leave",
     ClusterGroupRequestCreate = "clusterGroupRequest.create",
@@ -11150,6 +14025,12 @@ export enum Permission {
     AdminSessionRead = "adminSession.read",
     AdminAuthUnlinkAll = "adminAuth.unlinkAll"
 }
+export enum ArtJobStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed"
+}
 export enum AssetFileType {
     Fullsize = "fullsize",
     Preview = "preview",
@@ -11189,20 +14070,193 @@ export enum MirrorAxis {
     Horizontal = "horizontal",
     Vertical = "vertical"
 }
+export enum EnhanceCorrectionType {
+    Denoise = "denoise",
+    WhiteBalance = "whiteBalance",
+    Levels = "levels",
+    Exposure = "exposure",
+    LocalContrast = "localContrast",
+    Saturation = "saturation",
+    Sharpen = "sharpen"
+}
+export enum EnhanceStrength {
+    Subtle = "subtle",
+    Normal = "normal",
+    Strong = "strong"
+}
 export enum AssetMediaSize {
     Original = "original",
     Fullsize = "fullsize",
     Preview = "preview",
     Thumbnail = "thumbnail"
 }
+export enum BookStyleTheme {
+    Plain = "plain",
+    Food = "food",
+    Gallery = "gallery",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel",
+    GigPoster = "gig-poster",
+    FieldGuide = "field-guide"
+}
+export enum BookExportStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed"
+}
+export enum BookStatus {
+    Draft = "draft",
+    Active = "active"
+}
+export enum BookStylePreset {
+    Classic = "classic",
+    Soft = "soft",
+    Bold = "bold",
+    Food = "food",
+    Museum = "museum",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel",
+    Concerts = "concerts",
+    Nature = "nature"
+}
+export enum BookMapLook {
+    Wash = "wash",
+    Engraved = "engraved",
+    Minimal = "minimal",
+    Vintage = "vintage"
+}
+export enum BookMapStyle {
+    Styled = "styled",
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
+export enum BookDraftKind {
+    Yearly = "yearly",
+    Trip = "trip",
+    Birthday = "birthday"
+}
+export enum BookCaptionMode {
+    None = "none",
+    Place = "place",
+    PlaceTime = "place-time",
+    People = "people",
+    Dish = "dish"
+}
+export enum BookMapLookOption {
+    Auto = "auto",
+    Wash = "wash",
+    Engraved = "engraved",
+    Minimal = "minimal",
+    Vintage = "vintage"
+}
+export enum BookMapStyleOption {
+    Auto = "auto",
+    Styled = "styled",
+    Sketch = "sketch",
+    Watercolor = "watercolor",
+    Toner = "toner",
+    Terrain = "terrain"
+}
+export enum Orientation {
+    Any = "any",
+    Landscape = "landscape",
+    Portrait = "portrait"
+}
+export enum Kind2 {
+    Title = "title",
+    Subtitle = "subtitle",
+    SectionTitle = "sectionTitle",
+    Caption = "caption",
+    SlotCaption = "slotCaption"
+}
+export enum BookExportFormat {
+    Pdf = "pdf",
+    Html = "html"
+}
+export enum Severity {
+    High = "high",
+    Medium = "medium",
+    Low = "low"
+}
+export enum Type2 {
+    DuplicateStack = "duplicate-stack",
+    LowDpi = "low-dpi",
+    EmptySlot = "empty-slot",
+    TooMuchArtwork = "too-much-artwork",
+    ArtworkBackToBack = "artwork-back-to-back",
+    SinglesInARow = "singles-in-a-row",
+    SimilarNeighbours = "similar-neighbours",
+    MapStyleFallback = "map-style-fallback",
+    PersonUnderrepresented = "person-underrepresented",
+    TooManyPairs = "too-many-pairs",
+    RepeatedLayout = "repeated-layout",
+    MissingCaptions = "missing-captions",
+    CouldLookBetter = "could-look-better",
+    MissingDishName = "missing-dish-name",
+    MissingMenuPage = "missing-menu-page"
+}
+export enum CollageAspectRatio {
+    $11 = "1:1",
+    $45 = "4:5",
+    $916 = "9:16",
+    $169 = "16:9"
+}
+export enum CollectionPlaceSource {
+    Tag = "tag",
+    Sign = "sign",
+    Source = "source",
+    Receipt = "receipt",
+    Fallback = "fallback"
+}
 export enum SourceType {
     MachineLearning = "machine-learning",
     Exif = "exif",
     Manual = "manual"
 }
+export enum FoodRestaurantSource {
+    Tag = "tag",
+    Sign = "sign",
+    Menu = "menu",
+    Receipt = "receipt",
+    Fallback = "fallback"
+}
+export enum FoodMealType {
+    Breakfast = "Breakfast",
+    Lunch = "Lunch",
+    Dinner = "Dinner"
+}
 export enum MapMediaType {
     Image = "IMAGE",
     Video = "VIDEO"
+}
+export enum HighlightFormat {
+    Landscape = "landscape",
+    Vertical = "vertical"
+}
+export enum HighlightJobStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed",
+    Cancelled = "cancelled"
+}
+export enum HighlightStyle {
+    Auto = "auto",
+    Classic = "classic",
+    Soft = "soft",
+    Bold = "bold",
+    Food = "food",
+    Museum = "museum",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel",
+    Concerts = "concerts",
+    Nature = "nature"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
@@ -11210,6 +14264,8 @@ export enum ManualJobName {
     UserCleanup = "user-cleanup",
     MemoryCleanup = "memory-cleanup",
     MemoryCreate = "memory-create",
+    BookDraftsCreate = "book-drafts-create",
+    CollectionNoticesCreate = "collection-notices-create",
     BackupDatabase = "backup-database",
     IntegrityMissingFiles = "integrity-missing-files",
     IntegrityUntrackedFiles = "integrity-untracked-files",
@@ -11266,11 +14322,16 @@ export enum MemoryType {
     OnThisDay = "on_this_day",
     Rule = "rule"
 }
+export enum OrientationStatus {
+    Suggested = "suggested",
+    Fixed = "fixed",
+    Rejected = "rejected"
+}
 export enum PartnerDirection {
     SharedBy = "shared-by",
     SharedWith = "shared-with"
 }
-export enum Type2 {
+export enum Type3 {
     Person = "person",
     SpacePerson = "space-person"
 }
@@ -11299,6 +14360,16 @@ export enum JobName {
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
+    ActivityLogCleanup = "ActivityLogCleanup",
+    BookDraftsQueueAll = "BookDraftsQueueAll",
+    BookDraftsGenerate = "BookDraftsGenerate",
+    CollectionNoticesQueueAll = "CollectionNoticesQueueAll",
+    CollectionNoticesCheck = "CollectionNoticesCheck",
+    BookExport = "BookExport",
+    BookExportHtml = "BookExportHtml",
+    HighlightRender = "HighlightRender",
+    OrientationCheckQueueAll = "OrientationCheckQueueAll",
+    OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",
@@ -11403,7 +14474,8 @@ export enum SearchSuggestionType {
 }
 export enum SharedLinkType {
     Album = "ALBUM",
-    Individual = "INDIVIDUAL"
+    Individual = "INDIVIDUAL",
+    Book = "BOOK"
 }
 export enum AssetIdErrorReason {
     Duplicate = "duplicate",
