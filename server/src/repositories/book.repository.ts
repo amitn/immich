@@ -7,6 +7,7 @@ import { BookExportStatus } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import { BookStyleTable } from 'src/schema/tables/book-style.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 import { anyUuid } from 'src/utils/database.js';
 
@@ -490,5 +491,43 @@ export class BookRepository {
       .where('asset.id', '=', anyUuid(ids))
       .where('asset.deletedAt', 'is', null)
       .execute();
+  }
+
+  /** the book styles the user designed, newest first */
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getStyles(ownerId: string) {
+    return this.db
+      .selectFrom('book_style')
+      .selectAll()
+      .where('book_style.ownerId', '=', ownerId)
+      .orderBy('book_style.createdAt', 'desc')
+      .execute();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getStyle(id: string) {
+    return this.db.selectFrom('book_style').selectAll().where('book_style.id', '=', id).executeTakeFirst();
+  }
+
+  @GenerateSql({
+    params: [{ ownerId: DummyValue.UUID, name: DummyValue.STRING, style: { background: '#ffffff' } }],
+  })
+  createStyle(style: Insertable<BookStyleTable>) {
+    return this.db.insertInto('book_style').values(style).returningAll().executeTakeFirstOrThrow();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID, { name: DummyValue.STRING }] })
+  updateStyle(id: string, style: Updateable<BookStyleTable>) {
+    return this.db
+      .updateTable('book_style')
+      .set(omitUndefined(style))
+      .where('book_style.id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID] })
+  async deleteStyle(id: string): Promise<void> {
+    await this.db.deleteFrom('book_style').where('book_style.id', '=', id).execute();
   }
 }

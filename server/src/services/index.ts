@@ -11,6 +11,7 @@ import { AssetService } from 'src/services/asset.service.js';
 import { AuthAdminService } from 'src/services/auth-admin.service.js';
 import { AuthService } from 'src/services/auth.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { BookStyleService } from 'src/services/book-style.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
@@ -68,6 +69,7 @@ export const services = [
   AlbumService,
   ArtService,
   BookService,
+  BookStyleService,
   ApiService,
   AssetFileService,
   AssetMediaService,

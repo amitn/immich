@@ -11,6 +11,7 @@ import { AssetController } from 'src/controllers/asset.controller.js';
 import { AuthAdminController } from 'src/controllers/auth-admin.controller.js';
 import { AuthController } from 'src/controllers/auth.controller.js';
 import { BookController } from 'src/controllers/book.controller.js';
+import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
@@ -60,6 +61,7 @@ export const controllers = [
   AlbumController,
   ArtController,
   BookController,
+  BookStyleController,
   AppController,
   AssetController,
   AssetFilesController,

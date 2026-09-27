@@ -126,6 +126,11 @@ export enum Permission {
   ArtJobCreate = 'artJob.create',
   ArtJobRead = 'artJob.read',
 
+  ArtStyleCreate = 'artStyle.create',
+  ArtStyleRead = 'artStyle.read',
+  ArtStyleUpdate = 'artStyle.update',
+  ArtStyleDelete = 'artStyle.delete',
+
   ApiKeyCreate = 'apiKey.create',
   ApiKeyRead = 'apiKey.read',
   ApiKeyUpdate = 'apiKey.update',
@@ -184,6 +189,11 @@ export enum Permission {
   BookDelete = 'book.delete',
   BookDownload = 'book.download',
   BookShare = 'book.share',
+
+  BookStyleCreate = 'bookStyle.create',
+  BookStyleRead = 'bookStyle.read',
+  BookStyleUpdate = 'bookStyle.update',
+  BookStyleDelete = 'bookStyle.delete',
 
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',

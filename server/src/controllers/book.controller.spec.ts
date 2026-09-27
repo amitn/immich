@@ -118,6 +118,24 @@ describe(BookController.name, () => {
     });
   });
 
+  describe('PATCH /books/:id', () => {
+    it('should apply a style of your own', async () => {
+      const id = factory.uuid();
+      const styleId = factory.uuid();
+      const { status } = await request(ctx.getHttpServer()).patch(`/books/${id}`).send({ styleId });
+      expect(status).toBe(200);
+      expect(service.update).toHaveBeenCalledWith(undefined, id, { styleId });
+    });
+
+    it('should not take a preset and a style of your own', async () => {
+      const { status } = await request(ctx.getHttpServer())
+        .patch(`/books/${factory.uuid()}`)
+        .send({ stylePreset: 'soft', styleId: factory.uuid() });
+      expect(status).toBe(400);
+      expect(service.update).not.toHaveBeenCalled();
+    });
+  });
+
   describe('PATCH /books/:id/pages/:pageId', () => {
     it('should validate the map', async () => {
       const { status } = await request(ctx.getHttpServer())

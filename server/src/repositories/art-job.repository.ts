@@ -5,6 +5,7 @@ import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { ArtJobStatus } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
+import { ArtStyleTable } from 'src/schema/tables/art-style.table.js';
 
 @Injectable()
 export class ArtJobRepository {
@@ -75,5 +76,41 @@ export class ArtJobRepository {
       .set({ status: ArtJobStatus.Failed, error: 'The server restarted before the artwork was finished' })
       .where('art_job.status', 'in', [ArtJobStatus.Pending, ArtJobStatus.Running])
       .execute();
+  }
+
+  /** the artistic styles the user designed, oldest first (as they were added to the list) */
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getStyles(ownerId: string) {
+    return this.db
+      .selectFrom('art_style')
+      .selectAll()
+      .where('art_style.ownerId', '=', ownerId)
+      .orderBy('art_style.createdAt', 'asc')
+      .execute();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID] })
+  getStyle(id: string) {
+    return this.db.selectFrom('art_style').selectAll().where('art_style.id', '=', id).executeTakeFirst();
+  }
+
+  @GenerateSql({ params: [{ ownerId: DummyValue.UUID, name: DummyValue.STRING, prompt: 'prompt' }] })
+  createStyle(style: Insertable<ArtStyleTable>) {
+    return this.db.insertInto('art_style').values(style).returningAll().executeTakeFirstOrThrow();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID, { name: DummyValue.STRING }] })
+  updateStyle(id: string, style: Updateable<ArtStyleTable>) {
+    return this.db
+      .updateTable('art_style')
+      .set(style)
+      .where('art_style.id', '=', id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID] })
+  async deleteStyle(id: string): Promise<void> {
+    await this.db.deleteFrom('art_style').where('art_style.id', '=', id).execute();
   }
 }
