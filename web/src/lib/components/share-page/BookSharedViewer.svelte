@@ -28,7 +28,9 @@
 </script>
 
 <main class="flex h-dvh flex-col pt-(--navbar-height) max-md:pt-(--navbar-height-md)">
-  <section class="flex items-baseline gap-3 px-4 pt-2 pb-3 md:px-8">
+  <!-- the web book in the frame has its own title bar (title, subtitle, dates and pages), so the page shows its title
+    only when there are no pages, and otherwise names the book for screen readers -->
+  <section class={book.pageCount > 0 ? 'sr-only' : 'flex items-baseline gap-3 px-4 pt-2 pb-3 md:px-8'}>
     <h1 class="truncate text-xl text-primary md:text-3xl" title={book.title}>{book.title}</h1>
     {#if book.subtitle}
       <p class="hidden truncate text-sm text-gray-600 sm:block dark:text-gray-400">{book.subtitle}</p>

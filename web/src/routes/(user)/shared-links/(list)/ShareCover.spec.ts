@@ -1,8 +1,9 @@
 import { SharedLinkType } from '@immich/sdk';
 import { render, screen } from '@testing-library/svelte';
-import { getAssetMediaUrl } from '$lib/utils';
+import { getAssetMediaUrl, getBookPageRenderUrl } from '$lib/utils';
 import { albumFactory } from '@test-data/factories/album-factory';
 import { assetFactory } from '@test-data/factories/asset-factory';
+import { bookFactory } from '@test-data/factories/book-factory';
 import { sharedLinkFactory } from '@test-data/factories/shared-link-factory';
 import ShareCover from './ShareCover.svelte';
 
@@ -47,6 +48,42 @@ describe('ShareCover component', () => {
     expect(component.getByTestId('book-cover')).toHaveAccessibleName('Summer in Rome');
     expect(component.queryByTestId('album-image')).not.toBeInTheDocument();
     expect(getAssetMediaUrl).not.toHaveBeenCalledWith({ id: 'book-id' });
+  });
+
+  it("renders the first page of a book, as the list of books does, for the owner's view", () => {
+    vi.mocked(getBookPageRenderUrl).mockReturnValue('/page-1');
+    const book = bookFactory.build({ id: 'book-id', title: 'Summer in Rome', firstPageId: 'page-1' });
+    const component = render(ShareCover, {
+      sharedLink: sharedLinkFactory.build({
+        type: SharedLinkType.Book,
+        book: { id: 'book-id', title: 'Summer in Rome', subtitle: null, pageCount: 12, hasPdf: false },
+      }),
+      book,
+    });
+
+    const cover = component.getByTestId('book-cover');
+    expect(cover).toHaveAccessibleName('Summer in Rome');
+    expect(cover.querySelector('img')?.getAttribute('src')).toBe('/page-1');
+    expect(getBookPageRenderUrl).toHaveBeenCalledWith({
+      id: 'book-id',
+      pageId: 'page-1',
+      size: 240,
+      cacheKey: book.updatedAt,
+    });
+  });
+
+  it('renders the cover photo of a book without pages', () => {
+    vi.mocked(getAssetMediaUrl).mockReturnValue('/cover-photo');
+    const book = bookFactory.build({ id: 'book-id', firstPageId: null, coverAssetId: 'cover-id' });
+    const component = render(ShareCover, {
+      sharedLink: sharedLinkFactory.build({
+        type: SharedLinkType.Book,
+        book: { id: 'book-id', title: 'Summer in Rome', subtitle: null, pageCount: 0, hasPdf: false },
+      }),
+      book,
+    });
+
+    expect(component.getByTestId('book-cover').querySelector('img')?.getAttribute('src')).toBe('/cover-photo');
   });
 
   it('renders an image when the shared link has no album or assets', () => {

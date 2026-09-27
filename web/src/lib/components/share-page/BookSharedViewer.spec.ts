@@ -27,7 +27,9 @@ describe('BookSharedViewer component', () => {
   it('should show the title and the web book in a sandboxed frame', () => {
     render(BookSharedViewer, { props: { sharedLink: bookLink(), key: 'book-key' } });
 
-    expect(screen.getByRole('heading', { name: 'Summer in Rome' })).toBeInTheDocument();
+    // the frame's own title bar shows the title: the page names it for screen readers only
+    const heading = screen.getByRole('heading', { name: 'Summer in Rome' });
+    expect(heading.closest('section')).toHaveClass('sr-only');
     expect(screen.getByText('Italy 2025')).toBeInTheDocument();
     const frame = getFrame();
     expect(frame.getAttribute('src')).toBe(`/api/books/${bookId}/preview?key=book-key`);
@@ -72,6 +74,7 @@ describe('BookSharedViewer component', () => {
     render(BookSharedViewer, { props: { sharedLink: bookLink({}, { pageCount: 0 }), key: 'book-key' } });
 
     expect(screen.getByRole('alert')).toHaveTextContent('book_no_pages');
+    expect(screen.getByRole('heading', { name: 'Summer in Rome' }).closest('section')).not.toHaveClass('sr-only');
     expect(screen.queryByTitle('book_shared_frame_title')).not.toBeInTheDocument();
   });
 });

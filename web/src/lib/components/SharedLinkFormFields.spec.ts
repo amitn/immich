@@ -46,6 +46,8 @@ describe('SharedLinkFormFields component', () => {
     const switches = Array.from(container.querySelectorAll('[role="switch"], input[type="checkbox"]'));
     expect(switches).toHaveLength(2);
     expect(container.textContent).toContain('book_share_allow_pdf_download');
+    expect(container.textContent).toContain('book_share_show_photo_details');
+    expect(container.textContent).not.toContain('show_metadata');
     expect(container.textContent).not.toContain('allow_public_user_to_upload');
 
     const [showMetadataSwitch, allowDownloadSwitch] = switches;

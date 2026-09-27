@@ -55,9 +55,16 @@
   </Field>
 
   <SharedLinkExpiration bind:expiresAt />
-  <Field label={$t('show_metadata')}>
-    <Switch bind:checked={showMetadata} />
-  </Field>
+  {#if isBook}
+    <!-- what a book's web book tells of its photos: their file names (as the images' text) and the dates -->
+    <Field label={$t('book_share_show_photo_details')} description={$t('book_share_show_photo_details_description')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {:else}
+    <Field label={$t('show_metadata')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {/if}
 
   {#if isBook}
     <Field label={$t('book_share_allow_pdf_download')}>
