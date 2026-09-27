@@ -344,7 +344,7 @@ export class CollectionNoticeService extends BaseService {
     const fresh = found.filter(({ notice }) => notice.status === 'new');
     const candidates = fresh.map(({ pack, visit }) => ({
       pack: pack.id,
-      photos: getVisitPhotos(visit),
+      photos: getVisitPhotos(visit).map((photo) => ({ ...photo, time: times.get(photo.id) })),
       minSubjects: pack.notices?.minSubjects ?? DEFAULT_NOTICE_MIN_SUBJECTS,
       requireSource: pack.notices?.requireSource,
     }));

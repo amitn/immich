@@ -143,6 +143,21 @@ describe('arbitrateVisits', () => {
     expect(museum.photos.map(({ id }) => id)).toEqual(['m1']);
   });
 
+  it('should give the winner the whole occasion: the photos the loser took between the photos they share', () => {
+    const walk: PackFit = { nature: { subject: 0.3 }, garden: { subject: 0.27 } };
+    const photos = fits({ w1: walk, w2: walk, w3: walk, lone: tree, t1: tree, t2: tree, t3: tree });
+    const at = (id: string, time: number) => ({ id, kind: 'subject' as const, time });
+    // a garden over the years that took a nature walk for one of its rounds
+    const garden = visit('garden', [], {
+      photos: [at('w1', 10), at('lone', 11), at('w3', 12), at('t1', 100), at('t2', 200), at('t3', 300)],
+    });
+    const nature = visit('nature', [], { photos: [at('w1', 10), at('w2', 10.5), at('w3', 12)] });
+    const [gardenResult, natureResult] = arbitrateVisits([garden, nature], photos);
+    expect(natureResult).toMatchObject({ status: 'new', photos: [{ id: 'w1' }, { id: 'w2' }, { id: 'w3' }] });
+    // the plant photographed on the walk went with it
+    expect(gardenResult).toMatchObject({ status: 'new', photos: [{ id: 't1' }, { id: 't2' }, { id: 't3' }] });
+  });
+
   it('should leave the photos of a named visit to its pack', () => {
     const photos = fits({ s1: stage, s2: stage, s3: stage, s4: stage });
     const [all, some] = arbitrateVisits(

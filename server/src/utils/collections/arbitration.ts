@@ -70,7 +70,8 @@ export const getForeignPhotos = (packs: string[], fits: Map<string, PackFit>): F
   return foreign;
 };
 
-export type ArbitratedPhoto = { id: string; kind: CollectionPhotoKind };
+/** a photo of a visit: its kind in the pack, and when it was taken (local ms), when known */
+export type ArbitratedPhoto = { id: string; kind: CollectionPhotoKind; time?: number };
 
 /** a visit a pack found, as the arbitration sees it */
 export type ArbitratedVisit = {
@@ -130,7 +131,8 @@ const isLargeEnough = (visit: ArbitratedVisit, photos: ArbitratedPhoto[]) =>
  * - the others are taken from the best supported (the most subjects that are surely the pack's: the sum of their
  *   shares), and the photos two of them share all go to the one whose prompts fit them better in the kinds they have
  *   in each pack (a garden's plant tag is its source, which the garden's tag prompts fit better than the reading pack's
- *   title pages do): the shared photos stay together, so that one occasion is not split between two packs
+ *   title pages do): the shared photos stay together, with the loser's photos taken between them, so that one
+ *   occasion is not split between two packs
  * - a visit left too small without the photos it lost (the pack's minimum, the source it needs), or that its pack no
  *   longer fits, is a duplicate; one still large enough is notified with the photos it kept
  *
@@ -185,10 +187,15 @@ export const arbitrateVisits = (
         0,
       );
       const ids = new Set(shared.map(({ id }) => id));
+      // the loser loses the occasion: the photos they share, and its own taken meanwhile (a plant of the walk)
+      const times = shared.flatMap(({ time }) => (time === undefined ? [] : [time]));
+      const during = ({ id, time }: ArbitratedPhoto) =>
+        ids.has(id) ||
+        (time !== undefined && times.length > 0 && time >= Math.min(...times) && time <= Math.max(...times));
       if (won >= shared.length / 2) {
-        results[otherIndex].photos = results[otherIndex].photos.filter(({ id }) => !ids.has(id));
+        results[otherIndex].photos = results[otherIndex].photos.filter((photo) => !during(photo));
       } else {
-        results[index].photos = results[index].photos.filter(({ id }) => !ids.has(id));
+        results[index].photos = results[index].photos.filter((photo) => !during(photo));
         if (!isLargeEnough(visit, results[index].photos)) {
           break;
         }
