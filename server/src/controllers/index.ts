@@ -1,12 +1,18 @@
+import { ActivityLogController } from 'src/controllers/activity-log.controller.js';
 import { ActivityController } from 'src/controllers/activity.controller.js';
+import { AgentMcpController } from 'src/controllers/agent-mcp.controller.js';
+import { AgentController } from 'src/controllers/agent.controller.js';
 import { AlbumController } from 'src/controllers/album.controller.js';
 import { ApiKeyController } from 'src/controllers/api-key.controller.js';
 import { AppController } from 'src/controllers/app.controller.js';
+import { ArtController } from 'src/controllers/art.controller.js';
 import { AssetFilesController } from 'src/controllers/asset-file.controller.js';
 import { AssetMediaController } from 'src/controllers/asset-media.controller.js';
 import { AssetController } from 'src/controllers/asset.controller.js';
 import { AuthAdminController } from 'src/controllers/auth-admin.controller.js';
 import { AuthController } from 'src/controllers/auth.controller.js';
+import { BookStyleController } from 'src/controllers/book-style.controller.js';
+import { BookController } from 'src/controllers/book.controller.js';
 // Option M: Gallery does not adopt upstream's cluster-groups FEATURE — cross-user recognition is
 // answered by shared spaces + `face_identity`, and the fork relies on a person_group holding exactly
 // one person (enforced by the unique index `person_personGroupId_key`). ClusterGroupController's
@@ -17,6 +23,8 @@ import { AuthController } from 'src/controllers/auth.controller.js';
 // To reverse: restore the import and the array entry below, and drop `person_personGroupId_key`.
 // import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
 import { ClassificationController } from 'src/controllers/classification.controller.js';
+import { CollageController } from 'src/controllers/collage.controller.js';
+import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
 import { ConfigUserController } from 'src/controllers/config-user.controller.js';
@@ -25,8 +33,11 @@ import { DownloadController } from 'src/controllers/download.controller.js';
 import { DuplicateController } from 'src/controllers/duplicate.controller.js';
 import { FaceRepairAdminController } from 'src/controllers/face-repair-admin.controller.js';
 import { FaceSuggestionController } from 'src/controllers/face-suggestion.controller.js';
+import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
 import { GalleryMapController } from 'src/controllers/gallery-map.controller.js';
+import { FoodController } from 'src/controllers/food.controller.js';
+import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryManifestController } from 'src/controllers/library-manifest.controller.js';
@@ -37,6 +48,7 @@ import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
 import { OAuthController } from 'src/controllers/oauth.controller.js';
+import { OrientationController } from 'src/controllers/orientation.controller.js';
 import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
@@ -64,7 +76,14 @@ import { WorkflowController } from 'src/controllers/workflow.controller.js';
 export const controllers = [
   ApiKeyController,
   ActivityController,
+  ActivityLogController,
+  AgentController,
+  AgentMcpController,
   AlbumController,
+  ArtController,
+  BookController,
+  BookStyleController,
+  HighlightController,
   AppController,
   AssetController,
   AssetFilesController,
@@ -74,15 +93,20 @@ export const controllers = [
   // ClusterGroupController — see the note at the top of this file; intentionally not mounted.
   ClassificationController,
   ConfigUserController,
+  CollectionController,
   ConfigAdminController,
   ConfigPublicController,
   DatabaseBackupController,
   DownloadController,
   DuplicateController,
+  EnhanceController,
+  CollageController,
+  OrientationController,
   FaceController,
   FaceRepairAdminController,
   FaceSuggestionController,
   GalleryMapController,
+  FoodController,
   IntegrityAdminController,
   JobController,
   LibraryManifestController,

@@ -151,6 +151,22 @@ export enum Permission {
   ActivityDelete = 'activity.delete',
   ActivityStatistics = 'activity.statistics',
 
+  ActivityLogRead = 'activityLog.read',
+  ActivityLogUndo = 'activityLog.undo',
+
+  AgentSessionCreate = 'agentSession.create',
+  AgentSessionRead = 'agentSession.read',
+  AgentSessionUpdate = 'agentSession.update',
+  AgentSessionDelete = 'agentSession.delete',
+
+  ArtJobCreate = 'artJob.create',
+  ArtJobRead = 'artJob.read',
+
+  ArtStyleCreate = 'artStyle.create',
+  ArtStyleRead = 'artStyle.read',
+  ArtStyleUpdate = 'artStyle.update',
+  ArtStyleDelete = 'artStyle.delete',
+
   ApiKeyCreate = 'apiKey.create',
   ApiKeyRead = 'apiKey.read',
   ApiKeyUpdate = 'apiKey.update',
@@ -202,6 +218,21 @@ export enum Permission {
   BackupDownload = 'backup.download',
   BackupUpload = 'backup.upload',
   BackupDelete = 'backup.delete',
+
+  BookCreate = 'book.create',
+  BookRead = 'book.read',
+  BookUpdate = 'book.update',
+  BookDelete = 'book.delete',
+  BookDownload = 'book.download',
+  BookShare = 'book.share',
+
+  BookStyleCreate = 'bookStyle.create',
+  BookStyleRead = 'bookStyle.read',
+  BookStyleUpdate = 'bookStyle.update',
+  BookStyleDelete = 'bookStyle.delete',
+  HighlightCreate = 'highlight.create',
+  HighlightRead = 'highlight.read',
+  HighlightDelete = 'highlight.delete',
 
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',
@@ -400,6 +431,9 @@ export enum SharedLinkType {
    * or group of assets that are not in an album
    */
   Individual = 'INDIVIDUAL',
+
+  /** a photo book, shown as its page-turning web version */
+  Book = 'BOOK',
 }
 
 export const SharedLinkTypeSchema = z.enum(SharedLinkType).describe('Shared link type').meta({ id: 'SharedLinkType' });
@@ -432,6 +466,7 @@ export enum SystemMetadataKey {
   SharedSpaceFaceJobCleanupState = 'shared-space-face-job-cleanup-state',
   FaceSuggestionDefaultOnState = 'face-suggestion-default-on-state',
   PersonSuggestionScanJobCleanupState = 'person-suggestion-scan-job-cleanup-state',
+  OrientationCheckState = 'orientation-check-state',
 }
 
 export enum UserMetadataKey {
@@ -447,6 +482,8 @@ export const UserMetadataKeySchema = z
 
 export enum AssetMetadataKey {
   MobileApp = 'mobile-app',
+  /** a suggested orientation fix and its review, see `OrientationService` */
+  Orientation = 'immich.orientation',
 }
 
 export enum UserAvatarColor {
@@ -506,6 +543,8 @@ export enum ManualJobName {
   UserCleanup = 'user-cleanup',
   MemoryCleanup = 'memory-cleanup',
   MemoryCreate = 'memory-create',
+  BookDraftsCreate = 'book-drafts-create',
+  CollectionNoticesCreate = 'collection-notices-create',
   BackupDatabase = 'backup-database',
   IntegrityMissingFiles = `integrity-missing-files`,
   IntegrityUntrackedFiles = `integrity-untracked-files`,
@@ -940,6 +979,19 @@ export enum JobName {
   AssetGenerateThumbnails = 'AssetGenerateThumbnails',
 
   AuditTableCleanup = 'AuditTableCleanup',
+  ActivityLogCleanup = 'ActivityLogCleanup',
+
+  BookDraftsQueueAll = 'BookDraftsQueueAll',
+  BookDraftsGenerate = 'BookDraftsGenerate',
+  CollectionNoticesQueueAll = 'CollectionNoticesQueueAll',
+  CollectionNoticesCheck = 'CollectionNoticesCheck',
+  BookExport = 'BookExport',
+  BookExportHtml = 'BookExportHtml',
+
+  HighlightRender = 'HighlightRender',
+
+  OrientationCheckQueueAll = 'OrientationCheckQueueAll',
+  OrientationCheck = 'OrientationCheck',
 
   DatabaseBackup = 'DatabaseBackup',
 
@@ -1434,13 +1486,18 @@ export enum ConfigVisibility {
 
 export enum ApiTag {
   Activities = 'Activities',
+  ActivityLog = 'Activity log',
   Albums = 'Albums',
+  Assistant = 'Assistant',
   ApiKeys = 'API keys',
   Authentication = 'Authentication',
   AuthenticationAdmin = 'Authentication (admin)',
   Assets = 'Assets',
   AssetFiles = 'Asset files',
+  Books = 'Books',
   Classification = 'Classification',
+  Collages = 'Collages',
+  Collections = 'Collections',
   ConfigUser = 'Config (user)',
   ConfigAdmin = 'Config (admin)',
   ConfigPublic = 'Config (public)',
@@ -1449,6 +1506,8 @@ export enum ApiTag {
   Download = 'Download',
   Duplicates = 'Duplicates',
   Faces = 'Faces',
+  Food = 'Food',
+  Highlights = 'Highlights',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',
@@ -1457,6 +1516,7 @@ export enum ApiTag {
   Memories = 'Memories',
   Notifications = 'Notifications',
   NotificationsAdmin = 'Notifications (admin)',
+  Orientation = 'Orientation',
   ClusterGroups = 'Cluster groups',
   Partners = 'Partners',
   People = 'People',
@@ -1518,3 +1578,193 @@ export enum SearchOrderField {
 }
 
 export const SearchOrderFieldSchema = z.enum(SearchOrderField).meta({ id: 'SearchOrderField' });
+
+export enum AgentSessionStatus {
+  Idle = 'idle',
+  Running = 'running',
+  Error = 'error',
+}
+
+export const AgentSessionStatusSchema = z
+  .enum(AgentSessionStatus)
+  .describe('Agent session status')
+  .meta({ id: 'AgentSessionStatus' });
+
+export enum AgentMessageRole {
+  User = 'user',
+  Agent = 'agent',
+}
+
+export const AgentMessageRoleSchema = z
+  .enum(AgentMessageRole)
+  .describe('Agent message author')
+  .meta({ id: 'AgentMessageRole' });
+
+export enum AgentMessageKind {
+  Text = 'text',
+  Thought = 'thought',
+  ToolCall = 'tool_call',
+  Permission = 'permission',
+  Plan = 'plan',
+  Error = 'error',
+}
+
+export const AgentMessageKindSchema = z
+  .enum(AgentMessageKind)
+  .describe('Agent message kind')
+  .meta({ id: 'AgentMessageKind' });
+
+/** who made a change recorded in the activity log */
+export enum ActivityLogSource {
+  /** a tool call of the AI assistant */
+  Assistant = 'assistant',
+  /** the user, in the web app */
+  Web = 'web',
+}
+
+export const ActivityLogSourceSchema = z
+  .enum(ActivityLogSource)
+  .describe('Who made the change: the assistant, or the user in the web app')
+  .meta({ id: 'ActivityLogSource' });
+
+/**
+ * The kinds of change the activity log records, each with its own inverse (see `ActivityLogService`).
+ * New features that create assets (e.g. collages) record `AssetCreate`, whose undo moves the assets to the trash.
+ */
+export enum ActivityLogAction {
+  AlbumCreate = 'album.create',
+  AlbumAddAssets = 'album.addAssets',
+  AlbumRemoveAssets = 'album.removeAssets',
+  /** copies stacked with their originals: crops, straightened, enhanced and improved photos */
+  AssetCopy = 'asset.copy',
+  /** new assets that are not copies, e.g. collages */
+  AssetCreate = 'asset.create',
+  /** an artwork made by the art agent in the background */
+  Artwork = 'artwork.create',
+  ArtStyleCreate = 'artStyle.create',
+  BookCreate = 'book.create',
+  BookEdit = 'book.edit',
+  BookDraftKeep = 'bookDraft.keep',
+  BookDraftDiscard = 'bookDraft.discard',
+  BookStyleCreate = 'bookStyle.create',
+  CollectionEntries = 'collection.entries',
+  HighlightCreate = 'highlight.create',
+  SharedLinkCreate = 'sharedLink.create',
+}
+
+export const ActivityLogActionSchema = z
+  .enum(ActivityLogAction)
+  .describe('Kind of change')
+  .meta({ id: 'ActivityLogAction' });
+
+export enum ActivityUndoStatus {
+  /** the change was undone */
+  Undone = 'undone',
+  /** the change was undone, but not all of it (see the warnings) */
+  Partial = 'partial',
+  /** the change can't be undone safely, e.g. later changes depend on it (see the message) */
+  Refused = 'refused',
+  /** the change was undone before */
+  AlreadyUndone = 'alreadyUndone',
+  /** undoing failed */
+  Failed = 'failed',
+}
+
+export const ActivityUndoStatusSchema = z
+  .enum(ActivityUndoStatus)
+  .describe('Outcome of undoing a change')
+  .meta({ id: 'ActivityUndoStatus' });
+
+export enum ArtJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+export enum OrientationStatus {
+  /** found by the check, waiting for the user */
+  Suggested = 'suggested',
+  /** turned with an edit (reversible) */
+  Fixed = 'fixed',
+  /** the user kept the photo as it is; it is not suggested again */
+  Rejected = 'rejected',
+}
+
+export const OrientationStatusSchema = z
+  .enum(OrientationStatus)
+  .describe('Review status of an orientation suggestion')
+  .meta({ id: 'OrientationStatus' });
+
+export enum HighlightJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export const HighlightJobStatusSchema = z
+  .enum(HighlightJobStatus)
+  .describe('Highlight video status')
+  .meta({ id: 'HighlightJobStatus' });
+
+export enum BookExportStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const BookExportStatusSchema = z
+  .enum(BookExportStatus)
+  .describe('Book export status')
+  .meta({ id: 'BookExportStatus' });
+
+export enum BookExportFormat {
+  Pdf = 'pdf',
+  Html = 'html',
+}
+
+export const BookExportFormatSchema = z
+  .enum(BookExportFormat)
+  .describe('Book export format: a print-ready PDF or a single self-contained HTML file')
+  .meta({ id: 'BookExportFormat' });
+
+export enum BookStatus {
+  /** suggested and laid out in the background, waiting for the user to keep or discard it */
+  Draft = 'draft',
+  Active = 'active',
+}
+
+export const BookStatusSchema = z
+  .enum(BookStatus)
+  .describe('Book status: a draft made for the user in the background, or a book of theirs')
+  .meta({ id: 'BookStatus' });
+
+export enum BookDraftKind {
+  /** a year of a collection pack, e.g. "2026 in food" */
+  Yearly = 'yearly',
+  /** a trip: a Travel/<Trip> tag, or days away from home */
+  Trip = 'trip',
+  /** the year of a person's life that ended on their latest birthday */
+  Birthday = 'birthday',
+}
+
+export const BookDraftKindSchema = z
+  .enum(BookDraftKind)
+  .describe('Kind of suggested book')
+  .meta({ id: 'BookDraftKind' });
+
+export enum BookDraftState {
+  Drafted = 'drafted',
+  Kept = 'kept',
+  Discarded = 'discarded',
+}
+
+export const BookDraftStateSchema = z
+  .enum(BookDraftState)
+  .describe('What became of a suggested book')
+  .meta({ id: 'BookDraftState' });

@@ -10,6 +10,7 @@ import {
 import { SharedLinkType } from 'src/enum.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { SharedSpaceTable } from 'src/schema/tables/shared-space.table.js';
+import { BookTable } from 'src/schema/tables/book.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
 
 @Table('shared_link')
@@ -60,4 +61,7 @@ export class SharedLinkTable {
   // deleting the space must degrade the link to the creator's own assets, not destroy it.
   @ForeignKeyColumn(() => SharedSpaceTable, { nullable: true, onDelete: 'SET NULL', onUpdate: 'CASCADE' })
   spaceId!: string | null;
+
+  @ForeignKeyColumn(() => BookTable, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
+  bookId!: string | null;
 }

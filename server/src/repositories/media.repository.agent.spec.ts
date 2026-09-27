@@ -1,0 +1,249 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { MediaRepository } from 'src/repositories/media.repository.js';
+import { aestheticScore } from 'src/utils/agent/scoring.js';
+import { automock } from 'test/utils.js';
+
+const solid = (width: number, height: number, background: { r: number; g: number; b: number }) =>
+  sharp({ create: { width, height, channels: 3, background } });
+
+const noise = (width: number, height: number) =>
+  sharp({
+    create: { width, height, channels: 3, background: '#000', noise: { type: 'gaussian', mean: 128, sigma: 40 } },
+  });
+
+const pixelAt = async (image: Buffer, x: number, y: number) => {
+  const { data, info } = await sharp(image).raw().toBuffer({ resolveWithObject: true });
+  const offset = (y * info.width + x) * info.channels;
+  return [data[offset], data[offset + 1], data[offset + 2]];
+};
+
+const expectColor = (actual: number[], expected: number[], tolerance = 12) => {
+  for (const [i, value] of expected.entries()) {
+    expect(Math.abs(actual[i] - value)).toBeLessThanOrEqual(tolerance);
+  }
+};
+
+describe(MediaRepository.name, () => {
+  let sut: MediaRepository;
+  let folder: string;
+  let red: string;
+  let wide: string;
+  let sharpNoise: string;
+  let blurred: string;
+
+  beforeAll(async () => {
+    folder = await mkdtemp(join(tmpdir(), 'immich-agent-media-'));
+    red = join(folder, 'red.jpg');
+    wide = join(folder, 'wide.png');
+    sharpNoise = join(folder, 'noise.png');
+    blurred = join(folder, 'blurred.png');
+    await solid(300, 300, { r: 255, g: 0, b: 0 }).jpeg().toFile(red);
+    await solid(400, 100, { r: 0, g: 0, b: 255 }).png().toFile(wide);
+    const noiseImage = await noise(600, 400).png().toBuffer();
+    await sharp(noiseImage).toFile(sharpNoise);
+    await sharp(noiseImage).blur(6).toFile(blurred);
+  });
+
+  afterAll(async () => {
+    await rm(folder, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    // eslint-disable-next-line no-sparse-arrays
+    sut = new MediaRepository(automock(LoggingRepository, { args: [, { getEnv: () => ({}) }], strict: false }));
+  });
+
+  describe('getJpegCrops', () => {
+    it('should cut crops of a bitmap into JPEGs', async () => {
+      const { data, info } = await solid(400, 200, { r: 0, g: 0, b: 255 })
+        .composite([{ input: await solid(200, 200, { r: 255, g: 0, b: 0 }).png().toBuffer(), left: 0, top: 0 }])
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const bitmap = { data, info: { width: info.width, height: info.height, channels: info.channels } } as never;
+
+      const [left, right, small] = await sut.getJpegCrops(
+        bitmap,
+        [
+          { x: 0, y: 0, width: 200, height: 200 },
+          { x: 250, y: 50, width: 500, height: 100 },
+          { x: 0, y: 0, width: 400, height: 200 },
+        ],
+        { maxSize: 100 },
+      );
+
+      expect(await sharp(left).metadata()).toMatchObject({ format: 'jpeg', width: 100, height: 100 });
+      expectColor(await pixelAt(left, 50, 50), [255, 0, 0]);
+      // clamped to the image
+      expect(await sharp(right).metadata()).toMatchObject({ width: 100, height: 67 });
+      expectColor(await pixelAt(right, 50, 30), [0, 0, 255]);
+      expect(await sharp(small).metadata()).toMatchObject({ width: 100, height: 50 });
+    });
+  });
+
+  describe('resizeToJpeg', () => {
+    it('should fit the image in the size', async () => {
+      const image = await solid(2000, 1000, { r: 10, g: 20, b: 30 }).png().toBuffer();
+      const result = await sut.resizeToJpeg(image, 1024);
+      expect(await sharp(result).metadata()).toMatchObject({ format: 'jpeg', width: 1024, height: 512 });
+    });
+
+    it('should not enlarge small images', async () => {
+      const result = await sut.resizeToJpeg(red, 1024);
+      expect(await sharp(result).metadata()).toMatchObject({ width: 300, height: 300 });
+    });
+  });
+
+  describe('createContactSheet', () => {
+    it('should lay tiles out in a grid', async () => {
+      const result = await sut.createContactSheet(
+        [
+          { input: red, label: '1' },
+          { input: wide, label: '2' },
+          { input: join(folder, 'missing.jpg'), label: '3' },
+          { input: null, label: '4' },
+          { input: sharpNoise, label: '5' },
+        ],
+        { tileSize: 100, gap: 4 },
+      );
+
+      expect(await sharp(result).metadata()).toMatchObject({ format: 'jpeg', width: 316, height: 212 });
+      // center of the first tile is the red photo
+      expectColor(await pixelAt(result, 4 + 50, 4 + 70), [255, 0, 0]);
+      // the wide photo is letterboxed on the dark background
+      expectColor(await pixelAt(result, 108 + 50, 4 + 50), [0, 0, 255]);
+      expectColor(await pixelAt(result, 108 + 50, 4 + 95), [28, 28, 28]);
+      // missing and empty inputs become placeholders
+      expectColor(await pixelAt(result, 212 + 50, 4 + 70), [58, 58, 58]);
+      expectColor(await pixelAt(result, 4 + 50, 108 + 70), [58, 58, 58]);
+    });
+
+    it('should draw the labels', async () => {
+      const plain = await sut.createContactSheet([{ input: red, label: '' }], { tileSize: 200, gap: 0 });
+      const labelled = await sut.createContactSheet([{ input: red, label: '12' }], { tileSize: 200, gap: 0 });
+      const [r] = await pixelAt(labelled, 6, 6);
+      const [plainR] = await pixelAt(plain, 100, 100);
+      expect(plainR).toBeGreaterThan(200);
+      expect(r).toBeLessThan(120);
+    });
+
+    it('should draw a caption at the bottom of a tile', async () => {
+      const plain = await sut.createContactSheet([{ input: red, label: '' }], { tileSize: 200, gap: 0 });
+      const captioned = await sut.createContactSheet(
+        [
+          {
+            input: red,
+            label: '',
+            caption: '1. Spaghetti alle vongole veraci di Sicilia 0.62\n2. Pasta alla Norma 0.21',
+          },
+        ],
+        { tileSize: 200, gap: 0 },
+      );
+      expect(await sharp(captioned).metadata()).toMatchObject({ width: 200, height: 200 });
+      const [bottomR] = await pixelAt(captioned, 195, 195);
+      const [plainR] = await pixelAt(plain, 195, 195);
+      const [topR] = await pixelAt(captioned, 100, 60);
+      expect(plainR).toBeGreaterThan(200);
+      expect(bottomR).toBeLessThan(120);
+      expect(topR).toBeGreaterThan(200);
+    });
+
+    it('should respect the column count', async () => {
+      const tiles = Array.from({ length: 4 }, (_, i) => ({ input: red, label: String(i + 1) }));
+      const result = await sut.createContactSheet(tiles, { tileSize: 50, gap: 2, columns: 4 });
+      expect(await sharp(result).metadata()).toMatchObject({ width: 4 * 50 + 5 * 2, height: 50 + 2 * 2 });
+    });
+  });
+
+  describe('upscaleImage', () => {
+    it('should enlarge artwork in its own format and keep its colours', async () => {
+      const artwork = await solid(1024, 683, { r: 200, g: 120, b: 60 })
+        .composite([{ input: await noise(200, 200).png().toBuffer(), left: 400, top: 240 }])
+        .png()
+        .toBuffer();
+
+      const png = await sut.upscaleImage(artwork, { width: 2400, height: 1601 }, '.png');
+      expect(await sharp(png).metadata()).toMatchObject({ format: 'png', width: 2400, height: 1601 });
+      expectColor(await pixelAt(png, 100, 100), [200, 120, 60], 4);
+
+      const jpeg = await sut.upscaleImage(artwork, { width: 2400, height: 1601 }, 'jpg');
+      expect(await sharp(jpeg).metadata()).toMatchObject({ format: 'jpeg', width: 2400, height: 1601 });
+
+      const webp = await sut.upscaleImage(
+        await sharp(artwork).webp().toBuffer(),
+        { width: 3000, height: 2001 },
+        'webp',
+      );
+      expect(await sharp(webp).metadata()).toMatchObject({ format: 'webp', width: 3000, height: 2001 });
+    });
+  });
+
+  describe('analyzeImage', () => {
+    it('should measure a flat grey image', async () => {
+      const image = await solid(800, 600, { r: 128, g: 128, b: 128 }).png().toBuffer();
+      const result = await sut.analyzeImage(image);
+      expect(result.width).toBe(512);
+      expect(result.height).toBe(384);
+      expect(result.laplacianVariance).toBeCloseTo(0);
+      expect(result.meanLuma).toBeCloseTo(0.5, 1);
+      expect(result.shadowClip).toBe(0);
+      expect(result.highlightClip).toBe(0);
+    });
+
+    it('should detect clipped shadows and highlights', async () => {
+      const black = await sut.analyzeImage(await solid(100, 100, { r: 0, g: 0, b: 0 }).png().toBuffer());
+      expect(black).toMatchObject({ meanLuma: 0, shadowClip: 1, highlightClip: 0 });
+
+      const white = await sut.analyzeImage(await solid(100, 100, { r: 255, g: 255, b: 255 }).png().toBuffer());
+      expect(white).toMatchObject({ meanLuma: 1, shadowClip: 0, highlightClip: 1 });
+    });
+
+    it('should measure colourfulness, contrast and saturation', async () => {
+      const quadrant = (background: { r: number; g: number; b: number }) =>
+        solid(200, 150, background).png().toBuffer();
+      const colourful = await solid(400, 300, { r: 0, g: 0, b: 0 })
+        .composite([
+          { input: await quadrant({ r: 230, g: 30, b: 30 }), left: 0, top: 0 },
+          { input: await quadrant({ r: 30, g: 200, b: 40 }), left: 200, top: 0 },
+          { input: await quadrant({ r: 30, g: 60, b: 220 }), left: 0, top: 150 },
+          { input: await quadrant({ r: 240, g: 210, b: 20 }), left: 200, top: 150 },
+        ])
+        .png()
+        .toBuffer();
+      const grey = await solid(400, 300, { r: 120, g: 120, b: 120 }).png().toBuffer();
+
+      const vivid = await sut.analyzeImage(colourful);
+      const dull = await sut.analyzeImage(grey);
+      expect(vivid.colorfulness).toBeGreaterThan(80);
+      expect(dull.colorfulness).toBeCloseTo(0);
+      expect(vivid.saturation).toBeGreaterThan(0.7);
+      expect(dull.saturation).toBeCloseTo(0);
+      expect(vivid.contrast).toBeGreaterThan(0.1);
+      expect(dull.contrast).toBeCloseTo(0);
+      expect(dull).toMatchObject({ focusX: 0.5, focusY: 0.5 });
+      expect(aestheticScore(vivid)).toBeGreaterThan(aestheticScore(dull) + 0.4);
+    });
+
+    it('should find where the detail is', async () => {
+      const detail = await noise(120, 120).png().toBuffer();
+      const image = await solid(600, 400, { r: 90, g: 120, b: 90 })
+        .composite([{ input: detail, left: 140, top: 80 }])
+        .png()
+        .toBuffer();
+      const result = await sut.analyzeImage(image);
+      expect(result.focusX).toBeCloseTo(200 / 600, 1);
+      expect(result.focusY).toBeCloseTo(140 / 400, 1);
+    });
+
+    it('should rank a sharp image above a blurred one', async () => {
+      const crisp = await sut.analyzeImage(sharpNoise);
+      const soft = await sut.analyzeImage(blurred);
+      expect(crisp.laplacianVariance).toBeGreaterThan(1000);
+      expect(soft.laplacianVariance).toBeLessThan(50);
+    });
+  });
+});

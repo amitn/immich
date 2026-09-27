@@ -27,7 +27,10 @@ import {
   user_delete_audit,
   user_metadata_audit,
 } from 'src/schema/functions.js';
+import { ActivityLogTable } from 'src/schema/tables/activity-log.table.js';
 import { ActivityTable } from 'src/schema/tables/activity.table.js';
+import { AgentMessageTable } from 'src/schema/tables/agent-message.table.js';
+import { AgentSessionTable } from 'src/schema/tables/agent-session.table.js';
 import { AlbumAssetAuditTable } from 'src/schema/tables/album-asset-audit.table.js';
 import { AlbumAssetTable } from 'src/schema/tables/album-asset.table.js';
 import { AlbumAuditTable } from 'src/schema/tables/album-audit.table.js';
@@ -37,6 +40,8 @@ import { AlbumUserAuditTable } from 'src/schema/tables/album-user-audit.table.js
 import { AlbumUserTable } from 'src/schema/tables/album-user.table.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { ApiKeyTable } from 'src/schema/tables/api-key.table.js';
+import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
+import { ArtStyleTable } from 'src/schema/tables/art-style.table.js';
 import { AssetAuditTable } from 'src/schema/tables/asset-audit.table.js';
 import { AssetAudioTable, AssetKeyframeTable, AssetVideoTable } from 'src/schema/tables/asset-av.table.js';
 import { AssetDuplicateChecksumTable } from 'src/schema/tables/asset-duplicate-checksum.table.js';
@@ -52,6 +57,12 @@ import { AssetMetadataTable } from 'src/schema/tables/asset-metadata.table.js';
 import { AssetOcrAuditTable } from 'src/schema/tables/asset-ocr-audit.table.js';
 import { AssetOcrTable } from 'src/schema/tables/asset-ocr.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
+import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
+import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
+import { BookPageTable } from 'src/schema/tables/book-page.table.js';
+import { BookRevisionTable } from 'src/schema/tables/book-revision.table.js';
+import { BookStyleTable } from 'src/schema/tables/book-style.table.js';
+import { BookTable } from 'src/schema/tables/book.table.js';
 import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-request.table.js';
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceIdentityFaceTable } from 'src/schema/tables/face-identity-face.table.js';
@@ -60,8 +71,10 @@ import { FacePersonVerdictTable } from 'src/schema/tables/face-person-verdict.ta
 import { FaceRepairDeclineTable } from 'src/schema/tables/face-repair-decline.table.js';
 import { FaceRepairScanFlaggedFaceTable } from 'src/schema/tables/face-repair-scan-flagged-face.table.js';
 import { FaceRepairScanTable } from 'src/schema/tables/face-repair-scan.table.js';
+import { CollectionNoticeCheckTable, CollectionNoticeTable } from 'src/schema/tables/collection-notice.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
+import { HighlightJobTable } from 'src/schema/tables/highlight-job.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryAssetAuditTable } from 'src/schema/tables/library-asset-audit.table.js';
 import { LibraryAuditTable } from 'src/schema/tables/library-audit.table.js';
@@ -140,6 +153,9 @@ import { WorkflowTable } from 'src/schema/tables/workflow.table.js';
 export class ImmichDatabase {
   tables = [
     ActivityTable,
+    ActivityLogTable,
+    AgentSessionTable,
+    AgentMessageTable,
     AlbumAssetTable,
     AlbumAssetAuditTable,
     AlbumSpaceAssetTable,
@@ -149,6 +165,8 @@ export class ImmichDatabase {
     AlbumUserTable,
     AlbumTable,
     ApiKeyTable,
+    ArtJobTable,
+    ArtStyleTable,
     AssetAuditTable,
     AssetDuplicateChecksumTable,
     AssetEditTable,
@@ -163,6 +181,14 @@ export class ImmichDatabase {
     AssetTable,
     AssetFileTable,
     AssetExifTable,
+    BookTable,
+    BookDraftTable,
+    CollectionNoticeTable,
+    CollectionNoticeCheckTable,
+    BookPageTable,
+    BookRevisionTable,
+    BookStyleTable,
+    BookPageAssetTable,
     ClusterGroupTable,
     ClusterGroupRequestTable,
     FaceIdentityTable,
@@ -172,6 +198,7 @@ export class ImmichDatabase {
     FaceRepairScanTable,
     FaceSearchTable,
     GeodataPlacesTable,
+    HighlightJobTable,
     IntegrityReportTable,
     LibraryTable,
     LibraryAuditTable,
@@ -281,6 +308,11 @@ export interface DB {
 
   activity: ActivityTable;
 
+  activity_log: ActivityLogTable;
+
+  agent_session: AgentSessionTable;
+  agent_message: AgentMessageTable;
+
   album: AlbumTable;
   album_audit: AlbumAuditTable;
   album_asset: AlbumAssetTable;
@@ -291,6 +323,9 @@ export interface DB {
   album_user_audit: AlbumUserAuditTable;
 
   api_key: ApiKeyTable;
+
+  art_job: ArtJobTable;
+  art_style: ArtStyleTable;
 
   asset: AssetTable;
   asset_audit: AssetAuditTable;
@@ -311,6 +346,15 @@ export interface DB {
   asset_keyframe: AssetKeyframeTable;
   ocr_search: OcrSearchTable;
 
+  book: BookTable;
+  book_draft: BookDraftTable;
+  collection_notice: CollectionNoticeTable;
+  collection_notice_check: CollectionNoticeCheckTable;
+  book_page: BookPageTable;
+  book_style: BookStyleTable;
+  book_page_asset: BookPageAssetTable;
+  book_revision: BookRevisionTable;
+
   face_search: FaceSearchTable;
   face_identity: FaceIdentityTable;
   face_identity_face: FaceIdentityFaceTable;
@@ -319,6 +363,8 @@ export interface DB {
   face_repair_scan: FaceRepairScanTable;
 
   geodata_places: GeodataPlacesTable;
+
+  highlight_job: HighlightJobTable;
 
   integrity_report: IntegrityReportTable;
 

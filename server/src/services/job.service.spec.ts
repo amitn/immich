@@ -92,6 +92,12 @@ describe(JobService.name, () => {
       expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.FaceSuggestionMaintenance, data: {} });
     });
 
+    it('should look for new collections to name for every user when asked', async () => {
+      mocks.job.queue.mockResolvedValue();
+      await sut.create({ name: ManualJobName.CollectionNoticesCreate });
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.CollectionNoticesQueueAll });
+    });
+
     it('should throw BadRequestException for an invalid job name', async () => {
       await expect(sut.create({ name: 'invalid-job' as ManualJobName })).rejects.toThrow(BadRequestException);
 

@@ -160,6 +160,14 @@ const ServerFeaturesSchema = z
       .describe(
         'Sync stream request types this server accepts. Absent on servers that predate capability signalling; clients fall back to version-based gating.',
       ),
+    assistant: z.boolean().describe('Whether the AI assistant is enabled'),
+    artisticStyles: z.boolean().describe('Whether AI artistic style transforms are enabled'),
+    bookStadiaMaps: z
+      .boolean()
+      .describe('Whether the Stadia Maps styles of book maps (watercolor, toner, terrain) have an API key'),
+    restaurantLookup: z
+      .boolean()
+      .describe("Whether the assistant may look up restaurant names on OpenStreetMap, with the user's approval"),
   })
   .meta({ id: 'ServerFeaturesDto' });
 

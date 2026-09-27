@@ -15,17 +15,24 @@ import { AssetFileType, CacheControl, ImageFormat } from 'src/enum.js';
 import { computePhysicalUsage } from 'src/gallery/storage-usage.js';
 import { RangeNotSatisfiableError, ServeStrategy } from 'src/interfaces/storage-backend.interface.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { ClassificationRepository } from 'src/repositories/classification.repository.js';
+import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -39,6 +46,7 @@ import { FacePersonVerdictRepository } from 'src/repositories/face-person-verdic
 import { FaceRepairDeclineRepository } from 'src/repositories/face-repair-decline.repository.js';
 import { FaceRepairScanRepository } from 'src/repositories/face-repair-scan.repository.js';
 import { FaceRepairRepository } from 'src/repositories/face-repair.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
@@ -103,6 +111,14 @@ export const BASE_SERVICE_DEPENDENCIES = [
   LoggingRepository,
   AccessRepository,
   ActivityRepository,
+  ActivityLogRepository,
+  AgentRepository,
+  AcpRepository,
+  ArtJobRepository,
+  HighlightJobRepository,
+  BookRepository,
+  BookDraftRepository,
+  CollectionNoticeRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,
@@ -176,6 +192,14 @@ export class BaseService {
     protected logger: LoggingRepository,
     protected accessRepository: AccessRepository,
     protected activityRepository: ActivityRepository,
+    protected activityLogRepository: ActivityLogRepository,
+    protected agentRepository: AgentRepository,
+    protected acpRepository: AcpRepository,
+    protected artJobRepository: ArtJobRepository,
+    protected highlightJobRepository: HighlightJobRepository,
+    protected bookRepository: BookRepository,
+    protected bookDraftRepository: BookDraftRepository,
+    protected collectionNoticeRepository: CollectionNoticeRepository,
     protected albumRepository: AlbumRepository,
     protected albumUserRepository: AlbumUserRepository,
     protected apiKeyRepository: ApiKeyRepository,
@@ -270,6 +294,14 @@ export class BaseService {
       LoggingRepository.create(),
       ctx.accessRepository,
       ctx.activityRepository,
+      ctx.activityLogRepository,
+      ctx.agentRepository,
+      ctx.acpRepository,
+      ctx.artJobRepository,
+      ctx.highlightJobRepository,
+      ctx.bookRepository,
+      ctx.bookDraftRepository,
+      ctx.collectionNoticeRepository,
       ctx.albumRepository,
       ctx.albumUserRepository,
       ctx.apiKeyRepository,

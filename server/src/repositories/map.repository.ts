@@ -5,7 +5,8 @@ import { InjectKysely } from 'nestjs-kysely';
 import { createReadStream, existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import readLine from 'node:readline';
-import { citiesFile, reverseGeocodeMaxDistance } from 'src/constants.js';
+import { gunzipSync } from 'node:zlib';
+import { citiesFile, reverseGeocodeMaxDistance, serverVersion } from 'src/constants.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetVisibility, SystemMetadataKey } from 'src/enum.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
@@ -19,6 +20,18 @@ import {
   spaceAssetPathBranches,
   spaceVisibilityGate,
 } from 'src/utils/shared-space-album-scope.js';
+import { TileCache } from 'src/utils/book/tile-cache.js';
+import {
+  TileKey,
+  VectorTileSource,
+  getStyleVectorSource,
+  getVectorTileUrl,
+  parseTileJson,
+} from 'src/utils/book/vector-tiles.js';
+
+/** how long the style and the TileJSON of the map are kept */
+const MAP_SOURCE_TTL_MS = 6 * 60 * 60 * 1000;
+const MAP_REQUEST_TIMEOUT_MS = 10_000;
 
 export interface MapMarkerSearchOptions {
   isArchived?: boolean;
@@ -260,6 +273,104 @@ export class MapRepository {
     const city = null;
 
     return { country, state, city };
+  }
+
+  private tileCache = new TileCache();
+  private mapSources = new Map<string, { source: VectorTileSource; at: number }>();
+
+  /** a request for map data: a generic User-Agent and no cookies or credentials, with a timeout */
+  private async fetchMapData(url: string, accept: string, timeoutMs = MAP_REQUEST_TIMEOUT_MS) {
+    return fetch(url, {
+      headers: { Accept: accept, 'User-Agent': `immich-server/${serverVersion} (+https://immich.app)` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  }
+
+  private async fetchJson(url: string, timeoutMs?: number): Promise<unknown> {
+    const response = await this.fetchMapData(url, 'application/json', timeoutMs);
+    if (!response.ok) {
+      throw new Error(`${new URL(url).host} responded with ${response.status} ${response.statusText}`.trim());
+    }
+    return response.json();
+  }
+
+  /**
+   * The vector tiles of a MapLibre style (e.g. the style of the Map page): the style, then its TileJSON, both kept for
+   * a few hours
+   */
+  async getVectorTileSource(styleUrl: string, { timeoutMs }: { timeoutMs?: number } = {}): Promise<VectorTileSource> {
+    const cached = this.mapSources.get(styleUrl);
+    if (cached && Date.now() - cached.at < MAP_SOURCE_TTL_MS) {
+      return cached.source;
+    }
+
+    const found = getStyleVectorSource(await this.fetchJson(styleUrl, timeoutMs), styleUrl);
+    const source = 'url' in found ? parseTileJson(await this.fetchJson(found.url, timeoutMs), found.url) : found;
+    this.mapSources.set(styleUrl, { source, at: Date.now() });
+    return source;
+  }
+
+  /**
+   * A vector tile (Mapbox Vector Tile), null when the server has none (an empty tile), from the cache in memory or in
+   * `cacheFolder` when it has it
+   */
+  async getVectorTile(
+    source: VectorTileSource,
+    tile: TileKey,
+    { cacheFolder, timeoutMs }: { cacheFolder?: string; timeoutMs?: number } = {},
+  ): Promise<Buffer | null> {
+    const url = getVectorTileUrl(source, tile);
+    const cached = await this.tileCache.get(url, cacheFolder);
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const response = await this.fetchMapData(
+      url,
+      'application/vnd.mapbox-vector-tile, application/x-protobuf',
+      timeoutMs,
+    );
+    let data: Buffer | null = null;
+    if (response.status !== 204 && response.status !== 404) {
+      if (!response.ok) {
+        throw new Error(`${new URL(url).host} responded with ${response.status} ${response.statusText}`.trim());
+      }
+      const body = Buffer.from(await response.arrayBuffer());
+      // some servers send gzipped tiles without saying so
+      data = body.length > 2 && body[0] === 0x1f && body[1] === 0x8b ? gunzipSync(body) : body;
+      if (data.length === 0) {
+        data = null;
+      }
+    }
+    await this.tileCache.set(url, data, cacheFolder);
+    return data;
+  }
+
+  /** forgets the map sources and the tiles kept in memory (not those on disk) */
+  clearMapCaches() {
+    this.mapSources.clear();
+    this.tileCache.clearMemory();
+  }
+
+  /**
+   * Runs an Overpass QL query against an Overpass API interpreter (OpenStreetMap) and returns its JSON response. Only
+   * the query is sent, with a generic User-Agent.
+   */
+  async queryOverpass(url: string, query: string, { timeoutMs = 15_000 }: { timeoutMs?: number } = {}) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+        'User-Agent': `immich-server/${serverVersion} (+https://immich.app)`,
+      },
+      body: new URLSearchParams({ data: query }).toString(),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`Overpass API responded with ${response.status} ${response.statusText}`);
+    }
+    return (await response.json()) as unknown;
   }
 
   private async importNaturalEarthCountries() {

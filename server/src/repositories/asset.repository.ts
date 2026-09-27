@@ -922,6 +922,98 @@ export class AssetRepository {
     });
   }
 
+  /**
+   * The photos of a user to check for a wrong orientation (see `OrientationService`): unedited images in the timeline
+   * or the archive with a preview and a CLIP embedding, that have no `key` metadata yet (were not suggested or
+   * reviewed), or the given ones. With `createdAfter`, the ones uploaded after it, oldest first (a nightly cursor);
+   * otherwise the newest taken first.
+   */
+  @GenerateSql({
+    params: [
+      DummyValue.UUID,
+      { key: DummyValue.STRING, limit: 100, albumId: DummyValue.UUID, takenAfter: DummyValue.DATE },
+    ],
+  })
+  getForOrientationCheck(
+    userId: string,
+    options: {
+      key?: string;
+      assetIds?: string[];
+      limit: number;
+      albumId?: string;
+      takenAfter?: Date;
+      takenBefore?: Date;
+      createdAfter?: Date;
+    },
+  ) {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('smart_search', 'smart_search.assetId', 'asset.id')
+      .leftJoin('asset_job_status', 'asset_job_status.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.width',
+        'asset.height',
+        'asset.createdAt',
+        'asset.fileCreatedAt',
+        'smart_search.embedding',
+        'asset_job_status.ocrAt',
+        'asset_job_status.facesRecognizedAt',
+      ])
+      .select((eb) => withFilePath(eb, AssetFileType.Preview).as('previewPath'))
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.type', '=', AssetType.Image)
+      .where('asset.deletedAt', 'is', null)
+      .where('asset.isEdited', '=', false)
+      .where('asset.visibility', 'in', [AssetVisibility.Timeline, AssetVisibility.Archive])
+      .where((eb) => eb.exists(withFilePath(eb, AssetFileType.Preview)))
+      .$if(!!options.key, (qb) =>
+        qb.where((eb) =>
+          eb.not(
+            eb.exists(
+              eb
+                .selectFrom('asset_metadata')
+                .whereRef('asset_metadata.assetId', '=', 'asset.id')
+                .where('asset_metadata.key', '=', options.key!),
+            ),
+          ),
+        ),
+      )
+      .$if(!!options.assetIds, (qb) => qb.where('asset.id', '=', anyUuid(options.assetIds!)))
+      .$if(!!options.albumId, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset.id')
+              .where('album_asset.albumId', '=', asUuid(options.albumId!)),
+          ),
+        ),
+      )
+      .$if(!!options.takenAfter, (qb) => qb.where('asset.fileCreatedAt', '>=', options.takenAfter!))
+      .$if(!!options.takenBefore, (qb) => qb.where('asset.fileCreatedAt', '<', options.takenBefore!))
+      .$if(!!options.createdAfter, (qb) =>
+        qb.where('asset.createdAt', '>', options.createdAfter!).orderBy('asset.createdAt', 'asc'),
+      )
+      .$if(!options.createdAfter, (qb) => qb.orderBy('asset.fileCreatedAt', 'desc'))
+      .limit(options.limit)
+      .execute();
+  }
+
+  /** the `key` metadata of the user's assets that are not deleted, e.g. the orientation suggestions */
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.STRING] })
+  getMetadataByKeyForUser(userId: string, key: string) {
+    return this.db
+      .selectFrom('asset_metadata')
+      .innerJoin('asset', 'asset.id', 'asset_metadata.assetId')
+      .select(['asset_metadata.assetId', 'asset_metadata.value', 'asset_metadata.updatedAt'])
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.deletedAt', 'is', null)
+      .where('asset_metadata.key', '=', key)
+      .orderBy('asset.fileCreatedAt', 'desc')
+      .execute();
+  }
+
   create(asset: Insertable<AssetTable>) {
     return this.db.insertInto('asset').values(asset).returningAll().executeTakeFirstOrThrow();
   }
@@ -2287,5 +2379,18 @@ export class AssetRepository {
       .execute();
 
     return new Set(rows.map((row) => row.id));
+  }
+
+  @GenerateSql({ params: [DummyValue.UUID, 100] })
+  getIdsByAlbumId(albumId: string, limit: number) {
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('album_asset', 'asset.id', 'album_asset.assetId')
+      .select('asset.id')
+      .where('album_asset.albumId', '=', asUuid(albumId))
+      .where('asset.deletedAt', 'is', null)
+      .orderBy('asset.fileCreatedAt', 'asc')
+      .limit(limit)
+      .execute();
   }
 }

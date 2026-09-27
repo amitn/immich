@@ -110,11 +110,44 @@ const RecentlyAddedUpdateSchema = z
   .optional()
   .meta({ id: 'RecentlyAddedUpdate' });
 
+const BookDraftsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .optional()
+  .meta({ id: 'BookDraftsUpdate' });
+
+const AiAnswersUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .optional()
+  .meta({ id: 'AiAnswersUpdate' });
+
+const CollectionNotificationsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .optional()
+  .meta({ id: 'CollectionNotificationsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
+    aiAnswers: AiAnswersUpdateSchema,
     albums: AlbumsUpdateSchema,
     avatar: AvatarUpdateSchema,
+    bookDrafts: BookDraftsUpdateSchema,
     cast: CastUpdateSchema,
+    collectionNotifications: CollectionNotificationsUpdateSchema,
     download: DownloadUpdateSchema,
     emailNotifications: EmailNotificationsUpdateSchema,
     folders: FoldersUpdateSchema,
@@ -212,8 +245,31 @@ const RecentlyAddedResponseSchema = z
   })
   .meta({ id: 'RecentlyAddedResponse' });
 
+const BookDraftsResponseSchema = z
+  .object({
+    enabled: z.boolean().describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .meta({ id: 'BookDraftsResponse' });
+
+const CollectionNotificationsResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .meta({ id: 'CollectionNotificationsResponse' });
+
+const AiAnswersResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .meta({ id: 'AiAnswersResponse' });
+
 const UserPreferencesResponseSchema = z
   .object({
+    aiAnswers: AiAnswersResponseSchema,
     albums: AlbumsResponseSchema,
     folders: FoldersResponseSchema,
     memories: MemoriesResponseSchema,
@@ -226,6 +282,8 @@ const UserPreferencesResponseSchema = z
     purchase: PurchaseResponseSchema,
     cast: CastResponseSchema,
     recentlyAdded: RecentlyAddedResponseSchema,
+    bookDrafts: BookDraftsResponseSchema,
+    collectionNotifications: CollectionNotificationsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 

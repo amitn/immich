@@ -60,6 +60,8 @@ export const newAssetRepositoryMock = (): Mocked<RepositoryInterface<AssetReposi
     deleteMetadataByKey: vitest.fn(),
     deleteBulkMetadata: vitest.fn(),
     getChecksumsByIds: vitest.fn(),
+    getForOrientationCheck: vitest.fn(),
+    getMetadataByKeyForUser: vitest.fn(),
     getForOriginal: vitest.fn(),
     getForOriginals: vitest.fn(),
     getForThumbnail: vitest.fn(),
@@ -71,5 +73,6 @@ export const newAssetRepositoryMock = (): Mocked<RepositoryInterface<AssetReposi
     getForFaces: vitest.fn(),
     getForUpdateTags: vitest.fn(),
     getExternalAssetIds: vitest.fn().mockResolvedValue(new Set<string>()),
+    getIdsByAlbumId: vitest.fn().mockResolvedValue([]),
   };
 };
