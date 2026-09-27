@@ -425,6 +425,7 @@ describe(QueueService.name, () => {
         },
         // the nightly jobs of the assistant's features follow their own settings, not nightlyTasks
         books: { drafts: { enabled: false } },
+        collections: { notifications: { enabled: false } },
         machineLearning: { enabled: false },
       });
 
@@ -585,6 +586,7 @@ describe(QueueService.name, () => {
         },
         // the nightly jobs of the assistant's features follow their own settings, not nightlyTasks
         books: { drafts: { enabled: false } },
+        collections: { notifications: { enabled: false } },
         machineLearning: { enabled: false },
       });
 

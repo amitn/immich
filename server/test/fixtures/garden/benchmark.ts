@@ -359,7 +359,7 @@ const runSet = (set: GardenSet, texts: Map<string, Float32Array>, plantOptions: 
   }
   for (const photo of photos) {
     const kind = kinds[Number(photo.id)];
-    if (isSource(photo) ? kind === 'source' : kind === 'subject') {
+    if (kind === (isSource(photo) ? 'source' : 'subject')) {
       continue;
     }
     const { scores } = classifications[Number(photo.id)];

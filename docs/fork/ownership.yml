@@ -590,10 +590,13 @@ features:
       - server/test/fixtures/cookbook/**
       - server/test/fixtures/fake-acp-agent.mjs
       - server/test/fixtures/food/**
+      - server/test/fixtures/garden/**
+      - server/test/fixtures/kids-art/**
       - server/test/fixtures/map/**
       - server/test/fixtures/museum/**
       - server/test/fixtures/nature/**
       - server/test/fixtures/orientation/**
+      - server/test/fixtures/reading/**
       - server/test/fixtures/travel/**
       - server/test/fixtures/wine/**
       - server/test/medium/specs/repositories/agent-library.repository.spec.ts
