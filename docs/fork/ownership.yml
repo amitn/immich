@@ -467,6 +467,7 @@ features:
       - docker/scripts/install-agents.sh
       - docs/docs/features/ai-assistant.md
       - server/src/bin/agent-mcp-stdio.ts
+      - server/src/gallery/assistant-config.dto.ts
       - server/src/controllers/activity-log.controller.spec.ts
       - server/src/controllers/activity-log.controller.ts
       - server/src/controllers/agent-mcp.controller.ts
