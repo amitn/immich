@@ -6,7 +6,13 @@ import { TASTING_LAYOUTS, TASTING_NOTE_LAYOUT } from 'src/utils/book/layouts.js'
 import { planPage } from 'src/utils/book/render.js';
 import { reviewBook } from 'src/utils/book/review.js';
 import { parseTastingNote } from 'src/utils/book/tasting-note.js';
-import { getWineCaption, isUnreadableWine, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
+import {
+  getWineCaption,
+  getWineCoverPreference,
+  isOtherDrink,
+  isUnreadableWine,
+  reviewWineBook,
+} from 'src/utils/collections/packs/wine/book.js';
 
 const HOUR = 60 * 60 * 1000;
 const start = Date.UTC(2013, 10, 28, 12);
@@ -172,6 +178,61 @@ describe('the wine pack in books', () => {
     expect(getEntryCaption(drinks[1], { layout: TASTING_NOTE_LAYOUT })).toBe(
       'Producer: Edge Brewing Project\nWine: Ale',
     );
+  });
+
+  it('should tell the beers and ciders of a tasting from its wines', () => {
+    for (const name of [
+      'Snakebite',
+      'Edge Brewing Project · Noma Barrel Aged Lemon Myrtle & Cherry Ale',
+      'Brooklyn · Lager',
+      'Sassy · Cidre Brut',
+      'Remedy · Kombucha',
+    ]) {
+      expect(isOtherDrink(name), name).toBe(true);
+      expect(getWineCoverPreference(name), name).toBeLessThan(0);
+    }
+    for (const name of [
+      'Joh. Jos. Prüm · Graacher Himmelreich Kabinett · 2008',
+      'Alella · Pansa Blanca · 2015',
+      'Barbadillo · Palomino Fina · 2010',
+    ]) {
+      expect(isOtherDrink(name), name).toBe(false);
+      expect(getWineCoverPreference(name), name).toBe(0);
+    }
+  });
+
+  it('should put a wine on the cover, not a beer', () => {
+    counter = 0;
+    // the beers are the best photos
+    const beer = wine(0, 'Edge Brewing Project · Noma Barrel Aged Lemon Myrtle & Cherry Ale', 'Noma Australia', {
+      score: 0.95,
+      isFavorite: true,
+    });
+    const noma = [
+      beer,
+      wine(0.5, 'Snakebite', 'Noma Australia', { score: 0.9 }),
+      wine(1, 'Tyrrell · Semillon · 2011', 'Noma Australia', { score: 0.6 }),
+    ];
+    const tasting = [48, 48.2, 48.4].map((hours, index) =>
+      wine(hours, `Weingut ${index} · Riesling Spätlese · 2009`, 'Mosel', { score: 0.5 + index * 0.1 }),
+    );
+    const result = planAutoLayout([...noma, ...tasting], { size, style, includeMaps: false });
+
+    expect(result.pages[0].layout).toBe('cover');
+    expect(result.pages[0].slots[0].assetId).toBe(tasting[2].id);
+    // the beers stay in their chapter
+    expect(result.usedIds).toEqual(expect.arrayContaining([noma[0].id, noma[1].id]));
+  });
+
+  it('should put a beer on the cover of a book of beers', () => {
+    counter = 0;
+    const beers = [0, 0.5, 1].map((hours, index) =>
+      wine(hours, `Brewery ${index} · Pale Ale`, 'Noma Australia', { score: 0.5 + index * 0.1 }),
+    );
+    const result = planAutoLayout(beers, { size, style, includeMaps: false });
+
+    expect(result.pages[0].layout).toBe('cover');
+    expect(result.pages[0].slots[0].assetId).toBe(beers[2].id);
   });
 
   it('should review bottles without a readable name and bottles on several photos', () => {

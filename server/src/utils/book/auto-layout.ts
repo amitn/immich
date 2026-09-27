@@ -4,6 +4,7 @@ import { EventSplitOptions, getAdaptiveEventOptions, isShortSpan, splitEvents } 
 import { MAIN_PEOPLE_DEFAULTS, getMainPeople } from 'src/utils/agent/selection.js';
 import {
   BookCollectionTag,
+  getCoverPreference,
   getEntryCaption,
   getEntryLayouts,
   getPhotoPack,
@@ -1215,6 +1216,16 @@ export const splitChapters = (
 };
 
 /**
+ * The photos the cover is chosen from: the ones whose packs like them on a cover as much as the best (a wine rather
+ * than a beer in a wine book, see `CollectionPack.book.coverPreference`); photos without a pack score 0
+ */
+const getCoverCandidates = (units: Candidate[]): Candidate[] => {
+  const scores = new Map(units.map((photo) => [photo, getCoverPreference(photo)]));
+  const best = Math.max(...scores.values());
+  return units.filter((photo) => scores.get(photo) === best);
+};
+
+/**
  * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
  * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
  * opener, followed by content pages. Stacks show one photo (or an artwork next to its original), artwork is limited,
@@ -1341,7 +1352,10 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   let pool = units;
   const coverLayout = layouts.find((layout) => layout.id === 'cover');
-  const cover = withCover && coverLayout && units.length > 1 ? pickFor(units, coverLayout, 5) : undefined;
+  const cover =
+    withCover && coverLayout && units.length > 1
+      ? (pickFor(getCoverCandidates(units), coverLayout, 5) ?? pickFor(units, coverLayout, 5))
+      : undefined;
   if (cover && coverLayout) {
     pages.push({ layout: 'cover', slots: [place(cover, coverLayout)] });
     pool = units.filter((photo) => photo.id !== cover.id);

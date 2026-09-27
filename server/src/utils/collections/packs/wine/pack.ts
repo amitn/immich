@@ -1,6 +1,6 @@
 import { TASTING_LAYOUTS } from 'src/utils/book/layouts.js';
 import { CollectionPack, getDefaultFallbackName } from 'src/utils/collections/pack.js';
-import { getWineCaption, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
+import { getWineCaption, getWineCoverPreference, reviewWineBook } from 'src/utils/collections/packs/wine/book.js';
 import { assignBottles } from 'src/utils/collections/packs/wine/bottles.js';
 import {
   WINERY_WORDS,
@@ -135,6 +135,7 @@ export const winePack: CollectionPack = {
       look: 'printed',
     },
     caption: (wine, _tasting, context) => getWineCaption(wine, context),
+    coverPreference: (wine) => getWineCoverPreference(wine),
     review: { unnamedEntries: true, missingSourcePage: false, check: reviewWineBook },
     entryLayouts: [...TASTING_LAYOUTS],
     // a tasting is a day at one place: the aperitif and the last glass of a long dinner are one chapter

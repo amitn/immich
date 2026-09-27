@@ -64,6 +64,19 @@ export const isUnreadableWine = (entry: string) => {
   );
 };
 
+/** the names of drinks that are not wine which the lexicon does not type as beer or cider, e.g. a Snakebite */
+const OTHER_DRINKS = /\b(?:beers?|brew(?:ery|ing|ers?)|kombucha|snakebite|mead|shandy|radler)\b/i;
+
+/** a beer, a cider or another drink that is not wine, as its name says ("… Cherry Ale", "Snakebite") */
+export const isOtherDrink = (entry: string) =>
+  OTHER_DRINKS.test(entry) ||
+  findTerms(normalizeWords(entry).split(' ').filter(Boolean)).some(
+    ({ entry: term, exact }) => exact && (term.type === 'Beer' || term.type === 'Cider'),
+  );
+
+/** a wine book's cover shows a wine: the beers and ciders of a tasting come after the wines */
+export const getWineCoverPreference = (entry: string) => (isOtherDrink(entry) ? -1 : 0);
+
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 /**

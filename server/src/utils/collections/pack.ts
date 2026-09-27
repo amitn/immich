@@ -139,6 +139,11 @@ export type CollectionPack = {
     /** the title of the chapter of an entry, e.g. "Bus Chania → Sougia · 4 Oct 2016 · Crete, October 2016" */
     chapterTitle?: (entry: string, place: string) => string;
     /**
+     * how well a photo of an entry suits the cover of a book, higher first, default 0: a pack that names other things
+     * than its subjects (the beers and ciders of a tasting) keeps them off the cover of its books
+     */
+    coverPreference?: (entry: string, place: string) => number;
+    /**
      * the source's page typeset from its text, read from the photo's OCR (at full resolution, redacted) when the book
      * is laid out; without it, the page shows the photo and lists the entries of the chapter; false: the sources get no
      * page, and are left out of the automatic layout, as the captions of the entries say what they say (the wall

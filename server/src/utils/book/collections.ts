@@ -70,6 +70,12 @@ export const getEntryCaption = (photo: Pick<CollectionPhoto, 'collection'>, cont
   return pack ? pack.book.caption(tag.entry, tag.place, context) : tag.entry;
 };
 
+/** how well a photo suits the cover of a book, as the pack of its entry says (see `CollectionPack.book.coverPreference`) */
+export const getCoverPreference = (photo: Pick<CollectionPhoto, 'collection'>) => {
+  const tag = photo.collection;
+  return tag?.kind === 'entry' ? (getCollectionPack(tag.pack)?.book.coverPreference?.(tag.entry, tag.place) ?? 0) : 0;
+};
+
 /** the layouts made for the entries of the pack of a photo (see `CollectionPack.book.entryLayouts`) */
 export const getEntryLayouts = (photo: Pick<CollectionPhoto, 'collection'>): readonly string[] =>
   photo.collection?.kind === 'entry' ? (getCollectionPack(photo.collection.pack)?.book.entryLayouts ?? []) : [];
