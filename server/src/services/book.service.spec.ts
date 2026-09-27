@@ -9,8 +9,10 @@ import {
   ArtJobStatus,
   AssetFileType,
   AssetType,
+  BookDraftState,
   BookExportFormat,
   BookExportStatus,
+  BookStatus,
   JobName,
   JobStatus,
   NotificationType,
@@ -453,6 +455,29 @@ describe(BookService.name, () => {
     it('should require access', async () => {
       await expect(sut.delete(auth, newUuid())).rejects.toBeInstanceOf(BadRequestException);
       expect(mocks.book.delete).not.toHaveBeenCalled();
+    });
+
+    it('should discard the suggestion of a deleted draft, so it is not suggested again', async () => {
+      const book = BookFactory.create({ status: BookStatus.Draft });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.bookDraft.getByBookId.mockResolvedValue({ id: 'draft-1', state: BookDraftState.Drafted } as never);
+      mocks.bookDraft.update.mockResolvedValue();
+
+      await sut.delete(auth, book.id);
+
+      expect(mocks.bookDraft.update).toHaveBeenCalledWith('draft-1', { state: BookDraftState.Discarded });
+      expect(mocks.book.delete).toHaveBeenCalledWith(book.id);
+    });
+
+    it('should leave the suggestion of a kept book alone', async () => {
+      const book = BookFactory.create();
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await sut.delete(auth, book.id);
+
+      expect(mocks.bookDraft.getByBookId).not.toHaveBeenCalled();
     });
   });
 
@@ -1324,6 +1349,46 @@ describe(BookService.name, () => {
   describe('auto layout', () => {
     afterEach(() => {
       vi.restoreAllMocks();
+    });
+
+    describe('createDraft', () => {
+      it('should create a draft book in the preset and lay out the photos without improving them', async () => {
+        const rows = trip();
+        const { book } = setupAlbum(rows);
+        const estimate = vi.spyOn(ImproveService.prototype, 'estimateMany');
+
+        const result = await sut.createDraft(auth, {
+          title: '2024 in food',
+          subtitle: 'June 2024',
+          stylePreset: 'food',
+          assetIds: rows.map((row) => row.id),
+          includeMaps: false,
+        });
+
+        expect(result.book.id).toBe(book.id);
+        expect(mocks.book.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            ownerId: auth.user.id,
+            albumId: null,
+            title: '2024 in food',
+            subtitle: 'June 2024',
+            status: BookStatus.Draft,
+            style: expect.objectContaining({ theme: 'food' }),
+          }),
+        );
+        expect(estimate).not.toHaveBeenCalled();
+        expect(plannedPages().some((page) => page.map)).toBe(false);
+        expect(result.improved).toEqual([]);
+      });
+
+      it('should delete the draft when the layout fails', async () => {
+        const { book } = setupAlbum([]);
+
+        await expect(
+          sut.createDraft(auth, { title: 'Empty', stylePreset: 'classic', assetIds: [newUuid()], includeMaps: true }),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(mocks.book.delete).toHaveBeenCalledWith(book.id);
+      });
     });
 
     describe('createFromAlbum', () => {

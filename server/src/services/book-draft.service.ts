@@ -36,8 +36,6 @@ type DraftsConfig = SystemConfig['books']['drafts'];
 /** drafts waiting for the user to keep or discard them; no more are drafted until there are fewer */
 export const MAX_PENDING_DRAFTS = 6;
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 /**
  * Photo books drafted for the users in the background (like memories): every night, and when asked, the books their
  * photos are enough for (a year of a collection pack, a trip, the year before a birthday; see
@@ -151,7 +149,7 @@ export class BookDraftService extends BaseService {
           ownerId,
           person.id,
           new Date(year.from),
-          new Date(year.to + DAY_MS),
+          new Date(year.to + 1),
         );
         const draft = getBirthdayDraft(person, photos, now);
         if (draft) {

@@ -406,8 +406,8 @@ const toDate = (value: Date | string) =>
   typeof value === 'string' ? new Date(`${value.slice(0, 10)}T00:00:00.000Z`) : value;
 
 /**
- * The year of a person's life that ended on their latest birthday (today's included): from the birthday before it up
- * to the day before it, and the age they turned; undefined before their first birthday
+ * The year of a person's life that ended on their latest birthday (today's included): from the birthday before it to
+ * the end of the birthday (the party is in the book), and the age they turned; undefined before their first birthday
  */
 export const getBirthdayYear = (birthDate: Date | string, now: Date) => {
   const born = toDate(birthDate);
@@ -422,7 +422,7 @@ export const getBirthdayYear = (birthDate: Date | string, now: Date) => {
     return;
   }
   const birthday = birthdayIn(year, month, day);
-  return { age, birthday, from: birthdayIn(year - 1, month, day), to: birthday - 1 };
+  return { age, birthday, from: birthdayIn(year - 1, month, day), to: birthday + DAY_MS - 1 };
 };
 
 /**
@@ -439,7 +439,7 @@ export const getBirthdayDraft = (
   if (!window || !name) {
     return;
   }
-  const inYear = photos.filter((photo) => photo.time >= window.from && photo.time <= window.to + DAY_MS - 1);
+  const inYear = photos.filter((photo) => photo.time >= window.from && photo.time <= window.to);
   if (new Set(inYear.map((photo) => photo.id)).size < DRAFT_THRESHOLDS.birthdayPhotos) {
     return;
   }
