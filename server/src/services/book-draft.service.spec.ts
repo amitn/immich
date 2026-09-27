@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import type { MockInstance } from 'vitest';
 import { defaults } from 'src/dtos/config.dto.js';
 import {
   BookDraftKind,
@@ -58,7 +59,7 @@ const romeTrip = () =>
 describe(BookDraftService.name, () => {
   let sut: BookDraftService;
   let mocks: ServiceMocks;
-  let createDraft: ReturnType<typeof vi.spyOn<BookService, 'createDraft'>>;
+  let createDraft: MockInstance<BookService['createDraft']>;
 
   const auth = factory.auth();
 
@@ -80,9 +81,7 @@ describe(BookDraftService.name, () => {
     mocks.notification.create.mockResolvedValue({ id: newUuid() } as never);
     createDraft = vi
       .spyOn(BookService.prototype, 'createDraft')
-      .mockImplementation(() =>
-        Promise.resolve({ book: { id: newUuid() } } as unknown as BookAutoLayoutResult),
-      );
+      .mockImplementation(() => Promise.resolve({ book: { id: newUuid() } } as unknown as BookAutoLayoutResult));
   });
 
   afterEach(() => {
@@ -272,7 +271,14 @@ describe(BookDraftService.name, () => {
       const kept = BookFactory.create({ ownerId: auth.user.id, status: BookStatus.Active });
       const createdAt = new Date('2026-09-27T01:00:00.000Z');
       mocks.bookDraft.getPending.mockResolvedValue([
-        { id: 'draft-1', key: 'food:2025', kind: BookDraftKind.Yearly, reason: 'Six meals', bookId: book.id, createdAt },
+        {
+          id: 'draft-1',
+          key: 'food:2025',
+          kind: BookDraftKind.Yearly,
+          reason: 'Six meals',
+          bookId: book.id,
+          createdAt,
+        },
         { id: 'draft-2', key: 'food:2024', kind: BookDraftKind.Yearly, reason: 'Kept', bookId: kept.id, createdAt },
       ] as never);
       mocks.book.get.mockImplementation((id) => Promise.resolve([book, kept].find((item) => item.id === id)));

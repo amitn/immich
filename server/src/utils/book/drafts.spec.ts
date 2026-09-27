@@ -60,13 +60,33 @@ const home = (year: number) =>
     photosAt(TEL_AVIV, `${year}-${String(month + 1).padStart(2, '0')}-15T10:00:00.000Z`, 1, 3),
   ).flat();
 
+/** meals of `dishes` dishes each, one a month */
+const meals = (year: number, count: number, dishes: number) =>
+  Array.from({ length: count }, (_, i) =>
+    visit('Food', `Restaurant ${i + 1}`, at(`${year}-0${i + 1}-10T20:00:00.000Z`), dishes),
+  ).flat();
+
+/** a trip to Rome tagged with its two flights, and its ticket photographed later */
+const trip = (from: string, days: number, perDay: number) => {
+  const timeline = photosAt(ROME, from, days, perDay);
+  const tags = [
+    { id: timeline[0].id, time: timeline[0].time, value: 'Travel/Rome, June 2025/Flight TLV → FCO, 1 Jun 2025' },
+    {
+      id: timeline.at(-1)!.id,
+      time: timeline.at(-1)!.time,
+      value: 'Travel/Rome, June 2025/Flight FCO → TLV, 3 Jun 2025',
+    },
+    { id: id(), time: at('2025-06-20T10:00:00.000Z'), value: 'Travel/Rome, June 2025/Tickets' },
+  ];
+  return { timeline, tags };
+};
+
+/** photos a day apart */
+const photosFrom = (count: number, from = '2025-04-01T10:00:00.000Z') =>
+  Array.from({ length: count }, (_, i) => ({ id: id(), time: at(from) + i * DAY }));
+
 describe('book drafts', () => {
   describe('getYearlyDrafts', () => {
-    const meals = (year: number, count: number, dishes: number) =>
-      Array.from({ length: count }, (_, i) =>
-        visit('Food', `Restaurant ${i + 1}`, at(`${year}-0${i + 1}-10T20:00:00.000Z`), dishes),
-      ).flat();
-
     it('should suggest a year in food with enough meals and dishes', () => {
       const [draft, ...others] = getYearlyDrafts(meals(2025, 3, 5), NOW);
       expect(others).toEqual([]);
@@ -117,14 +137,18 @@ describe('book drafts', () => {
         ...[1, 2, 3].flatMap((i) => visit('Recipes', `Recipe ${i}`, at(`2025-0${i}-05T18:00:00.000Z`), 5, 'Recipe')),
       ];
       const drafts = getYearlyDrafts(tags, NOW);
-      expect(drafts.map((draft) => [draft.key, draft.title, draft.stylePreset]).toSorted()).toEqual([
+      expect(
+        drafts.map((draft) => [draft.key, draft.title, draft.stylePreset]).toSorted((a, b) => a[0].localeCompare(b[0])),
+      ).toEqual([
         ['cookbook:2025', '2025 in the kitchen', 'cookbook'],
         ['food:2024', '2024 in food', 'food'],
         ['food:2025', '2025 in food', 'food'],
         ['museum:2025', 'Museums we visited in 2025', 'museum'],
         ['wine:2025', 'Cellar notes 2025', 'wine'],
       ]);
-      expect(drafts.find((draft) => draft.key === 'wine:2025')?.reason).toBe('You tasted 15 wines at 3 tastings in 2025');
+      expect(drafts.find((draft) => draft.key === 'wine:2025')?.reason).toBe(
+        'You tasted 15 wines at 3 tastings in 2025',
+      );
     });
 
     it('should ignore travel tags and other tags', () => {
@@ -144,20 +168,6 @@ describe('book drafts', () => {
   });
 
   describe('getTaggedTripDrafts', () => {
-    const trip = (from: string, days: number, perDay: number) => {
-      const timeline = photosAt(ROME, from, days, perDay);
-      const tags = [
-        { id: timeline[0].id, time: timeline[0].time, value: 'Travel/Rome, June 2025/Flight TLV → FCO, 1 Jun 2025' },
-        {
-          id: timeline.at(-1)!.id,
-          time: timeline.at(-1)!.time,
-          value: 'Travel/Rome, June 2025/Flight FCO → TLV, 3 Jun 2025',
-        },
-        { id: id(), time: at('2025-06-20T10:00:00.000Z'), value: 'Travel/Rome, June 2025/Tickets' },
-      ];
-      return { timeline, tags };
-    };
-
     it('should suggest a book of a trip with the photos of its days', () => {
       const { timeline, tags } = trip('2025-06-01T08:00:00.000Z', 3, 14);
       const [draft] = getTaggedTripDrafts(tags, [...home(2025), ...timeline], NOW);
@@ -184,9 +194,9 @@ describe('book drafts', () => {
 
     it('should need at least two days', () => {
       const { timeline, tags } = trip('2025-06-01T06:00:00.000Z', 1, 16);
-      expect(getTaggedTripDrafts(tags, [...timeline, ...timeline.map((photo) => ({ ...photo, id: id() }))], NOW)).toEqual(
-        [],
-      );
+      expect(
+        getTaggedTripDrafts(tags, [...timeline, ...timeline.map((photo) => ({ ...photo, id: id() }))], NOW),
+      ).toEqual([]);
     });
 
     it('should wait for the trip to be over', () => {
@@ -315,11 +325,9 @@ describe('book drafts', () => {
 
   describe('getBirthdayDraft', () => {
     const person = { id: '11111111-1111-4111-8111-111111111111', name: 'Maya', birthDate: '2019-03-10' };
-    const photos = (count: number, from = '2025-04-01T10:00:00.000Z') =>
-      Array.from({ length: count }, (_, i) => ({ id: id(), time: at(from) + i * DAY }));
 
     it('should suggest the year before the birthday', () => {
-      expect(getBirthdayDraft(person, photos(30), NOW)).toEqual(
+      expect(getBirthdayDraft(person, photosFrom(30), NOW)).toEqual(
         expect.objectContaining({
           key: `birthday:${person.id}:7`,
           kind: BookDraftKind.Birthday,
@@ -332,13 +340,13 @@ describe('book drafts', () => {
     });
 
     it('should need at least 30 photos in the year', () => {
-      expect(getBirthdayDraft(person, photos(DRAFT_THRESHOLDS.birthdayPhotos - 1), NOW)).toBeUndefined();
+      expect(getBirthdayDraft(person, photosFrom(DRAFT_THRESHOLDS.birthdayPhotos - 1), NOW)).toBeUndefined();
       // photos from after the birthday don't count
-      expect(getBirthdayDraft(person, photos(40, '2026-03-01T10:00:00.000Z'), NOW)).toBeUndefined();
+      expect(getBirthdayDraft(person, photosFrom(40, '2026-03-01T10:00:00.000Z'), NOW)).toBeUndefined();
     });
 
     it('should need a name', () => {
-      expect(getBirthdayDraft({ ...person, name: ' ' }, photos(40), NOW)).toBeUndefined();
+      expect(getBirthdayDraft({ ...person, name: ' ' }, photosFrom(40), NOW)).toBeUndefined();
     });
   });
 

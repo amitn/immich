@@ -19,13 +19,13 @@ import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
 import {
   DraftCandidate,
+  YEARLY_BOOKS,
   getBirthdayDraft,
   getBirthdayYear,
   getDraftPageCount,
   getTripDrafts,
   getYearlyDrafts,
   selectDrafts,
-  YEARLY_BOOKS,
 } from 'src/utils/book/drafts.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
 import { findOrFail } from 'src/utils/misc.js';
@@ -188,7 +188,9 @@ export class BookDraftService extends BaseService {
       return true;
     } catch (error: any) {
       // the suggestion is made again on the next run
-      this.logger.warn(`Unable to draft the book ${candidate.key} for user ${auth.user.id}: ${error?.message ?? error}`);
+      this.logger.warn(
+        `Unable to draft the book ${candidate.key} for user ${auth.user.id}: ${error?.message ?? error}`,
+      );
       await this.bookDraftRepository.delete(claimed.id);
       return false;
     }

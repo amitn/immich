@@ -1,7 +1,12 @@
 import { BookDraftKind } from 'src/enum.js';
 import { haversineKm, pickSpread, splitEvents, toLocalDay } from 'src/utils/agent/events.js';
 import { PHOTOS_PER_PAGE, formatDateRange } from 'src/utils/book/auto-layout.js';
-import { CollectionPhoto, getCollectionTag, getPlaceVisits, parseBookCollectionTag } from 'src/utils/book/collections.js';
+import {
+  CollectionPhoto,
+  getCollectionTag,
+  getPlaceVisits,
+  parseBookCollectionTag,
+} from 'src/utils/book/collections.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
 
 /**
@@ -106,7 +111,8 @@ export const YEARLY_BOOKS: Record<string, YearlyBook> = {
   },
   wine: {
     title: (year) => `Cellar notes ${year}`,
-    reason: ({ year, visits, entries }) => `You tasted ${count(entries, 'wine')} at ${count(visits, 'tasting')} in ${year}`,
+    reason: ({ year, visits, entries }) =>
+      `You tasted ${count(entries, 'wine')} at ${count(visits, 'tasting')} in ${year}`,
   },
 };
 
@@ -122,7 +128,7 @@ export const getDaySpan = (start: number, end: number) =>
 
 /** the photos to lay out: all of them, or `MAX_DRAFT_PHOTOS` spread over the time they cover */
 const toAssetIds = (photos: Array<{ id: string; time: number }>) => {
-  const unique = [...new Map(photos.map((photo) => [photo.id, photo])).values()].toSorted(byTime);
+  const unique = new Map(photos.map((photo) => [photo.id, photo])).values().toArray().toSorted(byTime);
   return pickSpread(unique, MAX_DRAFT_PHOTOS).map(({ id }) => id);
 };
 
@@ -229,14 +235,14 @@ export const getTaggedTripDrafts = (tags: DraftTaggedPhoto[], timeline: DraftPho
     const entries = group.filter((photo) => photo.collection?.kind === 'entry');
     const times = (entries.length > 0 ? entries : group).map((photo) => photo.time);
     const [start, end] = [Math.min(...times), Math.max(...times)];
-    const tripPhotos: DraftPhoto[] = [
-      ...new Map(
-        [...getPhotosOfDays(timeline, start, end), ...group.map(({ id, time }) => ({ id, time }))].map((photo) => [
-          photo.id,
-          photo,
-        ]),
-      ).values(),
-    ];
+    const tripPhotos: DraftPhoto[] = new Map(
+      [...getPhotosOfDays(timeline, start, end), ...group.map(({ id, time }) => ({ id, time }))].map((photo) => [
+        photo.id,
+        photo,
+      ]),
+    )
+      .values()
+      .toArray();
     const trip = { start, end, photos: tripPhotos };
     if (!isDraftableTrip(trip, now)) {
       continue;
@@ -278,8 +284,7 @@ export const getHome = (timeline: DraftPhoto[]) => {
   const located = timeline.filter((photo) => hasLocation(photo));
   const cells = Map.groupBy(
     located,
-    (photo) =>
-      `${Math.floor(photo.latitude / HOME_CELL_DEGREES)}:${Math.floor(photo.longitude / HOME_CELL_DEGREES)}`,
+    (photo) => `${Math.floor(photo.latitude / HOME_CELL_DEGREES)}:${Math.floor(photo.longitude / HOME_CELL_DEGREES)}`,
   );
   let best: { photos: typeof located; days: number } | undefined;
   for (const photos of cells.values()) {
@@ -355,10 +360,8 @@ export const findTrips = (timeline: DraftPhoto[]): Trip[] => {
   }
 
   const trips: Trip[] = [];
-  for (const events of runs.map((points) =>
-    splitEvents(points, { maxGapMinutes: TRIP_GAP_MINUTES, maxDistanceKm: Number.POSITIVE_INFINITY }),
-  )) {
-    for (const event of events) {
+  for (const points of runs) {
+    for (const event of splitEvents(points, { maxGapMinutes: TRIP_GAP_MINUTES, maxDistanceKm: Infinity })) {
       const [start, end] = [event[0].time, event.at(-1)!.time];
       const unlocated = sorted.filter((photo) => !hasLocation(photo) && photo.time >= start && photo.time <= end);
       trips.push({ start, end, photos: [...event, ...unlocated].toSorted(byTime) });

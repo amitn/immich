@@ -4,6 +4,7 @@ import { Injectable } from '@nestjs/common';
 import { serverVersion } from 'src/constants.js';
 import { AlbumAgentTools } from 'src/services/agent-tools/album.tools.js';
 import { ArtAgentTools } from 'src/services/agent-tools/art.tools.js';
+import { BookDraftAgentTools } from 'src/services/agent-tools/book-draft.tools.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
@@ -60,6 +61,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(AlbumAgentTools, this),
         BaseService.create(CropAgentTools, this),
         BaseService.create(BookAgentTools, this),
+        BaseService.create(BookDraftAgentTools, this),
         BaseService.create(ArtAgentTools, this),
         BaseService.create(EnhanceAgentTools, this),
         BaseService.create(CollectionAgentTools, this),
