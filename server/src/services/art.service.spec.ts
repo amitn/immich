@@ -33,6 +33,25 @@ const newJob = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
+const BLUEPRINT =
+  'Redraw the reference photograph as an architectural blueprint of the exact same scene. Preserve the recognizable ' +
+  'composition, subjects, people, poses and perspective of the reference photograph. White technical linework on ' +
+  'Prussian blue paper, faint grid, measurement marks. No text.';
+
+const userStyle = (overrides: Record<string, unknown> = {}) => ({
+  id: factory.uuid(),
+  ownerId: factory.uuid(),
+  name: 'Blueprint',
+  description: 'White lines on blue',
+  prompt: BLUEPRINT,
+  usesCaption: false,
+  photoAbove: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  updateId: factory.uuid(),
+  ...overrides,
+});
+
 const imageUpdate = (data: string) => ({
   sessionId: 'acp-session',
   update: {
@@ -78,10 +97,94 @@ describe(ArtService.name, () => {
   });
 
   describe('getStyles', () => {
-    it('should list the styles without their prompts', () => {
-      const styles = sut.getStyles();
-      expect(styles).toContainEqual(expect.objectContaining({ id: 'watercolor-editorial-split', usesCaption: true }));
+    it('should list the styles without their prompts', async () => {
+      mocks.artJob.getStyles.mockResolvedValue([]);
+      const styles = await sut.getStyles(factory.auth());
+      expect(styles).toContainEqual(
+        expect.objectContaining({
+          id: 'watercolor-editorial-split',
+          usesCaption: true,
+          photoAbove: true,
+          owned: false,
+        }),
+      );
       expect(styles[0]).not.toHaveProperty('prompt');
+    });
+
+    it("should list the user's own styles after the built-in ones", async () => {
+      const auth = factory.auth();
+      const row = userStyle({ ownerId: auth.user.id });
+      mocks.artJob.getStyles.mockResolvedValue([row]);
+
+      const styles = await sut.getStyles(auth);
+
+      expect(mocks.artJob.getStyles).toHaveBeenCalledWith(auth.user.id);
+      expect(styles.at(-1)).toEqual({
+        id: row.id,
+        name: 'Blueprint',
+        description: 'White lines on blue',
+        usesCaption: false,
+        photoAbove: false,
+        owned: true,
+      });
+    });
+  });
+
+  describe('user styles', () => {
+    const auth = factory.auth();
+
+    it('should save a valid style', async () => {
+      mocks.artJob.createStyle.mockImplementation((values) => Promise.resolve(userStyle(values as never)));
+
+      await sut.createStyle(auth, { name: 'Blueprint', prompt: BLUEPRINT });
+
+      expect(mocks.artJob.createStyle).toHaveBeenCalledWith({
+        ownerId: auth.user.id,
+        name: 'Blueprint',
+        description: '',
+        prompt: BLUEPRINT,
+        usesCaption: false,
+        photoAbove: false,
+      });
+    });
+
+    it('should refuse {caption} in a style without captions', async () => {
+      await expect(
+        sut.createStyle(auth, { name: 'Blueprint', prompt: BLUEPRINT + ' Title "{caption}".' }),
+      ).rejects.toThrow('only replaced in styles with usesCaption');
+      expect(mocks.artJob.createStyle).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a caption style without {caption}', async () => {
+      await expect(sut.createStyle(auth, { name: 'Blueprint', prompt: BLUEPRINT, usesCaption: true })).rejects.toThrow(
+        'must say where the caption goes',
+      );
+    });
+
+    it('should only let the owner change or delete a style', async () => {
+      await expect(sut.updateStyle(auth, factory.uuid(), { name: 'Mine' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(sut.deleteStyle(auth, factory.uuid())).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.artJob.updateStyle).not.toHaveBeenCalled();
+      expect(mocks.artJob.deleteStyle).not.toHaveBeenCalled();
+    });
+
+    it('should check the prompt against the caption setting when either changes', async () => {
+      const row = userStyle();
+      mocks.access.artStyle.checkOwnerAccess.mockResolvedValue(new Set([row.id]));
+      mocks.artJob.getStyle.mockResolvedValue(row);
+      mocks.artJob.updateStyle.mockResolvedValue(row);
+
+      await expect(sut.updateStyle(auth, row.id, { usesCaption: true })).rejects.toThrow('{caption}');
+      await sut.updateStyle(auth, row.id, { name: 'Blueprint 2' });
+      expect(mocks.artJob.updateStyle).toHaveBeenCalledWith(row.id, expect.objectContaining({ name: 'Blueprint 2' }));
+    });
+
+    it('should delete an own style', async () => {
+      const id = factory.uuid();
+      mocks.access.artStyle.checkOwnerAccess.mockResolvedValue(new Set([id]));
+      mocks.artJob.deleteStyle.mockResolvedValue();
+      await sut.deleteStyle(auth, id);
+      expect(mocks.artJob.deleteStyle).toHaveBeenCalledWith(id);
     });
   });
 
@@ -91,6 +194,30 @@ describe(ArtService.name, () => {
     it('should require the art profile to be configured', async () => {
       setConfig({ artProfile: '' });
       await expect(sut.createJob(auth, { assetId: factory.uuid(), style: 'watercolor' })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mocks.artJob.create).not.toHaveBeenCalled();
+    });
+
+    it("should start a job with one of the user's own styles", async () => {
+      const assetId = factory.uuid();
+      const row = userStyle({ ownerId: auth.user.id });
+      mocks.access.artStyle.checkOwnerAccess.mockResolvedValue(new Set([row.id]));
+      mocks.artJob.getStyle.mockResolvedValue(row);
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([assetId]));
+      mocks.asset.getById.mockResolvedValue({ id: assetId, type: AssetType.Image } as never);
+      const job = newJob({ sourceAssetId: assetId, style: row.id });
+      mocks.artJob.create.mockResolvedValue(job);
+      mocks.acp.createWorkdir.mockRejectedValue(new Error('stop here'));
+      mocks.artJob.update.mockResolvedValue({ ...job, status: ArtJobStatus.Failed });
+
+      await sut.createJob(auth, { assetId, style: row.id });
+
+      expect(mocks.artJob.create).toHaveBeenCalledWith(expect.objectContaining({ style: row.id, prompt: BLUEPRINT }));
+    });
+
+    it('should not use the style of another user', async () => {
+      await expect(sut.createJob(auth, { assetId: factory.uuid(), style: factory.uuid() })).rejects.toBeInstanceOf(
         BadRequestException,
       );
       expect(mocks.artJob.create).not.toHaveBeenCalled();
@@ -341,6 +468,69 @@ describe(ArtService.name, () => {
         { buffer: Buffer.from('stacked'), extension: '.jpg' },
         expect.objectContaining({ suffix: 'watercolor-editorial-split' }),
       );
+    });
+
+    it("should place the photo above the artwork of the user's own split styles", async () => {
+      const derive = vi
+        .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
+        .mockResolvedValue({ id: 'new-asset', duplicate: false });
+      mocks.media.decodeImage.mockResolvedValue({
+        data: Buffer.from('pixels'),
+        info: { width: 4000, height: 3000 },
+      } as never);
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+      const row = userStyle({ photoAbove: true, name: 'Ink split' });
+      mocks.artJob.getStyle.mockResolvedValue(row);
+
+      const job = newJob({ style: row.id });
+      await start(job);
+      mocks.asset.getById.mockResolvedValue({
+        id: job.sourceAssetId,
+        type: AssetType.Image,
+        originalPath: '/data/original.jpg',
+        originalFileName: 'IMG.jpg',
+        exifInfo: { orientation: null, profileDescription: 'sRGB', colorspace: 'sRGB', bitsPerSample: 8 },
+      } as never);
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+
+      expect(mocks.media.stackPhotoAboveArtwork).toHaveBeenCalled();
+      expect(derive).toHaveBeenCalledWith(
+        auth,
+        job.sourceAssetId,
+        expect.anything(),
+        expect.objectContaining({
+          suffix: 'art',
+          description: expect.stringMatching(/^Ink split artwork/),
+          tags: ['AI Artwork/Ink split'],
+        }),
+      );
+    });
+
+    it('should mark the artwork of a test job as a test', async () => {
+      const derive = vi
+        .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
+        .mockResolvedValue({ id: 'new-asset', duplicate: false });
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+      const job = newJob({ style: null, prompt: BLUEPRINT });
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([job.sourceAssetId]));
+      mocks.asset.getById.mockResolvedValue({ id: job.sourceAssetId, type: AssetType.Image } as never);
+      mocks.artJob.create.mockResolvedValue(job);
+      mocks.artJob.update.mockImplementation((id, update) => Promise.resolve({ ...job, ...update } as never));
+
+      await sut.createJob(auth, { assetId: job.sourceAssetId, prompt: BLUEPRINT }, { test: true });
+
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+      expect(derive).toHaveBeenCalledWith(
+        auth,
+        job.sourceAssetId,
+        expect.anything(),
+        expect.objectContaining({
+          suffix: 'style-test',
+          description: expect.stringMatching(/^Test of a draft art style.*Delete it when the style is done\.$/),
+          tags: ['AI Artwork/Style tests'],
+        }),
+      );
+      await expect(notification()).resolves.toMatchObject({ description: 'Style test' });
     });
 
     it('should fall back to an output file in the workdir', async () => {

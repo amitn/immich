@@ -8,7 +8,17 @@ import type {
   AcpSessionNotification,
 } from 'src/repositories/acp.repository.js';
 import { OnEvent } from 'src/decorators.js';
-import { ArtJobCreateDto, ArtJobResponseDto, ArtStyleDto, mapArtJob, mapArtStyle } from 'src/dtos/art.dto.js';
+import {
+  ArtJobCreateDto,
+  ArtJobResponseDto,
+  ArtStyleDto,
+  ArtUserStyleCreateDto,
+  ArtUserStyleResponseDto,
+  ArtUserStyleUpdateDto,
+  mapArtJob,
+  mapArtStyle,
+  mapArtUserStyle,
+} from 'src/dtos/art.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { mapNotification } from 'src/dtos/notification.dto.js';
 import {
@@ -22,11 +32,13 @@ import {
   Permission,
 } from 'src/enum.js';
 import { ArtJobTable } from 'src/schema/tables/art-job.table.js';
+import { ArtStyleTable } from 'src/schema/tables/art-style.table.js';
 import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.service.js';
-import { artStyles, buildArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
+import { ArtStyle, artStyles, buildArtPrompt, checkArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
 import { decodeOriginal } from 'src/utils/image-decode.js';
+import { findOrFail } from 'src/utils/misc.js';
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
 const OUTPUT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -37,6 +49,14 @@ const MIME_EXTENSIONS: Record<string, string> = {
 };
 
 type GeneratedImage = { buffer: Buffer; extension: string };
+
+/**
+ * how a job runs: `test` marks the artwork as the test of a draft style in its description, and `photoAbove` places
+ * the photo above the artwork of a draft prompt, like the styles that do
+ */
+export type ArtJobOptions = { test?: boolean; photoAbove?: boolean };
+
+const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
 /** jobs are shared by every service instance (the controller's and the agent tools') */
 const queue: Array<() => Promise<void>> = [];
@@ -50,20 +70,83 @@ export class ArtService extends BaseService {
     await this.artJobRepository.failUnfinished();
   }
 
-  getStyles(): ArtStyleDto[] {
-    return artStyles.map((style) => mapArtStyle(style));
+  /** the built-in styles, then the user's own */
+  async getStyles(auth: AuthDto): Promise<ArtStyleDto[]> {
+    const own = await this.artJobRepository.getStyles(auth.user.id);
+    return [...artStyles.map((style) => mapArtStyle(style)), ...own.map((row) => mapArtStyle(row, true))];
   }
 
-  async createJob(auth: AuthDto, dto: ArtJobCreateDto): Promise<ArtJobResponseDto> {
+  async getUserStyles(auth: AuthDto): Promise<ArtUserStyleResponseDto[]> {
+    const rows = await this.artJobRepository.getStyles(auth.user.id);
+    return rows.map((row) => mapArtUserStyle(row));
+  }
+
+  async getUserStyle(auth: AuthDto, id: string): Promise<ArtUserStyleResponseDto> {
+    await this.requireAccess({ auth, permission: Permission.ArtStyleRead, ids: [id] });
+    return mapArtUserStyle(await findOrFail(() => this.artJobRepository.getStyle(id), 'Art style'));
+  }
+
+  async createStyle(auth: AuthDto, dto: ArtUserStyleCreateDto): Promise<ArtUserStyleResponseDto> {
+    const usesCaption = dto.usesCaption ?? false;
+    const photoAbove = dto.photoAbove ?? false;
+    this.requireValidPrompt(dto.prompt, { usesCaption, photoAbove });
+    const row = await this.artJobRepository.createStyle({
+      ownerId: auth.user.id,
+      name: dto.name,
+      description: dto.description ?? '',
+      prompt: dto.prompt,
+      usesCaption,
+      photoAbove,
+    });
+    return mapArtUserStyle(row);
+  }
+
+  async updateStyle(auth: AuthDto, id: string, dto: ArtUserStyleUpdateDto): Promise<ArtUserStyleResponseDto> {
+    await this.requireAccess({ auth, permission: Permission.ArtStyleUpdate, ids: [id] });
+    const current = await findOrFail(() => this.artJobRepository.getStyle(id), 'Art style');
+    const prompt = dto.prompt ?? current.prompt;
+    const usesCaption = dto.usesCaption ?? current.usesCaption;
+    const photoAbove = dto.photoAbove ?? current.photoAbove;
+    if (dto.prompt !== undefined || dto.usesCaption !== undefined || dto.photoAbove !== undefined) {
+      this.requireValidPrompt(prompt, { usesCaption, photoAbove });
+    }
+    const row = await this.artJobRepository.updateStyle(id, {
+      name: dto.name,
+      description: dto.description,
+      prompt: dto.prompt,
+      usesCaption: dto.usesCaption,
+      photoAbove: dto.photoAbove,
+    });
+    return mapArtUserStyle(row);
+  }
+
+  async deleteStyle(auth: AuthDto, id: string): Promise<void> {
+    await this.requireAccess({ auth, permission: Permission.ArtStyleDelete, ids: [id] });
+    // the artworks made with it keep their name and tag
+    await this.artJobRepository.deleteStyle(id);
+  }
+
+  /** a built-in style by its id, or one of the user's own by its UUID */
+  async resolveStyle(auth: AuthDto, id: string): Promise<ArtStyle> {
+    const builtIn = getArtStyle(id);
+    if (builtIn) {
+      return builtIn;
+    }
+    if (!UUID.test(id)) {
+      throw new BadRequestException(`Unknown art style: ${id}`);
+    }
+    await this.requireAccess({ auth, permission: Permission.ArtStyleRead, ids: [id] });
+    const row = await findOrFail(() => this.artJobRepository.getStyle(id), 'Art style');
+    return toArtStyle(row);
+  }
+
+  async createJob(auth: AuthDto, dto: ArtJobCreateDto, options: ArtJobOptions = {}): Promise<ArtJobResponseDto> {
     const { agent } = await this.getConfig({ withCache: true });
     if (!isArtEnabled(agent)) {
       throw new BadRequestException('Artistic styles are not enabled');
     }
 
-    const style = dto.style === undefined ? undefined : getArtStyle(dto.style);
-    if (dto.style !== undefined && !style) {
-      throw new BadRequestException(`Unknown art style: ${dto.style}`);
-    }
+    const style = dto.style === undefined ? undefined : await this.resolveStyle(auth, dto.style);
 
     // the artwork is stacked with the photo, so the user has to own it
     await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [dto.assetId] });
@@ -81,7 +164,7 @@ export class ArtService extends BaseService {
       profile: agent.artProfile,
     });
 
-    this.schedule(auth, job, agent.maxConcurrentSessions);
+    this.schedule(auth, job, agent.maxConcurrentSessions, options);
 
     return mapArtJob(job);
   }
@@ -106,8 +189,15 @@ export class ArtService extends BaseService {
     return job;
   }
 
-  private schedule(auth: AuthDto, job: Selectable<ArtJobTable>, concurrency: number) {
-    queue.push(() => this.runJob(auth, job));
+  private requireValidPrompt(prompt: string, options: { usesCaption: boolean; photoAbove: boolean }) {
+    const { errors } = checkArtPrompt(prompt, options);
+    if (errors.length > 0) {
+      throw new BadRequestException(errors.join('; '));
+    }
+  }
+
+  private schedule(auth: AuthDto, job: Selectable<ArtJobTable>, concurrency: number, options: ArtJobOptions) {
+    queue.push(() => this.runJob(auth, job, options));
     const next = () => {
       while (active < concurrency && queue.length > 0) {
         const run = queue.shift()!;
@@ -121,12 +211,27 @@ export class ArtService extends BaseService {
     next();
   }
 
-  private async runJob(auth: AuthDto, job: Selectable<ArtJobTable>) {
+  /** the style of a job: a built-in one, or the user's own (unless it was deleted since) */
+  private async getJobStyle(id: string | null): Promise<ArtStyle | undefined> {
+    if (!id) {
+      return;
+    }
+    const builtIn = getArtStyle(id);
+    if (builtIn || !UUID.test(id)) {
+      return builtIn;
+    }
+    const row = await this.artJobRepository.getStyle(id);
+    return row ? toArtStyle(row) : undefined;
+  }
+
+  private async runJob(auth: AuthDto, job: Selectable<ArtJobTable>, { test, photoAbove }: ArtJobOptions) {
+    let style: ArtStyle | undefined;
     let workdir: string | undefined;
     let agent: Awaited<ReturnType<typeof this.acpRepository.start>> | undefined;
     let timer: NodeJS.Timeout | undefined;
 
     try {
+      style = await this.getJobStyle(job.style);
       await this.updateJob(job.id, { status: ArtJobStatus.Running });
       workdir = await this.acpRepository.createWorkdir(`art-${job.id}`);
       const cwd = workdir;
@@ -177,11 +282,10 @@ export class ArtService extends BaseService {
         throw new Error('The art agent produced an invalid image');
       }
 
-      const style = job.style ? getArtStyle(job.style) : undefined;
       let output = image;
       let upscaled = '';
       const size = getArtUpscaleSize(width, height);
-      if (style?.photoAbove) {
+      if (style?.photoAbove ?? photoAbove) {
         // the photo sets the size, and the artwork below it is scaled to its width
         output = { buffer: await this.stackBelowPhoto(job.sourceAssetId, image.buffer), extension: '.jpg' };
       } else if (size) {
@@ -195,16 +299,19 @@ export class ArtService extends BaseService {
 
       const derivedAssetService = BaseService.create(DerivedAssetService, this);
       const { id } = await derivedAssetService.createDerivedAsset(auth, job.sourceAssetId, output, {
-        description: `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}${upscaled}`,
-        suffix: style?.id ?? 'art',
-        tags: [getArtworkTag(style?.name)],
+        description: test
+          ? `Test of a draft art style${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}${upscaled}. Delete it when the style is done.`
+          : `${style?.name ?? 'Custom style'} artwork${job.caption ? ` “${job.caption}”` : ''}, made with ${job.profile}${upscaled}`,
+        // the file name of a user's style is not its UUID
+        suffix: test ? 'style-test' : (getArtStyle(style?.id ?? '')?.id ?? 'art'),
+        tags: [getArtworkTag(test ? 'Style tests' : style?.name)],
       });
 
       await this.updateJob(job.id, { status: ArtJobStatus.Completed, resultAssetId: id });
       await this.notifyOwner(job, id, {
         level: NotificationLevel.Success,
         title: 'Artwork ready',
-        description: getArtworkName(job),
+        description: getArtworkName(job, style, test),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -213,7 +320,7 @@ export class ArtService extends BaseService {
       await this.notifyOwner(job, null, {
         level: NotificationLevel.Error,
         title: 'Artwork failed',
-        description: `${getArtworkName(job)}: ${message}`,
+        description: `${getArtworkName(job, style, test)}: ${message}`,
       });
     } finally {
       clearTimeout(timer);
@@ -291,10 +398,19 @@ export class ArtService extends BaseService {
   }
 }
 
-const getArtworkName = ({ style, caption }: Pick<Selectable<ArtJobTable>, 'style' | 'caption'>) => {
-  const name = (style && getArtStyle(style)?.name) || 'Custom style';
+const getArtworkName = ({ caption }: Pick<Selectable<ArtJobTable>, 'caption'>, style?: ArtStyle, test?: boolean) => {
+  const name = test ? 'Style test' : style?.name || 'Custom style';
   return caption ? `${name} “${caption}”` : name;
 };
+
+const toArtStyle = (row: Selectable<ArtStyleTable>): ArtStyle => ({
+  id: row.id,
+  name: row.name,
+  description: row.description,
+  prompt: row.prompt,
+  usesCaption: row.usesCaption,
+  photoAbove: row.photoAbove,
+});
 
 const isUnfinished = (status: ArtJobStatus) => status === ArtJobStatus.Pending || status === ArtJobStatus.Running;
 

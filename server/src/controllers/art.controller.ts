@@ -1,8 +1,15 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Post, Put } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import { Endpoint, HistoryBuilder } from 'src/decorators.js';
-import { ArtJobCreateDto, ArtJobResponseDto, ArtStyleDto } from 'src/dtos/art.dto.js';
+import {
+  ArtJobCreateDto,
+  ArtJobResponseDto,
+  ArtStyleDto,
+  ArtUserStyleCreateDto,
+  ArtUserStyleResponseDto,
+  ArtUserStyleUpdateDto,
+} from 'src/dtos/art.dto.js';
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated } from 'src/middleware/auth.guard.js';
 import { ArtService } from 'src/services/art.service.js';
@@ -19,11 +26,64 @@ export class ArtController {
   @Authenticated({ permission: Permission.ArtJobRead })
   @Endpoint({
     summary: 'Retrieve artistic styles',
-    description: 'Retrieve the artistic styles that photos can be transformed into.',
+    description:
+      "Retrieve the artistic styles that photos can be transformed into: the built-in styles, then the user's own " +
+      '(owned), e.g. designed with the assistant.',
     history: history(),
   })
-  getArtStyles(): ArtStyleDto[] {
-    return this.service.getStyles();
+  getArtStyles(@Auth() auth: AuthDto): Promise<ArtStyleDto[]> {
+    return this.service.getStyles(auth);
+  }
+
+  @Post('styles')
+  @Authenticated({ permission: Permission.ArtStyleCreate })
+  @Endpoint({
+    summary: 'Create an artistic style',
+    description:
+      'Save an artistic style of your own. Its prompt is checked: its length, and {caption} exactly when the style ' +
+      'renders a caption.',
+    history: history(),
+  })
+  createArtUserStyle(@Auth() auth: AuthDto, @Body() dto: ArtUserStyleCreateDto): Promise<ArtUserStyleResponseDto> {
+    return this.service.createStyle(auth, dto);
+  }
+
+  @Get('styles/:id')
+  @Authenticated({ permission: Permission.ArtStyleRead })
+  @Endpoint({
+    summary: 'Retrieve an artistic style',
+    description: 'Retrieve one of your artistic styles, with its prompt.',
+    history: history(),
+  })
+  getArtUserStyle(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<ArtUserStyleResponseDto> {
+    return this.service.getUserStyle(auth, id);
+  }
+
+  @Put('styles/:id')
+  @Authenticated({ permission: Permission.ArtStyleUpdate })
+  @Endpoint({
+    summary: 'Update an artistic style',
+    description: 'Rename one of your artistic styles, or change its prompt.',
+    history: history(),
+  })
+  updateArtUserStyle(
+    @Auth() auth: AuthDto,
+    @Param() { id }: UUIDParamDto,
+    @Body() dto: ArtUserStyleUpdateDto,
+  ): Promise<ArtUserStyleResponseDto> {
+    return this.service.updateStyle(auth, id, dto);
+  }
+
+  @Delete('styles/:id')
+  @Authenticated({ permission: Permission.ArtStyleDelete })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Endpoint({
+    summary: 'Delete an artistic style',
+    description: 'Delete one of your artistic styles. The artworks made with it are kept.',
+    history: history(),
+  })
+  deleteArtUserStyle(@Auth() auth: AuthDto, @Param() { id }: UUIDParamDto): Promise<void> {
+    return this.service.deleteStyle(auth, id);
   }
 
   @Post('jobs')
