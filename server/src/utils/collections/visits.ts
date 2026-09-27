@@ -24,7 +24,15 @@ export type VisitOptions = {
    * the chef after the meal) join the closest visit within this many minutes
    */
   attachMinutes: number;
+  /**
+   * the period a photo is in, from its local time in ms, e.g. its year: a photo of another period than the first
+   * photo of a visit starts a new one, whatever the gaps (the books read in a year, a child's drawings of a year)
+   */
+  period?: (time: number) => string;
 };
+
+/** the local year of a local time in ms, e.g. "2024", for `VisitOptions.period` */
+export const getLocalYear = (time: number) => String(new Date(time).getUTCFullYear());
 
 /** the grouping of food photos into meals, which suits most visits to one place */
 export const DEFAULT_VISIT_OPTIONS: VisitOptions = {
@@ -128,7 +136,8 @@ const splitVisits = <T extends VisitPhoto>(photos: T[], options: VisitOptions): 
         photo.time - previous.time > options.maxGapMinutes * 60_000 ||
         photo.time - first.time > options.maxSpanMinutes * 60_000;
       const tooFar = !!place && isLocated(photo) && haversineKm(place, photo) * 1000 > options.maxDistanceMeters;
-      if (tooLate || tooFar) {
+      const otherPeriod = !!options.period && options.period(photo.time) !== options.period(first.time);
+      if (tooLate || tooFar || otherPeriod) {
         flush();
       }
     }

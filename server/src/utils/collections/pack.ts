@@ -187,8 +187,11 @@ export type CollectionPack = {
   };
 };
 
-/** where a caption is set: the layout of its page, and the description of its photo */
-export type CollectionCaptionContext = { layout?: string; description?: string | null };
+/**
+ * where a caption is set: the layout of its page, the description of its photo, and when the photo was taken (local
+ * time in ms), e.g. for the date a book was read
+ */
+export type CollectionCaptionContext = { layout?: string; description?: string | null; takenAt?: number };
 
 /** the page of a source typeset from its text: its text, and the entry it is for (e.g. the leg of a ticket) */
 export type CollectionSourcePage = { text: string; entry?: string };
@@ -276,6 +279,8 @@ export type CollectionBookTheme = {
    * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions)
    */
   look: 'printed' | 'gallery';
+  /** the heading of the note on the tasting-note layouts, default "Tasting note", e.g. "Notes" in a reading journal */
+  noteHeading?: string;
 };
 
 export type CollectionMessages = {
