@@ -100,7 +100,7 @@ When part of a change can't be undone, for example a photo that was deleted sinc
 
 ### Asking about your library
 
-Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits) and the legs of your [trips](#travel-documents), with the dates, places (the city and country of the photos) and people of their photos. For example:
+Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits), the legs of your [trips](#travel-documents), the acts of your [gigs](#concerts) and the species of your [garden walks](#nature-field-guide), with the dates, places (the city and country of the photos) and people of their photos. For example:
 
 - _"What did I eat at The French Laundry?"_
 - _"When did we last make the quiche?"_
@@ -544,6 +544,25 @@ Immich can also find your museum visits: the photos of artworks (paintings, scul
 Saving tags each artwork `Art/<Museum>/<Title — Artist, Date, Medium>` (the parts that aren't known are left out) and each label `Art/<Museum>/Label`, and gives an artwork without a description one such as _Virgin and Child · Nicolau Chanterene, 1535-1540 · Museu de Évora_.
 
 The **Gallery** style (_Like an exhibition catalogue: white pages, every artwork shown whole with a museum-label caption and its catalogue number_) makes a chapter per museum visit, opened by the museum's name and the date. Artworks are never cropped: each slot fits its photo. Every artwork is captioned like a museum label (its number in the book, the title in italics, then the artist, the date and the medium), and the label photos stay out of the book, as the captions say what they say. The review reports artworks without their caption and artworks that are cropped.
+
+## Concerts
+
+Photograph the setlist, the line-up or the board of stage times at a gig or a festival, and Immich names your stage photos after the acts. Choose **Name the acts…** from the menu of an album or a selection, or ask the assistant.
+
+- **Gigs.** The photos of a night are grouped by time and place: a festival's stages can be far apart, and a gig has long changeovers. At a festival, pass the line-ups of the other days too: a stage banner often lists the whole week.
+- **Reading the sources.** A line-up gives each act its day and start, such as _Saturday 19:30 · Night Pro_, and a board of stage times its start and stage, such as _20:45 · Seat_. A setlist gives its band and the acts billed with it (_Sidney Gish w/ The Beths_), the date, the city and the venue, then the songs. A setlist of songs only is shown as _(setlist: Future Me, Knees Deep …)_ and goes to the next act on the bill.
+- **Matching.** A photo belongs to the act on stage when it was taken. A set lasts until the next act of its stage, at most 75 minutes. Among the acts on stage at that moment, the stage name the photo reads on a banner (_SEAT_), where the photos of that stage were taken and what they look like decide. At a club gig, the photos follow the order of the bill, each near the setlist of its act. At a festival, the acts of the stages no source lists are playing too: those photos, and an unlisted opener, are marked **Not on the bill**.
+- **Tags.** `Concerts/<Festival or venue, date>/<Act>`, such as `Concerts/Primavera Sound 2019/Kali Uchis`, with `…/Setlist` on a setlist and `…/Line-up` on a line-up or a board. The venue is read on a setlist, a ticket or a sign, or looked up on OpenStreetMap (clubs, music venues, theatres and stadiums) when the admin turned the lookup on.
+- **Gig poster books.** The **Gig poster** style uses dark paper with a hot-pink accent and makes a chapter per act. A chapter opens with its setlist (or line-up) typeset in bold capitals beside the photo of the sheet: the songs are numbered, and the acts of a line-up are listed with their starts under their days. Edit the page caption to correct what OCR misread. Handwritten setlists are often read in fragments.
+
+## Nature field guide
+
+Name the plants and animals you photograph in botanical gardens, arboretums and zoos from the labels beside them. Choose **Name the plants and animals…** from the menu of an album or a selection, or ask the assistant.
+
+- **Reading the labels.** From the engraved accession tag of a tree, Immich reads the scientific name, the family, the common name, where the species comes from and the garden's code, such as _Kahanu_. From a zoo plaque, it reads the common name as its title. The chalk label of a rose gives its cultivar and its kind, colour and scent, such as a floribunda, even when OCR misreads a letter (_FLORISUNDA_). Handwriting is kept as read (_Lady Madmalade_): correct it when you save.
+- **Pairing.** A label is photographed a few seconds before or after its plant, and several photos of one plant (its habit, flowers, fruit and bark) share its label. A species labelled on two trees is paired with each label. Plants without a label are marked **No label**.
+- **Tags.** `Nature/<Garden or zoo>/<Common name (Scientific name, Family)>`, such as `Nature/Kahanu/Moreton Bay Chestnut (Castanospermum australe, Fabaceae)` or `Nature/Copped Hall/Rose 'Proper Job' (Rosa)`, with `…/Label` on the labels. The garden is read on a sign or the accession tags, or looked up on OpenStreetMap (gardens, parks, zoos and protected areas).
+- **Field guide books.** The **Field guide** style uses cream paper and fine ink, with a chapter per walk. Every plant or animal is shown whole as a numbered plate, captioned with its scientific name in italics, then its common name and its family. The label photos stay out of the book. The review reports plates without a scientific name.
 
 ## Tags
 
