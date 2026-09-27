@@ -1,6 +1,6 @@
 import { BookMap, BookStyle, NormalizedRect, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { normalizeRect, suggestCrop } from 'src/utils/agent/crop.js';
-import { isGalleryTheme, isPrintedTheme } from 'src/utils/book/collections.js';
+import { getNoteHeading, isGalleryTheme, isPrintedTheme } from 'src/utils/book/collections.js';
 import { getFontStack } from 'src/utils/book/fonts.js';
 import {
   BookLayout,
@@ -985,6 +985,7 @@ export const planPage = (
             lineHeight: LINE_HEIGHT,
             charWidth: CHAR_WIDTH,
             smallCapsCharWidth: SMALL_CAPS_CHAR_WIDTH,
+            heading: getNoteHeading(style.theme),
           });
           blocks.push(...note.blocks);
           decorations.push(...note.decorations);

@@ -1253,7 +1253,9 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
   /** the name of the entry (dish) below its photo, as its pack sets it on the layout (e.g. a wine's fiche) */
   const dishCaption = (photo: AutoLayoutPhoto, layout: BookLayout) => {
     const dish =
-      captions === 'dish' ? getEntryCaption(photo, { layout: layout.id, description: photo.description }) : undefined;
+      captions === 'dish'
+        ? getEntryCaption(photo, { layout: layout.id, description: photo.description, takenAt: photo.takenAt })
+        : undefined;
     return dish ? { caption: dish } : {};
   };
 
