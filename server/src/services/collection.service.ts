@@ -31,8 +31,10 @@ import {
 } from 'src/utils/activity-log.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
 import { getDimensions } from 'src/utils/asset.util.js';
+import { PackFit } from 'src/utils/collections/arbitration.js';
 import {
   Classification,
+  CollectionPhotoKind,
   CollectionPrompt,
   classifyPhoto,
   getPromptList,
@@ -124,6 +126,8 @@ const textEmbeddingCache = new LRUMap<string, string>(5000);
 const sourceOcrCache = new LRUMap<string, OcrBoxInput[]>(200);
 
 const CHUNK = 1000;
+/** the prompts of the packs are compared with the photos in batches of at most this many (see `getPackFits`) */
+const FIT_PROMPT_BATCH = 500;
 /** a source is read in tiles as if its long edge were at most this many pixels */
 const SOURCE_DECODE_SIZE = 4096;
 /** the size of the tiles the source is read in */
@@ -418,7 +422,16 @@ export class CollectionService extends BaseService {
     return { photos, truncated };
   }
 
-  async findVisits(auth: AuthDto, packId: string, dto: CollectionVisitsDto): Promise<CollectionVisitsResponseDto> {
+  /**
+   * The visits of a pack in the photos. `foreign` holds, by kind, photos that are another pack's for sure (see
+   * `getForeignPhotos`): a photo the pack takes for one of those kinds is left out, unless the pack named it.
+   */
+  async findVisits(
+    auth: AuthDto,
+    packId: string,
+    dto: CollectionVisitsDto,
+    { foreign }: { foreign?: Map<CollectionPhotoKind, Set<string>> } = {},
+  ): Promise<CollectionVisitsResponseDto> {
     const pack = this.requirePack(packId);
     const messages = getCollectionMessages(pack);
     const { candidates, truncated } = await this.getCandidates(auth, dto);
@@ -428,9 +441,17 @@ export class CollectionService extends BaseService {
       warnings.push(messages.noEmbedding(noEmbedding));
     }
 
+    const foreignIds = candidates.flatMap(({ id }) => {
+      const kind = classifications.get(id)?.kind;
+      return kind && kind !== 'other' && foreign?.get(kind)?.has(id) ? [id] : [];
+    });
+    const named = new Set((await this.getSavedTags(pack, foreignIds)).map(({ assetId }) => assetId));
+    const excluded = new Set(foreignIds.filter((id) => !named.has(id)));
     const classified = candidates.flatMap((candidate) => {
       const classification = classifications.get(candidate.id);
-      return classification && classification.kind !== 'other' ? [{ ...candidate, kind: classification.kind }] : [];
+      return classification && classification.kind !== 'other' && !excluded.has(candidate.id)
+        ? [{ ...candidate, kind: classification.kind }]
+        : [];
     });
     // videos have embeddings of their thumbnail too, but only photos are named
     const images = await this.getImageIds(classified.map(({ id }) => id));
@@ -1455,6 +1476,50 @@ export class CollectionService extends BaseService {
       ocr,
       noEmbedding: isSmartSearchEnabled(machineLearning) ? ids.filter((id) => !similarities.has(id)).length : 0,
     };
+  }
+
+  /**
+   * How well the prompts of every pack fit each photo (`PackFit`: the best similarity per pack and kind), from the
+   * photos' CLIP embeddings; photos that smart search has not seen yet have none, and there are none without it
+   */
+  async getPackFits(assetIds: string[]): Promise<Map<string, PackFit>> {
+    const fits = new Map<string, PackFit>();
+    const { machineLearning } = await this.getConfig({ withCache: true });
+    if (!isSmartSearchEnabled(machineLearning) || assetIds.length === 0) {
+      return fits;
+    }
+
+    const prompts = getCollectionPacks().flatMap((pack) =>
+      getPrompts(pack)
+        .filter(({ kind }) => kind !== 'other')
+        .map(({ kind, text }) => ({ pack: pack.id, kind: kind as CollectionPhotoKind, text })),
+    );
+    const texts = unique(prompts.map(({ text }) => text));
+    const embeddings = await this.encodeTexts(texts);
+    const similarities = new Map<string, number[]>();
+    for (const [batch, textBatch] of chunks(embeddings, FIT_PROMPT_BATCH).entries()) {
+      for (const chunk of chunks(unique(assetIds))) {
+        for (const row of await this.searchRepository.getEmbeddingSimilarities(chunk, textBatch)) {
+          const values = similarities.get(row.assetId) ?? Array.from({ length: texts.length }, () => -1);
+          for (const [index, value] of row.similarities.entries()) {
+            values[batch * FIT_PROMPT_BATCH + index] = value;
+          }
+          similarities.set(row.assetId, values);
+        }
+      }
+    }
+
+    const textIndex = new Map(texts.map((text, index) => [text, index]));
+    for (const [assetId, values] of similarities) {
+      const fit: PackFit = {};
+      for (const { pack, kind, text } of prompts) {
+        const value = values[textIndex.get(text)!];
+        fit[pack] ??= {};
+        fit[pack][kind] = Math.max(fit[pack][kind] ?? -1, value);
+      }
+      fits.set(assetId, fit);
+    }
+    return fits;
   }
 
   /** CLIP text embeddings (pgvector text) of the texts, cached by model */

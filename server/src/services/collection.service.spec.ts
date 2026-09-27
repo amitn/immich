@@ -181,6 +181,61 @@ describe(CollectionService.name, () => {
       expect(result.visits.flatMap(({ subjectIds }) => subjectIds)).toEqual([fern]);
     });
 
+    it("should leave out the photos that are another pack's for sure, unless the pack named them", async () => {
+      const albumId = newUuid();
+      const [fern, dish, named] = [newUuid(), newUuid(), newUuid()];
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.assetJob.getForAgentEvents.mockResolvedValue([
+        eventRow(fern, '2024-05-02T10:12:00'),
+        eventRow(dish, '2024-05-02T10:20:00'),
+        eventRow(named, '2024-05-02T10:25:00'),
+      ] as never);
+      mocks.search.getEmbeddingSimilarities.mockResolvedValue([
+        { assetId: fern, similarities: plant },
+        { assetId: dish, similarities: plant },
+        { assetId: named, similarities: plant },
+      ]);
+      mocks.tag.getAssetTagsByPrefix.mockImplementation((ids: string[], prefix: string) =>
+        Promise.resolve(
+          prefix === 'Labels/' && ids.includes(named)
+            ? [{ assetId: named, tagId: 'tag', value: 'Labels/Kew/Fern' }]
+            : [],
+        ),
+      );
+
+      const foreign = new Map([['subject' as const, new Set([dish, named])]]);
+      const result = await sut.findVisits(auth, 'labels', { albumId }, { foreign });
+
+      expect(result.visits.flatMap(({ subjectIds }) => subjectIds)).toEqual([fern, named]);
+    });
+
+    it('should fit the prompts of every pack, by kind, to every photo (getPackFits)', async () => {
+      const [fern, other] = [newUuid(), newUuid()];
+      mocks.search.getEmbeddingSimilarities.mockImplementation((ids: string[], embeddings: string[]) =>
+        Promise.resolve(
+          ids.flatMap((assetId) =>
+            assetId === other ? [] : [{ assetId, similarities: embeddings.map((_, index) => index / 1000) }],
+          ),
+        ),
+      );
+
+      const fits = await sut.getPackFits([fern, other]);
+
+      expect([...fits.keys()]).toEqual([fern]);
+      const fit = fits.get(fern)!;
+      expect(Object.keys(fit)).toEqual(expect.arrayContaining(['food', 'garden', 'labels']));
+      expect(Object.keys(fit.labels)).toEqual(expect.arrayContaining(['subject', 'source', 'sign']));
+      // no pack's "other" prompts are compared
+      expect(Object.keys(fit.labels)).not.toContain('other');
+      expect(fit.labels.subject).toBeGreaterThan(0);
+    });
+
+    it('should fit no prompts without smart search (getPackFits)', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { clip: { enabled: false } } });
+      await expect(sut.getPackFits([newUuid()])).resolves.toEqual(new Map());
+      expect(mocks.search.getEmbeddingSimilarities).not.toHaveBeenCalled();
+    });
+
     it('should read its sources with its parser, hide what its privacy hook hides, and match the subjects', async () => {
       const [boardId, fern, rose] = [newUuid(), newUuid(), newUuid()];
       mocks.systemMetadata.get.mockResolvedValue({ machineLearning: { ocr: { enabled: false } } });
