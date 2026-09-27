@@ -7,7 +7,14 @@
   import { type SharedLinkTab } from '$lib/constants';
   import GroupTab from '$lib/elements/GroupTab.svelte';
   import { Route } from '$lib/route';
-  import { getAllSharedLinks, SharedLinkType, type SharedLinkResponseDto } from '@immich/sdk';
+  import { handleError } from '$lib/utils/handle-error';
+  import {
+    getAllSharedLinks,
+    getBooks,
+    SharedLinkType,
+    type BookResponseDto,
+    type SharedLinkResponseDto,
+  } from '@immich/sdk';
   import { Container } from '@immich/ui';
   import { onMount, type Snippet } from 'svelte';
   import { t } from 'svelte-i18n';
@@ -21,9 +28,25 @@
   const { children, data }: Props = $props();
 
   let sharedLinks: SharedLinkResponseDto[] = $state([]);
+  /** the books of the links to books, for their covers (their first page, as in the list of books) */
+  let books = $state(new Map<string, BookResponseDto>());
+
+  const loadBooks = async () => {
+    if (sharedLinks.every((link) => !link.book)) {
+      return;
+    }
+    try {
+      const list = await getBooks();
+      books = new Map(list.map((book) => [book.id, book]));
+    } catch (error) {
+      // the links still show, with a book icon for a cover
+      handleError(error, $t('errors.unable_to_load_books'), { notify: false });
+    }
+  };
 
   const refresh = async () => {
     sharedLinks = await getAllSharedLinks({});
+    await loadBooks();
   };
 
   onMount(async () => {
@@ -34,6 +57,7 @@
     all: $t('all'),
     album: $t('albums'),
     individual: $t('individual_shares'),
+    book: $t('photo_books'),
   };
 
   let filters = Object.keys(filterMap);
@@ -51,7 +75,8 @@
       ({ type }) =>
         selectedTab === 'all' ||
         (type === SharedLinkType.Album && selectedTab === 'album') ||
-        (type === SharedLinkType.Individual && selectedTab === 'individual'),
+        (type === SharedLinkType.Individual && selectedTab === 'individual') ||
+        (type === SharedLinkType.Book && selectedTab === 'book'),
     ),
   );
 
@@ -92,7 +117,7 @@
     {:else}
       <div class="flex flex-col gap-2">
         {#each filteredSharedLinks as sharedLink (sharedLink.id)}
-          <SharedLinkCard {sharedLink} />
+          <SharedLinkCard {sharedLink} book={sharedLink.book ? books.get(sharedLink.book.id) : undefined} />
         {/each}
       </div>
     {/if}

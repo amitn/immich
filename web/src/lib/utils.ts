@@ -1,6 +1,8 @@
 import {
   AssetMediaSize,
   AssetTypeEnum,
+  BookExportFormat,
+  EnhanceStrength,
   finishOAuth,
   getAssetOriginalPath,
   getAssetPlaybackPath,
@@ -262,10 +264,65 @@ export const getAssetHlsSessionUrl = (id: string, sessionId: string) => {
   return createUrl(`/assets/${id}/video/stream/${sessionId}`, authManager.params);
 };
 
+/** JPEG rendering of a book page; `cacheKey` only busts the browser cache */
+export const getBookPageRenderUrl = ({
+  id,
+  pageId,
+  size = 1200,
+  cacheKey,
+}: {
+  id: string;
+  pageId: string;
+  size?: number;
+  cacheKey?: string;
+}) => createUrl(`/books/${id}/pages/${pageId}/render`, { size, c: cacheKey });
+
+/**
+ * A small JPEG preview of a map in a style (and look): of a page, the first map of a book, or the photos of an album
+ * for a book not made yet
+ */
+export const getBookMapPreviewUrl = ({
+  bookId,
+  pageId,
+  albumId,
+  stylePreset,
+  style,
+  look,
+  size = 240,
+}: {
+  bookId?: string;
+  pageId?: string;
+  albumId?: string;
+  stylePreset?: string;
+  style: string;
+  look?: string;
+  size?: number;
+}) => createUrl('/books/map-preview', { bookId, pageId, albumId, stylePreset, style, look, size });
+
+/** a JPEG of the photo before and after auto-enhance, side by side */
+export const getEnhancePreviewUrl = ({ id, strength }: { id: string; strength?: EnhanceStrength }) =>
+  createUrl(`/assets/${id}/enhance/preview.jpg`, { strength });
+
+export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
+  createUrl(format === BookExportFormat.Html ? `/books/${id}/html` : `/books/${id}/pdf`);
+
+type SharedLinkParams = { key?: string; slug?: string };
+
+/**
+ * The always-current web book preview, to be shown in a sandboxed frame; `cacheKey` makes the frame reload after
+ * edits, and `key` or `slug` read it through a shared link to the book
+ */
+export const getBookPreviewUrl = ({ id, cacheKey, key, slug }: { id: string; cacheKey?: string } & SharedLinkParams) =>
+  createUrl(`/books/${id}/preview`, { v: cacheKey, key, slug });
+
+/** The exported PDF of a book, e.g. through a shared link to it */
+export const getBookPdfUrl = ({ id, key, slug }: { id: string } & SharedLinkParams) =>
+  createUrl(`/books/${id}/pdf`, { key, slug });
+
 export const getProfileImageUrl = (user: UserResponseDto) =>
   createUrl(getUserProfileImagePath(user.id), { updatedAt: user.profileChangedAt });
 
-export const getPeopleThumbnailUrl = (person: PersonResponseDto, updatedAt?: string) =>
+export const getPeopleThumbnailUrl = (person: Pick<PersonResponseDto, 'id' | 'updatedAt'>, updatedAt?: string) =>
   createUrl(getPeopleThumbnailPath(person.id), { updatedAt: updatedAt ?? person.updatedAt });
 
 export const copyToClipboard = async (secret: string | unknown) => {

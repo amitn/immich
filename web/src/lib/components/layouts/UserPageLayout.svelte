@@ -23,6 +23,8 @@
     leading?: Snippet;
     descriptionTrailing?: Snippet;
     sidebar?: Snippet;
+    /** Rendered before the title, e.g. a back button */
+    leading?: Snippet;
     buttons?: Snippet;
     children?: Snippet;
   }
@@ -37,6 +39,7 @@
     leading,
     descriptionTrailing,
     sidebar,
+    leading,
     buttons,
     children,
   }: Props = $props();
@@ -109,7 +112,14 @@
         <div class="flex min-w-0 flex-1 items-center gap-2 overflow-hidden" data-testid="page-header-title-row">
           {@render leading?.()}
           {#if title}
-            <div class="min-w-0 truncate pe-8 outline-none" tabindex="-1" id={headerId} data-testid="page-header">
+            <!-- a long title is cut with an ellipsis and shown whole in its tooltip -->
+            <div
+              class="min-w-0 truncate pe-8 outline-none"
+              tabindex="-1"
+              id={headerId}
+              data-testid="page-header"
+              {title}
+            >
               {title}
             </div>
           {/if}

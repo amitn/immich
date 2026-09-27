@@ -49,11 +49,28 @@ export const Route = {
   onboarding: (params?: { step?: string }) => '/auth/onboarding' + asQueryString(params),
   pinPrompt: (params?: { continue?: string }) => '/auth/pin-prompt' + asQueryString({ continue: params?.continue }),
 
+  // activity log (the changes of the assistant, and undoing them)
+  activityLog: (params?: { groupId?: string; sessionId?: string }) =>
+    '/activity' + asQueryString({ group: params?.groupId, session: params?.sessionId }),
+
   // albums
   albums: () => '/albums',
   viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,
   viewAlbumAsset: ({ albumId, assetId }: { albumId: string; assetId: string }) =>
     `/albums/${albumId}/photos/${assetId}`,
+
+  // assistant
+  assistant: (params?: { sessionId?: string; assetIds?: string[]; prompt?: string }) =>
+    '/assistant' +
+    asQueryString({
+      session: params?.sessionId,
+      assetIds: params?.assetIds?.length ? params.assetIds.join(',') : undefined,
+      prompt: params?.prompt,
+    }),
+
+  // books
+  books: () => '/books',
+  viewBook: ({ id }: { id: string }) => `/books/${id}`,
 
   // buy
   buy: () => '/buy',
@@ -197,6 +214,7 @@ export const Route = {
   duplicatesUtility: (params?: { index?: number }) => '/utilities/duplicates' + asQueryString(params),
   largeFileUtility: () => '/utilities/large-files',
   geolocationUtility: () => '/utilities/geolocation',
+  orientationUtility: () => '/utilities/orientation',
 
   // workflows
   workflows: () => '/workflows',

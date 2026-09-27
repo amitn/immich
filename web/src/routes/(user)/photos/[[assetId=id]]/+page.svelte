@@ -49,6 +49,10 @@
   import { Route } from '$lib/route';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { lang } from '$lib/stores/preferences.store';
+  import { getAssistantBulkActions } from '$lib/services/assistant.service';
+  import { getCollectionBulkActions } from '$lib/services/collections.service';
+  import { getCollageBulkAction } from '$lib/services/collage.service';
+  import { getHighlightBulkAction } from '$lib/services/highlight.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import {
     buildSearchablePageUrl,
@@ -722,6 +726,8 @@
 {#if assetMultiSelectManager.selectionActive}
   <AssetSelectControlBar>
     {@const Actions = getAssetBulkActions($t)}
+    {@const AssistantActions = getAssistantBulkActions($t)}
+    {@const CollectionBulkActions = getCollectionBulkActions($t)}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
     <CreateSharedLink />
@@ -734,6 +740,7 @@
       <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
     {/if}
     <ActionButton action={Actions.AddToAlbum} />
+    <ActionButton action={AssistantActions.AskAssistant} />
 
     {#if assetMultiSelectManager.isAllUserOwned}
       <FavoriteAction removeFavorite={assetMultiSelectManager.isAllFavorite} onFavorite={handleFavorite} />
@@ -763,6 +770,11 @@
         {#if authManager.preferences.tags.enabled}
           <TagAction menuItem />
         {/if}
+        {#each CollectionBulkActions as action (action.title)}
+          <ActionMenuItem {action} />
+        {/each}
+        <ActionMenuItem action={getHighlightBulkAction($t)} />
+        <ActionMenuItem action={getCollageBulkAction($t)} />
         <DeleteAssets menuItem onAssetDelete={handleAssetDelete} onUndoDelete={handleUndoDelete} />
         <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
         <hr />

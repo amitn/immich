@@ -189,3 +189,7 @@ export const setSpaceAlbumsExpanded = (spaceId: string, expanded: boolean, valid
     return next;
   });
 };
+
+export const tagsSidebarDropdown = persisted<boolean>('sidebar-tags-open', false, {});
+
+export const booksSidebarDropdown = persisted<boolean>('sidebar-books-open', false, {});
