@@ -30870,6 +30870,10 @@
             "minimum": 15,
             "type": "integer"
           },
+          "format": {
+            "$ref": "#/components/schemas/HighlightFormat",
+            "description": "Landscape (default) or vertical"
+          },
           "includeMaps": {
             "description": "Open the chapters with GPS locations with a map (default true)",
             "type": "boolean"
@@ -30891,6 +30895,14 @@
           }
         },
         "type": "object"
+      },
+      "HighlightFormat": {
+        "description": "The shape of the video: landscape (16:9, 1920×1080) or vertical (9:16, 1080×1920, for phones and social apps, with the text clear of the apps’ buttons)",
+        "enum": [
+          "landscape",
+          "vertical"
+        ],
+        "type": "string"
       },
       "HighlightJobResponseDto": {
         "properties": {
@@ -30925,6 +30937,9 @@
             "description": "Why the video could not be made",
             "nullable": true,
             "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/HighlightFormat"
           },
           "id": {
             "description": "Highlight video ID",
@@ -30974,6 +30989,7 @@
           "createdAt",
           "durationSeconds",
           "error",
+          "format",
           "id",
           "progress",
           "resultAssetId",

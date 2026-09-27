@@ -3053,6 +3053,7 @@ export type HighlightJobResponseDto = {
     durationSeconds: number;
     /** Why the video could not be made */
     error: string | null;
+    format: HighlightFormat;
     /** Highlight video ID */
     id: string;
     /** Share of the rendering done, 0 to 1 */
@@ -3080,6 +3081,8 @@ export type HighlightCreateDto = {
     captions?: boolean;
     /** Length of the video in seconds (default 60) */
     durationSeconds?: number;
+    /** Landscape (default) or vertical */
+    format?: HighlightFormat;
     /** Open the chapters with GPS locations with a map (default true) */
     includeMaps?: boolean;
     /** An audio file of the user (see the music endpoints) played under the video */
@@ -10718,6 +10721,10 @@ export enum FoodMealType {
     Breakfast = "Breakfast",
     Lunch = "Lunch",
     Dinner = "Dinner"
+}
+export enum HighlightFormat {
+    Landscape = "landscape",
+    Vertical = "vertical"
 }
 export enum HighlightJobStatus {
     Pending = "pending",
