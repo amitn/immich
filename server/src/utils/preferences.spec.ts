@@ -66,6 +66,15 @@ const getDefaultPreferences = (): UserPreferences => ({
   recentlyAdded: {
     sidebarWeb: false,
   },
+  bookDrafts: {
+    enabled: true,
+  },
+  aiAnswers: {
+    enabled: true,
+  },
+  collectionNotifications: {
+    enabled: true,
+  },
 });
 
 describe('getPreferences', () => {

@@ -57,6 +57,7 @@ import {
   withExif,
   withFaces,
   withFacesAndPeople,
+  withFilePath,
   withFiles,
   withLibrary,
   withOwner,

@@ -62,6 +62,18 @@ export type RawImageInfo = {
   channels: 1 | 2 | 3 | 4;
 };
 
+/** decoded pixels, e.g. of an original for the AI assistant's image tools */
+export type Bitmap = {
+  data: Buffer;
+  info: RawImageInfo;
+};
+
+export type TransformOptions = {
+  size?: number;
+  fit?: 'inside' | 'outside';
+  edits?: AssetEditActionItem[];
+};
+
 type DecodeImageOptions = {
   colorspace: string;
   processInvalidImages: boolean;

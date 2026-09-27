@@ -11,6 +11,7 @@ import { Writable } from 'node:stream';
 import sharp, { OverlayOptions, Sharp } from 'sharp';
 import type { NormalizedRect } from 'src/dtos/book.dto.js';
 import type {
+  Bitmap,
   DecodeToBufferOptions,
   GenerateThumbhashOptions,
   GenerateThumbnailOptions,
@@ -18,6 +19,7 @@ import type {
   ProbeOptions,
   RawImageInfo,
   TranscodeCommand,
+  TransformOptions,
   VideoInfo,
   VideoPacketInfo,
 } from 'src/types.js';
@@ -412,6 +414,45 @@ export class MediaRepository {
       pipeline = pipeline.resize(options.size, options.size, { fit: 'outside', withoutEnlargement: true });
     }
     return pipeline;
+  }
+
+  // The raw-pixel helpers below serve the AI assistant's image tools (crop, straighten, enhance, book pages, ...),
+  // which work on decoded originals rather than on files.
+
+  private getPipelineColorspace(colorspace: string) {
+    return colorspace === Colorspace.Srgb ? 'srgb' : 'rgb16';
+  }
+
+  /* Resamples in linear light; averaging gamma-encoded values darkens the result and loses detail. `colorspace`
+   * always has a sRGB transfer function and scRGB applies no primaries matrix, so linearising as sRGB is exact. */
+  private transform(image: Bitmap, { size, fit = 'outside', edits = [] }: TransformOptions): Promise<Bitmap> {
+    if (!size && edits.length === 0) {
+      return Promise.resolve(image);
+    }
+
+    return this.applyEdits(this.raw(image).pipelineColorspace('scrgb'), edits)
+      .resize(size, size, { fit, withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+  }
+
+  private raw({ data, info }: Bitmap) {
+    const { width, height, channels } = info;
+    return sharp(data, {
+      raw: { width, height, channels },
+      limitInputChannels: false,
+      limitInputPixels: false,
+      unlimited: true,
+    });
+  }
+
+  private encoded(image: string | Buffer, failOn: 'none' | 'error') {
+    return sharp(image, { failOn, limitInputChannels: false, limitInputPixels: false, unlimited: true });
+  }
+
+  /** Re-attaches the profile, converting nothing: the pixels are already in that colourspace. */
+  private tag(image: Bitmap, colorspace: string): Sharp {
+    return this.raw(image).pipelineColorspace(this.getPipelineColorspace(colorspace)).withIccProfile(colorspace);
   }
 
   async generateThumbhash(input: string | Buffer, options: GenerateThumbhashOptions): Promise<Buffer> {
