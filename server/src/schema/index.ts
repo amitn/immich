@@ -62,6 +62,7 @@ import { ClusterGroupRequestTable } from 'src/schema/tables/cluster-group-reques
 import { ClusterGroupTable } from 'src/schema/tables/cluster-group.table.js';
 import { FaceSearchTable } from 'src/schema/tables/face-search.table.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
+import { HighlightJobTable } from 'src/schema/tables/highlight-job.table.js';
 import { IntegrityReportTable } from 'src/schema/tables/integrity-report.table.js';
 import { LibraryTable } from 'src/schema/tables/library.table.js';
 import { MemoryAssetAuditTable } from 'src/schema/tables/memory-asset-audit.table.js';
@@ -143,6 +144,7 @@ export class ImmichDatabase {
     ClusterGroupRequestTable,
     FaceSearchTable,
     GeodataPlacesTable,
+    HighlightJobTable,
     IntegrityReportTable,
     LibraryTable,
     MemoryTable,
@@ -263,6 +265,8 @@ export interface DB {
   face_search: FaceSearchTable;
 
   geodata_places: GeodataPlacesTable;
+
+  highlight_job: HighlightJobTable;
 
   integrity_report: IntegrityReportTable;
 

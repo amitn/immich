@@ -61,6 +61,7 @@ const INPUT_REF_TOOLS = new Set([
   'suggest_enhancement',
   'stylize_photo',
   'test_art_style',
+  'make_highlight_video',
   'read_source',
   'save_entries',
   'read_menu',

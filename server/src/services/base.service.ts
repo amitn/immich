@@ -30,6 +30,7 @@ import { DownloadRepository } from 'src/repositories/download.repository.js';
 import { DuplicateRepository } from 'src/repositories/duplicate.repository.js';
 import { EmailRepository } from 'src/repositories/email.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
@@ -77,6 +78,7 @@ export const BASE_SERVICE_DEPENDENCIES = [
   AgentRepository,
   AcpRepository,
   ArtJobRepository,
+  HighlightJobRepository,
   BookRepository,
   BookDraftRepository,
   AlbumRepository,
@@ -144,6 +146,7 @@ export class BaseService {
     protected agentRepository: AgentRepository,
     protected acpRepository: AcpRepository,
     protected artJobRepository: ArtJobRepository,
+    protected highlightJobRepository: HighlightJobRepository,
     protected bookRepository: BookRepository,
     protected bookDraftRepository: BookDraftRepository,
     protected albumRepository: AlbumRepository,
@@ -220,6 +223,7 @@ export class BaseService {
       ctx.agentRepository,
       ctx.acpRepository,
       ctx.artJobRepository,
+      ctx.highlightJobRepository,
       ctx.bookRepository,
       ctx.bookDraftRepository,
       ctx.albumRepository,

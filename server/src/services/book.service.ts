@@ -273,7 +273,10 @@ const getAssetDimensions = (asset: RenderAsset) =>
       });
 
 /** Picks the file a slot is drawn from; edited assets always use their edited renditions */
-const getRenderInput = (asset: RenderAsset, mode: BookRenderMode): Omit<RenderSource, 'width' | 'height'> | null => {
+export const getRenderInput = (
+  asset: RenderAsset,
+  mode: BookRenderMode,
+): Omit<RenderSource, 'width' | 'height'> | null => {
   const find = (type: AssetFileType) =>
     asset.files.find((file) => file.type === type && file.isEdited === asset.isEdited)?.path ??
     asset.files.find((file) => file.type === type && !file.isEdited)?.path;
@@ -1722,8 +1725,12 @@ export class BookService extends BaseService {
     }
   }
 
-  /** photos with their size, faces, place, quality score, near-duplicate cluster and event */
-  private async getLayoutPhotos(
+  /**
+   * photos with their size, faces, place, quality score, near-duplicate cluster and event, e.g. for the layout of a
+   * book or the shots of a highlight video; `sourcePages: false` skips reading the text of the sources (a film shows
+   * no typeset pages)
+   */
+  async getLayoutPhotos(
     auth: AuthDto,
     assetIds: string[],
     heroIds: Set<string>,
@@ -1736,6 +1743,7 @@ export class BookService extends BaseService {
       /** score the photos on what they can become */
       addGain: boolean;
     },
+    { sourcePages = true }: { sourcePages?: boolean } = {},
   ): Promise<AutoLayoutPhoto[]> {
     const found = await this.assetJobRepository.getForAgent([...new Set(assetIds)], auth.user.id);
     let rows = found.filter((row) => row.type === AssetType.Image);
@@ -1844,9 +1852,11 @@ export class BookService extends BaseService {
     }
     // the page a pack typesets from the text of a source: beside its photo (the ingredients and steps of a recipe), or
     // in place of it (the fields of a ticket, whose photo is never printed, even when its text can't be read)
-    const typeset = photos
-      .filter((photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourcePage)
-      .slice(0, MAX_SOURCE_PAGES);
+    const typeset = sourcePages
+      ? photos
+          .filter((photo) => photo.collection?.kind === 'source' && getPhotoPack(photo)?.book.sourcePage)
+          .slice(0, MAX_SOURCE_PAGES)
+      : [];
     if (typeset.length > 0) {
       const collections = BaseService.create(CollectionService, this);
       await mapLimit(typeset, 2, async (photo) => {

@@ -21,6 +21,7 @@ With its tools, the assistant can:
 - crop photos around faces, straighten tilted photos and enhance dull ones;
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
+- make [highlight videos](#highlight-videos) of albums, books and selections;
 - create [artistic versions](#artistic-styles) of photos;
 - [design book and artistic styles of your own](#designing-your-own-styles) from a description;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
@@ -224,6 +225,25 @@ The watercolor, toner and terrain styles send the coordinates of the trip to Sta
 :::
 
 **Illustrate maps with AI** asks the [art agent](#artistic-styles) to paint over each map page as a hand-illustrated vintage watercolor travel map, keeping the geography, route, pins and place names. It needs an art profile and adds a few minutes per map. The rendered map is saved as a photo tagged `Photo books/Maps`, and the illustration is stacked with it.
+
+## Highlight videos
+
+A highlight video is a short film of a trip, a dinner or a museum visit: a book laid out in time. Select **Make a highlight video…** in the **⋮** menu of an album, in the **Export** menu of the book viewer, or in the menu of a selection of photos and videos. Choose:
+
+- **Title**: shown on the title card; the name of the album or book by default.
+- **Length**: 30, 60, 90 or 120 seconds. The film is exactly that long, unless there are too few photos to fill it.
+- **Style**: the look of the title cards and captions, from the [book styles](#photo-books). **Automatic** uses the style of the book, or the style of the collection the photos belong to, so a food video looks like a food book and a museum video like an exhibition catalogue.
+- **Maps**: open each chapter that has GPS locations with a map.
+- **Captions**: name the dishes, artworks, wines and recipe steps, and the places, in a label at the bottom of the photos.
+- **Music**: an audio file you uploaded (MP3, M4A, AAC, WAV, FLAC, OGG or Opus), or none. Immich includes no music, so videos are silent unless you upload your own.
+
+The video picks and orders its photos like the [automatic book layout](#how-the-automatic-layout-works): one photo per stack and per burst, the best ones first, and a chapter per day or stop (or per restaurant visit, recipe, tasting, museum visit or leg of a trip). Each chapter opens with a map or a title card with its place and dates. Photos slowly zoom towards the faces, or towards the most interesting part of the photo when there are none, and never crop a face out of the frame; portraits are shown whole over a blurred copy of themselves. Short clips of 3 to 5 seconds are cut from the best part of the videos, with their sound. Travel documents and menus are never shown.
+
+The video is rendered in the background, with its progress in the corner of the screen, where you can also cancel it. When it's done you get a notification, _Your highlight video is ready_, and the video opens. It's saved as a new 1080p video (MP4, H.264 and AAC) in your timeline, dated like the last photo of the trip, tagged `Highlights/<title>`, and added to the album it was made from. Immich then makes its thumbnails and transcodes it like any other video.
+
+Rendering takes about half a minute to a few minutes on the CPU, depending on the length and the number of clips. When your administrator turns on hardware acceleration for [video transcoding](/features/hardware-transcoding), the film is encoded on the GPU, and on the CPU if that fails.
+
+You can also ask the assistant: _"make a one-minute video of our trip to Sicily"_. It uses `make_highlight_video`, which asks for approval, and tells you when the video is ready.
 
 ## Artistic styles
 
@@ -502,4 +522,5 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 - **No image is generated.** The error _The art agent did not produce an image_ means the art profile's agent can't generate images. Choose an agent with image generation, such as Codex, as the **Art profile**.
 - **Maps are drawn as sketches.** The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**.
 - **The menu isn't read.** The dialog says _No items could be read on the menu_, or the assistant finds few items. The menu may be blurry, tilted, in a strong perspective, too dark or partly covered. Photograph the menu straight on, flat and in focus, in several parts for a long menu. You can still name the dishes by hand, or **Ask the assistant**: it looks at the menu photos itself, reads the items, and matches the dishes with what it read.
+- **A highlight video fails.** The notification says why. Videos are rendered with the `ffmpeg` that Immich uses to transcode videos; when the server runs outside Docker, `ffmpeg` and `ffprobe` must be installed, or their paths set with `FFMPEG_PATH` and `FFPROBE_PATH`. Photos smaller than about 1000 pixels are left out, as they would look blurry in 1080p.
 - **A photo isn't enhanced.** _This photo already looks good, there is nothing to enhance at this strength._ Auto-enhance only applies corrections a photo needs. Try the **Strong** strength, or leave the photo as it is.

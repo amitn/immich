@@ -23,6 +23,7 @@ import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
 import { EnhanceService } from 'src/services/enhance.service.js';
 import { FoodService } from 'src/services/food.service.js';
+import { HighlightService } from 'src/services/highlight.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
 import { JobService } from 'src/services/job.service.js';
@@ -72,6 +73,7 @@ export const services = [
   BookService,
   BookDraftService,
   BookStyleService,
+  HighlightService,
   ApiService,
   AssetFileService,
   AssetMediaService,

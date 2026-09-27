@@ -10636,6 +10636,377 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/highlights": {
+      "get": {
+        "description": "Retrieve the highlight videos of the user, newest first, with their status.",
+        "operationId": "getHighlights",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HighlightJobResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve highlight videos",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Start making a highlight video of an album, a book or a selection of photos and videos: the best photos as slow pans and zooms, short clips of the videos, title cards and maps for the chapters, lower thirds with the names of the dishes, artworks and places, and optional music. It is rendered in the background and saved as a new video asset.",
+        "operationId": "createHighlight",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HighlightCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Make a highlight video",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/highlights/music": {
+      "get": {
+        "description": "Retrieve the audio files the user uploaded as music for highlight videos.",
+        "operationId": "getHighlightMusic",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HighlightMusicResponseDto"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve the music for highlight videos",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Upload an audio file (MP3, M4A, AAC, WAV, FLAC, OGG or Opus) to play under highlight videos. It is kept as a hidden audio asset of the user.",
+        "operationId": "uploadHighlightMusic",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/HighlightMusicUploadDto"
+              }
+            }
+          },
+          "description": "An audio file",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightMusicResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Upload music for highlight videos",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/highlights/music/{id}": {
+      "delete": {
+        "description": "Delete an audio file the user uploaded as music for highlight videos.",
+        "operationId": "deleteHighlightMusic",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Delete music for highlight videos",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/highlights/{id}": {
+      "get": {
+        "description": "Retrieve the status and progress of a highlight video, and the video asset once it is ready.",
+        "operationId": "getHighlight",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Retrieve a highlight video",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/highlights/{id}/cancel": {
+      "post": {
+        "description": "Stop making a highlight video that is waiting or rendering.",
+        "operationId": "cancelHighlight",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Cancel a highlight video",
+        "tags": [
+          "Highlights"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.delete",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/jobs": {
       "get": {
         "deprecated": true,
@@ -21478,6 +21849,10 @@
       "description": "Food photos are organized by restaurant and dish with Food/<Restaurant>/<Dish> tags; these endpoints find the meals among assets, match their dishes with menu items and save the names."
     },
     {
+      "name": "Highlights",
+      "description": "A highlight video is a short film made from an album, a book or a selection: the best photos as slow pans and zooms, short clips of the videos, title cards and maps for the chapters, and optional music. It is saved as a new video asset."
+    },
+    {
       "name": "Integrity (admin)",
       "description": "Endpoints for viewing and managing integrity reports."
     },
@@ -30238,6 +30613,221 @@
         ],
         "type": "object"
       },
+      "HighlightCreateDto": {
+        "properties": {
+          "addToAlbum": {
+            "description": "Add the video to the album it is made from (default true)",
+            "type": "boolean"
+          },
+          "albumId": {
+            "description": "Album to make the video from",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "assetIds": {
+            "description": "Photos and videos to make the video from",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 3000,
+            "minItems": 1,
+            "type": "array"
+          },
+          "bookId": {
+            "description": "Book to make the video from: its photos, and the videos of its album",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "captions": {
+            "description": "Name the dishes, artworks, wines and recipe steps, and the places, in lower thirds (default true)",
+            "type": "boolean"
+          },
+          "durationSeconds": {
+            "description": "Length of the video in seconds (default 60)",
+            "maximum": 180,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "includeMaps": {
+            "description": "Open the chapters with GPS locations with a map (default true)",
+            "type": "boolean"
+          },
+          "music": {
+            "description": "An audio file of the user (see the music endpoints) played under the video",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "style": {
+            "$ref": "#/components/schemas/HighlightStyle"
+          },
+          "title": {
+            "description": "Title; default: the name of the album or book",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HighlightJobResponseDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album the video is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "bookId": {
+            "description": "Book the video is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "Creation date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "durationSeconds": {
+            "description": "Length of the video in seconds, as asked for",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "error": {
+            "description": "Why the video could not be made",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "Highlight video ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "progress": {
+            "description": "Share of the rendering done, 0 to 1",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "resultAssetId": {
+            "description": "The video, once it is ready",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/HighlightJobStatus"
+          },
+          "title": {
+            "description": "Title",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "Last update date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "warnings": {
+            "description": "What was left out, e.g. photos too small for 1080p",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "albumId",
+          "bookId",
+          "createdAt",
+          "durationSeconds",
+          "error",
+          "id",
+          "progress",
+          "resultAssetId",
+          "status",
+          "title",
+          "updatedAt",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "HighlightJobStatus": {
+        "description": "Highlight video status",
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "HighlightMusicResponseDto": {
+        "properties": {
+          "durationSeconds": {
+            "description": "Length in seconds, when known",
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          },
+          "id": {
+            "description": "Asset ID of the audio file",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "name": {
+            "description": "File name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "durationSeconds",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "HighlightMusicUploadDto": {
+        "properties": {
+          "file": {
+            "description": "An audio file: MP3, M4A, AAC, WAV, FLAC, OGG or Opus",
+            "format": "binary",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HighlightStyle": {
+        "description": "The look of the title cards and captions: auto (the style of the book, or the style of the collection of the photos, e.g. food, otherwise classic), or a book style preset",
+        "enum": [
+          "auto",
+          "classic",
+          "soft",
+          "bold",
+          "food",
+          "museum",
+          "wine",
+          "cookbook",
+          "travel"
+        ],
+        "type": "string"
+      },
       "HlsVideoResolution": {
         "description": "HLS video resolution",
         "enum": [
@@ -30426,6 +31016,7 @@
           "BookDraftsGenerate",
           "BookExport",
           "BookExportHtml",
+          "HighlightRender",
           "DatabaseBackup",
           "FacialRecognitionQueueAll",
           "FacialRecognition",
@@ -32805,6 +33396,9 @@
           "bookStyle.read",
           "bookStyle.update",
           "bookStyle.delete",
+          "highlight.create",
+          "highlight.read",
+          "highlight.delete",
           "clusterGroup.read",
           "clusterGroup.leave",
           "clusterGroupRequest.create",

@@ -331,6 +331,11 @@ const checkOtherAccess = async (access: AccessRepository, request: OtherAccessRe
       return access.artJob.checkOwnerAccess(auth.user.id, ids);
     }
 
+    case Permission.HighlightRead:
+    case Permission.HighlightDelete: {
+      return access.highlightJob.checkOwnerAccess(auth.user.id, ids);
+    }
+
     case Permission.BookRead:
     case Permission.BookUpdate:
     case Permission.BookDelete:

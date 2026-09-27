@@ -27,6 +27,7 @@
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAssistantBulkActions } from '$lib/services/assistant.service';
   import { getCollectionBulkActions } from '$lib/services/collections.service';
+  import { getHighlightBulkAction } from '$lib/services/highlight.service';
   import { getStackBulkActions } from '$lib/services/stack.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import { type OnLink, type OnUnlink } from '$lib/utils/actions';
@@ -154,6 +155,7 @@
         {#each CollectionBulkActions as action (action.title)}
           <ActionMenuItem {action} />
         {/each}
+        <ActionMenuItem action={getHighlightBulkAction($t)} />
         <DeleteAssets
           menuItem
           onAssetDelete={(assetIds) => timelineManager.removeAssets(assetIds)}

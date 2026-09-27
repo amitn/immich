@@ -46,6 +46,7 @@
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAlbumBookActions } from '$lib/services/book.service';
   import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
+  import { getAlbumHighlightAction, getHighlightBulkAction } from '$lib/services/highlight.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
   import { handlePromiseError, isEnabled } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
@@ -333,6 +334,7 @@
   const { Share, Leave } = $derived(getAlbumActions($t, album));
   const { ExportAsBook } = $derived(getAlbumBookActions($t, album));
   const CollectionActions = $derived(getAlbumCollectionActions($t, album));
+  const MakeHighlight = $derived(getAlbumHighlightAction($t, album));
   const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets));
 
   const Close = $derived({
@@ -512,6 +514,7 @@
           {#each CollectionBulkActions as action (action.title)}
             <ActionMenuItem {action} />
           {/each}
+          <ActionMenuItem action={getHighlightBulkAction($t)} />
 
           <ActionMenuItem action={Actions.RemoveFromAlbum} />
           {#if assetMultiSelectManager.isAllUserOwned}
@@ -569,7 +572,7 @@
               />
             {/if}
 
-            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook) || CollectionActions.some( (action) => isEnabled(action) )}
+            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook) || isEnabled(MakeHighlight) || CollectionActions.some( (action) => isEnabled(action) )}
               <ButtonContextMenu
                 icon={mdiDotsVertical}
                 title={$t('album_options')}
@@ -577,6 +580,7 @@
                 offset={{ x: 175, y: 25 }}
               >
                 <ActionMenuItem action={ExportAsBook} />
+                <ActionMenuItem action={MakeHighlight} />
                 {#each CollectionActions as action (action.title)}
                   <ActionMenuItem {action} />
                 {/each}

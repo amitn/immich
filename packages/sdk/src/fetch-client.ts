@@ -3038,6 +3038,64 @@ export type FoodMatchResponseDto = {
     /** Why matching may be incomplete */
     warnings: string[];
 };
+export type HighlightJobResponseDto = {
+    /** Album the video is made from */
+    albumId: string | null;
+    /** Book the video is made from */
+    bookId: string | null;
+    /** Creation date */
+    createdAt: string;
+    /** Length of the video in seconds, as asked for */
+    durationSeconds: number;
+    /** Why the video could not be made */
+    error: string | null;
+    /** Highlight video ID */
+    id: string;
+    /** Share of the rendering done, 0 to 1 */
+    progress: number;
+    /** The video, once it is ready */
+    resultAssetId: string | null;
+    status: HighlightJobStatus;
+    /** Title */
+    title: string;
+    /** Last update date */
+    updatedAt: string;
+    /** What was left out, e.g. photos too small for 1080p */
+    warnings: string[];
+};
+export type HighlightCreateDto = {
+    /** Add the video to the album it is made from (default true) */
+    addToAlbum?: boolean;
+    /** Album to make the video from */
+    albumId?: string;
+    /** Photos and videos to make the video from */
+    assetIds?: string[];
+    /** Book to make the video from: its photos, and the videos of its album */
+    bookId?: string;
+    /** Name the dishes, artworks, wines and recipe steps, and the places, in lower thirds (default true) */
+    captions?: boolean;
+    /** Length of the video in seconds (default 60) */
+    durationSeconds?: number;
+    /** Open the chapters with GPS locations with a map (default true) */
+    includeMaps?: boolean;
+    /** An audio file of the user (see the music endpoints) played under the video */
+    music?: string;
+    style?: HighlightStyle;
+    /** Title; default: the name of the album or book */
+    title?: string;
+};
+export type HighlightMusicResponseDto = {
+    /** Length in seconds, when known */
+    durationSeconds: number | null;
+    /** Asset ID of the audio file */
+    id: string;
+    /** File name */
+    name: string;
+};
+export type HighlightMusicUploadDto = {
+    /** An audio file: MP3, M4A, AAC, WAV, FLAC, OGG or Opus */
+    file?: Blob;
+};
 export type QueueStatisticsDto = {
     /** Number of active jobs */
     active: number;
@@ -7591,6 +7649,96 @@ export function matchMeal({ foodMatchDto }: {
     })));
 }
 /**
+ * Retrieve highlight videos
+ */
+export function getHighlights(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightJobResponseDto[];
+    }>("/highlights", {
+        ...opts
+    }));
+}
+/**
+ * Make a highlight video
+ */
+export function createHighlight({ highlightCreateDto }: {
+    highlightCreateDto: HighlightCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightJobResponseDto;
+    }>("/highlights", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: highlightCreateDto
+    })));
+}
+/**
+ * Retrieve the music for highlight videos
+ */
+export function getHighlightMusic(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightMusicResponseDto[];
+    }>("/highlights/music", {
+        ...opts
+    }));
+}
+/**
+ * Upload music for highlight videos
+ */
+export function uploadHighlightMusic({ highlightMusicUploadDto }: {
+    highlightMusicUploadDto: HighlightMusicUploadDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightMusicResponseDto;
+    }>("/highlights/music", oazapfts.multipart({
+        ...opts,
+        method: "POST",
+        body: highlightMusicUploadDto
+    })));
+}
+/**
+ * Delete music for highlight videos
+ */
+export function deleteHighlightMusic({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/highlights/music/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a highlight video
+ */
+export function getHighlight({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: HighlightJobResponseDto;
+    }>(`/highlights/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Cancel a highlight video
+ */
+export function cancelHighlight({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightJobResponseDto;
+    }>(`/highlights/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
  * Retrieve queue counts and status
  */
 export function getQueuesLegacy(opts?: Oazapfts.RequestOpts) {
@@ -10200,6 +10348,9 @@ export enum Permission {
     BookStyleRead = "bookStyle.read",
     BookStyleUpdate = "bookStyle.update",
     BookStyleDelete = "bookStyle.delete",
+    HighlightCreate = "highlight.create",
+    HighlightRead = "highlight.read",
+    HighlightDelete = "highlight.delete",
     ClusterGroupRead = "clusterGroup.read",
     ClusterGroupLeave = "clusterGroup.leave",
     ClusterGroupRequestCreate = "clusterGroupRequest.create",
@@ -10504,6 +10655,24 @@ export enum FoodMealType {
     Lunch = "Lunch",
     Dinner = "Dinner"
 }
+export enum HighlightJobStatus {
+    Pending = "pending",
+    Running = "running",
+    Completed = "completed",
+    Failed = "failed",
+    Cancelled = "cancelled"
+}
+export enum HighlightStyle {
+    Auto = "auto",
+    Classic = "classic",
+    Soft = "soft",
+    Bold = "bold",
+    Food = "food",
+    Museum = "museum",
+    Wine = "wine",
+    Cookbook = "cookbook",
+    Travel = "travel"
+}
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
     TagCleanup = "tag-cleanup",
@@ -10600,6 +10769,7 @@ export enum JobName {
     BookDraftsGenerate = "BookDraftsGenerate",
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
+    HighlightRender = "HighlightRender",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",

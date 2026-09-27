@@ -42,5 +42,9 @@ export const newMediaRepositoryMock = (): Mocked<RepositoryInterface<MediaReposi
     analyzeImage: vitest.fn(),
     upscaleImage: vitest.fn(),
     stackPhotoAboveArtwork: vitest.fn().mockResolvedValue(Buffer.from('stacked')),
+    composeHighlightStill: vitest.fn().mockResolvedValue(undefined),
+    getVideoFrame: vitest.fn().mockResolvedValue(Buffer.from('frame')),
+    getFfmpegFilters: vitest.fn().mockResolvedValue(new Set(['zscale', 'tonemap', 'xfade', 'zoompan'])),
+    runFfmpeg: vitest.fn().mockResolvedValue(undefined),
   };
 };

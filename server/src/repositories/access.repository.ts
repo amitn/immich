@@ -673,6 +673,26 @@ class ArtStyleAccess {
   }
 }
 
+class HighlightJobAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, jobIds: Set<string>) {
+    if (jobIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('highlight_job')
+      .select('highlight_job.id')
+      .where('highlight_job.id', 'in', [...jobIds])
+      .where('highlight_job.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
 class BookStyleAccess {
   constructor(private db: Kysely<DB>) {}
 
@@ -743,6 +763,7 @@ export class AccessRepository {
   book: BookAccess;
   bookStyle: BookStyleAccess;
   duplicate: DuplicateAccess;
+  highlightJob: HighlightJobAccess;
   memory: MemoryAccess;
   notification: NotificationAccess;
   clusterGroup: ClusterGroupAccess;
@@ -767,6 +788,7 @@ export class AccessRepository {
     this.book = new BookAccess(db);
     this.bookStyle = new BookStyleAccess(db);
     this.duplicate = new DuplicateAccess(db);
+    this.highlightJob = new HighlightJobAccess(db);
     this.memory = new MemoryAccess(db);
     this.notification = new NotificationAccess(db);
     this.clusterGroup = new ClusterGroupAccess(db);

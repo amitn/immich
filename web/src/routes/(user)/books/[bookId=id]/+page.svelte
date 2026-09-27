@@ -2,6 +2,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
   import BookDraftBanner from '$lib/components/books/BookDraftBanner.svelte';
+  import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import BookEditPanel from '$lib/components/books/BookEditPanel.svelte';
   import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
   import BookPageEditor from '$lib/components/books/BookPageEditor.svelte';
@@ -22,6 +23,7 @@
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
   import { discardBookDraftWithConfirm, keepBookDraftWithToast, polishBookDraft } from '$lib/services/book.service';
+  import { getBookHighlightAction } from '$lib/services/highlight.service';
   import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
   import { locale } from '$lib/stores/preferences.store';
   import { websocketEvents } from '$lib/stores/websocket';
@@ -646,6 +648,7 @@
               onClick={() => handleExport(format)}
             />
           {/each}
+          <ActionMenuItem action={getBookHighlightAction($t, book)} />
         </ButtonContextMenu>
       {/if}
       <IconButton

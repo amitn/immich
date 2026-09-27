@@ -10,6 +10,7 @@ import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
 import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
 import { EnhanceAgentTools } from 'src/services/agent-tools/enhance.tools.js';
+import { HighlightAgentTools } from 'src/services/agent-tools/highlight.tools.js';
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
 import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -68,6 +69,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(EnhanceAgentTools, this),
         BaseService.create(CollectionAgentTools, this),
         BaseService.create(QuestionAgentTools, this),
+        BaseService.create(HighlightAgentTools, this),
       ];
 
       this.tools = new Map();

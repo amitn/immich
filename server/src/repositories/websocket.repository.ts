@@ -11,6 +11,7 @@ import { AgentUpdateDto } from 'src/dtos/agent.dto.js';
 import { ArtJobResponseDto } from 'src/dtos/art.dto.js';
 import { AssetResponseDto } from 'src/dtos/asset-response.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
+import { HighlightJobResponseDto } from 'src/dtos/highlight.dto.js';
 import { NotificationDto } from 'src/dtos/notification.dto.js';
 import { ReleaseEventV1, ServerVersionResponseDto } from 'src/dtos/server.dto.js';
 import { SyncAssetEditV1, SyncAssetExifV1, SyncAssetV2 } from 'src/dtos/sync.dto.js';
@@ -48,6 +49,7 @@ export interface ClientEventMap {
   on_session_delete: [string];
   on_agent_update: [AgentUpdateDto];
   on_art_job_update: [ArtJobResponseDto];
+  on_highlight_update: [HighlightJobResponseDto];
 
   AssetUploadReadyV2: [{ asset: SyncAssetV2; exif: SyncAssetExifV1 }];
   AppRestartV1: [AppRestartEvent];
