@@ -38,3 +38,18 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
     return Route.viewAsset({ id: assetId });
   }
 };
+
+/**
+ * The new visit of a collection a "new collection found" notification is about: its pack (e.g. food) and its photos,
+ * which the pack's naming dialog opens on
+ */
+export const getCollectionNotice = ({ data }: { data?: unknown }) => {
+  const values = parseData(data);
+  const pack = getId(values, 'collectionPack');
+  const assetIds = values?.assetIds;
+  if (!pack || !Array.isArray(assetIds)) {
+    return;
+  }
+  const ids = assetIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  return ids.length > 0 ? { pack, assetIds: ids } : undefined;
+};

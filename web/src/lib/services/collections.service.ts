@@ -2,7 +2,7 @@ import type { AlbumResponseDto } from '@immich/sdk';
 import { modalManager, type ActionItem } from '@immich/ui';
 import type { MessageFormatter } from 'svelte-i18n';
 import { getCollectionLabel, type WebCollectionPack } from '$lib/collections/pack';
-import { collectionPacks } from '$lib/collections/registry';
+import { collectionPacks, getCollectionPack } from '$lib/collections/registry';
 import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 
@@ -42,3 +42,19 @@ export const getCollectionBulkActions = ($t: MessageFormatter, packs: readonly W
       return modalManager.show(CollectionNameModal, { pack, assetIds });
     },
   }));
+
+/**
+ * Opens the naming dialog of a "new collection found" notification on the photos of its visit; false when its pack is
+ * not in this web app, or not available (e.g. smart search was turned off since)
+ */
+export const openCollectionNotice = (
+  notice: { pack: string; assetIds: string[] },
+  getPack: (id: string) => WebCollectionPack | undefined = getCollectionPack,
+) => {
+  const pack = getPack(notice.pack);
+  if (!pack?.isAvailable()) {
+    return false;
+  }
+  void modalManager.show(CollectionNameModal, { pack, assetIds: notice.assetIds });
+  return true;
+};
