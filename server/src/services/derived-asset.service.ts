@@ -262,6 +262,113 @@ export class DerivedAssetService extends BaseService {
     }
   }
 
+  /**
+   * Creates a video asset of the user from a video the server made (a highlight video), with no source asset: the file
+   * is moved into the upload folder with its date, description and tags written into it, so that metadata extraction
+   * applies them, and the rest of the pipeline (thumbnails, transcoding) runs as for an upload
+   */
+  async createGeneratedVideo(
+    auth: AuthDto,
+    source: string,
+    {
+      fileName,
+      description,
+      tags = [],
+      dateOf,
+    }: {
+      fileName: string;
+      description?: string;
+      tags?: string[];
+      /** the asset whose date the video gets, e.g. the last photo of the trip */
+      dateOf: {
+        fileCreatedAt: Date;
+        localDateTime: Date;
+        exifInfo?: Pick<SourceExif, 'dateTimeOriginal' | 'timeZone'> | null;
+      };
+    },
+  ): Promise<DerivedAssetResult> {
+    if (!mimeTypes.isVideo(fileName)) {
+      throw new BadRequestException(`Unsupported video type: ${fileName}`);
+    }
+
+    const id = this.cryptoRepository.randomUUID();
+    const extension = parse(fileName).ext.toLowerCase();
+    const path = StorageCore.getNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
+    this.storageCore.ensureFolders(path);
+
+    let created = false;
+    try {
+      try {
+        await this.storageRepository.rename(source, path);
+      } catch {
+        // another file system: the source is removed with its folder
+        await this.storageRepository.copyFile(source, path);
+      }
+      // the date of the asset, and nothing of its camera or place: a video has no orientation tag
+      const exif: SourceExif = {
+        dateTimeOriginal: dateOf.exifInfo?.dateTimeOriginal ?? null,
+        timeZone: dateOf.exifInfo?.timeZone ?? null,
+        latitude: null,
+        longitude: null,
+        make: null,
+        model: null,
+        lensModel: null,
+      };
+      const { Orientation: _, ...tagsToWrite } = getDerivedExifTags(exif, dateOf.localDateTime, description, tags);
+      await this.metadataRepository.writeTags(path, tagsToWrite);
+
+      const { size } = await this.storageRepository.stat(path);
+      this.requireQuota(auth, size);
+      const checksum = await this.cryptoRepository.hashFile(path);
+
+      let asset;
+      try {
+        asset = await this.assetRepository.create({
+          id,
+          ownerId: auth.user.id,
+          libraryId: null,
+          type: AssetType.Video,
+          checksum,
+          checksumAlgorithm: ChecksumAlgorithm.sha1File,
+          originalPath: path,
+          originalFileName: fileName,
+          fileCreatedAt: dateOf.fileCreatedAt,
+          fileModifiedAt: new Date(),
+          localDateTime: dateOf.localDateTime,
+          visibility: AssetVisibility.Timeline,
+        });
+        created = true;
+      } catch (error) {
+        if (!isAssetChecksumConstraint(error)) {
+          throw error;
+        }
+        const duplicateId = await this.assetRepository.getUploadAssetIdByChecksum(auth.user.id, checksum);
+        if (!duplicateId) {
+          throw error;
+        }
+        await this.storageRepository.unlink(path);
+        return { id: duplicateId, duplicate: true };
+      }
+
+      await this.assetRepository.upsertExif({
+        exif: { assetId: asset.id, fileSizeInByte: size, ...(description && { description }) },
+        lockedPropertiesBehavior: 'override',
+      });
+      await this.eventRepository.emit('AssetCreate', {
+        asset,
+        file: { uuid: id, checksum, originalPath: path, originalName: fileName, size },
+      });
+      await this.jobRepository.queue({ name: JobName.AssetExtractMetadata, data: { id: asset.id, source: 'upload' } });
+      return { id: asset.id, duplicate: false };
+    } catch (error) {
+      if (created) {
+        await this.assetRepository.remove({ id });
+      }
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [path] } });
+      throw error;
+    }
+  }
+
   private async stackWithSource(source: { id: string; ownerId: string; stackId: string | null }, assetId: string) {
     if (source.stackId) {
       await this.assetRepository.update({ id: assetId, stackId: source.stackId });

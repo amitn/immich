@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type Insertable, Kysely, type Updateable } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { AssetType, HighlightJobStatus } from 'src/enum.js';
+import { AssetType, AssetVisibility, HighlightJobStatus } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { HighlightJobTable } from 'src/schema/tables/highlight-job.table.js';
 
@@ -80,6 +80,40 @@ export class HighlightJobRepository {
       .updateTable('highlight_job')
       .set({ status: HighlightJobStatus.Failed, error: 'The server restarted before the video was finished' })
       .where('highlight_job.status', '=', HighlightJobStatus.Running)
+      .execute();
+  }
+
+  /** the videos among the assets, to cut clips from */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getVideos(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.originalPath',
+        'asset.duration',
+        'asset.localDateTime',
+        'asset.isFavorite',
+        'asset.width',
+        'asset.height',
+        'asset.stackId',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.country',
+        'asset_exif.rating',
+        'asset_exif.description',
+      ])
+      .where('asset.id', 'in', ids)
+      .where('asset.type', '=', AssetType.Video)
+      .where('asset.visibility', '!=', AssetVisibility.Hidden)
+      .where('asset.deletedAt', 'is', null)
+      .orderBy('asset.localDateTime', 'asc')
       .execute();
   }
 

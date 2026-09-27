@@ -22,6 +22,7 @@ import { DuplicateController } from 'src/controllers/duplicate.controller.js';
 import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
 import { FoodController } from 'src/controllers/food.controller.js';
+import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryController } from 'src/controllers/library.controller.js';
@@ -60,6 +61,7 @@ export const controllers = [
   AlbumController,
   ArtController,
   BookController,
+  HighlightController,
   AppController,
   AssetController,
   AssetFilesController,

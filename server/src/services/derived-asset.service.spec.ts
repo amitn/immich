@@ -224,6 +224,67 @@ describe(DerivedAssetService.name, () => {
     });
   });
 
+  describe('createGeneratedVideo', () => {
+    const dateOf = {
+      fileCreatedAt: new Date('2024-06-01T10:00:00.000Z'),
+      localDateTime: new Date('2024-06-01T12:00:00.000Z'),
+      exifInfo: { dateTimeOriginal: new Date('2024-06-01T10:00:00.000Z'), timeZone: 'UTC+2' },
+    };
+
+    it('should move the video into the upload folder and create a video asset dated like the photo', async () => {
+      const auth = AuthFactory.create();
+      mocks.crypto.hashFile.mockResolvedValue(Buffer.from('checksum'));
+
+      const result = await sut.createGeneratedVideo(auth, '/data/upload/tmp/film.mp4', {
+        fileName: 'Sicily.mp4',
+        description: 'Highlight video of Sicily',
+        tags: ['Highlights/Sicily'],
+        dateOf,
+      });
+
+      expect(result).toEqual({ id: 'new-asset-id', duplicate: false });
+      expect(mocks.storage.rename).toHaveBeenCalledWith(
+        '/data/upload/tmp/film.mp4',
+        expect.stringMatching(/new-asset-id\.mp4$/),
+      );
+      const tags = mocks.metadata.writeTags.mock.calls[0][1];
+      expect(tags).toMatchObject({
+        DateTimeOriginal: '2024:06:01 12:00:00',
+        OffsetTimeOriginal: '+02:00',
+        Description: 'Highlight video of Sicily',
+        TagsList: ['Highlights/Sicily'],
+      });
+      expect(tags).not.toHaveProperty('Orientation');
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: AssetType.Video,
+          ownerId: auth.user.id,
+          originalFileName: 'Sicily.mp4',
+          localDateTime: dateOf.localDateTime,
+          visibility: AssetVisibility.Timeline,
+        }),
+      );
+      expect(mocks.stack.create).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.AssetExtractMetadata,
+        data: { id: 'new-asset-id', source: 'upload' },
+      });
+    });
+
+    it('should copy the video when it can not be moved', async () => {
+      const auth = AuthFactory.create();
+      mocks.storage.rename.mockRejectedValue(new Error('EXDEV'));
+      await sut.createGeneratedVideo(auth, '/tmp/film.mp4', { fileName: 'Film.mp4', dateOf });
+      expect(mocks.storage.copyFile).toHaveBeenCalledWith('/tmp/film.mp4', expect.stringMatching(/\.mp4$/));
+    });
+
+    it('should refuse a file that is not a video', async () => {
+      await expect(
+        sut.createGeneratedVideo(AuthFactory.create(), '/tmp/film.gif', { fileName: 'Film.gif', dateOf }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('tags', () => {
     it('should write explicit tags into the file', async () => {
       const { auth, source } = setup();
