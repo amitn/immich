@@ -162,6 +162,22 @@ describe('book page', () => {
     });
   });
 
+  it('should show the long labels of the toolbar as icons when it is narrow, then all of them', () => {
+    renderPage();
+
+    for (const name of ['book_edit_with_assistant', 'book_relayout']) {
+      const button = screen.getByRole('button', { name: new RegExp(`^${name}`) });
+      expect(button.querySelector('span.hidden')).toHaveClass('@min-[62rem]:inline');
+    }
+    for (const name of ['preview', 'share']) {
+      const button = screen.getByRole('button', { name: new RegExp(`^${name}`) });
+      expect(button.querySelector('span.hidden')).toHaveClass('@min-[40rem]:inline');
+    }
+    expect(
+      screen.getByRole('button', { name: /^book_relayout/ }).closest(String.raw`.\@container`),
+    ).toBeInTheDocument();
+  });
+
   it('should not offer a preview of a book without pages', () => {
     renderPage({ book: { ...book, pages: [] } });
 

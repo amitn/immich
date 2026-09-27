@@ -9,6 +9,7 @@ import {
   isBookStylePreset,
   loadBookStylePresets,
   loadBookUserStyles,
+  normalizeFontFamily,
   resetBookStylePresets,
 } from '$lib/utils/book-style';
 import { bookUserStyleFactory } from '@test-data/factories/book-factory';
@@ -38,8 +39,48 @@ describe('findBookStylePreset', () => {
   it('should not match a style that differs in any value', () => {
     expect(findBookStylePreset({ ...soft.style, gutterMm: 4 }, bookStylePresets)).toBeUndefined();
     expect(findBookStylePreset({ ...soft.style, fontFamily: 'sans-serif' }, bookStylePresets)).toBeUndefined();
-    expect(findBookStylePreset({ ...soft.style, captionSizePt: undefined }, bookStylePresets)).toBeUndefined();
+    expect(findBookStylePreset({ ...soft.style, captionSizePt: 11 }, bookStylePresets)).toBeUndefined();
     expect(findBookStylePreset({ ...food.style, accentColor: '#000000' }, bookStylePresets)).toBeUndefined();
+  });
+
+  it('should find the preset of a style whose font was expanded to its stack', () => {
+    const expanded = "'Liberation Serif', 'Times New Roman', Times, 'DejaVu Serif', 'Noto Serif', FreeSerif, serif";
+
+    expect(findBookStylePreset({ ...soft.style, fontFamily: expanded }, bookStylePresets)).toBe(soft);
+    expect(findBookStylePreset({ ...soft.style, fontFamily: 'Serif' }, bookStylePresets)).toBe(soft);
+    expect(
+      findBookStylePreset(
+        { ...food.style, fontFamily: `FreeSerif, ${expanded.replace(', FreeSerif', '')}` },
+        bookStylePresets,
+      ),
+    ).toBe(food);
+    expect(findBookStylePreset({ ...food.style, fontFamily: "'FreeSerif'" }, bookStylePresets)).toBe(food);
+  });
+
+  it('should tell styles apart by the first family of their fonts', () => {
+    expect(findBookStylePreset({ ...soft.style, fontFamily: 'FreeSerif, serif' }, bookStylePresets)).toBeUndefined();
+    expect(findBookStylePreset({ ...food.style, fontFamily: 'serif' }, bookStylePresets)).toBeUndefined();
+  });
+
+  it('should compare colors and sizes by their values', () => {
+    expect(
+      findBookStylePreset({ ...classic.style, background: '#FFF', textColor: '#222222ff' }, bookStylePresets),
+    ).toBe(classic);
+    expect(findBookStylePreset({ ...food.style, captionSizePt: 10.50000001 }, bookStylePresets)).toBe(food);
+  });
+
+  it('should give a style without sizes the sizes of the server', () => {
+    expect(
+      findBookStylePreset({ ...soft.style, titleSizePt: undefined, captionSizePt: undefined }, bookStylePresets),
+    ).toBe(soft);
+  });
+
+  it('should normalize font families to the first one', () => {
+    expect(normalizeFontFamily('FreeSerif, serif')).toBe('freeserif');
+    expect(normalizeFontFamily("'Liberation Sans', Arial, sans-serif")).toBe('sans-serif');
+    expect(normalizeFontFamily('"DejaVu Serif", serif')).toBe('dejavu serif');
+    expect(normalizeFontFamily('')).toBe('serif');
+    expect(normalizeFontFamily(undefined)).toBe('serif');
   });
 
   it('should treat a style without a theme or accent as plain, with the accent of its text', () => {
@@ -95,6 +136,15 @@ describe('styles of your own', () => {
 
     expect(findBookUserStyle({ ...wedding.style, background: '#F7F3E8' }, [other, wedding])).toBe(wedding);
     expect(findBookUserStyle({ ...wedding.style, marginMm: 3 }, [other, wedding])).toBeUndefined();
+  });
+
+  it('should find the style of your own when the font of the copy was expanded to its stack', () => {
+    const wedding = bookUserStyleFactory.build({
+      style: { ...bookUserStyleFactory.build().style, fontFamily: 'sans-serif' },
+    });
+    const copy = { ...wedding.style, fontFamily: "'Liberation Sans', Arial, Helvetica, sans-serif" };
+
+    expect(findBookUserStyle(copy, [wedding])).toBe(wedding);
   });
 
   it('should tell presets from the ids of styles of your own', () => {

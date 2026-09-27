@@ -52,6 +52,15 @@ export const groupBookReviewIssues = (issues: BookReviewIssueDto[]): BookReviewG
 export const getBookReviewBadgeCount = (review?: BookReviewResponseDto) =>
   review ? review.counts.high + review.counts.medium : 0;
 
+/**
+ * What the badge of the Review button counts, for its tooltip: the issues to fix (must and should fix), and apart from
+ * them the ones that could be better, e.g. "3 to fix, 5 could be better"
+ */
+export const getBookReviewSummary = ($t: MessageFormatter, review?: BookReviewResponseDto) =>
+  review
+    ? $t('book_review_button_summary', { values: { fix: getBookReviewBadgeCount(review), better: review.counts.low } })
+    : $t('book_review');
+
 /** e.g. "4", "4 and 5" or "3, 7 and 9" */
 export const formatBookPageList = (pages: number[], locale?: string) => {
   try {

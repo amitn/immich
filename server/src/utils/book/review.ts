@@ -104,6 +104,10 @@ const REVIEW_MANY_IMPROVABLE = 5;
 const formatPages = (pages: number[]) =>
   pages.length === 1 ? `Page ${pages[0]}` : `Pages ${pages.slice(0, -1).join(', ')} and ${pages.at(-1)}`;
 
+/** the pages and the verb that agrees with them: "Page 18 asks", "Pages 2 and 6 ask" */
+const pagesVerb = (pages: number[], singular: string, plural: string) =>
+  `${formatPages(pages)} ${pages.length === 1 ? singular : plural}`;
+
 const round = (value: number) => Math.round(value * 100) / 100;
 
 /** "a dish", "an artwork" */
@@ -169,7 +173,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       severity: 'high',
       type: 'duplicate-stack',
       message:
-        `${formatPages(numbers)} show the same photo` +
+        `${pagesVerb(numbers, 'shows', 'show')} the same photo` +
         `${assetIds.size > 1 ? ' or copies of it (a crop, an artwork, an enhanced or improved copy)' : ''}; keep one, or put ` +
         'an artwork next to its original on one page',
       pages: numbers,
@@ -314,7 +318,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       severity: 'medium',
       type: 'map-style-fallback',
       message:
-        `${formatPages(fallbackPages)} ask for ${styles} maps, which need a Stadia Maps API key (Administration → ` +
+        `${pagesVerb(fallbackPages, 'asks', 'ask')} for ${styles} maps, which need a Stadia Maps API key (Administration → ` +
         'Settings → Photo books), so they are drawn as sketches; set the style to sketch or add the key',
       pages: fallbackPages,
     });
@@ -438,7 +442,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       severity: 'low',
       type: 'missing-dish-name',
       message:
-        `${formatPages(numbers)} show ${missing.length === 1 ? article(subject) : `${missing.length} ${subjects}`} ` +
+        `${pagesVerb(numbers, 'shows', 'show')} ${missing.length === 1 ? article(subject) : `${missing.length} ${subjects}`} ` +
         `without ${missing.length === 1 ? 'its name' : 'their names'} (e.g. ${missing[0].entry}); set the slot ` +
         `captions to the ${subject} names from their tags, or lay the book out again with captions "dish"`,
       pages: numbers,
@@ -472,7 +476,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       severity: 'medium',
       type: 'missing-menu-page',
       message:
-        `${formatPages(numbers)} show ${subjects} from ${place}, but not its ${source}, which is in the album; add a ` +
+        `${pagesVerb(numbers, 'shows', 'show')} ${subjects} from ${place}, but not its ${source}, which is in the album; add a ` +
         `page with the menu layout (menu-wide for a landscape photo) before page ${numbers[0]} and place the ` +
         `${source} photo in it`,
       pages: numbers,
@@ -554,7 +558,7 @@ export const reviewBook = (input: BookReviewInput): BookReview => {
       severity: 'low',
       type: 'missing-captions',
       message:
-        `${formatPages(uncaptioned)} have no caption; after looking at them, add short factual captions ` +
+        `${pagesVerb(uncaptioned, 'has', 'have')} no caption; after looking at ${uncaptioned.length === 1 ? 'it' : 'them'}, add short factual captions ` +
         '(place, time, people, what is visible)',
       pages: uncaptioned,
     });

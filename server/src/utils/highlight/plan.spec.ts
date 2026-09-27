@@ -12,6 +12,7 @@ import {
   fitDurations,
   getClipStart,
   getHighlightLength,
+  getLocationSpreadKm,
   getPanRects,
   planHighlight,
 } from 'src/utils/highlight/plan.js';
@@ -53,10 +54,38 @@ const video = (dto: Partial<HighlightVideo> = {}): HighlightVideo => {
 const event = (count: number, at: number, dto: (i: number) => Partial<AutoLayoutPhoto> = () => ({})) =>
   Array.from({ length: count }, (_, i) => photo({ takenAt: at + i * 5 * 60_000, ...dto(i) }));
 
+/** a day in each of three towns, walking a couple of kilometres around each */
+const walk = (i: number) => (i % 6) * 0.004;
 const trip = () => [
-  ...event(30, start, (i) => ({ lat: 37.85, lon: 15.28, city: 'Taormina', score: 0.3 + (i % 5) * 0.1 })),
-  ...event(30, start + DAY, (i) => ({ lat: 37.5, lon: 15.09, city: 'Catania', score: 0.3 + (i % 4) * 0.1 })),
-  ...event(30, start + 2 * DAY, (i) => ({ lat: 38.11, lon: 13.36, city: 'Palermo', score: 0.3 + (i % 3) * 0.1 })),
+  ...event(30, start, (i) => ({ lat: 37.85 + walk(i), lon: 15.28, city: 'Taormina', score: 0.3 + (i % 5) * 0.1 })),
+  ...event(30, start + DAY, (i) => ({
+    lat: 37.5 + walk(i),
+    lon: 15.09,
+    city: 'Catania',
+    score: 0.3 + (i % 4) * 0.1,
+  })),
+  ...event(30, start + 2 * DAY, (i) => ({
+    lat: 38.11 + walk(i),
+    lon: 13.36,
+    city: 'Palermo',
+    score: 0.3 + (i % 3) * 0.1,
+  })),
+];
+
+const artwork = (place: string, entry: string) => ({
+  collection: { pack: 'museum', place, kind: 'entry' as const, entry },
+});
+
+/** three museums a few years apart; only the last has GPS (all in one building) */
+const museums = () => [
+  ...event(12, Date.UTC(2018, 6, 25, 10), (i) => artwork('Musée des Beaux-Arts, Agen', `Painting ${i}`)),
+  ...event(12, Date.UTC(2022, 8, 27, 10), (i) => artwork('Indian Museum, Kolkata', `Sculpture ${i}`)),
+  ...event(12, Date.UTC(2025, 7, 28, 10), (i) => ({
+    ...artwork('Museu de Évora', `Panel ${i}`),
+    lat: 38.5725 + (i % 3) * 0.0001,
+    lon: -7.9072,
+    city: 'Évora',
+  })),
 ];
 
 const food = (entry: string) => ({
@@ -224,6 +253,60 @@ describe('planHighlight', () => {
     expect(maps.map((shot) => shot.title)).toEqual(['Taormina', 'Catania', 'Palermo']);
     expect(maps.every((shot) => shot.kind === 'map' && shot.points.length > 0)).toBe(true);
     expect(result.chapters).toHaveLength(3);
+  });
+
+  it('should use a title card instead of the map of a chapter at a single place', () => {
+    const result = plan(museums(), [], {
+      durationSeconds: 60,
+      title: 'Museum visits',
+      style: bookStylePresets.museum.style,
+    });
+
+    expect(result.shots.filter((shot) => shot.kind === 'map')).toHaveLength(0);
+    expect(result.shots.filter((shot) => shot.kind === 'chapter')).toEqual([
+      expect.objectContaining({ title: 'Musée des Beaux-Arts, Agen', subtitle: '25 July 2018' }),
+      expect.objectContaining({ title: 'Indian Museum, Kolkata', subtitle: '27 September 2022' }),
+      expect.objectContaining({ title: 'Museu de Évora', subtitle: 'Évora, 28 August 2025' }),
+    ]);
+  });
+
+  it('should not name the place of one chapter under the dates of the whole film', () => {
+    const result = plan(museums(), [], {
+      durationSeconds: 30,
+      title: 'Museum visits',
+      style: bookStylePresets.museum.style,
+    });
+
+    expect(result.shots[0]).toEqual({
+      kind: 'title',
+      duration: expect.any(Number),
+      title: 'Museum visits',
+      subtitle: '25 July 2018 – 28 August 2025',
+    });
+    // a trip whose chapters all have their places lists them
+    expect(plan(trip()).shots[0]).toMatchObject({ kind: 'title', detail: 'Taormina, Catania & Palermo' });
+  });
+
+  it('should measure how far apart the photos were taken', () => {
+    expect(getLocationSpreadKm([])).toBe(0);
+    expect(
+      getLocationSpreadKm([
+        { lat: 38.57, lon: -7.9 },
+        { lat: null, lon: null },
+      ]),
+    ).toBe(0);
+    expect(
+      getLocationSpreadKm([
+        { lat: 38.5725, lon: -7.9072 },
+        { lat: 38.5727, lon: -7.9072 },
+      ]),
+    ).toBeLessThan(0.1);
+    expect(
+      getLocationSpreadKm([
+        { lat: 37.85, lon: 15.28 },
+        { lat: 37.5, lon: 15.09 },
+      ]),
+    ).toBeCloseTo(42.4, 0);
   });
 
   it('should use title cards instead of maps without GPS or when maps are off', () => {

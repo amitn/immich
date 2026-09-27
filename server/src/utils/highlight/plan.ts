@@ -67,6 +67,12 @@ const MIN_SHORT_EDGE = 560;
 const MAX_SIMILARITY = 0.6;
 /** the share of the photos that may be artwork */
 const ARTWORK_SHARE = 0.15;
+/**
+ * a chapter whose photos were all taken closer together than this (in km, across) was at a single place, e.g. a museum:
+ * its map would be a single pin on empty paper (the sketch draws coasts and borders only on maps of 30 km or more), so
+ * it gets a title card instead
+ */
+const MIN_MAP_SPREAD_KM = 1;
 
 /** a video of the source, from which a clip is cut */
 export type HighlightVideo = Omit<AutoLayoutPhoto, 'faces' | 'score'> & {
@@ -169,6 +175,26 @@ const byImportance = (a: RankedPhoto, b: RankedPhoto) =>
   b.importance - a.importance || a.takenAt - b.takenAt || a.id.localeCompare(b.id);
 /** the day of a local time */
 const day = (time: number) => new Date(time).toISOString().slice(0, 10);
+
+/** the distance across the GPS locations of the photos, in km (the diagonal of their bounding box) */
+export const getLocationSpreadKm = (photos: Array<Pick<AutoLayoutPhoto, 'lat' | 'lon'>>) => {
+  const points = photos.filter(
+    (photo): photo is typeof photo & { lat: number; lon: number } =>
+      typeof photo.lat === 'number' && typeof photo.lon === 'number',
+  );
+  if (points.length < 2) {
+    return 0;
+  }
+  const lats = points.map((point) => point.lat);
+  const lons = points.map((point) => point.lon);
+  const latitude = ((Math.min(...lats) + Math.max(...lats)) / 2) * (Math.PI / 180);
+  const north = (Math.max(...lats) - Math.min(...lats)) * 110.574;
+  const east = (Math.max(...lons) - Math.min(...lons)) * 111.32 * Math.cos(latitude);
+  return Math.hypot(north, east);
+};
+
+/** whether a chapter's map shows more than a single place, see `MIN_MAP_SPREAD_KM` */
+const isWorthAMap = (photos: RankedPhoto[]) => located(photos) && getLocationSpreadKm(photos) >= MIN_MAP_SPREAD_KM;
 
 export const getHighlightLength = (shots: Array<{ duration: number }>, fade = HIGHLIGHT_FADE) =>
   shots.length === 0 ? 0 : shots.reduce((sum, shot) => sum + shot.duration, 0) - (shots.length - 1) * fade;
@@ -480,11 +506,12 @@ export const planHighlight = (
   const maxChapters = Math.max(1, Math.round(target / 15));
   const chapters = absorbSmallChapters(splitChapters(kept, { collection, maxChapters }));
 
-  // the cards: the title, then a map or a title for each chapter (a single chapter gets its map only)
+  // the cards: the title, then a map or a title for each chapter (a single chapter gets its map only); a chapter at a
+  // single place gets a title card, as its map would be a single pin
   type Card = { kind: 'chapter' | 'map'; chapter: number; duration: number };
   let cards: Card[] = [];
   for (const [index, chapter] of chapters.entries()) {
-    const map = includeMaps && located(chapter.photos);
+    const map = includeMaps && isWorthAMap(chapter.photos);
     if (chapters.length > 1 || map) {
       cards.push({ kind: map ? 'map' : 'chapter', chapter: index, duration: map ? MAP_SECONDS : CHAPTER_SECONDS });
     }
@@ -612,7 +639,12 @@ export const planHighlight = (
     }
   }
 
-  const places = formatPlaces(getPlaces(shownAll));
+  // the title card names the places of the film only when every chapter has one: under the dates of the whole film,
+  // the city of one visit (of three museums, only one with GPS) would read as the place of all of them
+  const shownChapters = chosen.filter((items) => items.length > 0);
+  const places = shownChapters.every((items) => getPlaces(items.map((item) => item.photo)).length > 0)
+    ? formatPlaces(getPlaces(shownAll))
+    : '';
   const shots: HighlightShot[] = [
     {
       kind: 'title',

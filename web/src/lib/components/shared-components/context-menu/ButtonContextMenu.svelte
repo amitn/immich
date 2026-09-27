@@ -40,6 +40,10 @@
      * Additional classes for the menu, e.g. its colours in dark mode.
      */
     menuClass?: ClassValue;
+    /** The largest part of the window's height the menu takes before it scrolls, e.g. 0.7 (see ContextMenu) */
+    menuMaxHeightFraction?: number;
+    /** The classes of the visible label, e.g. to hide it in a narrow toolbar */
+    labelClass?: ClassValue;
     hideContent?: boolean;
     children?: Snippet;
     offset?: {
@@ -59,6 +63,8 @@
     variant = 'ghost',
     buttonClass = undefined,
     menuClass = undefined,
+    menuMaxHeightFraction = undefined,
+    labelClass = 'hidden sm:inline',
     hideContent = false,
     children,
     offset,
@@ -182,7 +188,7 @@
         id={buttonId}
         onclick={handleClick}
       >
-        <span class="hidden sm:inline">{label}</span>
+        <span class={labelClass}>{label}</span>
       </Button>
     {:else}
       <IconButton
@@ -218,6 +224,7 @@
     >
       <ContextMenu
         class={menuClass}
+        maxHeightFraction={menuMaxHeightFraction}
         {direction}
         ariaActiveDescendant={$selectedIdStore}
         ariaLabelledBy={buttonId}
