@@ -529,138 +529,156 @@
   {/snippet}
 
   {#snippet buttons()}
-    <div class="flex items-center gap-1">
-      {#if books.length > 1}
-        <ButtonContextMenu
-          icon={mdiBookshelf}
-          title={$t('book_switch')}
-          color="secondary"
-          size="small"
-          align="top-right"
-          hideContent
-        >
-          {#each books as other (other.id)}
-            <BookMenuOption book={other} current={other.id === book.id} onClick={handleSwitchBook} />
-          {/each}
-        </ButtonContextMenu>
-      {/if}
-      <Button
-        variant="ghost"
-        size="small"
-        color="secondary"
-        leadingIcon={mdiEyeOutline}
-        disabled={pages.length === 0}
-        title={pages.length === 0 ? $t('book_no_pages') : undefined}
-        onclick={handlePreview}
-      >
-        <span class="hidden sm:inline">{$t('preview')}</span>
-        <span class="sr-only sm:hidden">{$t('preview')}</span>
-      </Button>
-      <Button
-        variant="ghost"
-        size="small"
-        color="secondary"
-        leadingIcon={mdiCreationOutline}
-        onclick={handleEditWithAssistant}
-      >
-        <span class="hidden sm:inline">{$t('book_edit_with_assistant')}</span>
-        <span class="sr-only sm:hidden">{$t('book_edit_with_assistant')}</span>
-      </Button>
-      <Button variant="ghost" size="small" color="secondary" leadingIcon={mdiAutoFix} onclick={handleRelayout}>
-        <span class="hidden sm:inline">{$t('book_relayout')}</span>
-        <span class="sr-only sm:hidden">{$t('book_relayout')}</span>
-      </Button>
-      <BookStyleMenu {book} onUpdated={handleStyleUpdated} onApplying={startApplyingStyle} />
-      {#if pages.length > 0}
-        <Button
-          id={REVIEW_BUTTON_ID}
-          variant={reviewOpen ? 'filled' : 'ghost'}
-          size="small"
-          color="secondary"
-          leadingIcon={mdiClipboardCheckOutline}
-          aria-expanded={reviewOpen}
-          aria-controls={reviewOpen ? REVIEW_PANEL_ID : undefined}
-          onclick={toggleReview}
-        >
-          <span class="hidden sm:inline">{$t('book_review')}</span>
-          <span class="sr-only sm:hidden">{$t('book_review')}</span>
-          {#if reviewBadge > 0}
-            <span
-              class="min-w-5 rounded-full px-1.5 text-center text-xs/5 font-medium text-white {review.review?.counts
-                .high
-                ? 'bg-red-600'
-                : 'bg-amber-600'}"
-              aria-hidden="true"
-              data-testid="book-review-badge"
-            >
-              {reviewBadge}
-            </span>
-            <span class="sr-only">{$t('book_review_badge', { values: { count: reviewBadge } })}</span>
-          {/if}
-        </Button>
-      {/if}
-      {#if isExporting || startingExport}
-        <div class="flex items-center gap-2 px-2 text-sm text-gray-600 dark:text-gray-400" role="status">
-          <LoadingSpinner size="small" />
-          <span class="hidden md:inline">
-            {#if activeExports.length > 1}
-              {$t('book_exporting_all')}
-            {:else if (activeExports[0] ?? startingExport) === BookExportFormat.Html}
-              {$t('book_exporting_html')}
-            {:else}
-              {$t('book_exporting')}
-            {/if}
-          </span>
-        </div>
-      {/if}
-      {#if pages.length > 0}
+    <!-- the toolbar takes the room the title leaves (at least half the header) and, when that is too narrow for its
+      labels, shows the long ones and then all of them as icons, with their names as tooltips -->
+    <div class="@container flex min-w-1/2 grow basis-0 justify-end">
+      <div class="flex items-center gap-1 *:shrink-0">
+        {#if books.length > 1}
+          <ButtonContextMenu
+            icon={mdiBookshelf}
+            title={$t('book_switch')}
+            color="secondary"
+            size="small"
+            align="top-right"
+            hideContent
+          >
+            {#each books as other (other.id)}
+              <BookMenuOption book={other} current={other.id === book.id} onClick={handleSwitchBook} />
+            {/each}
+          </ButtonContextMenu>
+        {/if}
         <Button
           variant="ghost"
           size="small"
           color="secondary"
-          leadingIcon={mdiShareVariantOutline}
-          onclick={handleShare}
+          leadingIcon={mdiEyeOutline}
+          disabled={pages.length === 0}
+          title={pages.length === 0 ? $t('book_no_pages') : $t('preview')}
+          onclick={handlePreview}
         >
-          <span class="hidden sm:inline">{$t('share')}</span>
-          <span class="sr-only sm:hidden">{$t('share')}</span>
+          <span class="hidden @min-[40rem]:inline">{$t('preview')}</span>
+          <span class="sr-only @min-[40rem]:hidden">{$t('preview')}</span>
         </Button>
-        <ButtonContextMenu
-          icon={mdiExportVariant}
-          title={$t('export')}
-          color="secondary"
+        <Button
+          variant="ghost"
           size="small"
-          align="top-right"
+          color="secondary"
+          leadingIcon={mdiCreationOutline}
+          title={$t('book_edit_with_assistant')}
+          onclick={handleEditWithAssistant}
         >
-          {#each BOOK_EXPORT_FORMATS as format (format)}
-            {@const status = getBookExportStatus(book, format)}
-            {#if status === BookExportStatus.Completed}
-              <MenuOption
-                icon={mdiDownload}
-                text={format === BookExportFormat.Pdf ? $t('book_download_pdf') : $t('book_download_html')}
-                subtitle={exportedLabel(format)}
-                onClick={() => handleDownload(format)}
-              />
+          <span class="hidden @min-[62rem]:inline">{$t('book_edit_with_assistant')}</span>
+          <span class="sr-only @min-[62rem]:hidden">{$t('book_edit_with_assistant')}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="small"
+          color="secondary"
+          leadingIcon={mdiAutoFix}
+          title={$t('book_relayout')}
+          onclick={handleRelayout}
+        >
+          <span class="hidden @min-[62rem]:inline">{$t('book_relayout')}</span>
+          <span class="sr-only @min-[62rem]:hidden">{$t('book_relayout')}</span>
+        </Button>
+        <BookStyleMenu
+          {book}
+          onUpdated={handleStyleUpdated}
+          onApplying={startApplyingStyle}
+          labelClass="hidden @min-[40rem]:inline"
+        />
+        {#if pages.length > 0}
+          <Button
+            id={REVIEW_BUTTON_ID}
+            variant={reviewOpen ? 'filled' : 'ghost'}
+            size="small"
+            color="secondary"
+            leadingIcon={mdiClipboardCheckOutline}
+            aria-expanded={reviewOpen}
+            aria-controls={reviewOpen ? REVIEW_PANEL_ID : undefined}
+            onclick={toggleReview}
+          >
+            <span class="hidden @min-[40rem]:inline">{$t('book_review')}</span>
+            <span class="sr-only @min-[40rem]:hidden">{$t('book_review')}</span>
+            {#if reviewBadge > 0}
+              <span
+                class="min-w-5 rounded-full px-1.5 text-center text-xs/5 font-medium text-white {review.review?.counts
+                  .high
+                  ? 'bg-red-600'
+                  : 'bg-amber-600'}"
+                aria-hidden="true"
+                data-testid="book-review-badge"
+              >
+                {reviewBadge}
+              </span>
+              <span class="sr-only">{$t('book_review_badge', { values: { count: reviewBadge } })}</span>
             {/if}
-            <MenuOption
-              icon={format === BookExportFormat.Pdf ? mdiFilePdfBox : mdiLanguageHtml5}
-              text={exportActionLabel(format, status)}
-              subtitle={exportActionSubtitle(format, status)}
-              onClick={() => handleExport(format)}
-            />
-          {/each}
-          <ActionMenuItem action={getBookHighlightAction($t, book)} />
-        </ButtonContextMenu>
-      {/if}
-      <IconButton
-        variant="ghost"
-        size="small"
-        color="danger"
-        shape="round"
-        icon={mdiTrashCanOutline}
-        aria-label={$t('book_delete')}
-        title={$t('book_delete')}
-        onclick={handleDelete}
-      />
+          </Button>
+        {/if}
+        {#if isExporting || startingExport}
+          <div class="flex items-center gap-2 px-2 text-sm text-gray-600 dark:text-gray-400" role="status">
+            <LoadingSpinner size="small" />
+            <span class="hidden md:inline">
+              {#if activeExports.length > 1}
+                {$t('book_exporting_all')}
+              {:else if (activeExports[0] ?? startingExport) === BookExportFormat.Html}
+                {$t('book_exporting_html')}
+              {:else}
+                {$t('book_exporting')}
+              {/if}
+            </span>
+          </div>
+        {/if}
+        {#if pages.length > 0}
+          <Button
+            variant="ghost"
+            size="small"
+            color="secondary"
+            leadingIcon={mdiShareVariantOutline}
+            title={$t('share')}
+            onclick={handleShare}
+          >
+            <span class="hidden @min-[40rem]:inline">{$t('share')}</span>
+            <span class="sr-only @min-[40rem]:hidden">{$t('share')}</span>
+          </Button>
+          <ButtonContextMenu
+            icon={mdiExportVariant}
+            title={$t('export')}
+            color="secondary"
+            size="small"
+            align="top-right"
+          >
+            {#each BOOK_EXPORT_FORMATS as format (format)}
+              {@const status = getBookExportStatus(book, format)}
+              {#if status === BookExportStatus.Completed}
+                <MenuOption
+                  icon={mdiDownload}
+                  text={format === BookExportFormat.Pdf ? $t('book_download_pdf') : $t('book_download_html')}
+                  subtitle={exportedLabel(format)}
+                  onClick={() => handleDownload(format)}
+                />
+              {/if}
+              <MenuOption
+                icon={format === BookExportFormat.Pdf ? mdiFilePdfBox : mdiLanguageHtml5}
+                text={exportActionLabel(format, status)}
+                subtitle={exportActionSubtitle(format, status)}
+                onClick={() => handleExport(format)}
+              />
+            {/each}
+            <ActionMenuItem action={getBookHighlightAction($t, book)} />
+          </ButtonContextMenu>
+        {/if}
+        <IconButton
+          variant="ghost"
+          size="small"
+          color="danger"
+          shape="round"
+          icon={mdiTrashCanOutline}
+          aria-label={$t('book_delete')}
+          title={$t('book_delete')}
+          onclick={handleDelete}
+        />
+      </div>
     </div>
   {/snippet}
 

@@ -74,13 +74,18 @@
 
     {#if title || buttons}
       <div class="absolute flex h-16 w-full place-items-center justify-between border-b p-2 text-dark">
-        <div class="flex items-center gap-2">
-          {@render leading?.()}
+        <!-- a long title is cut with an ellipsis (and shown whole in its tooltip) rather than squeezing the buttons -->
+        <div class="flex min-w-0 items-center gap-2">
+          {#if leading}
+            <div class="flex shrink-0 items-center">{@render leading()}</div>
+          {/if}
           {#if title}
-            <div class="pe-8 outline-none" tabindex="-1" id={headerId}>{title}</div>
+            <div class="min-w-0 truncate pe-8 outline-none" tabindex="-1" id={headerId} {title}>{title}</div>
           {/if}
           {#if description}
-            <p class="text-sm text-gray-400 dark:text-gray-600">{description}</p>
+            <p class="min-w-0 shrink-3 truncate text-sm text-gray-400 dark:text-gray-600" title={description}>
+              {description}
+            </p>
           {/if}
         </div>
 
