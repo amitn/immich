@@ -27,11 +27,38 @@ import { getCollectionPack } from 'src/utils/collections/registry.js';
  * restaurant or a leg of a trip, see `splitChapters`), and each chapter is opened by a map (with GPS) or a title card.
  * Photos become Ken Burns shots that move towards or away from the faces (or the focus point), videos become short
  * clips, and the entries of the collections (dishes, artworks, wines, recipe steps) are named in lower thirds.
+ *
+ * A film is landscape (16:9, 1920×1080) or vertical (9:16, 1080×1920, for phones and social apps). A vertical film
+ * fills the frame with portrait photos, crops landscape photos tightly around their subject (the faces, or the focus
+ * point) or shows them whole over a blurred copy of themselves when the crop would cut a face or lose too much, and
+ * keeps its text out of the top and bottom of the frame, where the apps draw their buttons (see `getSafeArea`).
  */
 
+/** the landscape frame (the default) */
 export const HIGHLIGHT_WIDTH = 1920;
 export const HIGHLIGHT_HEIGHT = 1080;
 export const HIGHLIGHT_ASPECT = HIGHLIGHT_WIDTH / HIGHLIGHT_HEIGHT;
+
+export const HIGHLIGHT_FORMATS = ['landscape', 'vertical'] as const;
+/** landscape: 16:9, 1920×1080; vertical: 9:16, 1080×1920, for phones and social apps */
+export type HighlightFormat = (typeof HIGHLIGHT_FORMATS)[number];
+export type HighlightFrameSize = { width: number; height: number };
+
+/** the size of the frame of a film of the format */
+export const getHighlightFrame = (format: HighlightFormat = 'landscape'): HighlightFrameSize =>
+  format === 'vertical'
+    ? { width: HIGHLIGHT_HEIGHT, height: HIGHLIGHT_WIDTH }
+    : { width: HIGHLIGHT_WIDTH, height: HIGHLIGHT_HEIGHT };
+
+/**
+ * The share of a vertical frame at its top and bottom that the apps of phones cover (the status bar and the name of
+ * the account at the top; the caption, the buttons and the progress bar at the bottom): no text is drawn there
+ */
+export const VERTICAL_SAFE_AREA = Object.freeze({ top: 0.14, bottom: 0.2 });
+
+/** the share of the frame at its top and bottom kept free of text: the phone apps' in a vertical frame, none otherwise */
+export const getSafeArea = (size: HighlightFrameSize): { top: number; bottom: number } =>
+  size.height > size.width ? { ...VERTICAL_SAFE_AREA } : { top: 0, bottom: 0 };
 export const HIGHLIGHT_FPS = 30;
 /** the crossfade between two shots, in seconds */
 export const HIGHLIGHT_FADE = 0.6;
@@ -60,6 +87,13 @@ const MAX_CLIP_SHARE = 0.3;
  * are shown whole, over a blurred copy of themselves
  */
 const CONTAIN_BELOW = 0.68;
+/**
+ * a vertical film crops a landscape photo to 9:16 only when that keeps at least this share of it (a 4:3 photo keeps
+ * 42%, a 3:2 one 38%); a wider photo (16:9, a panorama) is shown whole over a blurred copy of itself
+ */
+const MIN_VERTICAL_KEEP = 0.36;
+/** a crop that would be enlarged more than this to fill the frame looks soft: the photo is shown whole instead */
+const MAX_CROP_UPSCALE = 1.6;
 /** photos this small (the long and short edge, in pixels) would look blurry in 1080p */
 const MIN_LONG_EDGE = 1000;
 const MIN_SHORT_EDGE = 560;
@@ -91,6 +125,8 @@ export type HighlightPhoto = AutoLayoutPhoto & { focus?: { x: number; y: number 
 export type HighlightOptions = {
   /** the length of the film in seconds */
   durationSeconds?: number;
+  /** landscape (16:9, the default) or vertical (9:16) */
+  format?: HighlightFormat;
   title: string;
   style: Required<BookStyle>;
   /** a map card opens each chapter with GPS locations, default true */
@@ -157,6 +193,10 @@ export type HighlightChapter = {
 };
 
 export type HighlightPlan = {
+  format: HighlightFormat;
+  /** the size of the frame */
+  width: number;
+  height: number;
   shots: HighlightShot[];
   chapters: HighlightChapter[];
   fps: number;
@@ -313,12 +353,27 @@ export type PanInput = {
   /** the region of the photo the still shows when it covers the frame (see `getSmartCrop`) */
   crop: NormalizedRect;
   duration: number;
+  /** the aspect ratio of the frame (and of the still), default 16:9 */
+  frameAspect?: number;
 };
 
 /**
- * The start and end of the Ken Burns move of a photo, as squares of its still: a slow zoom towards the faces (or the
- * focus point) or away from them, alternating with `index`, that always keeps the faces in the frame; a pan across a
- * photo without a subject. A photo shown whole (`contain`) zooms gently towards its subject.
+ * Where a photo shown whole (`contain`) sits in its still, as fractions of it: it fills the height of the still when
+ * it is narrower than the frame (a portrait in a landscape film), else its width (a landscape photo in a vertical
+ * film), centred
+ */
+export const getContainBox = (photo: { width: number; height: number }, frameAspect = HIGHLIGHT_ASPECT) => {
+  const aspect = photo.width > 0 && photo.height > 0 ? photo.width / photo.height : frameAspect;
+  const width = aspect <= frameAspect ? aspect / frameAspect : 1;
+  const height = aspect <= frameAspect ? 1 : frameAspect / aspect;
+  return { x: (1 - width) / 2, y: (1 - height) / 2, width, height };
+};
+
+/**
+ * The start and end of the Ken Burns move of a photo, as squares of its still (which has the aspect ratio of the
+ * frame, so that a square of it is a frame, landscape or portrait): a slow zoom towards the faces (or the focus point)
+ * or away from them, alternating with `index`, that always keeps the faces in the frame; a pan across a photo without
+ * a subject, along the long side of the frame. A photo shown whole (`contain`) zooms gently towards its subject.
  */
 export const getPanRects = (
   photo: PanInput,
@@ -326,6 +381,7 @@ export const getPanRects = (
   index: number,
 ): { from: HighlightRect; to: HighlightRect } => {
   const zoomIn = index % 2 === 0;
+  const frameAspect = photo.frameAspect ?? HIGHLIGHT_ASPECT;
   // longer shots move further
   const zoom = clamp(1 + 0.04 * photo.duration, 1.08, 1.22);
   const full: HighlightRect = { x: 0, y: 0, size: 1 };
@@ -333,11 +389,16 @@ export const getPanRects = (
   let faces: NormalizedRect[];
   let focus: { x: number; y: number } | undefined;
   if (frame === 'contain') {
-    // the photo fills the height of the still, centred
-    const width = photo.width > 0 && photo.height > 0 ? photo.width / photo.height / HIGHLIGHT_ASPECT : 1;
-    const offset = (1 - width) / 2;
-    const toStill = (point: { x: number; y: number }) => ({ x: offset + point.x * width, y: point.y });
-    faces = photo.faces.map((face) => ({ ...face, ...toStill(face), width: face.width * width }));
+    const box = getContainBox(photo, frameAspect);
+    const toStill = (point: { x: number; y: number }) => ({
+      x: box.x + point.x * box.width,
+      y: box.y + point.y * box.height,
+    });
+    faces = photo.faces.map((face) => ({
+      ...toStill(face),
+      width: face.width * box.width,
+      height: face.height * box.height,
+    }));
     focus = faces.length > 0 ? getFaceCentre(faces) : photo.focus ? toStill(photo.focus) : { x: 0.5, y: 0.45 };
   } else {
     faces = toCropFaces(photo.faces, photo.crop).filter(
@@ -353,10 +414,12 @@ export const getPanRects = (
   }
 
   if (!focus) {
-    // nothing to move towards: a slow pan across the photo
+    // nothing to move towards: a slow pan across the photo, along the long side of the frame
     const size = round4(1 / zoom);
-    const start = { x: 0, y: round4((1 - size) / 2), size };
-    const end = { x: round4(1 - size), y: round4((1 - size) / 2), size };
+    const middle = round4((1 - size) / 2);
+    const vertical = frameAspect < 1;
+    const start = vertical ? { x: middle, y: 0, size } : { x: 0, y: middle, size };
+    const end = vertical ? { x: middle, y: round4(1 - size), size } : { x: round4(1 - size), y: middle, size };
     return zoomIn ? { from: start, to: end } : { from: end, to: start };
   }
 
@@ -453,6 +516,8 @@ export const planHighlight = (
 ): HighlightPlan => {
   const fps = options.fps ?? HIGHLIGHT_FPS;
   const fade = options.fade ?? HIGHLIGHT_FADE;
+  const format = options.format ?? 'landscape';
+  const frameSize = getHighlightFrame(format);
   const target = clamp(
     options.durationSeconds ?? DEFAULT_HIGHLIGHT_DURATION,
     MIN_HIGHLIGHT_DURATION,
@@ -490,6 +555,8 @@ export const planHighlight = (
   const kept = pickClusterRepresentatives(units, 0);
 
   const empty: HighlightPlan = {
+    format,
+    ...frameSize,
     shots: [],
     chapters: [],
     fps,
@@ -714,11 +781,17 @@ export const planHighlight = (
       }
 
       const duration = durations.get(photo.id) ?? PHOTO_SECONDS;
-      const photoAspect = photo.width > 0 && photo.height > 0 ? photo.width / photo.height : HIGHLIGHT_ASPECT;
-      const frame = photoAspect < HIGHLIGHT_ASPECT * CONTAIN_BELOW ? 'contain' : 'cover';
-      const crop = frame === 'contain' ? { x: 0, y: 0, width: 1, height: 1 } : getCoverCrop(photo);
+      const { frame, crop } = getPhotoFraming({ ...photo, focus: focus.get(photo.id) }, format);
       const { from, to } = getPanRects(
-        { width: photo.width, height: photo.height, faces: photo.faces, focus: focus.get(photo.id), crop, duration },
+        {
+          width: photo.width,
+          height: photo.height,
+          faces: photo.faces,
+          focus: focus.get(photo.id),
+          crop,
+          duration,
+          frameAspect: frameSize.width / frameSize.height,
+        },
         frame,
         photoIndex++,
       );
@@ -744,6 +817,8 @@ export const planHighlight = (
     warnings.push(`There are only enough photos for ${Math.round(length)} seconds`);
   }
   return {
+    format,
+    ...frameSize,
     shots,
     chapters: chapters
       .map((chapter, index) => ({
@@ -762,12 +837,50 @@ export const planHighlight = (
   };
 };
 
-/** the largest region of the photo with the frame's aspect ratio that keeps the faces, see `getSmartCrop` */
-const getCoverCrop = (photo: RankedPhoto): NormalizedRect => {
-  if (!photo.width || !photo.height) {
-    return { x: 0, y: 0, width: 1, height: 1 };
+export type HighlightFraming = {
+  /** `cover` crops the photo to the frame (the region `crop`), `contain` shows it whole over a blurred copy of itself */
+  frame: 'cover' | 'contain';
+  crop: NormalizedRect;
+};
+
+const whole = (): HighlightFraming => ({ frame: 'contain', crop: { x: 0, y: 0, width: 1, height: 1 } });
+
+/**
+ * How a photo fills the frame of a film. In a landscape film, a photo much narrower than the frame (a portrait) is
+ * shown whole, any other is cropped to the frame keeping its faces. In a vertical film, a portrait photo fills the
+ * frame; a landscape photo is cropped tightly around its subject (its faces, or its focus point, see `getSmartCrop`),
+ * and shown whole instead when the crop would cut a face, keep less than `MIN_VERTICAL_KEEP` of it (16:9, panoramas),
+ * be enlarged too much, or when it has no subject to crop around.
+ */
+export const getPhotoFraming = (
+  photo: Pick<HighlightPhoto, 'width' | 'height' | 'faces' | 'focus'>,
+  format: HighlightFormat = 'landscape',
+): HighlightFraming => {
+  const size = getHighlightFrame(format);
+  const frameAspect = size.width / size.height;
+  const known = photo.width > 0 && photo.height > 0;
+  const aspect = known ? photo.width / photo.height : frameAspect;
+  if (aspect < frameAspect * CONTAIN_BELOW) {
+    return whole();
   }
-  return getSmartCrop(photo, photo.faces, HIGHLIGHT_ASPECT).crop;
+  if (!known) {
+    return { frame: 'cover', crop: { x: 0, y: 0, width: 1, height: 1 } };
+  }
+  if (format === 'landscape') {
+    // the largest region of the photo with the frame's aspect ratio that keeps the faces
+    return { frame: 'cover', crop: getSmartCrop(photo, photo.faces, frameAspect).crop };
+  }
+
+  const smart = getSmartCrop(photo, photo.faces, frameAspect, photo.faces.length === 0 ? photo.focus : undefined);
+  const cropWidth = smart.crop.width * photo.width;
+  if (!smart.feasible || smart.droppedFaces > 0 || size.width / cropWidth > MAX_CROP_UPSCALE) {
+    return whole();
+  }
+  const landscape = aspect > 1;
+  if (landscape && (smart.kept < MIN_VERTICAL_KEEP || (photo.faces.length === 0 && !photo.focus))) {
+    return whole();
+  }
+  return { frame: 'cover', crop: smart.crop };
 };
 
 /**

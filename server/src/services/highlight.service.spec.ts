@@ -13,7 +13,12 @@ import {
 } from 'src/enum.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BookService } from 'src/services/book.service.js';
-import { HighlightService, getHighlightTag, resolveHighlightStyle } from 'src/services/highlight.service.js';
+import {
+  HighlightService,
+  getHighlightFileName,
+  getHighlightTag,
+  resolveHighlightStyle,
+} from 'src/services/highlight.service.js';
 import { AutoLayoutPhoto } from 'src/utils/book/auto-layout.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { newUuid } from 'test/small.factory.js';
@@ -49,6 +54,15 @@ const renderAsset = (id: string) => ({
   exifImageHeight: 3000,
   orientation: null,
   files: [{ type: 'preview', path: `/data/thumbs/${id}-preview.jpeg`, isEdited: false }],
+});
+
+describe(getHighlightFileName.name, () => {
+  it('should name the file after the title, and mark a vertical video', () => {
+    expect(getHighlightFileName('Sicily 2009')).toBe('Sicily 2009.mp4');
+    expect(getHighlightFileName('Sicily 2009', 'vertical')).toBe('Sicily 2009-vertical.mp4');
+    expect(getHighlightFileName('Rome/Florence: 3 days', 'vertical')).toBe('Rome_Florence_ 3 days-vertical.mp4');
+    expect(getHighlightFileName('  ')).toBe('Highlights.mp4');
+  });
 });
 
 describe(HighlightService.name, () => {
@@ -127,10 +141,35 @@ describe(HighlightService.name, () => {
         bookId: null,
         musicAssetId: null,
         title: 'Sicily 2009',
-        options: { durationSeconds: 90, style: 'auto', includeMaps: true, captions: true, addToAlbum: true },
+        options: {
+          durationSeconds: 90,
+          style: 'auto',
+          includeMaps: true,
+          captions: true,
+          addToAlbum: true,
+          format: 'landscape',
+        },
       });
       expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.HighlightRender, data: { id: result.id } });
-      expect(result).toMatchObject({ title: 'Sicily 2009', status: HighlightJobStatus.Pending, durationSeconds: 90 });
+      expect(result).toMatchObject({
+        title: 'Sicily 2009',
+        status: HighlightJobStatus.Pending,
+        durationSeconds: 90,
+        format: 'landscape',
+      });
+    });
+
+    it('should start a vertical video', async () => {
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.album.getById.mockResolvedValue({ albumName: 'Sicily 2009' } as any);
+      mocks.highlightJob.create.mockImplementation((job) => Promise.resolve(jobRow(job as any)) as any);
+
+      const result = await sut.create(auth, { albumId, format: 'vertical' });
+
+      expect(mocks.highlightJob.create).toHaveBeenCalledWith(
+        expect.objectContaining({ options: expect.objectContaining({ format: 'vertical' }) }),
+      );
+      expect(result.format).toBe('vertical');
     });
 
     it('should require access to the album', async () => {
@@ -273,13 +312,42 @@ describe(HighlightService.name, () => {
           type: NotificationType.Custom,
           level: NotificationLevel.Success,
           title: 'Your highlight video is ready',
-          data: JSON.stringify({ assetId: 'video-id', highlightId: job.id }),
+          data: JSON.stringify({ assetId: 'video-id', highlightId: job.id, format: 'landscape' }),
         }),
       );
       expect(mocks.storage.unlinkDir).toHaveBeenCalledWith(expect.stringContaining(`.highlight-${job.id}`), {
         recursive: true,
         force: true,
       });
+    });
+
+    it('should render a vertical video in portrait and name its file for social apps', async () => {
+      const { job } = setupRender({
+        options: {
+          durationSeconds: 30,
+          style: 'auto',
+          includeMaps: false,
+          captions: true,
+          addToAlbum: true,
+          format: 'vertical',
+        },
+      });
+
+      await expect(sut.handleRender({ id: job.id })).resolves.toBe(JobStatus.Success);
+
+      expect(mocks.media.composeHighlightStill).toHaveBeenCalledWith(
+        expect.objectContaining({ width: 1620, height: 2880 }),
+      );
+      const segments = mocks.media.runFfmpeg.mock.calls.slice(0, -1).map(([args]) => args.join(' '));
+      expect(segments.every((args) => !args.includes('zoompan') || args.includes(':s=1080x1920:'))).toBe(true);
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ originalFileName: 'Sicily-vertical.mp4' }),
+      );
+      expect(mocks.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: JSON.stringify({ assetId: 'video-id', highlightId: job.id, format: 'vertical' }),
+        }),
+      );
     });
 
     it('should play the music under the video', async () => {

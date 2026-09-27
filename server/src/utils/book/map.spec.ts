@@ -401,6 +401,24 @@ describe('renderMap', () => {
     expect(await blueness(result.data)).toBeGreaterThan((await blueness(paper.data)) + 10);
   });
 
+  it('should keep the title, compass and scale bar clear of the covered edges of a vertical map', async () => {
+    const size = { width: 360, height: 640, format: 'png' as const };
+    const safeArea = { top: 90, bottom: 128 };
+    const plain = await renderMap({ points: trip }, { map }, size);
+    const safe = await renderMap({ points: trip }, { map }, { ...size, safeArea });
+    await expect(sharp(safe.data).metadata()).resolves.toEqual(expect.objectContaining({ width: 360, height: 640 }));
+    // the ink drawn in a band (the title, compass, scale bar, route and pins): the paper is light
+    const ink = async (data: Buffer, top: number, height: number) => {
+      const pixels = await sharp(data).extract({ left: 0, top, width: 360, height }).greyscale().raw().toBuffer();
+      return pixels.filter((value) => value < 110).length;
+    };
+    expect(await ink(plain.data, 0, 90)).toBeGreaterThan(40);
+    expect(await ink(plain.data, 512, 128)).toBeGreaterThan(40);
+    expect(await ink(safe.data, 0, 90)).toBeLessThan(5);
+    expect(await ink(safe.data, 512, 128)).toBeLessThan(5);
+    expect(await ink(safe.data, 90, 422)).toBeGreaterThan(await ink(plain.data, 90, 422));
+  });
+
   it('should draw the same sketch every time', async () => {
     const first = await renderMap({ points: trip }, { map }, { width: 300, height: 200, format: 'png' });
     const second = await renderMap({ points: trip }, { map }, { width: 300, height: 200, format: 'png' });

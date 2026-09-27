@@ -1,5 +1,5 @@
 import { TranscodeHardwareAcceleration } from 'src/enum.js';
-import { HIGHLIGHT_HEIGHT, HIGHLIGHT_WIDTH, HighlightRect } from 'src/utils/highlight/plan.js';
+import { HIGHLIGHT_HEIGHT, HIGHLIGHT_WIDTH, HighlightFrameSize, HighlightRect } from 'src/utils/highlight/plan.js';
 
 /**
  * The ffmpeg commands of a highlight video. Each shot is rendered on its own as a short segment (in parallel): a still
@@ -24,6 +24,14 @@ export const STILL_SCALE = 1.5;
 export const STILL_WIDTH = Math.round(HIGHLIGHT_WIDTH * STILL_SCALE);
 export const STILL_HEIGHT = Math.round(HIGHLIGHT_HEIGHT * STILL_SCALE);
 
+const LANDSCAPE: HighlightFrameSize = { width: HIGHLIGHT_WIDTH, height: HIGHLIGHT_HEIGHT };
+
+/** the size of the stills of a film whose frame has the given size, see `STILL_SCALE` */
+export const getStillSize = (frame: HighlightFrameSize = LANDSCAPE): HighlightFrameSize => ({
+  width: Math.round(frame.width * STILL_SCALE),
+  height: Math.round(frame.height * STILL_SCALE),
+});
+
 const SAMPLE_RATE = 48_000;
 /** the lower third fades in after the crossfade into its shot, and out before the one out of it */
 const CAPTION_FADE = 0.4;
@@ -43,6 +51,8 @@ export type StillSegment = {
   overlay?: string;
   fade: number;
   output: string;
+  /** the size of the frame, default 1920×1080 */
+  size?: HighlightFrameSize;
 };
 
 export type ClipSegment = {
@@ -61,6 +71,8 @@ export type ClipSegment = {
   overlay?: string;
   fade: number;
   output: string;
+  /** the size of the frame, default 1920×1080 */
+  size?: HighlightFrameSize;
 };
 
 export type SegmentSpec = StillSegment | ClipSegment;
@@ -77,12 +89,18 @@ const lerp = (start: number, end: number, frames: number) => {
 };
 
 /** the zoompan filter of a move from one square of the still to another, one output frame per frame of the shot */
-export const getZoompanFilter = (from: HighlightRect, to: HighlightRect, frames: number, fps: number) => {
+export const getZoompanFilter = (
+  from: HighlightRect,
+  to: HighlightRect,
+  frames: number,
+  fps: number,
+  frame: HighlightFrameSize = LANDSCAPE,
+) => {
   const size = lerp(from.size, to.size, frames);
   const zoom = size.startsWith('(') ? `1/${size}` : num(1 / from.size);
   return (
     `zoompan=z='${zoom}':x='iw*${lerp(from.x, to.x, frames)}':y='ih*${lerp(from.y, to.y, frames)}'` +
-    `:d=${frames}:s=${HIGHLIGHT_WIDTH}x${HIGHLIGHT_HEIGHT}:fps=${fps}`
+    `:d=${frames}:s=${frame.width}x${frame.height}:fps=${fps}`
   );
 };
 
@@ -114,18 +132,32 @@ const getToneMapFilter = (toneMap: ToneMapper) => {
   }
 };
 
-/** a clip with the aspect ratio of the frame fills it; any other is shown whole over a blurred copy of itself */
-const getClipFitFilter = (width: number, height: number) => {
-  const aspect = width > 0 && height > 0 ? width / height : HIGHLIGHT_WIDTH / HIGHLIGHT_HEIGHT;
-  if (Math.abs(aspect / (HIGHLIGHT_WIDTH / HIGHLIGHT_HEIGHT) - 1) < 0.04) {
-    return `scale=${HIGHLIGHT_WIDTH}:${HIGHLIGHT_HEIGHT}:force_original_aspect_ratio=increase,crop=${HIGHLIGHT_WIDTH}:${HIGHLIGHT_HEIGHT}`;
+/**
+ * How a clip fills the frame: `cover` when it has the aspect ratio of the frame, or when it is a portrait video in a
+ * vertical film (cropped at the sides, like the portrait photos); `contain` (whole, over a blurred copy of itself)
+ * otherwise, e.g. a landscape video in a vertical film, whose subject may be anywhere across it
+ */
+export const getClipFrame = (clip: { width: number; height: number }, frame: HighlightFrameSize = LANDSCAPE) => {
+  const frameAspect = frame.width / frame.height;
+  const aspect = clip.width > 0 && clip.height > 0 ? clip.width / clip.height : frameAspect;
+  if (Math.abs(aspect / frameAspect - 1) < 0.04) {
+    return 'cover';
   }
-  const small = { width: HIGHLIGHT_WIDTH / 4, height: HIGHLIGHT_HEIGHT / 4 };
+  return frameAspect < 1 && aspect < 1 ? 'cover' : 'contain';
+};
+
+/** a clip that covers the frame is cropped to it, centred; any other is shown whole over a blurred copy of itself */
+const getClipFitFilter = (width: number, height: number, frame: HighlightFrameSize = LANDSCAPE) => {
+  const { width: w, height: h } = frame;
+  if (getClipFrame({ width, height }, frame) === 'cover') {
+    return `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`;
+  }
+  const small = { width: w / 4, height: h / 4 };
   return (
     `split=2[bg][fg];` +
     `[bg]scale=${small.width}:${small.height}:force_original_aspect_ratio=increase,crop=${small.width}:${small.height},` +
-    `boxblur=10:2,scale=${HIGHLIGHT_WIDTH}:${HIGHLIGHT_HEIGHT},eq=brightness=-0.08[blurred];` +
-    `[fg]scale=${HIGHLIGHT_WIDTH}:${HIGHLIGHT_HEIGHT}:force_original_aspect_ratio=decrease[whole];` +
+    `boxblur=10:2,scale=${w}:${h},eq=brightness=-0.08[blurred];` +
+    `[fg]scale=${w}:${h}:force_original_aspect_ratio=decrease[whole];` +
     `[blurred][whole]overlay=(W-w)/2:(H-h)/2`
   );
 };
@@ -158,11 +190,13 @@ export const getSegmentCommand = (spec: SegmentSpec): FfmpegCommand => {
 
   if (spec.kind === 'still') {
     inputs.push({ path: spec.input, options: [] });
-    filters.push(`[0:v]${getZoompanFilter(spec.from, spec.to, spec.frames, spec.fps)},setsar=1,format=gbrp[base]`);
+    filters.push(
+      `[0:v]${getZoompanFilter(spec.from, spec.to, spec.frames, spec.fps, spec.size)},setsar=1,format=gbrp[base]`,
+    );
   } else {
     inputs.push({ path: spec.input, options: ['-ss', num(spec.start), '-t', num(spec.frames / spec.fps + 0.5)] });
     filters.push(
-      `[0:v]${getToneMapFilter(spec.toneMap ?? null)}${getClipFitFilter(spec.width, spec.height)},` +
+      `[0:v]${getToneMapFilter(spec.toneMap ?? null)}${getClipFitFilter(spec.width, spec.height, spec.size)},` +
         `fps=${spec.fps},setsar=1,format=gbrp[base]`,
     );
   }

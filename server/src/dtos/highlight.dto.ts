@@ -7,6 +7,7 @@ import { HighlightJobStatusSchema } from 'src/enum.js';
 import { HighlightJobTable } from 'src/schema/tables/highlight-job.table.js';
 import {
   DEFAULT_HIGHLIGHT_DURATION,
+  HIGHLIGHT_FORMATS,
   MAX_HIGHLIGHT_DURATION,
   MIN_HIGHLIGHT_DURATION,
 } from 'src/utils/highlight/plan.js';
@@ -24,6 +25,14 @@ const HighlightStyleSchema = z
       'photos, e.g. food, otherwise classic), or a book style preset',
   )
   .meta({ id: 'HighlightStyle' });
+
+const HighlightFormatSchema = z
+  .enum(HIGHLIGHT_FORMATS)
+  .describe(
+    'The shape of the video: landscape (16:9, 1920×1080) or vertical (9:16, 1080×1920, for phones and social apps, ' +
+      'with the text clear of the apps’ buttons)',
+  )
+  .meta({ id: 'HighlightFormat' });
 
 const HighlightCreateSchema = z
   .object({
@@ -43,6 +52,7 @@ const HighlightCreateSchema = z
       .optional()
       .describe(`Length of the video in seconds (default ${DEFAULT_HIGHLIGHT_DURATION})`),
     style: HighlightStyleSchema.optional(),
+    format: HighlightFormatSchema.optional().describe('Landscape (default) or vertical'),
     music: z.uuidv4().optional().describe('An audio file of the user (see the music endpoints) played under the video'),
     includeMaps: z.boolean().optional().describe('Open the chapters with GPS locations with a map (default true)'),
     captions: z
@@ -65,6 +75,7 @@ const HighlightJobResponseSchema = z
     albumId: z.uuidv4().nullable().describe('Album the video is made from'),
     bookId: z.uuidv4().nullable().describe('Book the video is made from'),
     durationSeconds: z.int().describe('Length of the video in seconds, as asked for'),
+    format: HighlightFormatSchema,
     resultAssetId: z.uuidv4().nullable().describe('The video, once it is ready'),
     error: z.string().nullable().describe('Why the video could not be made'),
     warnings: z.array(z.string()).describe('What was left out, e.g. photos too small for 1080p'),
@@ -101,6 +112,7 @@ export const mapHighlightJob = (job: Selectable<HighlightJobTable>): HighlightJo
   albumId: job.albumId,
   bookId: job.bookId,
   durationSeconds: job.options.durationSeconds,
+  format: job.options.format ?? 'landscape',
   resultAssetId: job.resultAssetId,
   error: job.error,
   warnings: job.warnings ?? [],

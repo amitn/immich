@@ -5,15 +5,29 @@ import {
   FfmpegCommand,
   HighlightEncoder,
   SOFTWARE_ENCODER,
-  STILL_HEIGHT,
-  STILL_WIDTH,
   SegmentSpec,
   ToneMapper,
   getFilmCommand,
   getSegmentCommand,
+  getStillSize,
   toFfmpegArgs,
 } from 'src/utils/highlight/ffmpeg.js';
-import { HighlightMapShot, HighlightPlan, HighlightShot } from 'src/utils/highlight/plan.js';
+import {
+  HIGHLIGHT_HEIGHT,
+  HIGHLIGHT_WIDTH,
+  HighlightMapShot,
+  HighlightPlan,
+  HighlightShot,
+  getSafeArea,
+} from 'src/utils/highlight/plan.js';
+
+/** the size of the image of a map card; a vertical map keeps its title, compass and scale in the safe band */
+export type HighlightMapSize = {
+  width: number;
+  height: number;
+  /** the pixels at the top and bottom of the map that phone apps cover, see `getSafeArea` */
+  safeArea?: { top: number; bottom: number };
+};
 
 /** what the renderer needs of the media repository */
 export type HighlightMedia = {
@@ -51,7 +65,7 @@ export type HighlightRenderContext = {
   photos: Map<string, string>;
   clips: Map<string, HighlightClipSource>;
   /** the map of a map card, as an image of the given size */
-  renderMap: (shot: HighlightMapShot, size: { width: number; height: number }) => Promise<Buffer>;
+  renderMap: (shot: HighlightMapShot, size: HighlightMapSize) => Promise<Buffer>;
   /** the filter that tone maps HDR clips, see `MediaRepository.getFfmpegFilters` */
   toneMap: ToneMapper;
   music?: string;
@@ -93,6 +107,8 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T, index: nu
 const FULL = { x: 0, y: 0, size: 1 };
 /** a map zooms in a little, keeping its title, compass and scale in the frame */
 const MAP_END = { x: 0.01, y: 0.01, size: 0.98 };
+/** the share of the height of a vertical map its lower third takes, above the covered bottom */
+const MAP_CAPTION_ROOM = 0.08;
 
 /**
  * Renders a planned highlight video: the stills of the photos, the cards and maps, then every shot as a segment (a few
@@ -102,6 +118,21 @@ const MAP_END = { x: 0.01, y: 0.01, size: 0.98 };
  */
 export const renderHighlight = async (plan: HighlightPlan, ctx: HighlightRenderContext) => {
   const { fps, fade } = plan;
+  const frame = { width: plan.width ?? HIGHLIGHT_WIDTH, height: plan.height ?? HIGHLIGHT_HEIGHT };
+  const still = getStillSize(frame);
+  const safe = getSafeArea(frame);
+  const portrait = safe.top > 0 || safe.bottom > 0;
+  // in a vertical film, the route and the scale bar of a map also stay clear of its lower third (its dates)
+  const getMapSize = (shot: HighlightMapShot): HighlightMapSize =>
+    portrait
+      ? {
+          ...still,
+          safeArea: {
+            top: Math.round(safe.top * still.height),
+            bottom: Math.round((safe.bottom + (shot.subtitle ? MAP_CAPTION_ROOM : 0)) * still.height),
+          },
+        }
+      : still;
   const frames = (shot: HighlightShot) => Math.max(1, Math.round(shot.duration * fps));
   let progress = 0;
   const report = (value: number) => {
@@ -113,26 +144,26 @@ export const renderHighlight = async (plan: HighlightPlan, ctx: HighlightRenderC
   const specs = await mapLimit(plan.shots, 2, async (shot, index): Promise<SegmentSpec | null> => {
     throwIfAborted(ctx.signal);
     const output = join(ctx.workdir, `${String(index).padStart(3, '0')}.mkv`);
-    const base = { frames: frames(shot), fps, fade, output };
+    const base = { frames: frames(shot), fps, fade, output, size: frame };
     try {
       let overlay: string | undefined;
       const caption = 'caption' in shot ? shot.caption : shot.kind === 'map' ? shot.subtitle : undefined;
       if (caption) {
         overlay = join(ctx.workdir, `${index}-caption.png`);
-        await ctx.writeFile(overlay, await renderOverlay(getLowerThirdSvg(caption, ctx.style)));
+        await ctx.writeFile(overlay, await renderOverlay(getLowerThirdSvg(caption, ctx.style, frame)));
       }
 
       switch (shot.kind) {
         case 'title':
         case 'chapter': {
           const input = join(ctx.workdir, `${index}-card.jpg`);
-          const svg = getCardSvg(shot, ctx.style, shot.kind);
+          const svg = getCardSvg(shot, ctx.style, shot.kind, frame);
           await ctx.writeFile(input, await renderCard(svg));
           return { kind: 'still', input, from: FULL, to: FULL, overlay, ...base };
         }
         case 'map': {
           const input = join(ctx.workdir, `${index}-map.jpg`);
-          await ctx.writeFile(input, await ctx.renderMap(shot, { width: STILL_WIDTH, height: STILL_HEIGHT }));
+          await ctx.writeFile(input, await ctx.renderMap(shot, getMapSize(shot)));
           return { kind: 'still', input, from: FULL, to: MAP_END, overlay, ...base };
         }
         case 'photo': {
@@ -146,8 +177,7 @@ export const renderHighlight = async (plan: HighlightPlan, ctx: HighlightRenderC
             output: input,
             frame: shot.frame,
             crop: shot.crop,
-            width: STILL_WIDTH,
-            height: STILL_HEIGHT,
+            ...still,
           });
           return { kind: 'still', input, from: shot.from, to: shot.to, overlay, ...base };
         }

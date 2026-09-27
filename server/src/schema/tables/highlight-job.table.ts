@@ -26,6 +26,8 @@ export type HighlightJobOptions = {
   captions: boolean;
   /** the video is added to the album it was made from */
   addToAlbum: boolean;
+  /** landscape (16:9) or vertical (9:16); videos made before the option are landscape */
+  format?: 'landscape' | 'vertical';
 };
 
 @Table('highlight_job')

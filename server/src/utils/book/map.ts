@@ -60,7 +60,17 @@ export type MapRenderContext = {
 
 export type MapRenderPage = { map: BookMap | null; sectionTitle?: string | null };
 
-export type MapRenderSize = { width: number; height: number; format?: 'jpeg' | 'png'; quality?: number };
+export type MapRenderSize = {
+  width: number;
+  height: number;
+  format?: 'jpeg' | 'png';
+  quality?: number;
+  /**
+   * the pixels at the top and bottom of the map that something else covers, e.g. the buttons of phone apps over a
+   * vertical film: the route, title, compass, scale bar, credit and labels stay clear of them
+   */
+  safeArea?: { top: number; bottom: number };
+};
 
 export type MapRenderResult = {
   data: Buffer;
@@ -621,6 +631,7 @@ const renderTitle = (
   u: number,
   fontFamily: string,
   cartouche: NonNullable<Theme['cartouche']> = DEFAULT_CARTOUCHE,
+  top = 0,
 ) => {
   const text = cartouche.upper ? title.toLocaleUpperCase() : title;
   const spacing = cartouche.upper ? 0.14 : 0;
@@ -629,7 +640,7 @@ const renderTitle = (
   const boxWidth = Math.min(width * 0.9, text.length * fontPx * charWidth + fontPx * 2);
   const boxHeight = fontPx * 1.8;
   const x = (width - boxWidth) / 2;
-  const y = 22 * u;
+  const y = top + 22 * u;
   return [
     `<rect x="${fmt(x)}" y="${fmt(y)}" width="${fmt(boxWidth)}" height="${fmt(boxHeight)}" rx="${fmt(6 * u)}" fill="${cartouche.fill}" fill-opacity="0.9" stroke="${cartouche.stroke}" stroke-width="${fmt(1.5 * u)}"/>`,
     `<rect x="${fmt(x + 4 * u)}" y="${fmt(y + 4 * u)}" width="${fmt(boxWidth - 8 * u)}" height="${fmt(boxHeight - 8 * u)}" rx="${fmt(4 * u)}" fill="none" stroke="${cartouche.stroke}" stroke-opacity="0.5" stroke-width="${fmt(0.8 * u)}"/>`,
@@ -782,6 +793,8 @@ type OverlayInput = {
   seed: number;
   /** room kept free along the edges, e.g. for a frame, in design pixels */
   inset?: number;
+  /** the pixels at the top and bottom that are covered, see `MapRenderSize.safeArea` */
+  safeArea?: { top: number; bottom: number };
 };
 
 type OverlayResult = {
@@ -798,6 +811,8 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
   const { width, height } = viewport;
   const u = Math.min(width, height) / 1000;
   const inset = (input.inset ?? 0) * u;
+  const safeTop = input.safeArea?.top ?? 0;
+  const safeBottom = input.safeArea?.bottom ?? 0;
   const parts: string[] = [];
   const labelFont =
     theme.labelFont === 'serif'
@@ -832,12 +847,18 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
 
   const titleHeight = map.title ? 22 * u + Math.min(44 * u, width) * 1.8 : 0;
   if (map.title) {
-    obstacles.push({ x: 0, y: 0, width, height: titleHeight + 12 * u });
+    obstacles.push({ x: 0, y: 0, width, height: safeTop + titleHeight + 12 * u });
+  }
+  if (safeTop > 0) {
+    obstacles.push({ x: 0, y: 0, width, height: safeTop });
+  }
+  if (safeBottom > 0) {
+    obstacles.push({ x: 0, y: height - safeBottom, width, height: safeBottom });
   }
   const compassSize = (theme.compass === 'rose' ? 76 : 56) * u;
   const compass = {
     x: width - inset - compassSize * 0.85,
-    y: inset + compassSize * 1.05 + 16 * u,
+    y: safeTop + inset + compassSize * 1.05 + 16 * u,
   };
   obstacles.push(
     {
@@ -846,7 +867,7 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
       width: compassSize * 1.7 + inset,
       height: compassSize * 1.9 + 16 * u,
     },
-    { x: 0, y: height - 70 * u - inset, width: width * 0.3 + inset, height: 70 * u + inset },
+    { x: 0, y: height - safeBottom - 70 * u - inset, width: width * 0.3 + inset, height: 70 * u + inset },
   );
   const credit = attribution === true ? MAP_ATTRIBUTION : attribution || '';
   const creditPx = Math.max(9, 11 * u);
@@ -854,7 +875,7 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
   if (credit) {
     obstacles.push({
       x: width - inset - creditWidth,
-      y: height - inset - creditPx * 2,
+      y: height - safeBottom - inset - creditPx * 2,
       width: creditWidth + inset,
       height: creditPx * 2 + inset,
     });
@@ -891,21 +912,21 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
   const chromeFont = theme.compass ? labelFont : fontFamily;
   parts.push(
     renderCompass(compass.x, compass.y, compassSize, theme, chromeFont),
-    renderScaleBar(viewport, u, theme, chromeFont, 28 * u + inset, 24 + (input.inset ?? 0)),
+    renderScaleBar(viewport, u, theme, chromeFont, 28 * u + inset + safeBottom, 24 + (input.inset ?? 0)),
   );
 
   if (map.title) {
-    parts.push(renderTitle(map.title, width, u, chromeFont, theme.cartouche));
+    parts.push(renderTitle(map.title, width, u, chromeFont, theme.cartouche, safeTop));
   }
 
   if (attribution === true) {
     parts.push(
-      `<rect x="${fmt(width - creditWidth)}" y="${fmt(height - creditPx * 1.7)}" width="${fmt(creditWidth)}" height="${fmt(creditPx * 1.7)}" fill="#ffffff" fill-opacity="0.7"/>`,
-      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - creditPx * 0.5)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="#333333" text-anchor="end">${escapeXml(credit)}</text>`,
+      `<rect x="${fmt(width - creditWidth)}" y="${fmt(height - safeBottom - creditPx * 1.7)}" width="${fmt(creditWidth)}" height="${fmt(creditPx * 1.7)}" fill="#ffffff" fill-opacity="0.7"/>`,
+      `<text x="${fmt(width - 6 * u)}" y="${fmt(height - safeBottom - creditPx * 0.5)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="#333333" text-anchor="end">${escapeXml(credit)}</text>`,
     );
   } else if (credit) {
     parts.push(
-      `<text x="${fmt(width - inset - 8 * u)}" y="${fmt(height - inset - creditPx * 0.7)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="${theme.ink}" fill-opacity="0.85" stroke="${theme.halo}" stroke-opacity="0.8" stroke-width="${fmt(creditPx * 0.25)}" stroke-linejoin="round" paint-order="stroke" text-anchor="end">${escapeXml(credit)}</text>`,
+      `<text x="${fmt(width - inset - 8 * u)}" y="${fmt(height - safeBottom - inset - creditPx * 0.7)}" font-family="${escapeXml(getFontStack('sans-serif'))}" font-size="${fmt(creditPx)}" fill="${theme.ink}" fill-opacity="0.85" stroke="${theme.halo}" stroke-opacity="0.8" stroke-width="${fmt(creditPx * 0.25)}" stroke-linejoin="round" paint-order="stroke" text-anchor="end">${escapeXml(credit)}</text>`,
     );
   }
 
@@ -994,6 +1015,7 @@ const renderStyledMap = async ({ mapSource, view, points, map, look, fontFamily,
     attribution: getMapCredit(mapSource.source.attribution),
     seed,
     inset,
+    safeArea: size.safeArea,
   });
 
   const basemap = renderStyledBasemap({ width, height, u, zoom, features, look, bounds, toPixel: pixel, seed });
@@ -1071,9 +1093,17 @@ export const renderMap = async (
   const u = Math.min(width, height) / 1000;
   const padding = Math.max(70 * u, Math.min(width, height) * 0.12);
   const titleRoom = map.title ? 90 * u : 0;
+  const safeTop = size.safeArea?.top ?? 0;
+  const safeBottom = size.safeArea?.bottom ?? 0;
   const fit = (minSpan: number) => {
-    const viewport = fitViewport(projected, { width, height: Math.max(1, height - titleRoom) }, padding, minSpan);
-    const view: Viewport = { ...viewport, height, y: viewport.y - titleRoom / 2 / viewport.scale };
+    // the route is fitted into the band under the title and clear of the covered edges
+    const room = { width, height: Math.max(1, height - titleRoom - safeTop - safeBottom) };
+    const viewport = fitViewport(projected, room, padding, minSpan);
+    const view: Viewport = {
+      ...viewport,
+      height,
+      y: viewport.y - (titleRoom + safeTop - safeBottom) / 2 / viewport.scale,
+    };
     return { view, points: projected.map((point) => ({ ...toPixel(view, point), city: point.city })) };
   };
   const { view, points } = fit(MIN_SPAN);
@@ -1123,6 +1153,7 @@ export const renderMap = async (
       fontFamily,
       attribution: true,
       seed,
+      safeArea: size.safeArea,
     });
     const image = sharp(basemap).composite([{ input: Buffer.from(svg(width, height, overlay.svg)), left: 0, top: 0 }]);
     return { data: await encode(image, size), source: 'tiles', warnings };
@@ -1148,7 +1179,16 @@ export const renderMap = async (
     width,
     height,
     renderFrame(width, height, u) +
-      renderOverlay({ viewport: view, points, map, theme: SKETCH_THEME, fontFamily, attribution: false, seed }).svg,
+      renderOverlay({
+        viewport: view,
+        points,
+        map,
+        theme: SKETCH_THEME,
+        fontFamily,
+        attribution: false,
+        seed,
+        safeArea: size.safeArea,
+      }).svg,
   );
   const paper = await sharp(Buffer.from(background))
     .composite(await renderPaperTexture(width, height, u, seed))
