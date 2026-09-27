@@ -107,6 +107,8 @@ export const MIN_STYLED_VIEW_M = 1200;
 /** the most vector tiles loaded for one map */
 export const MAX_VECTOR_TILES = 20;
 const VECTOR_TILE_CONCURRENCY = 3;
+/** the washes of hand-drawn looks are drawn at most this large, then scaled up */
+const MAX_SOFT_PIXELS = 2_400_000;
 /** the layers of the vector tiles that styled maps draw */
 const STYLED_LAYERS = new Set(['earth', 'water', 'landcover', 'landuse', 'buildings', 'roads', 'boundaries', 'places']);
 
@@ -899,6 +901,10 @@ const renderOverlay = (input: OverlayInput): OverlayResult => {
 const svg = (width: number, height: number, body: string) =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
 
+/** an SVG of `width` × `height` user units drawn `scale` times as large */
+const scaledSvg = (width: number, height: number, scale: number, body: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.max(1, Math.round(width * scale))}" height="${Math.max(1, Math.round(height * scale))}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
+
 const encode = (image: Sharp, size: MapRenderSize) =>
   size.format === 'png' ? image.png().toBuffer() : image.jpeg({ quality: size.quality ?? 90 }).toBuffer();
 
@@ -990,7 +996,21 @@ const renderStyledMap = async ({ mapSource, view, points, map, look, fontFamily,
     inset,
   });
 
-  let image = sharp(Buffer.from(svg(width, height, `<defs>${basemap.defs}</defs>${basemap.body}`)));
+  let image: Sharp;
+  const softScale = look.wobble ? Math.min(1, Math.sqrt(MAX_SOFT_PIXELS / (width * height))) : 1;
+  if (softScale < 1) {
+    // the filters of hand-drawn looks are slow at print size, and their washes do not need it
+    // rendered first: resizing an SVG in one go would draw it at the full size again
+    const small = await sharp(
+      Buffer.from(scaledSvg(width, height, softScale, `<defs>${basemap.defs}</defs>${basemap.soft}`)),
+    )
+      .png()
+      .toBuffer();
+    const soft = await sharp(small).resize(width, height, { fit: 'fill', kernel: 'cubic' }).png().toBuffer();
+    image = sharp(soft).composite([{ input: Buffer.from(svg(width, height, basemap.crisp)), left: 0, top: 0 }]);
+  } else {
+    image = sharp(Buffer.from(svg(width, height, `<defs>${basemap.defs}</defs>${basemap.soft}${basemap.crisp}`)));
+  }
   if (look.grain) {
     const paper = await image.png().toBuffer();
     image = sharp(paper).composite(await renderPaperTexture(width, height, u, seed));
@@ -1059,7 +1079,9 @@ export const renderMap = async (
         const data = await renderStyledMap({ mapSource, ...styled, map, look, fontFamily, seed, size });
         return { data, source: 'styled', warnings };
       } catch (error: any) {
-        warnings.push(`The map data could not be loaded (${error?.message ?? error}), so a sketch map is drawn instead`);
+        warnings.push(
+          `The map data could not be loaded (${error?.message ?? error}), so a sketch map is drawn instead`,
+        );
       }
     } else {
       warnings.push('Styled maps are not available here, so a sketch map is drawn instead');

@@ -189,6 +189,23 @@ describe('reviewBook', () => {
     expect(review(pages, []).issues).toEqual([]);
   });
 
+  it('should report styled maps drawn as sketches, when the map is disabled or its data could not be loaded', () => {
+    const map = { style: 'styled' as const, showRoute: true, labels: true };
+    const pages = [page('map', [], { map }), page('map', [], { map: { ...map, look: 'vintage' as const } })];
+
+    expect(review(pages, []).issues).toEqual([]);
+    expect(review(pages, [], { stadiaApiKey: '' }).issues).toEqual([]);
+
+    const [disabled] = review(pages, [], { mapEnabled: false }).issues;
+    expect(disabled).toEqual(
+      expect.objectContaining({ severity: 'medium', type: 'map-style-fallback', pages: [1, 2] }),
+    );
+    expect(disabled.message).toMatch(/^Pages 1 and 2 are styled maps, but the Map feature .* is disabled/);
+
+    const [failed] = review([pages[0]], [], { styledMapError: 'the map server did not answer in time' }).issues;
+    expect(failed.message).toMatch(/^Page 1 is a styled map, but .*did not answer in time.* drawn as a sketch/);
+  });
+
   it('should make the verb of a message agree with its pages', () => {
     const map = { style: 'watercolor' as const, showRoute: true, labels: true };
     const [one] = review([page('map', [], { map })], [], { stadiaApiKey: '' }).issues;

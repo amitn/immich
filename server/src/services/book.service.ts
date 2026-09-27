@@ -116,8 +116,8 @@ import {
   toPxRect,
   validatePageStyle,
 } from 'src/utils/book/layouts.js';
-import { getStyledMapError, getStyledMapSource } from 'src/utils/book/map-source.js';
 import { BookMapLookOption } from 'src/utils/book/map-looks.js';
+import { getStyledMapError, getStyledMapSource } from 'src/utils/book/map-source.js';
 import { BookMapStyleOption, resolveMapStyle } from 'src/utils/book/map-styles.js';
 import {
   MapPoint,
@@ -1300,7 +1300,11 @@ export class BookService extends BaseService {
       }
       if (index === -1) {
         if (book.albumId) {
-          const albums = await this.checkAccess({ auth, permission: Permission.AlbumRead, ids: new Set([book.albumId]) });
+          const albums = await this.checkAccess({
+            auth,
+            permission: Permission.AlbumRead,
+            ids: new Set([book.albumId]),
+          });
           assetIds = albums.has(book.albumId) ? await this.getAlbumAssetIds(auth, book.albumId) : [];
         }
       } else {

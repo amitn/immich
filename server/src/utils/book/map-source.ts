@@ -1,8 +1,8 @@
 import { join } from 'node:path';
-import { StorageCore } from 'src/cores/storage.core.js';
-import { StorageFolder } from 'src/enum.js';
 import type { StyledMapSource } from 'src/utils/book/map.js';
 import type { TileKey, VectorTileSource } from 'src/utils/book/vector-tiles.js';
+import { StorageCore } from 'src/cores/storage.core.js';
+import { StorageFolder } from 'src/enum.js';
 
 /**
  * Where styled maps take their map data: the vector tiles of the style of Immich's own Map page (Administration →
@@ -11,7 +11,11 @@ import type { TileKey, VectorTileSource } from 'src/utils/book/vector-tiles.js';
 
 export type MapDataRepository = {
   getVectorTileSource: (styleUrl: string) => Promise<VectorTileSource>;
-  getVectorTile: (source: VectorTileSource, tile: TileKey, options?: { cacheFolder?: string }) => Promise<Buffer | null>;
+  getVectorTile: (
+    source: VectorTileSource,
+    tile: TileKey,
+    options?: { cacheFolder?: string },
+  ) => Promise<Buffer | null>;
 };
 
 /** the tile cache, inside the thumbnails folder; hidden, so that the integrity checks leave it alone */

@@ -1954,6 +1954,74 @@ describe(BookService.name, () => {
       ]);
     });
 
+    it('should draw styled maps from the tiles of the Map page, cached under the thumbnails', async () => {
+      const { book, mapPage } = setupMapPage({ ...sketch, style: 'styled', look: 'engraved' });
+      const source = { tiles: ['https://tiles.example.org/{z}/{x}/{y}.mvt'], minZoom: 0, maxZoom: 15, attribution: '' };
+      mocks.map.getVectorTileSource.mockResolvedValue(source);
+      mocks.map.getVectorTile.mockResolvedValue(null);
+
+      const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
+
+      expect(warnings).toEqual([]);
+      expect(mocks.map.getVectorTileSource).toHaveBeenCalledWith('https://tiles.immich.cloud/v1/style/light.json');
+      expect(mocks.map.getVectorTile).toHaveBeenCalledWith(source, expect.objectContaining({ z: expect.any(Number) }), {
+        cacheFolder: expect.stringMatching(/thumbs\/\.cache\/map-tiles$/),
+      });
+    });
+
+    it('should draw a styled map as a sketch when the map is disabled', async () => {
+      const { book, mapPage } = setupMapPage({ ...sketch, style: 'styled' });
+      mocks.systemMetadata.get.mockResolvedValue({ map: { enabled: false } });
+
+      const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
+
+      expect(warnings).toEqual([
+        expect.objectContaining({ type: 'map', message: expect.stringMatching(/the Map feature is disabled/) }),
+      ]);
+      expect(mocks.map.getVectorTileSource).not.toHaveBeenCalled();
+    });
+
+    describe('renderMapPreview', () => {
+      it('should preview the map of a page in another style', async () => {
+        const { book, mapPage, photo } = setupMapPage(sketch);
+
+        const data = await sut.renderMapPreview(auth, {
+          bookId: book.id,
+          pageId: mapPage.id,
+          style: 'sketch',
+          size: 200,
+        });
+
+        await expect(sharp(data).metadata()).resolves.toEqual(expect.objectContaining({ format: 'jpeg' }));
+        const { width, height } = await sharp(data).metadata();
+        expect(Math.max(width, height)).toBe(200);
+        expect(mocks.book.getAssetLocations).toHaveBeenCalledWith([photo.id]);
+      });
+
+      it('should preview the photos of an album for a book not made yet', async () => {
+        const albumId = newUuid();
+        mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+        mocks.assetJob.getForAgentEvents.mockResolvedValue([]);
+
+        const data = await sut.renderMapPreview(auth, { albumId, style: 'sketch', stylePreset: 'travel' });
+
+        await expect(sharp(data).metadata()).resolves.toEqual(
+          expect.objectContaining({ format: 'jpeg', width: 320, height: 320 }),
+        );
+        expect(mocks.assetJob.getForAgentEvents).toHaveBeenCalledWith(expect.objectContaining({ albumId }));
+      });
+
+      it('should need a book or an album the user can see', async () => {
+        await expect(sut.renderMapPreview(auth, { style: 'styled' })).rejects.toBeInstanceOf(BadRequestException);
+        await expect(sut.renderMapPreview(auth, { albumId: newUuid(), style: 'styled' })).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+        await expect(sut.renderMapPreview(auth, { bookId: newUuid(), style: 'styled' })).rejects.toBeInstanceOf(
+          BadRequestException,
+        );
+      });
+    });
+
     it('should warn about a map on a layout without a map area', async () => {
       const { book, mapPage } = setupMapPage(sketch, 'single');
 

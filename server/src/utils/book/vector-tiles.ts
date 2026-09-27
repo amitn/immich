@@ -52,7 +52,7 @@ export const getMapCredit = (attribution: string) => {
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => (/^©?\s*openstreetmap$/i.test(part) ? '© OpenStreetMap contributors' : part));
-  if (!parts.some((part) => /openstreetmap/i.test(part))) {
+  if (parts.every((part) => !/openstreetmap/i.test(part))) {
     parts.push('© OpenStreetMap contributors');
   }
   return [...new Set(parts)].join(' ');
@@ -63,7 +63,7 @@ export type StyleSource = { url: string } | { tiles: string[]; minZoom: number; 
 /** a URL relative to the style, keeping the {z}/{x}/{y} placeholders that `URL` would escape */
 const resolveUrl = (url: string, base: string) => {
   try {
-    return new URL(url, base).toString().replaceAll('%7B', '{').replaceAll('%7D', '}');
+    return new URL(url, base).href.replaceAll('%7B', '{').replaceAll('%7D', '}');
   } catch {
     return url;
   }
@@ -136,11 +136,8 @@ export const getVectorTileUrl = (source: Pick<VectorTileSource, 'tiles'>, { z, x
   const template = source.tiles[(x + y) % source.tiles.length];
   const n = 2 ** z;
   const wrapped = ((x % n) + n) % n;
-  return template
-    .replaceAll('{z}', String(z))
-    .replaceAll('{x}', String(wrapped))
-    .replaceAll('{y}', String(y))
-    .replaceAll('{-y}', String(n - 1 - y));
+  const values: Record<string, number> = { z, x: wrapped, y, '-y': n - 1 - y };
+  return template.replaceAll(/\{(z|x|y|-y)\}/g, (_, name: string) => String(values[name]));
 };
 
 /** a viewport in Web Mercator world units (see `project` in map.ts) */
@@ -360,8 +357,8 @@ const toPixels = (
 ) => {
   const scale = placement.size / extent;
   const flat: number[] = [];
-  let lastX = Number.NaN;
-  let lastY = Number.NaN;
+  let lastX = NaN;
+  let lastY = NaN;
   for (const [index, point] of points.entries()) {
     const [px, py] = point;
     const x = placement.left + px * scale;
@@ -435,7 +432,9 @@ export const decodeVectorTile = (
       }
       const { properties } = feature;
       const kind = str(properties.kind) ?? '';
-      const detail = str(properties.kind_detail) ?? (typeof properties.kind_detail === 'number' ? String(properties.kind_detail) : undefined);
+      const detail =
+        str(properties.kind_detail) ??
+        (typeof properties.kind_detail === 'number' ? String(properties.kind_detail) : undefined);
       const minZoom = num(properties.min_zoom);
       const maxZoom = type === 'point' ? (options.maxLabelZoom ?? options.maxFeatureZoom) : options.maxFeatureZoom;
       if (maxZoom !== undefined && minZoom !== undefined && minZoom > maxZoom + 0.5) {
@@ -450,10 +449,12 @@ export const decodeVectorTile = (
       const outline: number[][] = [];
       if (type === 'point') {
         for (const [point] of geometry) {
-          if (point && point[0] >= 0 && point[0] < extent && point[1] >= 0 && point[1] < extent) {
-            const scale = placement.size / extent;
-            parts.push([placement.left + point[0] * scale, placement.top + point[1] * scale]);
+          if (!(point && point[0] >= 0 && point[0] < extent && point[1] >= 0 && point[1] < extent)) {
+            continue;
           }
+
+          const scale = placement.size / extent;
+          parts.push([placement.left + point[0] * scale, placement.top + point[1] * scale]);
         }
       } else if (type === 'line') {
         for (const line of geometry) {

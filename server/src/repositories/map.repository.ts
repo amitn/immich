@@ -266,7 +266,11 @@ export class MapRepository {
       return cached;
     }
 
-    const response = await this.fetchMapData(url, 'application/vnd.mapbox-vector-tile, application/x-protobuf', timeoutMs);
+    const response = await this.fetchMapData(
+      url,
+      'application/vnd.mapbox-vector-tile, application/x-protobuf',
+      timeoutMs,
+    );
     let data: Buffer | null = null;
     if (response.status !== 204 && response.status !== 404) {
       if (!response.ok) {

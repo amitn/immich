@@ -75,7 +75,7 @@ const WORKFLOW =
 
 const mapStyle = BookMapStyleOptionSchema.describe(
   'Map style: styled (recommended: the real streets, water, parks and place names of the Map page, drawn in the ' +
-    "look of the book; drawn as a sketch when the Map feature is disabled), sketch (offline, a route on paper), " +
+    'look of the book; drawn as a sketch when the Map feature is disabled), sketch (offline, a route on paper), ' +
     'watercolor, toner or terrain (Stadia Maps tiles; without an API key they are drawn as sketches and the result ' +
     'warns about it), or auto for the server default',
 );

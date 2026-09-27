@@ -1,7 +1,10 @@
 import sharp from 'sharp';
+import { bookStylePresets, resolveBookStyle } from 'src/dtos/book.dto.js';
 import { resolveMapStyle, tileStyles } from 'src/utils/book/map-styles.js';
 import {
   MAP_ATTRIBUTION,
+  MAX_VECTOR_TILES,
+  MIN_STYLED_VIEW_M,
   MapPoint,
   TILE_SIZE,
   chooseZoom,
@@ -14,6 +17,8 @@ import {
   getStops,
   getTileRange,
   getTileUrl,
+  loadStyledFeatures,
+  metersToWorld,
   parsePolygon,
   placeLabels,
   project,
@@ -22,6 +27,8 @@ import {
   toPixel,
   unproject,
 } from 'src/utils/book/map.js';
+import { TileKey, VectorTileSource } from 'src/utils/book/vector-tiles.js';
+import { TAORMINA_TILE, TAORMINA_TILE_CENTER, loadTaorminaTile } from 'test/fixtures/map/tile.js';
 
 const rome: MapPoint = { lat: 41.9028, lon: 12.4964, time: 1, city: 'Rome' };
 const florence: MapPoint = { lat: 43.7696, lon: 11.2558, time: 2, city: 'Florence' };
@@ -285,6 +292,17 @@ describe('resolveMapStyle', () => {
     });
   });
 
+  it('should draw styled maps without a key, and warn when the map is disabled', () => {
+    expect(resolveMapStyle('auto', { defaultStyle: 'styled', stadiaApiKey: '' })).toEqual({ style: 'styled' });
+    expect(resolveMapStyle('styled', { defaultStyle: 'sketch', stadiaApiKey: '', mapEnabled: true })).toEqual({
+      style: 'styled',
+    });
+    expect(resolveMapStyle('auto', { defaultStyle: 'styled', stadiaApiKey: '', mapEnabled: false })).toEqual({
+      style: 'styled',
+      warning: expect.stringMatching(/^Styled maps use the map data of the Map page, which is disabled/),
+    });
+  });
+
   it('should keep a style asked for without a key and warn that it is drawn as a sketch', () => {
     expect(resolveMapStyle('watercolor', { defaultStyle: 'watercolor', stadiaApiKey: '' })).toEqual({
       style: 'watercolor',
@@ -458,5 +476,172 @@ describe('renderMap', () => {
 
   it('should credit the tile providers', () => {
     expect(MAP_ATTRIBUTION).toBe('© Stadia Maps © Stamen Design © OpenStreetMap contributors');
+  });
+});
+
+describe('styled maps', () => {
+  const evora: MapPoint = { lat: 38.5725, lon: -7.9072, time: 1, city: 'Évora' };
+  const crete: MapPoint[] = [
+    { lat: 35.514, lon: 24.018, time: 1, city: 'Chania' },
+    { lat: 35.249, lon: 23.806, time: 2, city: 'Sougia' },
+    { lat: 35.2, lon: 24.137, time: 3, city: 'Chora Sfakion' },
+  ];
+  const walk: MapPoint[] = [
+    { lat: TAORMINA_TILE_CENTER.lat + 0.001, lon: TAORMINA_TILE_CENTER.lon - 0.001, time: 1, city: 'Taormina' },
+    { lat: TAORMINA_TILE_CENTER.lat - 0.001, lon: TAORMINA_TILE_CENTER.lon + 0.001, time: 2, city: 'Mazzarò' },
+  ];
+  const styled = { style: 'styled' as const, showRoute: true, labels: true };
+  const vectorSource: VectorTileSource = {
+    tiles: ['https://tiles.example.org/{z}/{x}/{y}.mvt'],
+    minZoom: 0,
+    maxZoom: 15,
+    attribution: '© OpenStreetMap',
+  };
+
+  /** the fixture for its own tile, empty tiles around it */
+  const fixtureSource = () => {
+    const getTile = vi.fn((key: TileKey) =>
+      Promise.resolve(
+        key.z === TAORMINA_TILE.z && key.x === TAORMINA_TILE.x && key.y === TAORMINA_TILE.y ? loadTaorminaTile() : null,
+      ),
+    );
+    return { getTile, getStyledMapSource: vi.fn(() => Promise.resolve({ source: vectorSource, getTile })) };
+  };
+
+  it('should show a few streets around a single place', async () => {
+    const { getTile, getStyledMapSource } = fixtureSource();
+    const result = await renderMap(
+      { points: [evora], getStyledMapSource },
+      { map: styled },
+      { width: 700, height: 900 },
+    );
+
+    expect(result.source).toBe('styled');
+    const tiles = getTile.mock.calls.map(([key]) => key);
+    expect(tiles.length).toBeGreaterThan(1);
+    expect(tiles.length).toBeLessThanOrEqual(MAX_VECTOR_TILES);
+    expect(new Set(tiles.map((key) => key.z))).toEqual(new Set([15]));
+    // tiles of 956 m at this latitude, covering at least the smallest view
+    const columns = new Set(tiles.map((key) => key.x)).size;
+    expect(columns * 956).toBeGreaterThanOrEqual(MIN_STYLED_VIEW_M);
+  });
+
+  it('should show a region with its coast at a lower zoom', async () => {
+    const { getTile, getStyledMapSource } = fixtureSource();
+    await renderMap({ points: crete, getStyledMapSource }, { map: styled }, { width: 700, height: 900 });
+
+    const zooms = new Set(getTile.mock.calls.map(([key]) => key.z));
+    expect(zooms).toEqual(new Set([10]));
+    expect(getTile.mock.calls.length).toBeLessThanOrEqual(MAX_VECTOR_TILES);
+  });
+
+  it('should keep the zoom of a map printed larger', async () => {
+    const small = fixtureSource();
+    const large = fixtureSource();
+    await renderMap(
+      { points: crete, getStyledMapSource: small.getStyledMapSource },
+      { map: styled },
+      { width: 500, height: 640 },
+    );
+    await renderMap(
+      { points: crete, getStyledMapSource: large.getStyledMapSource },
+      { map: styled },
+      { width: 1500, height: 1920 },
+    );
+    expect(large.getTile.mock.calls).toEqual(small.getTile.mock.calls);
+  });
+
+  it('should draw the real map data in the look of the book', async () => {
+    const minimal = fixtureSource();
+    const result = await renderMap(
+      {
+        points: walk,
+        getStyledMapSource: minimal.getStyledMapSource,
+        style: resolveBookStyle(bookStylePresets.museum.style),
+      },
+      { map: { ...styled, title: 'Mazzarò' } },
+      { width: 600, height: 800, format: 'png' },
+    );
+    expect(result).toEqual({ data: expect.any(Buffer), source: 'styled', warnings: [] });
+    await expect(sharp(result.data).metadata()).resolves.toEqual(
+      expect.objectContaining({ format: 'png', width: 600, height: 800 }),
+    );
+
+    const vintage = fixtureSource();
+    const chart = await renderMap(
+      {
+        points: walk,
+        getStyledMapSource: vintage.getStyledMapSource,
+        style: resolveBookStyle(bookStylePresets.travel.style),
+      },
+      { map: { ...styled, title: 'Mazzarò' } },
+      { width: 600, height: 800, format: 'png' },
+    );
+    // the cream chart is warmer than the grey gallery map
+    const warmth = async (data: Buffer) => {
+      const { channels } = await sharp(data).stats();
+      return channels[0].mean - channels[2].mean;
+    };
+    expect(await warmth(chart.data)).toBeGreaterThan((await warmth(result.data)) + 5);
+  });
+
+  it('should draw the look the page asks for', async () => {
+    const { getStyledMapSource } = fixtureSource();
+    const style = resolveBookStyle(bookStylePresets.museum.style);
+    const auto = await renderMap(
+      { points: walk, getStyledMapSource, style },
+      { map: styled },
+      { width: 300, height: 400 },
+    );
+    const wash = await renderMap(
+      { points: walk, getStyledMapSource, style },
+      { map: { ...styled, look: 'wash' } },
+      { width: 300, height: 400 },
+    );
+    expect(wash.source).toBe('styled');
+    expect(wash.data.equals(auto.data)).toBe(false);
+  });
+
+  it('should fall back to the sketch when the map is disabled', async () => {
+    const getStyledMapSource = vi.fn().mockRejectedValue(new Error('the Map feature is disabled'));
+    const result = await renderMap({ points: walk, getStyledMapSource }, { map: styled }, { width: 300, height: 300 });
+    expect(result.source).toBe('sketch');
+    expect(result.warnings).toEqual([expect.stringMatching(/the Map feature is disabled.*sketch/)]);
+  });
+
+  it('should fall back to the sketch when a tile does not come in time', async () => {
+    const getTile = vi.fn().mockRejectedValue(new Error('the map server did not answer in time'));
+    const getStyledMapSource = vi.fn().mockResolvedValue({ source: vectorSource, getTile });
+    const result = await renderMap({ points: crete, getStyledMapSource }, { map: styled }, { width: 300, height: 300 });
+    expect(result.source).toBe('sketch');
+    expect(result.warnings).toEqual([expect.stringMatching(/did not answer in time/)]);
+  });
+
+  it('should fall back to the sketch where styled maps are not available', async () => {
+    const result = await renderMap({ points: walk }, { map: styled }, { width: 300, height: 300 });
+    expect(result.source).toBe('sketch');
+    expect(result.warnings).toEqual([expect.stringMatching(/not available/)]);
+  });
+
+  it('should not load any tile for a map without locations', async () => {
+    const { getStyledMapSource } = fixtureSource();
+    const result = await renderMap({ points: [], getStyledMapSource }, { map: styled }, { width: 300, height: 300 });
+    expect(result.source).toBe('sketch');
+    expect(getStyledMapSource).not.toHaveBeenCalled();
+  });
+
+  it('should load the tiles that cover the view, and decode them', async () => {
+    const { getTile, getStyledMapSource } = fixtureSource();
+    const view = fitViewport(
+      walk.map((point) => project(point.lat, point.lon)),
+      { width: 500, height: 500 },
+      50,
+      metersToWorld(MIN_STYLED_VIEW_M, TAORMINA_TILE_CENTER.lat),
+    );
+    const { zoom, features, tiles } = await loadStyledFeatures(await getStyledMapSource(), view, 0.5);
+    expect(zoom).toBe(15);
+    expect(tiles).toContainEqual(TAORMINA_TILE);
+    expect(getTile).toHaveBeenCalledTimes(tiles.length);
+    expect(features.some((feature) => feature.layer === 'earth')).toBe(true);
   });
 });

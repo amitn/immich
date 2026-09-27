@@ -1,6 +1,6 @@
 import type { BookStyle } from 'src/dtos/book.dto.js';
-import { getFontStack } from 'src/utils/book/fonts.js';
 import type { BookMapLook, BookMapLookOption } from 'src/utils/book/map-styles.js';
+import { getFontStack } from 'src/utils/book/fonts.js';
 import { fromHex, rgbToHsl, toHex, withContrast } from 'src/utils/book/palette.js';
 
 /**
@@ -215,17 +215,17 @@ const engravedLook = (style: Required<BookStyle>): MapLook => {
   return {
     id: 'engraved',
     paper,
-    land: '#ecdcb9',
+    land: '#efe3c5',
     sea: { color: '#f6f0e1', opacity: 1 },
     coast: { color: ink, width: 1.3, opacity: 0.9 },
     waterLines: { color: '#5b4a36', width: 0.6, opacity: 0.55, spacing: 5.5, count: 6 },
     river: { color: '#5b4a36', width: 1.3, opacity: 0.75 },
-    park: { color: '#d9c99e', opacity: 0.6 },
-    forest: { color: '#cdbb8c', opacity: 0.6 },
+    park: { color: '#dccc9f', opacity: 0.5 },
+    forest: { color: '#d3c291', opacity: 0.45 },
     farmland: { color: '#e5d4ad', opacity: 0.5 },
     urban: { color: '#e0c9a4', opacity: 0.55 },
     sand: { color: '#f1e6c8', opacity: 0.8 },
-    hatch: { color: '#6d5a40', width: 0.55, opacity: 0.5, spacing: 4 },
+    hatch: { color: '#6d5a40', width: 0.5, opacity: 0.32, spacing: 4.5 },
     buildings: { color: '#d8c39c', opacity: 0.7, stroke: { color: ink, width: 0.3, opacity: 0.4 } },
     roads: {
       highway: { color: '#fbf6ea', width: 3, opacity: 1 },

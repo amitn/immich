@@ -96,10 +96,12 @@ export class TileCache {
       return;
     }
 
-    if (this.now() - this.lastPrune >= this.pruneIntervalMs && !this.pruning) {
-      this.lastPrune = this.now();
-      this.pruning = this.prune(folder).finally(() => (this.pruning = undefined));
+    if (!(this.now() - this.lastPrune >= this.pruneIntervalMs) || this.pruning) {
+      return;
     }
+
+    this.lastPrune = this.now();
+    this.pruning = this.prune(folder).finally(() => (this.pruning = undefined));
   }
 
   /** Removes the expired tiles, then the oldest until the folder is under the size cap */

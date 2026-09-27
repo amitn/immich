@@ -1,6 +1,6 @@
+import type { MapFeature } from 'src/utils/book/vector-tiles.js';
 import { MapLook, mix } from 'src/utils/book/map-looks.js';
 import { escapeXml } from 'src/utils/book/render.js';
-import type { MapFeature } from 'src/utils/book/vector-tiles.js';
 
 /**
  * Draws the real map data of a styled map (see vector-tiles.ts) as SVG in one of the looks of map-looks.ts: water,
@@ -151,7 +151,9 @@ export const classifyFeature = (feature: MapFeature, zoom: number): MapCategory 
           if (detail === 'pedestrian' && zoom >= 14) {
             return 'minor';
           }
-          return zoom >= 15 && detail !== 'track' && detail !== 'crossing' && detail !== 'sidewalk' ? 'path' : undefined;
+          return zoom >= 15 && detail !== 'track' && detail !== 'crossing' && detail !== 'sidewalk'
+            ? 'path'
+            : undefined;
         }
         case 'rail': {
           return !detail || detail === 'rail' || detail === 'narrow_gauge' ? 'rail' : undefined;
@@ -234,7 +236,9 @@ type LineStyle = { color: string; width: number; opacity: number; dash?: number[
 const stroke = (d: string, line: LineStyle, u: number, scale = 1, extra = '') =>
   d
     ? `<path d="${d}" fill="none" stroke="${line.color}" stroke-opacity="${line.opacity}" stroke-width="${fmt(line.width * scale * u)}" stroke-linecap="round" stroke-linejoin="round"${
-        line.dash ? ` stroke-dasharray="${line.dash.map((value) => fmt(value * u * Math.max(1, scale))).join(' ')}"` : ''
+        line.dash
+          ? ` stroke-dasharray="${line.dash.map((value) => fmt(value * u * Math.max(1, scale))).join(' ')}"`
+          : ''
       }${extra}/>`
     : '';
 
@@ -248,7 +252,7 @@ const wash = (d: string, fill: { color: string; opacity: number }, extra = '') =
     : '';
 
 /** how much wider roads are drawn at a zoom: streets are wide at city scale, roads thin on a region */
-export const getRoadScale = (zoom: number) => Math.min(2.4, Math.max(0.55, 0.55 + (zoom - 8) * 0.24));
+export const getRoadScale = (zoom: number) => Math.min(2, Math.max(0.55, 0.55 + (zoom - 8) * 0.24));
 
 export type GraticuleLine = { value: number; d: string; label: string; axis: 'lat' | 'lon'; at: number };
 
@@ -258,6 +262,8 @@ const DEGREE_STEPS = [1 / 120, 1 / 60, 1 / 30, 1 / 12, 1 / 6, 0.25, 0.5, 1, 2, 5
 export const getGraticuleStep = (spanDegrees: number) =>
   DEGREE_STEPS.find((step) => spanDegrees / step <= 4.5) ?? DEGREE_STEPS.at(-1)!;
 
+const pad = (number: number) => String(number).padStart(2, '0');
+
 /** 37°50′N, 15°17′E, 38°34′30″N */
 export const formatDegrees = (value: number, axis: 'lat' | 'lon') => {
   const hemisphere = axis === 'lat' ? (value >= 0 ? 'N' : 'S') : value >= 0 ? 'E' : 'W';
@@ -265,7 +271,6 @@ export const formatDegrees = (value: number, axis: 'lat' | 'lon') => {
   const degrees = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  const pad = (number: number) => String(number).padStart(2, '0');
   if (seconds !== 0) {
     return `${degrees}°${pad(minutes)}′${pad(seconds)}″${hemisphere}`;
   }
@@ -316,7 +321,13 @@ const renderGraticule = (input: StyledMapInput) => {
   for (let lon = Math.ceil(bounds.west / step) * step; lon <= bounds.east; lon += step) {
     const x = toPixel(0, lon).x;
     if (x > 0 && x < width) {
-      lines.push({ value: lon, d: `M${fmt(x)},0V${fmt(height)}`, label: formatDegrees(lon, 'lon'), axis: 'lon', at: x });
+      lines.push({
+        value: lon,
+        d: `M${fmt(x)},0V${fmt(height)}`,
+        label: formatDegrees(lon, 'lon'),
+        axis: 'lon',
+        at: x,
+      });
     }
   }
   for (let lat = Math.ceil(bounds.south / step) * step; lat <= bounds.north; lat += step) {
@@ -394,9 +405,7 @@ export const renderStyledBasemap = (input: StyledMapInput) => {
   }
   body.push(renderWaterLines(coast, look, u));
   if (look.pigmentEdge && coast) {
-    body.push(
-      `<g filter="url(#bleed)">${stroke(coast, look.pigmentEdge, u, 1)}</g>`,
-    );
+    body.push(`<g filter="url(#bleed)">${stroke(coast, look.pigmentEdge, u, 1)}</g>`);
   }
 
   // the land, land use and inland water, displaced together when the look has hand-drawn edges
@@ -447,6 +456,8 @@ export const renderStyledBasemap = (input: StyledMapInput) => {
     shaped.push(stroke(coast, look.coast, u), stroke(banks, { ...look.coast, width: look.coast.width * 0.7 }, u));
   }
   body.push(look.wobble ? `<g filter="url(#wobble)">${shaped.join('')}</g>` : shaped.join(''));
+  // what is above is soft (washes and hand-drawn edges), what follows crisp lines
+  const soft = body.splice(0);
 
   // buildings
   if (look.buildings && groups.building.length > 0) {
@@ -474,8 +485,9 @@ export const renderStyledBasemap = (input: StyledMapInput) => {
       stroke(highway, { ...roads.casing, width: roads.highway.width + roads.casing.width * 2 }, u, roadScale),
     );
   }
-  body.push(stroke(major, roads.major, u, roadScale), stroke(highway, roads.highway, u, roadScale));
   body.push(
+    stroke(major, roads.major, u, roadScale),
+    stroke(highway, roads.highway, u, roadScale),
     stroke(linePath(groups.rail), look.rail, u, Math.min(1.5, roadScale)),
     stroke(linePath(groups.ferry), { ...look.river, width: look.river.width * 0.6, dash: [6, 4] }, u, 1),
     stroke(linePath(groups.boundary), look.boundary, u),
@@ -484,7 +496,14 @@ export const renderStyledBasemap = (input: StyledMapInput) => {
   const graticule = renderGraticule(input);
   body.push(graticule.svg);
 
-  return { defs: defs.join(''), body: body.join(''), graticule: graticule.lines };
+  return {
+    defs: defs.join(''),
+    /** the sea, the land, land use and water: washes that can be drawn at a lower resolution and scaled up */
+    soft: soft.join(''),
+    /** buildings, roads, rail, borders and the graticule */
+    crisp: body.join(''),
+    graticule: graticule.lines,
+  };
 };
 
 export type MapLabelCandidate = {
@@ -582,7 +601,10 @@ export const getMapLabelCandidates = (features: MapFeature[], zoom: number, look
       byName.set(key, candidate);
     }
   }
-  return [...byName.values()].toSorted((a, b) => b.priority - a.priority);
+  return byName
+    .values()
+    .toArray()
+    .toSorted((a, b) => b.priority - a.priority);
 };
 
 const CHAR_WIDTHS = { upper: 0.7, lower: 0.5, space: 0.3, other: 0.55 };
@@ -595,10 +617,10 @@ export const estimateTextWidth = (text: string, fontPx: number, letterSpacing = 
       width += CHAR_WIDTHS.space;
     } else if (char !== char.toLowerCase()) {
       width += CHAR_WIDTHS.upper;
-    } else if (char !== char.toUpperCase()) {
-      width += CHAR_WIDTHS.lower;
-    } else {
+    } else if (char === char.toUpperCase()) {
       width += CHAR_WIDTHS.other;
+    } else {
+      width += CHAR_WIDTHS.lower;
     }
   }
   return width * fontPx + letterSpacing * Math.max(0, [...text].length - 1);
@@ -615,7 +637,7 @@ export type PlacedMapLabel = MapLabelCandidate & {
 };
 
 const usesDot = (candidate: MapLabelCandidate, zoom: number) =>
-  (candidate.kind === 'town' || candidate.kind === 'village' || (candidate.kind === 'city' && zoom <= 11));
+  candidate.kind === 'town' || candidate.kind === 'village' || (candidate.kind === 'city' && zoom <= 11);
 
 const labelStyle = (candidate: MapLabelCandidate, look: MapLook, u: number) => {
   const upper =
@@ -706,7 +728,12 @@ export const placeMapLabels = (
 
     const box = { x: fit.x, y: fit.y, width: textWidth, height: textHeight };
     // a little room around each label
-    taken.push({ x: box.x - fontPx * 0.4, y: box.y - fontPx * 0.2, width: box.width + fontPx * 0.8, height: box.height + fontPx * 0.4 });
+    taken.push({
+      x: box.x - fontPx * 0.4,
+      y: box.y - fontPx * 0.2,
+      width: box.width + fontPx * 0.8,
+      height: box.height + fontPx * 0.4,
+    });
     if (dotBox) {
       taken.push(dotBox);
     }
@@ -789,13 +816,22 @@ export const renderStyledFrame = (input: {
       }
       const band = (inner - outer) * u;
       if (axis === 'lon') {
-        bars.push(`M${fmt(a)},${fmt(outer * u)}H${fmt(b)}v${fmt(band / 2)}H${fmt(a)}Z`, `M${fmt(a)},${fmt(height - outer * u - band / 2)}H${fmt(b)}v${fmt(band / 2)}H${fmt(a)}Z`);
+        bars.push(
+          `M${fmt(a)},${fmt(outer * u)}H${fmt(b)}v${fmt(band / 2)}H${fmt(a)}Z`,
+          `M${fmt(a)},${fmt(height - outer * u - band / 2)}H${fmt(b)}v${fmt(band / 2)}H${fmt(a)}Z`,
+        );
       } else {
-        bars.push(`M${fmt(outer * u)},${fmt(a)}V${fmt(b)}h${fmt(band / 2)}V${fmt(a)}Z`, `M${fmt(width - outer * u - band / 2)},${fmt(a)}V${fmt(b)}h${fmt(band / 2)}V${fmt(a)}Z`);
+        bars.push(
+          `M${fmt(outer * u)},${fmt(a)}V${fmt(b)}h${fmt(band / 2)}V${fmt(a)}Z`,
+          `M${fmt(width - outer * u - band / 2)},${fmt(a)}V${fmt(b)}h${fmt(band / 2)}V${fmt(a)}Z`,
+        );
       }
     };
     for (const axis of ['lon', 'lat'] as const) {
-      const ticks = input.graticule.filter((line) => line.axis === axis).map((line) => line.at).toSorted((a, b) => a - b);
+      const ticks = input.graticule
+        .filter((line) => line.axis === axis)
+        .map((line) => line.at)
+        .toSorted((a, b) => a - b);
       const length = axis === 'lon' ? width : height;
       const step = ticks.length >= 2 ? (ticks[1] - ticks[0]) / 4 : 60 * u;
       const start = ticks.length > 0 ? ticks[0] - Math.ceil(ticks[0] / step) * step : 0;
@@ -806,7 +842,12 @@ export const renderStyledFrame = (input: {
         }
       }
     }
-    parts.push(`<path d="${bars.join('')}" fill="${ink}" fill-opacity="0.85"/>`, rect(outer, 1.2), rect(outer + (inner - outer) / 2, 0.5), rect(inner, 0.9));
+    parts.push(
+      `<path d="${bars.join('')}" fill="${ink}" fill-opacity="0.85"/>`,
+      rect(outer, 1.2),
+      rect(outer + (inner - outer) / 2, 0.5),
+      rect(inner, 0.9),
+    );
   }
 
   if (look.graticule && input.graticule.length > 0) {
@@ -818,7 +859,11 @@ export const renderStyledFrame = (input: {
         line.axis === 'lon'
           ? { x: line.at + 4 * u, y: edge, width: textWidth, height: fontPx * 1.2 }
           : { x: edge, y: line.at - 4 * u - fontPx * 1.2, width: textWidth, height: fontPx * 1.2 };
-      if (box.x + box.width > width - edge || box.y < edge || [...input.taken, ...taken].some((other) => intersects(box, other))) {
+      if (
+        box.x + box.width > width - edge ||
+        box.y < edge ||
+        [...input.taken, ...taken].some((other) => intersects(box, other))
+      ) {
         continue;
       }
       taken.push(box);
