@@ -88,7 +88,7 @@ describe(CollageAgentTools.name, () => {
       layout: 'four-grid',
       tag: 'Collages/Day 1',
     });
-    expect(create).toHaveBeenCalledWith(auth, { assetIds, title: 'Day 1', stylePreset: 'bold' });
+    expect(create).toHaveBeenCalledWith(auth, { assetIds, title: 'Day 1', stylePreset: 'bold' }, undefined);
   });
 
   it('should return the error of the service', async () => {

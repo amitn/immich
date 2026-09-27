@@ -8,12 +8,13 @@ import {
   CollageRenderDto,
   CollageResponseDto,
 } from 'src/dtos/collage.dto.js';
-import { AssetType, Permission } from 'src/enum.js';
+import { ActivityLogAction, AssetType, Permission } from 'src/enum.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { getAssetDimensions, getRenderInput } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { formatDateRange } from 'src/utils/book/auto-layout.js';
 import {
   COLLAGE_FULL_PX,
@@ -70,7 +71,8 @@ export class CollageService extends BaseService {
   }
 
   /** saves the collage as a new image asset of the user, tagged Collages/<title or dates> */
-  async create(auth: AuthDto, dto: CollageCreateDto): Promise<CollageResponseDto> {
+  /** Saves a collage; with a recorder it goes into the activity log (undo trashes it) */
+  async create(auth: AuthDto, dto: CollageCreateDto, activity?: ActivityRecorder): Promise<CollageResponseDto> {
     if (dto.albumId) {
       await this.requireAccess({ auth, permission: Permission.AlbumAssetCreate, ids: [dto.albumId] });
     }
@@ -97,6 +99,16 @@ export class CollageService extends BaseService {
       } catch (error: any) {
         this.logger.warn(`Unable to add collage ${id} to album ${dto.albumId}: ${error?.message ?? error}`);
       }
+    }
+
+    if (!duplicate) {
+      await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+        action: ActivityLogAction.AssetCreate,
+        summary: `Made the collage ${quote(name)}`,
+        targetId: id,
+        assetIds: [id],
+        undo: { assetIds: [id] },
+      });
     }
 
     return { assetId: id, duplicate, layout: getBaseLayoutId(plan.chosen.layout), tag };

@@ -12,6 +12,7 @@ import {
 import { ApiTag, Permission } from 'src/enum.js';
 import { Auth, Authenticated, FileResponse } from 'src/middleware/auth.guard.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 
 const history = () => new HistoryBuilder().added('v3.3.0').alpha('v3.3.0');
 
@@ -56,6 +57,6 @@ export class CollageController {
     history: history(),
   })
   createCollage(@Auth() auth: AuthDto, @Body() dto: CollageCreateDto): Promise<CollageResponseDto> {
-    return this.service.create(auth, dto);
+    return this.service.create(auth, dto, ActivityRecorder.web());
   }
 }

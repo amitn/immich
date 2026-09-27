@@ -4,11 +4,12 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { AssetFileType, AssetType } from 'src/enum.js';
+import { ActivityLogAction, AssetFileType, AssetType } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { getForAsset } from 'test/mappers.js';
@@ -168,6 +169,22 @@ describe(CollageService.name, () => {
       mocks.asset.create.mockImplementation((asset) => Promise.resolve({ ...AssetFactory.create(), ...asset }) as any);
       const last = AssetFactory.from({ id: ids[2], localDateTime: new Date('2025-05-05T10:00:00.000Z') }).build();
       mocks.asset.getById.mockResolvedValue(getForAsset(last));
+    });
+
+    it('should record the collage in the activity log so it can be undone', async () => {
+      mocks.activityLog.create.mockImplementation((row) => Promise.resolve({ id: 'activity-1', ...row } as never));
+      const activity = ActivityRecorder.web();
+
+      const result = await sut.create(auth, { assetIds: ids, title: 'Palermo', stylePreset: 'soft' }, activity);
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.AssetCreate,
+          targetId: result.assetId,
+          undo: { assetIds: [result.assetId] },
+        }),
+      );
+      expect(activity.ids).toEqual(['activity-1']);
     });
 
     it('should save the collage as a new photo tagged with its title', async () => {

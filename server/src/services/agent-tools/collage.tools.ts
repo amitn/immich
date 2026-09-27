@@ -66,9 +66,9 @@ export class CollageAgentTools extends BaseService {
           albumId: z.string().optional().describe('Album to add the collage to'),
         }),
         mutating: true,
-        handler: ({ auth }, input) =>
+        handler: ({ auth, activity }, input) =>
           this.run(async () => {
-            const result = await collages.create(auth, input);
+            const result = await collages.create(auth, input, activity);
             return toolJson(result);
           }),
       }),
