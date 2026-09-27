@@ -34,6 +34,7 @@ import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
 import { OAuthController } from 'src/controllers/oauth.controller.js';
+import { OrientationController } from 'src/controllers/orientation.controller.js';
 import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
@@ -81,6 +82,7 @@ export const controllers = [
   DuplicateController,
   EnhanceController,
   CollageController,
+  OrientationController,
   FaceController,
   FoodController,
   IntegrityAdminController,

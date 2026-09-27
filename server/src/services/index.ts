@@ -37,6 +37,7 @@ import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
 import { NotificationService } from 'src/services/notification.service.js';
 import { OcrService } from 'src/services/ocr.service.js';
+import { OrientationService } from 'src/services/orientation.service.js';
 import { PartnerService } from 'src/services/partner.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
@@ -90,6 +91,7 @@ export const services = [
   DuplicateService,
   EnhanceService,
   CollageService,
+  OrientationService,
   FoodService,
   IntegrityService,
   HlsService,

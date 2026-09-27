@@ -3390,6 +3390,37 @@ export type OAuthCallbackDto = {
     /** OAuth callback URL */
     url: string;
 };
+export type OrientationFixDto = {
+    /** Photos to turn */
+    assetIds: string[];
+    /** Clockwise turn in degrees (90, 180 or 270); default: the suggested one */
+    rotate?: number;
+};
+export type OrientationAssetsDto = {
+    /** Photos */
+    assetIds: string[];
+};
+export type OrientationScanDto = {
+    /** Only the photos of this album */
+    albumId?: string;
+    /** Only the photos taken at or after this date */
+    takenAfter?: string;
+    /** Only the photos taken before this date */
+    takenBefore?: string;
+};
+export type OrientationSuggestionResponseDto = {
+    /** Asset ID */
+    assetId: string;
+    /** When the photo was checked */
+    checkedAt: string;
+    /** How sure the check is, 0 to 1 */
+    confidence: number;
+    /** What the check saw: CLIP, faces, text */
+    reasons: string[];
+    /** Clockwise turn in degrees that makes the photo upright: 90, 180 or 270 */
+    rotate: number;
+    status: OrientationStatus;
+};
 export type PartnerResponseDto = {
     avatarColor: UserAvatarColor;
     /** User email */
@@ -8350,6 +8381,78 @@ export function unlinkOAuthAccount(opts?: Oazapfts.RequestOpts) {
     }));
 }
 /**
+ * Fix the orientation of photos
+ */
+export function fixOrientation({ orientationFixDto }: {
+    orientationFixDto: OrientationFixDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/fix", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationFixDto
+    })));
+}
+/**
+ * Reject orientation suggestions
+ */
+export function rejectOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/reject", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
+}
+/**
+ * Check the orientation of photos
+ */
+export function scanOrientation({ orientationScanDto }: {
+    orientationScanDto: OrientationScanDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText("/orientation/scan", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationScanDto
+    })));
+}
+/**
+ * List orientation suggestions
+ */
+export function getOrientationSuggestions({ status }: {
+    status?: OrientationStatus;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: OrientationSuggestionResponseDto[];
+    }>(`/orientation/suggestions${QS.query(QS.explode({
+        status
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo orientation fixes
+ */
+export function undoOrientation({ orientationAssetsDto }: {
+    orientationAssetsDto: OrientationAssetsDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BulkIdResponseDto[];
+    }>("/orientation/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: orientationAssetsDto
+    })));
+}
+/**
  * Retrieve partners
  */
 export function getPartners({ direction }: {
@@ -10847,6 +10950,11 @@ export enum MemoryType {
     OnThisDay = "on_this_day",
     Birthday = "birthday"
 }
+export enum OrientationStatus {
+    Suggested = "suggested",
+    Fixed = "fixed",
+    Rejected = "rejected"
+}
 export enum PartnerDirection {
     SharedBy = "shared-by",
     SharedWith = "shared-with"
@@ -10889,6 +10997,8 @@ export enum JobName {
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
+    OrientationCheckQueueAll = "OrientationCheckQueueAll",
+    OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",
     FacialRecognitionQueueAll = "FacialRecognitionQueueAll",
     FacialRecognition = "FacialRecognition",
