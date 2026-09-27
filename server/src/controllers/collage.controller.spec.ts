@@ -1,6 +1,7 @@
 import request from 'supertest';
 import { CollageController } from 'src/controllers/collage.controller.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { factory } from 'test/small.factory.js';
 import { ControllerContext, controllerSetup, mockBaseService } from 'test/utils.js';
 
@@ -82,7 +83,11 @@ describe(CollageController.name, () => {
         .send({ assetIds, stylePreset: 'soft', albumId });
       expect(status).toBe(201);
       expect(body.tag).toBe('Collages/Palermo');
-      expect(service.create).toHaveBeenCalledWith(undefined, { assetIds, stylePreset: 'soft', albumId });
+      expect(service.create).toHaveBeenCalledWith(
+        undefined,
+        { assetIds, stylePreset: 'soft', albumId },
+        expect.any(ActivityRecorder),
+      );
     });
 
     it('should require a valid album id', async () => {
