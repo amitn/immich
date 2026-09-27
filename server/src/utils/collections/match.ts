@@ -643,10 +643,12 @@ export const applySequencePrior = (
 ): number[][] => {
   const others = { subjects, sources };
   return probabilities.map((row, group) => {
-    const weighted = row.map((value, item) =>
-      item < sources.length
-        ? value * Math.exp(-getSequenceCost(subjects[group], sources[item], others, options))
-        : value * Math.exp(-options.off),
+    const weighted = row.map(
+      (value, item) =>
+        value *
+        Math.exp(
+          item < sources.length ? -getSequenceCost(subjects[group], sources[item], others, options) : -options.off,
+        ),
     );
     const sum = weighted.reduce((total, value) => total + value, 0);
     return sum > 0 ? weighted.map((value) => value / sum) : row;

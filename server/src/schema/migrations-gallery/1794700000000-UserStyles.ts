@@ -37,8 +37,12 @@ export async function up(db: Kysely<any>): Promise<void> {
   BEFORE UPDATE ON "book_style"
   FOR EACH ROW
   EXECUTE FUNCTION updated_at();`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_style_updatedAt', '{"type":"trigger","name":"art_style_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_style_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_style\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_style_updatedAt', '{"type":"trigger","name":"book_style_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_style_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_style\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_style_updatedAt', '{"type":"trigger","name":"art_style_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_style_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_style\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_style_updatedAt', '{"type":"trigger","name":"book_style_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_style_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_style\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<any>): Promise<void> {

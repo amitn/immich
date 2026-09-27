@@ -425,7 +425,7 @@ export const getPanRects = (
 
   const tight = fitSquare(
     { x: clamp(focus.x, 0, 1), y: clamp(focus.y, 0, 1) },
-    frame === 'contain' ? 1 / Math.min(zoom, 1.1) : 1 / zoom,
+    1 / (frame === 'contain' ? Math.min(zoom, 1.1) : zoom),
     faces,
   );
   return zoomIn ? { from: full, to: tight } : { from: tight, to: full };

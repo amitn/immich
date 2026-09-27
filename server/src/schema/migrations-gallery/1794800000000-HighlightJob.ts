@@ -33,7 +33,9 @@ export async function up(db: Kysely<any>): Promise<void> {
   BEFORE UPDATE ON "highlight_job"
   FOR EACH ROW
   EXECUTE FUNCTION updated_at();`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_highlight_job_updatedAt', '{"type":"trigger","name":"highlight_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"highlight_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"highlight_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_highlight_job_updatedAt', '{"type":"trigger","name":"highlight_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"highlight_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"highlight_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<any>): Promise<void> {

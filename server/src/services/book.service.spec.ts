@@ -1738,7 +1738,7 @@ describe(BookService.name, () => {
       estimateMany = vi
         .spyOn(ImproveService.prototype, 'estimateMany')
         .mockImplementation((sources: ImproveSource[]) =>
-          Promise.resolve(sources.map((source) => (source.id === rows[3].id ? estimate(0.1) : estimate(0)))),
+          Promise.resolve(sources.map((source) => estimate(source.id === rows[3].id ? 0.1 : 0))),
         );
       createImprovedCopy = vi
         .spyOn(ImproveService.prototype, 'createImprovedCopy')

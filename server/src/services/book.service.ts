@@ -2108,11 +2108,7 @@ export class BookService extends BaseService {
     preset?: BookStylePreset,
     userStyle?: BookStyle,
   ): BookStyle {
-    const base = preset
-      ? bookStylePresets[preset].style
-      : userStyle
-        ? resolveBookStyle(userStyle)
-        : resolveBookStyle(current);
+    const base = preset ? bookStylePresets[preset].style : resolveBookStyle(userStyle || current);
     const changes = Object.fromEntries(Object.entries(update ?? {}).filter(([, value]) => value !== undefined));
     return resolveBookStyle({ ...base, ...changes });
   }

@@ -9,8 +9,8 @@ import { DB } from 'src/schema/index.js';
 import {
   anyUuid,
   asUuid,
-  petFacePredicate,
   hasPeople,
+  petFacePredicate,
   withAudioStream,
   withDefaultVisibility,
   withEdits,

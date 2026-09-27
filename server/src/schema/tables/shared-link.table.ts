@@ -9,8 +9,8 @@ import {
 } from '@immich/sql-tools';
 import { SharedLinkType } from 'src/enum.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
-import { SharedSpaceTable } from 'src/schema/tables/shared-space.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
+import { SharedSpaceTable } from 'src/schema/tables/shared-space.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
 
 @Table('shared_link')

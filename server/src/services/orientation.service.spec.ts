@@ -17,11 +17,13 @@ const LOOKS = [0, 1, 2, 1];
 
 const promptVector = (text: string) =>
   JSON.stringify(
-    (ORIENTATION_PROMPTS.upright as readonly string[]).includes(text)
-      ? axis(0)
-      : (ORIENTATION_PROMPTS.sideways as readonly string[]).includes(text)
-        ? axis(1)
-        : axis(2),
+    axis(
+      (ORIENTATION_PROMPTS.upright as readonly string[]).includes(text)
+        ? 0
+        : (ORIENTATION_PROMPTS.sideways as readonly string[]).includes(text)
+          ? 1
+          : 2,
+    ),
   );
 
 /** a photo stored turned by `stored` from upright */

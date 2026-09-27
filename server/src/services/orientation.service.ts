@@ -193,22 +193,19 @@ export class OrientationService extends BaseService {
       await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [scope.albumId] });
     }
 
-    let assets: CheckAsset[];
-    if (scope.assetIds) {
-      // only the user's own photos can be turned, suggested or not
-      assets = await this.assetRepository.getForOrientationCheck(auth.user.id, {
-        assetIds: scope.assetIds.slice(0, LIVE_ORIENTATION_LIMIT),
-        limit: LIVE_ORIENTATION_LIMIT,
-      });
-    } else {
-      assets = await this.assetRepository.getForOrientationCheck(auth.user.id, {
-        key: ORIENTATION_KEY,
-        limit: LIVE_ORIENTATION_LIMIT,
-        albumId: scope.albumId,
-        takenAfter: scope.takenAfter,
-        takenBefore: scope.takenBefore,
-      });
-    }
+    // only the user's own photos can be turned, suggested or not
+    const assets: CheckAsset[] = await this.assetRepository.getForOrientationCheck(
+      auth.user.id,
+      scope.assetIds
+        ? { assetIds: scope.assetIds.slice(0, LIVE_ORIENTATION_LIMIT), limit: LIVE_ORIENTATION_LIMIT }
+        : {
+            key: ORIENTATION_KEY,
+            limit: LIVE_ORIENTATION_LIMIT,
+            albumId: scope.albumId,
+            takenAfter: scope.takenAfter,
+            takenBefore: scope.takenBefore,
+          },
+    );
 
     const results = [];
     for (const asset of assets) {

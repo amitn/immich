@@ -31,12 +31,12 @@ import { ConfigUserController } from 'src/controllers/config-user.controller.js'
 import { DatabaseBackupController } from 'src/controllers/database-backup.controller.js';
 import { DownloadController } from 'src/controllers/download.controller.js';
 import { DuplicateController } from 'src/controllers/duplicate.controller.js';
+import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceRepairAdminController } from 'src/controllers/face-repair-admin.controller.js';
 import { FaceSuggestionController } from 'src/controllers/face-suggestion.controller.js';
-import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
-import { GalleryMapController } from 'src/controllers/gallery-map.controller.js';
 import { FoodController } from 'src/controllers/food.controller.js';
+import { GalleryMapController } from 'src/controllers/gallery-map.controller.js';
 import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';

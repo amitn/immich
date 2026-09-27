@@ -457,7 +457,8 @@ export const renderStyledBasemap = (input: StyledMapInput) => {
   }
   body.push(look.wobble ? `<g filter="url(#wobble)">${shaped.join('')}</g>` : shaped.join(''));
   // what is above is soft (washes and hand-drawn edges), what follows crisp lines
-  const soft = body.splice(0);
+  const soft = [...body];
+  body.length = 0;
 
   // buildings
   if (look.buildings && groups.building.length > 0) {

@@ -25,6 +25,9 @@ const viewAround = (lat: number, lon: number, widthKm: number, width = 1000, hei
   return { x, y, scale: width / worldWidth, width, height };
 };
 
+/** the vector_layers of a TileJSON document */
+const vectorLayers = (ids: string[]) => ids.map((id) => ({ id, fields: {} }));
+
 describe('vector tiles', () => {
   describe('attribution', () => {
     it('should turn the HTML attribution into text', () => {
@@ -106,15 +109,15 @@ describe('vector tiles', () => {
 
     it('should refuse OpenMapTiles sources, whose layers styled maps cannot read', () => {
       const tiles = ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'];
-      const layers = (ids: string[]) => ids.map((id) => ({ id, fields: {} }));
       expect(() =>
         parseTileJson(
-          { tiles, vector_layers: layers(['water', 'landcover', 'transportation', 'place']) },
+          { tiles, vector_layers: vectorLayers(['water', 'landcover', 'transportation', 'place']) },
           'https://tiles.openfreemap.org/planet',
         ),
       ).toThrow('OpenMapTiles');
       expect(
-        parseTileJson({ tiles, vector_layers: layers(['earth', 'water', 'roads', 'places']) }, 'https://a/t.json').tiles,
+        parseTileJson({ tiles, vector_layers: vectorLayers(['earth', 'water', 'roads', 'places']) }, 'https://a/t.json')
+          .tiles,
       ).toEqual(tiles);
     });
   });

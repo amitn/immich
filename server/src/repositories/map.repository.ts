@@ -15,11 +15,6 @@ import { SystemMetadataRepository } from 'src/repositories/system-metadata.repos
 import { DB } from 'src/schema/index.js';
 import { GeodataPlacesTable } from 'src/schema/tables/geodata-places.table.js';
 import { NaturalEarthCountriesTable } from 'src/schema/tables/natural-earth-countries.table.js';
-import {
-  spaceAlbumAssetExists,
-  spaceAssetPathBranches,
-  spaceVisibilityGate,
-} from 'src/utils/shared-space-album-scope.js';
 import { TileCache } from 'src/utils/book/tile-cache.js';
 import {
   TileKey,
@@ -28,6 +23,11 @@ import {
   getVectorTileUrl,
   parseTileJson,
 } from 'src/utils/book/vector-tiles.js';
+import {
+  spaceAlbumAssetExists,
+  spaceAssetPathBranches,
+  spaceVisibilityGate,
+} from 'src/utils/shared-space-album-scope.js';
 
 /** how long the style and the TileJSON of the map are kept */
 const MAP_SOURCE_TTL_MS = 6 * 60 * 60 * 1000;

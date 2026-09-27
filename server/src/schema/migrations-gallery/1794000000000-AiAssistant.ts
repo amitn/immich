@@ -30,7 +30,9 @@ export async function up(db: Kysely<any>): Promise<void> {
   CONSTRAINT "agent_message_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "agent_session" ("id") ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT "agent_message_pkey" PRIMARY KEY ("id")
 );`.execute(db);
-  await sql`CREATE INDEX "agent_message_sessionId_createdAt_idx" ON "agent_message" ("sessionId", "createdAt");`.execute(db);
+  await sql`CREATE INDEX "agent_message_sessionId_createdAt_idx" ON "agent_message" ("sessionId", "createdAt");`.execute(
+    db,
+  );
   await sql`CREATE INDEX "agent_message_sessionId_idx" ON "agent_message" ("sessionId");`.execute(db);
   await sql`CREATE TABLE "art_job" (
   "id" uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -116,10 +118,18 @@ export async function up(db: Kysely<any>): Promise<void> {
 );`.execute(db);
   await sql`CREATE INDEX "book_page_asset_pageId_idx" ON "book_page_asset" ("pageId");`.execute(db);
   await sql`CREATE INDEX "book_page_asset_assetId_idx" ON "book_page_asset" ("assetId");`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_agent_session_updatedAt', '{"type":"trigger","name":"agent_session_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"agent_session_updatedAt\\"\\n  BEFORE UPDATE ON \\"agent_session\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_job_updatedAt', '{"type":"trigger","name":"art_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_updatedAt', '{"type":"trigger","name":"book_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_updatedAt\\"\\n  BEFORE UPDATE ON \\"book\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
-  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_page_updatedAt', '{"type":"trigger","name":"book_page_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_page_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_page\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(db);
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_agent_session_updatedAt', '{"type":"trigger","name":"agent_session_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"agent_session_updatedAt\\"\\n  BEFORE UPDATE ON \\"agent_session\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_art_job_updatedAt', '{"type":"trigger","name":"art_job_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"art_job_updatedAt\\"\\n  BEFORE UPDATE ON \\"art_job\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_updatedAt', '{"type":"trigger","name":"book_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_updatedAt\\"\\n  BEFORE UPDATE ON \\"book\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
+  await sql`INSERT INTO "migration_overrides" ("name", "value") VALUES ('trigger_book_page_updatedAt', '{"type":"trigger","name":"book_page_updatedAt","sql":"CREATE OR REPLACE TRIGGER \\"book_page_updatedAt\\"\\n  BEFORE UPDATE ON \\"book_page\\"\\n  FOR EACH ROW\\n  EXECUTE FUNCTION updated_at();"}'::jsonb);`.execute(
+    db,
+  );
 }
 
 export async function down(db: Kysely<any>): Promise<void> {

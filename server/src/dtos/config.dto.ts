@@ -33,6 +33,13 @@ import {
   VideoContainerSchema,
 } from 'src/enum.js';
 import {
+  AssistantAgentSchema,
+  AssistantBooksSchema,
+  AssistantCollectionsSchema,
+  AssistantFoodSchema,
+  assistantTopLevelDefaults,
+} from 'src/gallery/assistant-config.dto.js';
+import {
   GalleryClassificationSchema,
   GalleryClipExtension,
   GalleryFaceSuggestionSchema,
@@ -46,13 +53,6 @@ import {
   galleryServerDefaults,
   galleryTopLevelDefaults,
 } from 'src/gallery/config.dto.js';
-import {
-  AssistantAgentSchema,
-  AssistantBooksSchema,
-  AssistantCollectionsSchema,
-  AssistantFoodSchema,
-  assistantTopLevelDefaults,
-} from 'src/gallery/assistant-config.dto.js';
 
 const { Admin, User, Public } = ConfigVisibility;
 

@@ -89,7 +89,7 @@ export const colorfulnessScore = (colorfulness: number) => clamp(colorfulness / 
 
 /** grows to 1 at a luminance standard deviation of 0.22, and drops again for harsh contrast above 0.32 */
 export const contrastScore = (contrast: number) =>
-  contrast <= 0.32 ? clamp(contrast / 0.22) : clamp(1 - (contrast - 0.32) * 2.5);
+  clamp(contrast <= 0.32 ? contrast / 0.22 : 1 - (contrast - 0.32) * 2.5);
 
 /** vivid but not garish: 1 at a mean saturation of 0.4, 0 for grey and for fully saturated images */
 export const vividnessScore = (saturation: number) => clamp(1 - ((saturation - 0.4) / 0.4) ** 2);
