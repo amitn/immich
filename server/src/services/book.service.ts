@@ -263,7 +263,7 @@ const previewCache = new Map<string, string>();
 export const getBookHtmlPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.html`);
 
-const getAssetDimensions = (asset: RenderAsset) =>
+export const getAssetDimensions = (asset: RenderAsset) =>
   asset.width && asset.height
     ? { width: asset.width, height: asset.height }
     : getDimensions({

@@ -13,6 +13,7 @@ import { AuthController } from 'src/controllers/auth.controller.js';
 import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { BookController } from 'src/controllers/book.controller.js';
 import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
+import { CollageController } from 'src/controllers/collage.controller.js';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
@@ -79,6 +80,7 @@ export const controllers = [
   DownloadController,
   DuplicateController,
   EnhanceController,
+  CollageController,
   FaceController,
   FoodController,
   IntegrityAdminController,

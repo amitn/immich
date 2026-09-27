@@ -9459,6 +9459,175 @@
         "x-immich-permission": "clusterGroup.read"
       }
     },
+    "/collages": {
+      "post": {
+        "description": "Save a collage as a new image asset, dated like its last photo and tagged Collages/<title or dates>; optionally add it to an album.",
+        "operationId": "createCollage",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollageResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Save a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.upload",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collages/layouts": {
+      "post": {
+        "description": "List the layouts for the number of photos, the one that fits their orientations best at the aspect ratio first.",
+        "operationId": "getCollageLayouts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollageLayoutsResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List the layouts of a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collages/render": {
+      "post": {
+        "description": "Render a collage as a JPEG image without saving it: a preview, or the full size image to download.",
+        "operationId": "renderCollage",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollageRenderDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Render a collage",
+        "tags": [
+          "Collages"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/collections": {
       "get": {
         "description": "Retrieve the collection packs (food is the first): the theme of each, the words of its domain, the root of its tags and its book style.",
@@ -21813,6 +21982,10 @@
       "description": "The system configuration properties that are visible to logged in users."
     },
     {
+      "name": "Collages",
+      "description": "A collage is 2 to 9 photos on one page at a chosen aspect ratio, laid out and drawn with the book layouts and styles, and saved as a new image asset."
+    },
+    {
       "name": "Collections",
       "description": "Collections are themed photos named by a pack (food is the first): photos of subjects, such as dishes, are matched with the entries read on a source photo, such as a menu, and saved as <Root>/<Place>/<Entry> tags; these endpoints list the packs, find the visits among assets, match their subjects with the entries and save the names."
     },
@@ -28031,6 +28204,221 @@
           "createdAt",
           "id",
           "userId"
+        ],
+        "type": "object"
+      },
+      "CollageAspectRatio": {
+        "description": "Aspect ratio of the collage, width:height",
+        "enum": [
+          "1:1",
+          "4:5",
+          "9:16",
+          "16:9"
+        ],
+        "type": "string"
+      },
+      "CollageCreateDto": {
+        "properties": {
+          "albumId": {
+            "description": "Album to add the collage to, e.g. the album the photos were picked in",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageDto": {
+        "properties": {
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageLayoutResponseDto": {
+        "properties": {
+          "description": {
+            "description": "What the layout looks like",
+            "type": "string"
+          },
+          "id": {
+            "description": "Layout ID",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the layout",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "CollageLayoutsResponseDto": {
+        "properties": {
+          "layouts": {
+            "description": "The layouts for the number of photos, the one that fits them best first",
+            "items": {
+              "$ref": "#/components/schemas/CollageLayoutResponseDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "layouts"
+        ],
+        "type": "object"
+      },
+      "CollageRenderDto": {
+        "properties": {
+          "aspectRatio": {
+            "$ref": "#/components/schemas/CollageAspectRatio",
+            "description": "Aspect ratio, width:height (default 1:1)"
+          },
+          "assetIds": {
+            "description": "Photos of the collage, 2 to 9",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 9,
+            "minItems": 2,
+            "type": "array"
+          },
+          "full": {
+            "description": "Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview",
+            "type": "boolean"
+          },
+          "layout": {
+            "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "styleId": {
+            "description": "One of the user's own book styles (see GET /book-styles)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "A book style preset (default classic)"
+          },
+          "title": {
+            "description": "Title, drawn in a band at the foot of the collage",
+            "maxLength": 100,
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds"
+        ],
+        "type": "object"
+      },
+      "CollageResponseDto": {
+        "properties": {
+          "assetId": {
+            "description": "The new image asset",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "duplicate": {
+            "description": "An identical collage had already been saved, and is returned instead",
+            "type": "boolean"
+          },
+          "layout": {
+            "description": "Layout the collage was drawn with",
+            "type": "string"
+          },
+          "tag": {
+            "description": "Tag of the collage, Collages/<title or dates>",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetId",
+          "duplicate",
+          "layout",
+          "tag"
         ],
         "type": "object"
       },

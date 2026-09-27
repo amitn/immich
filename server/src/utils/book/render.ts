@@ -798,12 +798,14 @@ export const planPage = (
     quality?: number;
     /** the rendered map, drawn in the layout's map area (see `renderMapImage`) */
     mapImage?: Buffer | null;
+    /** a layout that is not in the catalogue, drawn instead of `page.layout`, e.g. of a collage */
+    layout?: BookLayout;
   },
 ): PagePlan => {
   const { dpi, mode } = options;
   const style = resolveBookStyle(book.style);
   const size: PageSize = { pageWidthMm: book.pageWidthMm, pageHeightMm: book.pageHeightMm };
-  const knownLayout = getLayout(page.layout);
+  const knownLayout = options.layout ?? getLayout(page.layout);
   const layout = knownLayout ?? getLayout('single')!;
 
   const width = Math.round(mmToPx(size.pageWidthMm, dpi));

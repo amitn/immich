@@ -285,6 +285,54 @@ describe(DerivedAssetService.name, () => {
     });
   });
 
+  describe('createGeneratedImage', () => {
+    const dateOf = {
+      fileCreatedAt: new Date('2024-06-01T10:00:00.000Z'),
+      localDateTime: new Date('2024-06-01T12:00:00.000Z'),
+      exifInfo: { dateTimeOriginal: new Date('2024-06-01T10:00:00.000Z'), timeZone: 'UTC+2' },
+    };
+
+    it('should write the image into the upload folder and create an upright image asset of the user', async () => {
+      const auth = AuthFactory.create();
+      mocks.crypto.hashFile.mockResolvedValue(Buffer.from('checksum'));
+
+      const result = await sut.createGeneratedImage(auth, Buffer.from('jpeg'), {
+        fileName: 'Collage Palermo.jpg',
+        description: 'Palermo',
+        tags: ['Collages/Palermo'],
+        dateOf,
+      });
+
+      expect(result).toEqual({ id: 'new-asset-id', duplicate: false });
+      expect(mocks.storage.createFile).toHaveBeenCalledWith(
+        expect.stringMatching(/new-asset-id\.jpg$/),
+        Buffer.from('jpeg'),
+      );
+      expect(mocks.storage.rename).not.toHaveBeenCalled();
+      expect(mocks.metadata.writeTags.mock.calls[0][1]).toMatchObject({
+        DateTimeOriginal: '2024:06:01 12:00:00',
+        Orientation: 'Horizontal (normal)',
+        Description: 'Palermo',
+        TagsList: ['Collages/Palermo'],
+      });
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: AssetType.Image,
+          ownerId: auth.user.id,
+          originalFileName: 'Collage Palermo.jpg',
+          localDateTime: dateOf.localDateTime,
+        }),
+      );
+      expect(mocks.stack.create).not.toHaveBeenCalled();
+    });
+
+    it('should refuse a file that is not an image', async () => {
+      await expect(
+        sut.createGeneratedImage(AuthFactory.create(), Buffer.from('x'), { fileName: 'Collage.mp4', dateOf }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
   describe('tags', () => {
     it('should write explicit tags into the file', async () => {
       const { auth, source } = setup();

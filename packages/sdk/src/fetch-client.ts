@@ -2396,6 +2396,74 @@ export type ClusterGroupRequestCreateDto = {
     /** User to invite into the cluster group */
     userId: string;
 };
+export type CollageCreateDto = {
+    /** Album to add the collage to, e.g. the album the photos were picked in */
+    albumId?: string;
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageResponseDto = {
+    /** The new image asset */
+    assetId: string;
+    /** An identical collage had already been saved, and is returned instead */
+    duplicate: boolean;
+    /** Layout the collage was drawn with */
+    layout: string;
+    /** Tag of the collage, Collages/<title or dates> */
+    tag: string;
+};
+export type CollageDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
+export type CollageLayoutResponseDto = {
+    /** What the layout looks like */
+    description: string;
+    /** Layout ID */
+    id: string;
+    /** Name of the layout */
+    name: string;
+};
+export type CollageLayoutsResponseDto = {
+    /** The layouts for the number of photos, the one that fits them best first */
+    layouts: CollageLayoutResponseDto[];
+};
+export type CollageRenderDto = {
+    /** Aspect ratio, width:height (default 1:1) */
+    aspectRatio?: CollageAspectRatio;
+    /** Photos of the collage, 2 to 9 */
+    assetIds: string[];
+    /** Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview */
+    full?: boolean;
+    /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
+    layout?: string;
+    /** One of the user's own book styles (see GET /book-styles) */
+    styleId?: string;
+    /** A book style preset (default classic) */
+    stylePreset?: BookStylePreset;
+    /** Title, drawn in a band at the foot of the collage */
+    title?: string;
+};
 export type CollectionNamesDto = {
     /** Plural of entry */
     entries: string;
@@ -7367,6 +7435,51 @@ export function getClusterGroupUsers({ id }: {
     }));
 }
 /**
+ * Save a collage
+ */
+export function createCollage({ collageCreateDto }: {
+    collageCreateDto: CollageCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: CollageResponseDto;
+    }>("/collages", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageCreateDto
+    })));
+}
+/**
+ * List the layouts of a collage
+ */
+export function getCollageLayouts({ collageDto }: {
+    collageDto: CollageDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: CollageLayoutsResponseDto;
+    }>("/collages/layouts", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageDto
+    })));
+}
+/**
+ * Render a collage
+ */
+export function renderCollage({ collageRenderDto }: {
+    collageRenderDto: CollageRenderDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>("/collages/render", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: collageRenderDto
+    })));
+}
+/**
  * List collection packs
  */
 export function getCollectionPacks(opts?: Oazapfts.RequestOpts) {
@@ -10630,6 +10743,12 @@ export enum Type {
     CouldLookBetter = "could-look-better",
     MissingDishName = "missing-dish-name",
     MissingMenuPage = "missing-menu-page"
+}
+export enum CollageAspectRatio {
+    $11 = "1:1",
+    $45 = "4:5",
+    $916 = "9:16",
+    $169 = "16:9"
 }
 export enum CollectionPlaceSource {
     Tag = "tag",
