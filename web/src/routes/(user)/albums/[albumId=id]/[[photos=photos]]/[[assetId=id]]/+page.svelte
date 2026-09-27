@@ -46,6 +46,7 @@
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAlbumBookActions } from '$lib/services/book.service';
   import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
+  import { getCollageBulkAction } from '$lib/services/collage.service';
   import { getAlbumHighlightAction, getHighlightBulkAction } from '$lib/services/highlight.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
   import { handlePromiseError, isEnabled } from '$lib/utils';
@@ -515,6 +516,7 @@
             <ActionMenuItem {action} />
           {/each}
           <ActionMenuItem action={getHighlightBulkAction($t)} />
+          <ActionMenuItem action={getCollageBulkAction($t, isEditor ? album.id : undefined)} />
 
           <ActionMenuItem action={Actions.RemoveFromAlbum} />
           {#if assetMultiSelectManager.isAllUserOwned}
