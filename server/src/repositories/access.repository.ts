@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type Kysely, type NotNull, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
-import { AlbumUserRole, AssetVisibility } from 'src/enum.js';
+import { AlbumUserRole, AssetVisibility, SharedLinkType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { asUuid } from 'src/utils/database.js';
 
@@ -668,6 +668,23 @@ class BookAccess {
       .select('book.id')
       .where('book.id', 'in', [...bookIds])
       .where('book.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkSharedLinkAccess(sharedLinkId: string, bookIds: Set<string>) {
+    if (bookIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('shared_link')
+      .innerJoin('book', 'book.id', 'shared_link.bookId')
+      .select('book.id')
+      .where('shared_link.id', '=', sharedLinkId)
+      .where('shared_link.type', '=', SharedLinkType.Book)
+      .where('book.id', 'in', [...bookIds])
       .execute()
       .then((rows) => new Set(rows.map((row) => row.id)));
   }

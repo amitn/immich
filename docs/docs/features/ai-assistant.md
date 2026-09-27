@@ -23,6 +23,7 @@ With its tools, the assistant can:
 - design, review, edit and export [photo books](#photo-books);
 - create [artistic versions](#artistic-styles) of photos;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
+- [answer questions about your library](#asking-about-your-library), such as _"when did we last make the quiche?"_, from the dishes, recipes, artworks and trips it named;
 - list and use your tags.
 
 ### Where to find it
@@ -41,13 +42,35 @@ The assistant can search and look at your photos freely. Actions that change you
 - **Allow all in this chat** runs it and turns on auto-approve for the rest of the chat.
 - **Deny** refuses it. The assistant is told not to retry and asks you what to do instead.
 
-Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
+Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
 
 To skip the prompts, turn on **Auto-approve** at the top of a chat. It only applies to that chat. An administrator can also turn on **Auto-approve changes** in the settings, which skips approvals for every user.
 
 ### Stopping a run
 
 Select **Stop** next to the message box to cancel the current run. Any pending approval is denied. You can send a new message afterwards.
+
+### Asking about your library
+
+Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits) and the legs of your [trips](#travel-documents), with the dates, places (the city and country of the photos) and people of their photos. For example:
+
+- _"What did I eat at The French Laundry?"_
+- _"When did we last make the quiche?"_
+- _"Which museums did we visit in 2025?"_
+- _"Show me every dessert we photographed in restaurants"_
+- _"Which wine did we have at Noma?"_
+- _"Where were we on 4 October 2016?"_
+
+The assistant answers briefly with the dates and places, and shows the photos. Names are matched loosely: _noma_ finds _Noma Australia_, and accents, case and plurals don't matter. A person counts as there when they appear on any photo taken during the visit, not only on the photos of the dishes. When you open the assistant, it suggests questions about your own collections, such as the last restaurants you named.
+
+Keep in mind:
+
+- **Only named photos count.** The answers come from the tags of the collections, so a meal whose dishes were never named isn't in them. The assistant then searches your other photos by meaning, date and place, and says when the answer may be incomplete, such as _"only named dishes are counted"_.
+- **Names, not meanings.** _Dessert_ finds _Citrus Pre-Dessert_, but not _Rum lamington_. The assistant asks with synonyms, and can search the photos by what they show.
+- **Only your own photos**, in the timeline and the archive, are read; locked, hidden and trashed photos, and the photos of partners and shared albums, are not.
+- **Travel stays private.** The names of legs are redacted as everywhere else, and travel documents are never shown.
+
+The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
 
 ## Photos are never changed
 
@@ -151,6 +174,20 @@ When you replace or add a photo, you can search your library or show **Only phot
 - **HTML (single file)**: one self-contained web page with the photos embedded, which works offline and makes no external requests. It can be shared or emailed, and turns pages like a book. Photos are sized for sharp screens (up to 2000 pixels), not for print. You're warned when the file is over 60 MB, since it may be too large to email.
 
 Both exports run in the background and send a notification when they're done. Download them from **Export → Download PDF** or **Download HTML**.
+
+### Sharing a book
+
+Select **Share** in the book viewer to create a public link to the book, like a shared album link. Choose when the link expires, a password, a custom URL and whether visitors can download the PDF, then copy the link or show it as a QR code.
+
+People with the link see the title of the book and the page-turning web book, full screen and on phones too, with a **Download PDF** button when downloads are allowed and the PDF has been exported. The web book is built from the current pages, so later edits show up without a new link. Turn off **Show metadata** to leave out the file names of the photos and the dates of the book.
+
+A book link shows only that book. Its pages are drawn on your server, and the photos in it aren't shared one by one, so the link doesn't give access to them, to the album, or to any other book. Manage your links under **Sharing → Shared links**, on the **Photo books** tab, where you can edit or delete them. Deleting the book also deletes its links.
+
+You can also ask the assistant to share a book. It uses `share_book`, which asks for approval, can set an expiry and a password, and replies with the link.
+
+:::caution
+Anyone with the link can read the book, so check what the pages show before you share it. A page that prints a travel document shows it to the visitors too.
+:::
 
 ### Map pages
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { InjectKysely } from 'nestjs-kysely';
 import type { InsertQueryBuilder, Insertable, Kysely, QueryCreator, Selectable, Updateable } from 'kysely';
 import { columns } from 'src/database.js';
@@ -7,7 +8,21 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { DB } from 'src/schema/index.js';
 import { TagAssetTable } from 'src/schema/tables/tag-asset.table.js';
 import { TagTable } from 'src/schema/tables/tag.table.js';
-import { anyUuid } from 'src/utils/database.js';
+import { anyUuid, asUuid, withDefaultVisibility } from 'src/utils/database.js';
+
+export type CollectionTagSearch = {
+  userId: string;
+  /** the roots of the collection packs to read, e.g. Food; a tag is read when its value starts with `<root>/` */
+  tagRoots: string[];
+  /** local time, inclusive */
+  takenAfter?: Date;
+  /** local time, exclusive */
+  takenBefore?: Date;
+  /** the most recent rows are kept */
+  limit: number;
+};
+
+const escapeLike = (text: string) => text.replaceAll(/[\\%_]/g, String.raw`\$&`);
 
 @Injectable()
 export class TagRepository {
@@ -303,5 +318,61 @@ export class TagRepository {
       .groupBy('tag_closure.id_ancestor')
       .execute();
     return new Map(rows.map(({ id, count }) => [id, Number(count)]));
+  }
+
+  /**
+   * The collection tags (`<Root>/<Place>/<Entry>`) of the user's own photos in the timeline and the archive, newest
+   * first, with the local time, city, country and named people of each photo, for questions about the library
+   */
+  @GenerateSql({
+    params: [
+      {
+        userId: DummyValue.UUID,
+        tagRoots: ['Food', 'Art'],
+        takenAfter: DummyValue.DATE,
+        takenBefore: DummyValue.DATE,
+        limit: 10_000,
+      },
+    ],
+  })
+  getCollectionTags({ userId, tagRoots, takenAfter, takenBefore, limit }: CollectionTagSearch) {
+    if (tagRoots.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('tag_asset', 'tag_asset.assetId', 'asset.id')
+      .innerJoin('tag', 'tag.id', 'tag_asset.tagId')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select(['asset.id as assetId', 'tag.value', 'asset.localDateTime', 'asset_exif.city', 'asset_exif.country'])
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_face')
+            .innerJoin('person', (join) =>
+              join
+                .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
+                .on('person.ownerId', '=', asUuid(userId))
+                .on('person.isHidden', '=', false)
+                .on('person.name', '!=', ''),
+            )
+            .select('person.name')
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ).as('people'),
+      )
+      .where('tag.userId', '=', asUuid(userId))
+      .where((eb) => eb.or(tagRoots.map((root) => eb('tag.value', 'like', `${escapeLike(root)}/%`))))
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.deletedAt', 'is', null)
+      .$call(withDefaultVisibility)
+      .$if(!!takenAfter, (qb) => qb.where('asset.localDateTime', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.localDateTime', '<', takenBefore!))
+      .orderBy('asset.localDateTime', 'desc')
+      .orderBy('asset.id', 'asc')
+      .limit(limit)
+      .execute();
   }
 }

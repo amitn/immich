@@ -1,7 +1,10 @@
 import { Kysely } from 'kysely';
 import { randomBytes } from 'node:crypto';
+import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import { SharedLinkType } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
+import { CryptoRepository } from 'src/repositories/crypto.repository.js';
 import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { SharedLinkAssetRepository } from 'src/repositories/shared-link-asset.repository.js';
@@ -26,6 +29,39 @@ const setup = (db?: Kysely<DB>) => {
 beforeAll(async () => {
   defaultDatabase = await getKyselyDB();
 });
+
+/** a book of one page with one photo */
+const setupBook = async () => {
+  const { sut, ctx } = newMediumService(SharedLinkService, {
+    database: defaultDatabase,
+    real: [
+      AccessRepository,
+      BookRepository,
+      CryptoRepository,
+      DatabaseRepository,
+      SharedLinkRepository,
+      SharedLinkAssetRepository,
+    ],
+    mock: [LoggingRepository, StorageRepository],
+  });
+  const { user } = await ctx.newUser();
+  const books = ctx.get(BookRepository);
+  const newBook = async (title: string) => {
+    const book = await books.create({
+      ownerId: user.id,
+      title,
+      pageWidthMm: 210,
+      pageHeightMm: 210,
+      style: { ...defaultBookStyle },
+    });
+    const page = await books.addPage(book.id, { layout: 'single' });
+    return { book, page };
+  };
+  const { book, page } = await newBook('Summer in Rome');
+  const { asset } = await ctx.newAsset({ ownerId: user.id });
+  await books.upsertSlot(book.id, { pageId: page.id, slot: 0, assetId: asset.id, crop: null, caption: null });
+  return { sut, ctx, user, auth: factory.auth({ user }), book, asset, books, newBook };
+};
 
 describe(SharedLinkService.name, () => {
   describe('get', () => {
@@ -623,5 +659,92 @@ describe(SharedLinkService.name, () => {
     });
 
     await expect(sut.getMine({ user, sharedLink }, [])).resolves.toHaveProperty('assets', []);
+  });
+
+  describe('book links', () => {
+    it('should create a link to a book, and read it back by key', async () => {
+      const { sut, ctx, auth, book } = await setupBook();
+
+      const created = await sut.create(auth, {
+        type: SharedLinkType.Book,
+        bookId: book.id,
+        password: 'secret',
+        allowUpload: true,
+      });
+
+      expect(created).toMatchObject({
+        type: SharedLinkType.Book,
+        allowUpload: false,
+        book: { id: book.id, title: 'Summer in Rome', subtitle: null, pageCount: 1, hasPdf: false },
+        assets: [],
+      });
+
+      const byKey = await ctx.get(SharedLinkRepository).getByKey(Buffer.from(created.key, 'base64url'));
+      expect(byKey).toMatchObject({ id: created.id, bookId: book.id, albumId: null, password: 'secret' });
+
+      await expect(sut.getAll(auth, { bookId: book.id })).resolves.toEqual([
+        expect.objectContaining({ id: created.id, book: expect.objectContaining({ pageCount: 1 }) }),
+      ]);
+    });
+
+    it('should not let another user share the book', async () => {
+      const { sut, ctx, book } = await setupBook();
+      const { user: other } = await ctx.newUser();
+
+      await expect(
+        sut.create(factory.auth({ user: other }), { type: SharedLinkType.Book, bookId: book.id }),
+      ).rejects.toThrow('Not found or no book.share access');
+    });
+
+    it('should give access to its own book only, and not to the photos in it', async () => {
+      const { sut, ctx, auth, book, asset, newBook } = await setupBook();
+      const { book: other } = await newBook('Winter in Oslo');
+      const link = await sut.create(auth, { type: SharedLinkType.Book, bookId: book.id });
+      const access = ctx.get(AccessRepository);
+
+      await expect(access.book.checkSharedLinkAccess(link.id, new Set([book.id, other.id]))).resolves.toEqual(
+        new Set([book.id]),
+      );
+      await expect(access.asset.checkSharedLinkAccess(link.id, new Set([asset.id]))).resolves.toEqual(new Set());
+      await expect(access.album.checkSharedLinkAccess(link.id, new Set([factory.uuid()]))).resolves.toEqual(new Set());
+    });
+
+    it('should not give an album link access to a book', async () => {
+      const { ctx, user, book } = await setupBook();
+      const { album } = await ctx.newAlbum({ ownerId: user.id });
+      const link = await ctx.get(SharedLinkRepository).create({
+        key: randomBytes(16),
+        userId: user.id,
+        albumId: album.id,
+        allowUpload: false,
+        type: SharedLinkType.Album,
+      });
+
+      await expect(ctx.get(AccessRepository).book.checkSharedLinkAccess(link.id, new Set([book.id]))).resolves.toEqual(
+        new Set(),
+      );
+    });
+
+    it('should delete the link with the book', async () => {
+      const { sut, ctx, auth, book, books } = await setupBook();
+      const link = await sut.create(auth, { type: SharedLinkType.Book, bookId: book.id });
+
+      await books.delete(book.id);
+
+      await expect(ctx.get(SharedLinkRepository).getByKey(Buffer.from(link.key, 'base64url'))).resolves.toBeUndefined();
+      await expect(sut.getAll(auth, {})).resolves.toEqual([]);
+    });
+
+    it('should edit and remove a book link', async () => {
+      const { sut, auth, book } = await setupBook();
+      const link = await sut.create(auth, { type: SharedLinkType.Book, bookId: book.id });
+
+      await expect(
+        sut.update(auth, link.id, { allowDownload: false, allowUpload: true, slug: 'rome' }),
+      ).resolves.toMatchObject({ allowDownload: false, allowUpload: false, slug: 'rome', book: { id: book.id } });
+
+      await sut.remove(auth, link.id);
+      await expect(sut.getAll(auth, {})).resolves.toEqual([]);
+    });
   });
 });

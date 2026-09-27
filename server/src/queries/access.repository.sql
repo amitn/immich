@@ -196,6 +196,17 @@ where
   "book"."id" in ($1)
   and "book"."ownerId" = $2
 
+-- AccessRepository.book.checkSharedLinkAccess
+select
+  "book"."id"
+from
+  "shared_link"
+  inner join "book" on "book"."id" = "shared_link"."bookId"
+where
+  "shared_link"."id" = $1
+  and "shared_link"."type" = $2
+  and "book"."id" in ($3)
+
 -- AccessRepository.duplicate.checkOwnerAccess
 select
   "asset"."duplicateId"

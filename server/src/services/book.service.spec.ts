@@ -1,8 +1,9 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { AuthDto } from 'src/dtos/auth.dto.js';
 import { BookMap, BookStyleSchema, bookStylePresetIds } from 'src/dtos/book.dto.js';
 import {
   ArtJobStatus,
@@ -21,11 +22,12 @@ import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
 import { ImproveEstimate } from 'src/utils/agent/improve.js';
 import { validatePageStyle } from 'src/utils/book/layouts.js';
+import { getDpiForLongEdge } from 'src/utils/book/render.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { userStub } from 'test/fixtures/user.stub.js';
-import { newUuid } from 'test/small.factory.js';
+import { factory, newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
@@ -126,6 +128,16 @@ const copyOf = (sourceId: string): ImprovedCopyResult => ({
   duplicate: false,
 });
 
+const sharedLinkAuth = (bookId: string, sharedLink: Partial<NonNullable<AuthDto['sharedLink']>> = {}) =>
+  factory.auth({
+    user: { id: userStub.admin.id },
+    sharedLink: { bookId, showExif: true, allowDownload: true, password: null, ...sharedLink },
+  });
+
+/** the token a visitor gets for the password of a shared link, with the mocked hash */
+const tokenFor = (linkAuth: AuthDto) =>
+  Buffer.from(`${linkAuth.sharedLink!.id}-${linkAuth.sharedLink!.password} (hashed)`).toString('base64');
+
 const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
 
 describe(BookService.name, () => {
@@ -134,6 +146,7 @@ describe(BookService.name, () => {
   const auth = authStub.admin;
 
   const allowBook = (id: string) => mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([id]));
+  const allowLink = (id: string) => mocks.access.book.checkSharedLinkAccess.mockResolvedValue(new Set([id]));
   const allowAssets = (...ids: string[]) => mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set(ids));
   const written = () => ({ html: (mocks.storage.createOrOverwriteFile.mock.calls[0][1] as Buffer).toString() });
 
@@ -891,6 +904,166 @@ describe(BookService.name, () => {
           cacheControl: 'private_without_cache' as never,
           fileName: 'Rome_Florence.pdf',
         }),
+      );
+    });
+  });
+
+  describe('shared links', () => {
+    beforeEach(() => {
+      // no travel documents unless a test adds them
+      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
+      mocks.ocr.getByAssetIds.mockResolvedValue([]);
+    });
+
+    it('should show the book of the link, drawn with the photos of its owner', async () => {
+      const { book, asset } = await setupExport();
+      const linkAuth = sharedLinkAuth(book.id);
+      allowLink(book.id);
+
+      const html = await sut.previewHtml(linkAuth, book.id);
+
+      expect(mocks.access.book.checkSharedLinkAccess).toHaveBeenCalledWith(linkAuth.sharedLink!.id, new Set([book.id]));
+      expect(mocks.access.book.checkOwnerAccess).not.toHaveBeenCalled();
+      // the photos are not shared themselves: the owner's access decides which ones are drawn
+      expect(mocks.access.asset.checkSharedLinkAccess).not.toHaveBeenCalled();
+      expect(mocks.access.asset.checkOwnerAccess).toHaveBeenCalledWith(
+        userStub.admin.id,
+        new Set([asset.id]),
+        undefined,
+      );
+      expect(html).toContain('alt="photo.jpg"');
+      expect(html).toContain('2025');
+    });
+
+    it('should leave out the file names and dates when the link hides metadata', async () => {
+      const { book } = await setupExport();
+      allowLink(book.id);
+
+      const html = await sut.previewHtml(sharedLinkAuth(book.id, { showExif: false }), book.id);
+
+      expect(html).not.toContain('photo.jpg');
+      expect(html).toContain('alt="Photo"');
+      expect(html).not.toContain('2025');
+    });
+
+    it('should not show another book', async () => {
+      const { book } = await setupExport();
+      const other = newUuid();
+      allowLink(other);
+
+      await expect(sut.previewHtml(sharedLinkAuth(other), book.id)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(sut.renderPage(sharedLinkAuth(other), book.id, newUuid())).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(sut.downloadPdf(sharedLinkAuth(other), book.id)).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.book.getPages).not.toHaveBeenCalled();
+    });
+
+    it('should not open the book to a link to an album', async () => {
+      const { book } = await setupExport();
+      const albumLink = factory.auth({ sharedLink: { albumId: newUuid(), bookId: null } });
+      mocks.access.book.checkSharedLinkAccess.mockResolvedValue(new Set([book.id]));
+
+      await expect(sut.previewHtml(albumLink, book.id)).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.access.book.checkSharedLinkAccess).not.toHaveBeenCalled();
+    });
+
+    it('should not allow editing, exporting or reviewing the book', async () => {
+      const { book } = await setupExport();
+      const linkAuth = sharedLinkAuth(book.id);
+      allowLink(book.id);
+
+      await expect(sut.get(linkAuth, book.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(sut.getReview(linkAuth, book.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(sut.renderContactSheet(linkAuth, book.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(sut.export(linkAuth, book.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(sut.downloadHtml(linkAuth, book.id)).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(sut.update(linkAuth, book.id, { title: 'Mine now' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(sut.delete(linkAuth, book.id)).rejects.toBeInstanceOf(BadRequestException);
+      await expect(sut.removePage(linkAuth, book.id, newUuid())).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+    });
+
+    it('should require the password of a protected link', async () => {
+      const { book } = await setupExport();
+      const linkAuth = sharedLinkAuth(book.id, { password: 'secret' });
+      allowLink(book.id);
+
+      await expect(sut.previewHtml(linkAuth, book.id)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(sut.previewHtml(linkAuth, book.id, ['wrong'])).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(sut.renderPage(linkAuth, book.id, newUuid())).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(sut.downloadPdf(linkAuth, book.id)).rejects.toBeInstanceOf(UnauthorizedException);
+
+      await expect(sut.previewHtml(linkAuth, book.id, [tokenFor(linkAuth)])).resolves.toMatch(/^<!doctype html>/i);
+    });
+
+    it('should render a page of the book with the photos of its owner', async () => {
+      const { book, asset } = await setupExport();
+      const linkAuth = sharedLinkAuth(book.id);
+      allowLink(book.id);
+      const [page] = await mocks.book.getPages(book.id);
+
+      await sut.renderPage(linkAuth, book.id, page.id, { size: 800 });
+
+      expect(mocks.access.asset.checkSharedLinkAccess).not.toHaveBeenCalled();
+      expect(mocks.access.asset.checkOwnerAccess).toHaveBeenCalledWith(
+        userStub.admin.id,
+        new Set([asset.id]),
+        undefined,
+      );
+      expect(mocks.book.getAssetsForRender).toHaveBeenCalledWith([asset.id]);
+    });
+
+    it('should only give the PDF when the link allows downloads', async () => {
+      const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf' });
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([]);
+      allowLink(book.id);
+
+      await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: false }), book.id)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: true }), book.id)).resolves.toEqual(
+        expect.objectContaining({ path: '/data/thumbs/books/book.pdf', contentType: 'application/pdf' }),
+      );
+    });
+
+    it('should not give the PDF of a book that shows a travel document', async () => {
+      const book = BookFactory.create({ exportPath: '/data/thumbs/books/book.pdf', coverAssetId: null });
+      const ticket = newUuid();
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([{ assets: [{ assetId: ticket }] }] as never);
+      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([
+        { assetId: ticket, value: 'Travel/Crete, October 2016/Tickets' },
+      ] as never);
+      allowLink(book.id);
+
+      await expect(sut.downloadPdf(sharedLinkAuth(book.id, { allowDownload: true }), book.id)).rejects.toThrow(
+        'travel documents',
+      );
+      // the owner still gets it
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([book.id]));
+      await expect(sut.downloadPdf(factory.auth({ user: { id: book.ownerId } }), book.id)).resolves.toEqual(
+        expect.objectContaining({ contentType: 'application/pdf' }),
+      );
+    });
+
+    it('should cap the size of the pages a shared link renders and blur its travel documents', async () => {
+      const { book } = await setupExport();
+      const [page] = await mocks.book.getPages(book.id);
+      allowLink(book.id);
+      const render = vi
+        .spyOn(sut as never as { renderBookPage: (...args: unknown[]) => unknown }, 'renderBookPage')
+        .mockResolvedValue({ data: Buffer.from('page') } as never);
+
+      await sut.renderPage(sharedLinkAuth(book.id), book.id, page.id, { size: 4000 });
+
+      expect(render).toHaveBeenCalledWith(
+        expect.anything(),
+        book,
+        page,
+        1,
+        expect.objectContaining({ hidePrivate: true, dpi: getDpiForLongEdge(book, 2000) }),
       );
     });
   });

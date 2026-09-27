@@ -28,7 +28,8 @@ type SharedLinkAccessRequest = { sharedLink: AuthSharedLink; permission: Permiss
 type OtherAccessRequest = { auth: AuthDto; permission: Permission; ids: Set<string> };
 
 export const requireUploadAccess = (auth: AuthDto | null): AuthDto => {
-  if (!auth || (auth.sharedLink && !auth.sharedLink.allowUpload)) {
+  // a book link only shows the book
+  if (!auth || (auth.sharedLink && (!auth.sharedLink.allowUpload || auth.sharedLink.bookId))) {
     throw new UnauthorizedException();
   }
   return auth;
@@ -76,7 +77,7 @@ const checkSharedLinkAccess = async (
     }
 
     case Permission.AssetUpload: {
-      return sharedLink.allowUpload ? ids : new Set();
+      return sharedLink.allowUpload && !sharedLink.bookId ? ids : new Set();
     }
 
     case Permission.AlbumRead: {
@@ -89,6 +90,18 @@ const checkSharedLinkAccess = async (
 
     case Permission.AlbumAssetCreate: {
       return sharedLink.allowUpload ? await access.album.checkSharedLinkAccess(sharedLinkId, ids) : new Set();
+    }
+
+    // a book link reads its own book (the web book, the page images) and nothing else: the photos are rendered into
+    // the pages, and are not shared themselves
+    case Permission.BookRead: {
+      return sharedLink.bookId ? await access.book.checkSharedLinkAccess(sharedLinkId, ids) : new Set();
+    }
+
+    case Permission.BookDownload: {
+      return sharedLink.bookId && sharedLink.allowDownload
+        ? await access.book.checkSharedLinkAccess(sharedLinkId, ids)
+        : new Set();
     }
 
     default: {
@@ -321,7 +334,8 @@ const checkOtherAccess = async (access: AccessRepository, request: OtherAccessRe
     case Permission.BookRead:
     case Permission.BookUpdate:
     case Permission.BookDelete:
-    case Permission.BookDownload: {
+    case Permission.BookDownload:
+    case Permission.BookShare: {
       return access.book.checkOwnerAccess(auth.user.id, ids);
     }
 

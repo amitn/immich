@@ -9,6 +9,7 @@ import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
 import { EnhanceAgentTools } from 'src/services/agent-tools/enhance.tools.js';
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
+import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { BaseService } from 'src/services/base.service.js';
 import { IMMICH_MCP_SERVER_NAME } from 'src/utils/agent/instructions.js';
 import { AgentTool, AgentToolResult } from 'src/utils/agent/tools.js';
@@ -62,6 +63,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(ArtAgentTools, this),
         BaseService.create(EnhanceAgentTools, this),
         BaseService.create(CollectionAgentTools, this),
+        BaseService.create(QuestionAgentTools, this),
       ];
 
       this.tools = new Map();

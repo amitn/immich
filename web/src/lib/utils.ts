@@ -273,9 +273,18 @@ export const getEnhancePreviewUrl = ({ id, strength }: { id: string; strength?: 
 export const getBookExportUrl = ({ id, format }: { id: string; format: BookExportFormat }) =>
   createUrl(format === BookExportFormat.Html ? `/books/${id}/html` : `/books/${id}/pdf`);
 
-/** The always-current web book preview, to be shown in a sandboxed frame; `cacheKey` makes the frame reload after edits */
-export const getBookPreviewUrl = ({ id, cacheKey }: { id: string; cacheKey?: string }) =>
-  createUrl(`/books/${id}/preview`, { v: cacheKey });
+type SharedLinkParams = { key?: string; slug?: string };
+
+/**
+ * The always-current web book preview, to be shown in a sandboxed frame; `cacheKey` makes the frame reload after
+ * edits, and `key` or `slug` read it through a shared link to the book
+ */
+export const getBookPreviewUrl = ({ id, cacheKey, key, slug }: { id: string; cacheKey?: string } & SharedLinkParams) =>
+  createUrl(`/books/${id}/preview`, { v: cacheKey, key, slug });
+
+/** The exported PDF of a book, e.g. through a shared link to it */
+export const getBookPdfUrl = ({ id, key, slug }: { id: string } & SharedLinkParams) =>
+  createUrl(`/books/${id}/pdf`, { key, slug });
 
 export const getProfileImageUrl = (user: UserResponseDto) =>
   createUrl(getUserProfileImagePath(user.id), { updatedAt: user.profileChangedAt });

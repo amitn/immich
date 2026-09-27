@@ -7842,6 +7842,14 @@
             }
           },
           {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "pageId",
             "required": true,
             "in": "path",
@@ -7860,6 +7868,14 @@
               "minimum": 100,
               "maximum": 4000,
               "type": "integer"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -8154,7 +8170,7 @@
     },
     "/books/{id}/pdf": {
       "get": {
-        "description": "Download the exported PDF of a book.",
+        "description": "Download the exported PDF of a book; through a shared link to the book only if it allows downloads.",
         "operationId": "downloadBookPdf",
         "parameters": [
           {
@@ -8164,6 +8180,22 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           }
@@ -8212,7 +8244,7 @@
     },
     "/books/{id}/preview": {
       "get": {
-        "description": "The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame.",
+        "description": "The book as a single-file HTML web book, built on demand at screen quality and always up to date, to be shown in a sandboxed frame. This is also what a shared link to the book shows.",
         "operationId": "previewBook",
         "parameters": [
           {
@@ -8222,6 +8254,22 @@
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "required": false,
+            "in": "query",
+            "schema": {
               "type": "string"
             }
           }
@@ -8751,6 +8799,52 @@
           }
         ],
         "summary": "List collection packs",
+        "tags": [
+          "Collections"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/collections/summary": {
+      "get": {
+        "description": "Retrieve what the collections of the user hold, per pack: the photos, visits, places and entries named with the tags of the pack, the years covered and the places visited most recently. Only the user's own photos are counted, and the names of packs that hide private text are redacted.",
+        "operationId": "getCollectionSummary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionSummaryResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Summarize the collections",
         "tags": [
           "Collections"
         ],
@@ -16296,6 +16390,28 @@
             "required": false,
             "in": "query",
             "description": "Filter by album ID",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          },
+          {
+            "name": "bookId",
+            "required": false,
+            "in": "query",
+            "description": "Filter by book ID",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha",
             "schema": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
@@ -26834,6 +26950,99 @@
         ],
         "type": "object"
       },
+      "CollectionPackSummaryDto": {
+        "properties": {
+          "entries": {
+            "description": "Distinct entries of the places, e.g. dishes",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "entry": {
+            "description": "The word for the entries of the pack, e.g. menu items",
+            "type": "string"
+          },
+          "first": {
+            "description": "Local day of the first visit",
+            "type": "string"
+          },
+          "last": {
+            "description": "Local day of the last visit",
+            "type": "string"
+          },
+          "pack": {
+            "description": "Pack ID, e.g. food",
+            "type": "string"
+          },
+          "photos": {
+            "description": "Photos tagged with the pack",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "place": {
+            "description": "The word for a place of the pack, e.g. restaurant",
+            "type": "string"
+          },
+          "places": {
+            "description": "Distinct places",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "recentPlaces": {
+            "description": "The places visited most recently, up to 5",
+            "items": {
+              "$ref": "#/components/schemas/CollectionPlaceSummaryDto"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "description": "Photos of the sources, e.g. menus",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "title": {
+            "description": "Pack title, e.g. Food",
+            "type": "string"
+          },
+          "visit": {
+            "description": "The word for the visits of the pack, e.g. meals",
+            "type": "string"
+          },
+          "visits": {
+            "description": "Visits: the photos of a place grouped by time",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "years": {
+            "description": "Years with visits, in order",
+            "items": {
+              "maximum": 9007199254740991,
+              "minimum": -9007199254740991,
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "entry",
+          "pack",
+          "photos",
+          "place",
+          "places",
+          "recentPlaces",
+          "sources",
+          "title",
+          "visit",
+          "visits",
+          "years"
+        ],
+        "type": "object"
+      },
       "CollectionPlaceCandidateDto": {
         "properties": {
           "assetIds": {
@@ -26876,6 +27085,30 @@
           "fallback"
         ],
         "type": "string"
+      },
+      "CollectionPlaceSummaryDto": {
+        "properties": {
+          "last": {
+            "description": "Local day of the last visit, e.g. 2016-03-23",
+            "type": "string"
+          },
+          "name": {
+            "description": "Name of the place, as in the tags (redacted for packs that hide private text)",
+            "type": "string"
+          },
+          "visits": {
+            "description": "Visits of the place",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "last",
+          "name",
+          "visits"
+        ],
+        "type": "object"
       },
       "CollectionSavedEntryDto": {
         "properties": {
@@ -26982,6 +27215,26 @@
           "index",
           "name",
           "score"
+        ],
+        "type": "object"
+      },
+      "CollectionSummaryResponseDto": {
+        "properties": {
+          "packs": {
+            "description": "Every pack, with zeros when it has no tagged photos",
+            "items": {
+              "$ref": "#/components/schemas/CollectionPackSummaryDto"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "description": "Whether the library has more tagged photos than were read",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "packs",
+          "truncated"
         ],
         "type": "object"
       },
@@ -31490,6 +31743,7 @@
           "book.update",
           "book.delete",
           "book.download",
+          "book.share",
           "clusterGroup.read",
           "clusterGroup.leave",
           "clusterGroupRequest.create",
@@ -34388,6 +34642,44 @@
         ],
         "type": "object"
       },
+      "SharedLinkBookResponseDto": {
+        "description": "The shared photo book",
+        "properties": {
+          "hasPdf": {
+            "description": "Whether the PDF has been exported",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Book ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageCount": {
+            "description": "Number of pages",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "subtitle": {
+            "description": "Book subtitle",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "description": "Book title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hasPdf",
+          "id",
+          "pageCount",
+          "subtitle",
+          "title"
+        ],
+        "type": "object"
+      },
       "SharedLinkCreateDto": {
         "properties": {
           "albumId": {
@@ -34413,6 +34705,23 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "bookId": {
+            "description": "Book ID (for sharing a photo book)",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
           },
           "description": {
             "description": "Link description",
@@ -34524,6 +34833,20 @@
             },
             "type": "array"
           },
+          "book": {
+            "$ref": "#/components/schemas/SharedLinkBookResponseDto",
+            "x-immich-history": [
+              {
+                "version": "v3.0.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.0.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
           "createdAt": {
             "description": "Creation date",
             "example": "2024-01-01T00:00:00.000Z",
@@ -34599,7 +34922,8 @@
         "description": "Shared link type",
         "enum": [
           "ALBUM",
-          "INDIVIDUAL"
+          "INDIVIDUAL",
+          "BOOK"
         ],
         "type": "string"
       },

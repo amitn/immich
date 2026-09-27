@@ -26,6 +26,7 @@ export const newAccessRepositoryMock = (): IAccessRepositoryMock => {
 
     book: {
       checkOwnerAccess: vitest.fn().mockResolvedValue(new Set()),
+      checkSharedLinkAccess: vitest.fn().mockResolvedValue(new Set()),
     },
 
     clusterGroup: {

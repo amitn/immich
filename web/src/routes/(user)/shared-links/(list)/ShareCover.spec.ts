@@ -1,3 +1,4 @@
+import { SharedLinkType } from '@immich/sdk';
 import { render, screen } from '@testing-library/svelte';
 import { getAssetMediaUrl } from '$lib/utils';
 import { albumFactory } from '@test-data/factories/album-factory';
@@ -33,6 +34,19 @@ describe('ShareCover component', () => {
     expect(img.className).toBe('size-full rounded-xl object-cover aspect-square text');
     expect(img.getAttribute('src')).toBe('/asdf');
     expect(getAssetMediaUrl).toHaveBeenCalledWith({ id: 'someId' });
+  });
+
+  it('renders a book icon for a link to a book, whose photos are not shared', () => {
+    const component = render(ShareCover, {
+      sharedLink: sharedLinkFactory.build({
+        type: SharedLinkType.Book,
+        book: { id: 'book-id', title: 'Summer in Rome', subtitle: null, pageCount: 12, hasPdf: false },
+      }),
+      preload: false,
+    });
+    expect(component.getByTestId('book-cover')).toHaveAccessibleName('Summer in Rome');
+    expect(component.queryByTestId('album-image')).not.toBeInTheDocument();
+    expect(getAssetMediaUrl).not.toHaveBeenCalledWith({ id: 'book-id' });
   });
 
   it('renders an image when the shared link has no album or assets', () => {

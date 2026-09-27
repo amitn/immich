@@ -29,4 +29,29 @@ describe('SharedLinkFormFields component', () => {
     expect(isChecked(showMetadataSwitch)).toBe(false);
     expect(isChecked(allowDownloadSwitch)).toBe(false);
   });
+
+  it('keeps the PDF download of a book when metadata is disabled, and never offers uploads', async () => {
+    const { container } = renderWithTooltips(SharedLinkFormFields, {
+      slug: '',
+      password: '',
+      description: '',
+      allowDownload: true,
+      allowUpload: false,
+      showMetadata: true,
+      expiresAt: null,
+      isBook: true,
+    });
+    const user = userEvent.setup();
+
+    const switches = Array.from(container.querySelectorAll('[role="switch"], input[type="checkbox"]'));
+    expect(switches).toHaveLength(2);
+    expect(container.textContent).toContain('book_share_allow_pdf_download');
+    expect(container.textContent).not.toContain('allow_public_user_to_upload');
+
+    const [showMetadataSwitch, allowDownloadSwitch] = switches;
+    await user.click(showMetadataSwitch);
+
+    expect(isChecked(showMetadataSwitch)).toBe(false);
+    expect(isChecked(allowDownloadSwitch)).toBe(true);
+  });
 });

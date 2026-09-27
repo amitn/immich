@@ -32,11 +32,10 @@ import { Auth, Authenticated, GetLoginDetails } from 'src/middleware/auth.guard.
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { respondWithCookie } from 'src/utils/response.js';
+import { getSharedLinkAuthTokens } from 'src/utils/shared-link.js';
 import { UUIDParamDto } from 'src/validation.js';
 
-const getAuthTokens = (cookies: Record<string, string> | undefined) => {
-  return cookies?.[ImmichCookie.SharedLinkToken]?.split(',') || [];
-};
+const getAuthTokens = getSharedLinkAuthTokens;
 
 const merge = (cookies: Record<string, string> | undefined, token: string) => {
   const authTokens = getAuthTokens(cookies);

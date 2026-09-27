@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { getLibraryQuestions } from '$lib/utils/library-questions';
+  import { getCollectionSummary, type CollectionSummaryResponseDto } from '@immich/sdk';
   import { Icon } from '@immich/ui';
   import { mdiCreationOutline } from '@mdi/js';
+  import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
   type Props = {
@@ -25,6 +28,18 @@
           $t('assistant_example_best_of_year'),
         ],
   );
+
+  // questions about the library, from what the collections hold once the summary loads
+  let summary = $state<CollectionSummaryResponseDto>();
+  const questions = $derived(hasContext ? [] : getLibraryQuestions($t, summary));
+
+  onMount(() => {
+    getCollectionSummary()
+      .then((response) => (summary = response))
+      .catch(() => {
+        // the generic questions stay
+      });
+  });
 </script>
 
 <div class="mx-auto flex max-w-xl flex-col items-center gap-6 py-10 text-center">
@@ -50,4 +65,24 @@
       </li>
     {/each}
   </ul>
+  {#if questions.length > 0}
+    <section class="flex w-full flex-col gap-2" aria-labelledby="assistant-library-questions">
+      <h3 id="assistant-library-questions" class="text-start text-sm font-medium text-gray-600 dark:text-gray-400">
+        {$t('assistant_ask_library')}
+      </h3>
+      <ul class="grid w-full gap-2 sm:grid-cols-2">
+        {#each questions as question (question)}
+          <li>
+            <button
+              type="button"
+              class="size-full rounded-xl border border-gray-200 px-4 py-3 text-start text-sm transition-colors hover:border-primary hover:bg-primary/5 focus-visible:border-primary dark:border-gray-700"
+              onclick={() => onPick(question)}
+            >
+              {question}
+            </button>
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 </div>

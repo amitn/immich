@@ -649,6 +649,55 @@ export class AssetJobRepository {
       .execute();
   }
 
+  /**
+   * when the given people were photographed: the local time of every photo of the user (timeline and archive) that
+   * shows one of them, newest first, e.g. to tell which visits of a collection they were at
+   */
+  @GenerateSql({
+    params: [
+      {
+        userId: DummyValue.UUID,
+        personIds: [DummyValue.UUID],
+        takenAfter: DummyValue.DATE,
+        takenBefore: DummyValue.DATE,
+        limit: 20_000,
+      },
+    ],
+  })
+  getPersonTimesForAgent(options: {
+    userId: string;
+    personIds: string[];
+    /** local time, inclusive */
+    takenAfter?: Date;
+    /** local time, exclusive */
+    takenBefore?: Date;
+    limit: number;
+  }) {
+    const { userId, personIds, takenAfter, takenBefore, limit } = options;
+    if (personIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_face', (join) =>
+        join
+          .onRef('asset_face.assetId', '=', 'asset.id')
+          .on('asset_face.deletedAt', 'is', null)
+          .on('asset_face.isVisible', 'is', true),
+      )
+      .select(['asset_face.personGroupId as personId', 'asset.localDateTime'])
+      .where('asset_face.personGroupId', '=', anyUuid(personIds))
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.deletedAt', 'is', null)
+      .$call(withDefaultVisibility)
+      .$if(!!takenAfter, (qb) => qb.where('asset.localDateTime', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.localDateTime', '<', takenBefore!))
+      .orderBy('asset.localDateTime', 'desc')
+      .limit(limit)
+      .execute();
+  }
+
   /** people of the viewing user with the number of assets they appear in, most photographed first */
   @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID, { limit: 20 }] })
   async getPeopleForAgent(

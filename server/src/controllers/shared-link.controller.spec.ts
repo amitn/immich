@@ -47,6 +47,36 @@ describe(SharedLinkController.name, () => {
       expect(service.create).toHaveBeenCalledWith(undefined, expect.objectContaining({ expiresAt: null }));
     });
 
+    it('should require a bookId for share type Book', async () => {
+      const { status, body } = await request(ctx.getHttpServer())
+        .post('/shared-links')
+        .send({ type: SharedLinkType.Book });
+      expect(status).toBe(400);
+      expect(body).toEqual(errorDto.validationError([{ path: [], message: 'bookId is required for type BOOK' }]));
+      expect(service.create).not.toHaveBeenCalled();
+    });
+
+    it('should only allow a bookId for share type Book', async () => {
+      const { status, body } = await request(ctx.getHttpServer())
+        .post('/shared-links')
+        .send({ type: SharedLinkType.Album, albumId: newUuid(), bookId: newUuid() });
+      expect(status).toBe(400);
+      expect(body).toEqual(errorDto.validationError([{ path: [], message: 'bookId can only be used with type BOOK' }]));
+      expect(service.create).not.toHaveBeenCalled();
+    });
+
+    it('should create a link to a book', async () => {
+      const bookId = newUuid();
+      const { status } = await request(ctx.getHttpServer())
+        .post('/shared-links')
+        .send({ type: SharedLinkType.Book, bookId, password: 'secret' });
+      expect(status).toBe(201);
+      expect(service.create).toHaveBeenCalledWith(
+        undefined,
+        expect.objectContaining({ type: SharedLinkType.Book, bookId, password: 'secret' }),
+      );
+    });
+
     it('should require an albumId for share type Album', async () => {
       const { status, body } = await request(ctx.getHttpServer())
         .post('/shared-links')

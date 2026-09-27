@@ -226,6 +226,40 @@ const CollectionEntriesResponseSchema = z
   })
   .meta({ id: 'CollectionEntriesResponseDto' });
 
+const CollectionPlaceSummarySchema = z
+  .object({
+    name: z.string().describe('Name of the place, as in the tags (redacted for packs that hide private text)'),
+    visits: z.int().describe('Visits of the place'),
+    last: z.string().describe('Local day of the last visit, e.g. 2016-03-23'),
+  })
+  .meta({ id: 'CollectionPlaceSummaryDto' });
+
+const CollectionPackSummarySchema = z
+  .object({
+    pack: z.string().describe('Pack ID, e.g. food'),
+    title: z.string().describe('Pack title, e.g. Food'),
+    place: z.string().describe('The word for a place of the pack, e.g. restaurant'),
+    entry: z.string().describe('The word for the entries of the pack, e.g. menu items'),
+    visit: z.string().describe('The word for the visits of the pack, e.g. meals'),
+    photos: z.int().describe('Photos tagged with the pack'),
+    visits: z.int().describe('Visits: the photos of a place grouped by time'),
+    places: z.int().describe('Distinct places'),
+    entries: z.int().describe('Distinct entries of the places, e.g. dishes'),
+    sources: z.int().describe('Photos of the sources, e.g. menus'),
+    years: z.array(z.int()).describe('Years with visits, in order'),
+    first: z.string().optional().describe('Local day of the first visit'),
+    last: z.string().optional().describe('Local day of the last visit'),
+    recentPlaces: z.array(CollectionPlaceSummarySchema).describe('The places visited most recently, up to 5'),
+  })
+  .meta({ id: 'CollectionPackSummaryDto' });
+
+const CollectionSummaryResponseSchema = z
+  .object({
+    packs: z.array(CollectionPackSummarySchema).describe('Every pack, with zeros when it has no tagged photos'),
+    truncated: z.boolean().describe('Whether the library has more tagged photos than were read'),
+  })
+  .meta({ id: 'CollectionSummaryResponseDto' });
+
 export class CollectionPackParamDto extends createZodDto(CollectionPackParamSchema) {}
 export class CollectionPackResponseDto extends createZodDto(CollectionPackSchema) {}
 export class CollectionVisitsDto extends createZodDto(CollectionVisitsSchema) {}
@@ -234,6 +268,7 @@ export class CollectionMatchDto extends createZodDto(CollectionMatchSchema) {}
 export class CollectionMatchResponseDto extends createZodDto(CollectionMatchResponseSchema) {}
 export class CollectionEntriesDto extends createZodDto(CollectionEntriesSchema) {}
 export class CollectionEntriesResponseDto extends createZodDto(CollectionEntriesResponseSchema) {}
+export class CollectionSummaryResponseDto extends createZodDto(CollectionSummaryResponseSchema) {}
 
 export type CollectionVisitResponse = z.infer<typeof CollectionVisitSchema>;
 export type CollectionPlaceCandidate = z.infer<typeof CollectionPlaceCandidateSchema>;

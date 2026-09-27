@@ -183,6 +183,7 @@ export enum Permission {
   BookUpdate = 'book.update',
   BookDelete = 'book.delete',
   BookDownload = 'book.download',
+  BookShare = 'book.share',
 
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',
@@ -353,6 +354,9 @@ export enum SharedLinkType {
    * or group of assets that are not in an album
    */
   Individual = 'INDIVIDUAL',
+
+  /** a photo book, shown as its page-turning web version */
+  Book = 'BOOK',
 }
 
 export const SharedLinkTypeSchema = z.enum(SharedLinkType).describe('Shared link type').meta({ id: 'SharedLinkType' });

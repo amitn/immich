@@ -6,7 +6,8 @@ type RefKind = keyof AgentRefs;
 const UUID = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 const MAX_REFS = 500;
 /**
- * keys of asset ids besides `*AssetId(s)` and `*PhotoId(s)`: `ids` (select_best, cluster_similar), `sampleIds`, and
+ * keys of asset ids besides `*AssetId(s)` and `*PhotoId(s)` (e.g. the `photoIds` and `sourcePhotoIds` of the answers
+ * of query_collections): `ids` (select_best, cluster_similar), `sampleIds`, and
  * the photos of a visit of a collection (find_visits, match_subjects; and find_meals, match_dishes before them)
  */
 const ASSET_ID_KEYS = new Set([
@@ -259,6 +260,8 @@ export const truncateText = (text: string, length = 2000) => truncate(text, leng
 /** arguments that are photos: counted, since the photos are shown next to the summary */
 const PHOTO_ARGS = new Set(['id', 'ids', 'assetId', 'assetIds', 'photoIds', 'photos']);
 const PEOPLE_ARGS = new Set(['personId', 'personIds']);
+/** never shown in the approval card, which is kept with the chat */
+const SECRET_ARGS = new Set(['password']);
 const ARG_LABELS: Record<string, string> = {
   rect: 'Crop (pixels)',
   rectNormalized: 'Crop',
@@ -328,6 +331,11 @@ export const summarizeToolArgs = (args: Record<string, unknown>) => {
     }
 
     if (isUuid(value) || (Array.isArray(value) && value.every((item) => isUuid(item)))) {
+      continue;
+    }
+
+    if (SECRET_ARGS.has(key)) {
+      parts.push(`${toLabel(key)}: ••••`);
       continue;
     }
 
