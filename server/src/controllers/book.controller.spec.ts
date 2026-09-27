@@ -473,7 +473,7 @@ describe(BookController.name, () => {
       expect(status).toBe(200);
       expect(service.downloadHtml).toHaveBeenCalledWith(undefined, id);
       expect(headers['content-type']).toMatch(/^text\/html/);
-      expect(headers['content-disposition']).toBe('attachment; filename="summer-in-rome.html"');
+      expect(headers['content-disposition']).toBe(`attachment; filename*=UTF-8''summer-in-rome.html`);
       expect(headers['content-security-policy']).toContain('sandbox');
       expect(text).toBe('<!doctype html><title>Book</title>');
     });

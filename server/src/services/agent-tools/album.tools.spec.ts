@@ -37,6 +37,12 @@ describe(AlbumAgentTools.name, () => {
   beforeEach(() => {
     ({ sut, mocks } = newTestService(AlbumAgentTools));
     mocks.user.getMetadata.mockResolvedValue([]);
+    // noodle's AlbumService also looks at shared spaces and cross-owner contributions; none here
+    mocks.sharedSpace.getAlbumSpaceLinks.mockResolvedValue([]);
+    mocks.sharedSpace.getContributableAssetSpaces.mockResolvedValue([]);
+    mocks.album.getContributedAssetIds.mockResolvedValue(new Set());
+    mocks.album.addContributedAssets.mockResolvedValue();
+    mocks.album.removeContributedAssetIds.mockResolvedValue();
   });
 
   it('should expose the album tools', () => {

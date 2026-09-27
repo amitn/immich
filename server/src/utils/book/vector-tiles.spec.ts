@@ -103,6 +103,20 @@ describe('vector tiles', () => {
         'TMS',
       );
     });
+
+    it('should refuse OpenMapTiles sources, whose layers styled maps cannot read', () => {
+      const tiles = ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'];
+      const layers = (ids: string[]) => ids.map((id) => ({ id, fields: {} }));
+      expect(() =>
+        parseTileJson(
+          { tiles, vector_layers: layers(['water', 'landcover', 'transportation', 'place']) },
+          'https://tiles.openfreemap.org/planet',
+        ),
+      ).toThrow('OpenMapTiles');
+      expect(
+        parseTileJson({ tiles, vector_layers: layers(['earth', 'water', 'roads', 'places']) }, 'https://a/t.json').tiles,
+      ).toEqual(tiles);
+    });
   });
 
   describe('tile maths', () => {

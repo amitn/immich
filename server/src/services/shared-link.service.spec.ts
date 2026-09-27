@@ -903,6 +903,8 @@ describe(SharedLinkService.name, () => {
         allowDownload: true,
         showExif: false,
         key: Buffer.from('random-bytes', 'utf8'),
+        // a book is not tethered to a space
+        spaceId: null,
       });
       expect(response).toMatchObject({
         type: SharedLinkType.Book,

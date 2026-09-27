@@ -112,6 +112,19 @@ export const getStyleVectorSource = (style: unknown, styleUrl: string): StyleSou
 };
 
 /** The tiles, zooms and attribution of a TileJSON document */
+/**
+ * Styled maps read the Protomaps basemap schema (earth, water, landuse, roads, places, ...). OpenMapTiles sources, the
+ * default of Gallery's Map page (OpenFreeMap), name their layers differently (transportation, place, ...) and have no
+ * land layer, so they are recognised from the layers the TileJSON lists and refused rather than drawn blank.
+ */
+const isOpenMapTilesSchema = (vectorLayers: unknown) => {
+  if (!Array.isArray(vectorLayers)) {
+    return false;
+  }
+  const ids = new Set(vectorLayers.map((layer) => (isObject(layer) && typeof layer.id === 'string' ? layer.id : '')));
+  return ids.has('transportation') && !ids.has('roads');
+};
+
 export const parseTileJson = (json: unknown, url: string): VectorTileSource => {
   if (!isObject(json)) {
     throw new Error('the tile source is not a TileJSON document');
@@ -122,6 +135,11 @@ export const parseTileJson = (json: unknown, url: string): VectorTileSource => {
   }
   if (json.scheme === 'tms') {
     throw new Error('TMS tile sources are not supported');
+  }
+  if (isOpenMapTilesSchema(json.vector_layers)) {
+    throw new Error(
+      'the map tiles use the OpenMapTiles schema (e.g. OpenFreeMap), which styled book maps cannot draw yet: they need Protomaps tiles, like those of the Immich tile server',
+    );
   }
   return {
     tiles,

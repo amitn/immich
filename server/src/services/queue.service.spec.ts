@@ -422,6 +422,9 @@ describe(QueueService.name, () => {
           clusterNewFaces: false,
           clusterNewPets: false,
         },
+        // the nightly jobs of the assistant's features follow their own settings, not nightlyTasks
+        books: { drafts: { enabled: false } },
+        machineLearning: { enabled: false },
       });
 
       await sut.handleNightlyJobs();
@@ -579,6 +582,9 @@ describe(QueueService.name, () => {
           clusterNewFaces: false,
           clusterNewPets: false,
         },
+        // the nightly jobs of the assistant's features follow their own settings, not nightlyTasks
+        books: { drafts: { enabled: false } },
+        machineLearning: { enabled: false },
       });
 
       await sut.handleNightlyJobs();

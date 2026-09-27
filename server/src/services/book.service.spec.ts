@@ -1963,7 +1963,8 @@ describe(BookService.name, () => {
       const { warnings } = await sut.renderPage(auth, book.id, mapPage.id, { size: 400 });
 
       expect(warnings).toEqual([]);
-      expect(mocks.map.getVectorTileSource).toHaveBeenCalledWith('https://tiles.immich.cloud/v1/style/light.json');
+      // the light style of the Map page (noodle's default: OpenFreeMap)
+      expect(mocks.map.getVectorTileSource).toHaveBeenCalledWith('https://tiles.openfreemap.org/styles/positron');
       expect(mocks.map.getVectorTile).toHaveBeenCalledWith(source, expect.objectContaining({ z: expect.any(Number) }), {
         cacheFolder: expect.stringMatching(/thumbs\/\.cache\/map-tiles$/),
       });
