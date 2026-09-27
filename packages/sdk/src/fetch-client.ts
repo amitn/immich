@@ -11043,7 +11043,8 @@ export enum BookStyleTheme {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    GigPoster = "gig-poster"
+    GigPoster = "gig-poster",
+    FieldGuide = "field-guide"
 }
 export enum BookExportStatus {
     Pending = "pending",
@@ -11064,7 +11065,8 @@ export enum BookStylePreset {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    Concerts = "concerts"
+    Concerts = "concerts",
+    Nature = "nature"
 }
 export enum BookMapLook {
     Wash = "wash",
@@ -11191,7 +11193,8 @@ export enum HighlightStyle {
     Wine = "wine",
     Cookbook = "cookbook",
     Travel = "travel",
-    Concerts = "concerts"
+    Concerts = "concerts",
+    Nature = "nature"
 }
 export enum ManualJobName {
     PersonCleanup = "person-cleanup",
