@@ -231,11 +231,13 @@ describe(CollectionNoticeService.name, () => {
       ]);
     });
 
-    it('should do nothing by default, until the administrator turns the notifications on', async () => {
+    it('should check the users by default', async () => {
       mocks.systemMetadata.get.mockResolvedValue({});
-      await expect(sut.handleQueueAll()).resolves.toBe(JobStatus.Skipped);
-      await expect(sut.handleCheck({ id: auth.user.id })).resolves.toBe(JobStatus.Skipped);
-      expect(mocks.job.queueAll).not.toHaveBeenCalled();
+      mocks.user.getList.mockResolvedValue([{ id: 'user-1', metadata: [] }] as never);
+      await expect(sut.handleQueueAll()).resolves.toBe(JobStatus.Success);
+      expect(mocks.job.queueAll).toHaveBeenCalledWith([
+        { name: JobName.CollectionNoticesCheck, data: { id: 'user-1' } },
+      ]);
     });
 
     it('should do nothing when the administrator turned the notifications off', async () => {
@@ -546,7 +548,7 @@ describe(CollectionNoticeService.name, () => {
     });
   });
 
-  it('should be off by default for now, and on for the users once the administrator turns it on', () => {
-    expect(defaults.collections.notifications).toEqual({ enabled: false, maxPerRun: 3, windowDays: 14 });
+  it('should be on by default, for the administrator and the users to turn off', () => {
+    expect(defaults.collections.notifications).toEqual({ enabled: true, maxPerRun: 3, windowDays: 14 });
   });
 });

@@ -183,7 +183,7 @@
     "book_settings_description": "Map pages and suggested books",
     "cleared_jobs": "Cleared jobs for: {job}",
     "collection_notifications_enabled": "New collection found notifications",
-    "collection_notifications_enabled_description": "Every night, look at the photos the users uploaded for new visits of the collections (a meal, a museum visit, a tasting, a cooking session, a trip) that nobody named yet, and notify them, e.g. \"Name the dishes from last night at Taormina?\". The notification opens the naming dialog on those photos. Needs smart search. Off by default for now, until the collections of concerts, nature, gardens, reading and children's art exist, whose photos would otherwise be offered to the wrong collections. Users can turn this off in their settings.",
+    "collection_notifications_enabled_description": "Every night, look at the photos the users uploaded for new visits of the collections (a meal, a museum visit, a tasting, a cooking session, a trip) that nobody named yet, and notify them, e.g. \"Name the dishes from last night at Taormina?\". The notification opens the naming dialog on those photos. Needs smart search. Photos that several collections find are offered once, in the collection that fits them best. Users can turn this off in their settings.",
     "collection_notifications_job": "Look for new collections to name",
     "collection_notifications_max_per_run": "Notifications per night",
     "collection_notifications_max_per_run_description": "The most notifications sent to a user per run; the others wait for the next run",
