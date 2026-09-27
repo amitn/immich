@@ -6,6 +6,7 @@ import {
   CHAR_WIDTH,
   LINE_HEIGHT,
   PageDecoration,
+  balanceLines,
   escapeXml,
   fitText,
   getMenuFrame,
@@ -65,7 +66,9 @@ const wrapBlock = (
   charWidth: number,
 ): { lines: string[]; fontPx: number; height: number } => {
   const fitted = fitText(text, box, fontPx, charWidth);
-  return { ...fitted, height: fitted.lines.length * fitted.fontPx * LINE_HEIGHT };
+  // lines of about the same length, not a word left alone on the last one
+  const lines = balanceLines(text, fitted.lines, box.width, fitted.fontPx, charWidth);
+  return { lines, fontPx: fitted.fontPx, height: lines.length * fitted.fontPx * LINE_HEIGHT };
 };
 
 /**

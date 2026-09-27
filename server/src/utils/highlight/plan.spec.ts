@@ -349,6 +349,35 @@ describe('planHighlight', () => {
     expect(result.usedIds).not.toContain(photos[8].id);
   });
 
+  it('should show the street before a dinner in the chapter of the dinner, not in one of its own', () => {
+    const outside = photo({ takenAt: start, city: 'Yountville' });
+    const dinner = Array.from({ length: 6 }, (_, i) =>
+      photo({ takenAt: start + 2 * HOUR + i * 10 * 60_000, ...food(`Dish ${i + 1}`) }),
+    );
+    const result = plan([outside, ...dinner], [], { style: bookStylePresets.food.style, includeMaps: false });
+    // a single chapter: the title card opens it
+    expect(result.shots.filter((shot) => shot.kind === 'chapter')).toHaveLength(0);
+    expect(result.chapters).toHaveLength(1);
+    expect(result.chapters[0].title).toBe('Trattoria da Nino');
+    expect(result.chapters[0].assetIds).toContain(outside.id);
+  });
+
+  it('should title a chapter that returns to earlier places with its dates', () => {
+    const photos = [
+      ...event(10, start, () => ({ city: 'Taormina' })),
+      ...event(10, start + 3 * DAY, () => ({ city: 'Catania' })),
+      ...event(10, start + 6 * DAY, () => ({ city: 'Taormina' })),
+    ];
+    const titles = plan(photos, [], { includeMaps: false })
+      .shots.filter((shot) => shot.kind === 'chapter')
+      .map((shot) => shot.kind === 'chapter' && [shot.title, shot.subtitle]);
+    expect(titles).toEqual([
+      ['Taormina', '12 June 2024'],
+      ['Catania', '15 June 2024'],
+      ['18 June 2024', 'Taormina'],
+    ]);
+  });
+
   it('should leave out the captions when asked', () => {
     const photos = [
       photo({ collection: { pack: 'food', place: 'Nino', kind: 'entry', entry: 'Caponata' } }),

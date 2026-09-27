@@ -5,8 +5,10 @@ import { camelCase, upperFirst } from 'lodash-es';
 import { Duration } from 'luxon';
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import { Writable } from 'node:stream';
 import sharp, { OverlayOptions, Sharp } from 'sharp';
+import type { NormalizedRect } from 'src/dtos/book.dto.js';
 import type {
   Bitmap,
   DecodeToBufferOptions,
@@ -76,6 +78,21 @@ export type ExtractResult = {
   buffer: Buffer;
   format: RawExtractedFormat;
 };
+
+export type HighlightStillSpec = {
+  input: string;
+  output: string;
+  frame: 'cover' | 'contain';
+  /** the region of the upright photo shown when it covers the frame */
+  crop: NormalizedRect;
+  width: number;
+  height: number;
+};
+
+/** the ffmpeg binary: `FFMPEG_PATH` when set, as fluent-ffmpeg reads it too */
+const getFfmpegPath = () => process.env.FFMPEG_PATH || 'ffmpeg';
+
+let ffmpegFilters: Promise<Set<string>> | undefined;
 
 @Injectable()
 export class MediaRepository {
@@ -1004,6 +1021,183 @@ export class MediaRepository {
         return pipeline.png().toBuffer();
       }
     }
+  }
+
+  /**
+   * The still of a highlight shot as a PNG of `width`×`height` (the aspect ratio of the frame): the region `crop` of the
+   * photo (`cover`), or the whole photo over a blurred, darkened copy of itself (`contain`), e.g. a portrait
+   */
+  async composeHighlightStill({ input, output, frame, crop, width, height }: HighlightStillSpec): Promise<void> {
+    const options = { autoOrient: true, failOn: 'none', limitInputPixels: false, unlimited: true } as const;
+    const { autoOrient } = await sharp(input, options).metadata();
+    if (frame === 'cover') {
+      await sharp(input, options)
+        .extract(getCropRegion(crop, autoOrient.width, autoOrient.height))
+        .resize(width, height, { fit: 'cover', kernel: 'lanczos3' })
+        .flatten({ background: '#000000' })
+        .toColourspace('srgb')
+        .png({ compressionLevel: 1 })
+        .toFile(output);
+      return;
+    }
+
+    // a pipeline resizes once: the copy is shrunk and blurred, then enlarged again
+    const small = await sharp(input, options)
+      .resize(Math.round(width / 16), Math.round(height / 16), { fit: 'cover' })
+      .flatten({ background: '#000000' })
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const background = await sharp(small.data, { raw: small.info })
+      .blur(3)
+      .modulate({ brightness: 0.55, saturation: 0.85 })
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+      .then(({ data, info }) =>
+        sharp(data, { raw: info })
+          .resize(width, height, { fit: 'fill', kernel: 'cubic' })
+          .raw()
+          .toBuffer({ resolveWithObject: true }),
+      );
+    const photo = await sharp(input, options)
+      .resize(width, height, { fit: 'inside', kernel: 'lanczos3' })
+      .flatten({ background: '#000000' })
+      .toColourspace('srgb')
+      .png({ compressionLevel: 1 })
+      .toBuffer({ resolveWithObject: true });
+    await sharp(background.data, { raw: background.info })
+      .composite([
+        {
+          input: photo.data,
+          left: Math.round((width - photo.info.width) / 2),
+          top: Math.round((height - photo.info.height) / 2),
+        },
+      ])
+      .png({ compressionLevel: 1 })
+      .toFile(output);
+  }
+
+  /** One frame of a video at `seconds`, as a JPEG at most `size` pixels wide, e.g. to find its best part */
+  getVideoFrame(input: string, seconds: number, size = 512): Promise<Buffer> {
+    const args = [
+      '-hide_banner',
+      '-nostdin',
+      '-loglevel',
+      'error',
+      '-ss',
+      String(Math.max(0, seconds)),
+      '-i',
+      input,
+      '-frames:v',
+      '1',
+      '-vf',
+      `scale='min(${size},iw)':-2`,
+      '-f',
+      'image2pipe',
+      '-c:v',
+      'mjpeg',
+      'pipe:1',
+    ];
+    return new Promise((resolve, reject) => {
+      const child = spawn(getFfmpegPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      const chunks: Buffer[] = [];
+      let stderr = '';
+      child.stdout.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => (stderr += chunk));
+      child.on('error', reject);
+      child.on('close', (code) => {
+        const data = Buffer.concat(chunks);
+        if (code !== 0 || data.length === 0) {
+          reject(new Error(`ffmpeg could not read a frame at ${seconds}s (${stderr.trim() || `exit code ${code}`})`));
+          return;
+        }
+        resolve(data);
+      });
+    });
+  }
+
+  /** The filters of the installed ffmpeg, e.g. to tell whether it has tonemapx or zscale */
+  async getFfmpegFilters(): Promise<Set<string>> {
+    ffmpegFilters ??= new Promise<Set<string>>((resolve) => {
+      const child = spawn(getFfmpegPath(), ['-hide_banner', '-filters'], { stdio: ['ignore', 'pipe', 'ignore'] });
+      let stdout = '';
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => (stdout += chunk));
+      child.on('error', () => resolve(new Set()));
+      child.on('close', () =>
+        resolve(
+          new Set(
+            stdout
+              .split('\n')
+              .map((line) => /^\s*[.A-Z|]{2,3}\s+(\w+)\s/.exec(line)?.[1])
+              .filter((name): name is string => !!name),
+          ),
+        ),
+      );
+    });
+    return ffmpegFilters;
+  }
+
+  /**
+   * Runs an ffmpeg command, e.g. of a highlight video (see `toFfmpegArgs`), reporting the frames written; the process is
+   * killed when `signal` aborts, and the promise then rejects with the abort reason
+   */
+  runFfmpeg(
+    args: string[],
+    { signal, onProgress }: { signal?: AbortSignal; onProgress?: (frames: number) => void } = {},
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason ?? new Error('Aborted'));
+        return;
+      }
+
+      const child = spawn(getFfmpegPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] });
+      try {
+        if (child.pid) {
+          os.setPriority(child.pid, 10);
+        }
+      } catch {
+        // a lower priority is nice to have
+      }
+      this.logger.verbose(`ffmpeg ${args.join(' ')}`);
+
+      const onAbort = () => child.kill('SIGKILL');
+      signal?.addEventListener('abort', onAbort, { once: true });
+
+      let stderr = '';
+      let remainder = '';
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => (stderr = (stderr + chunk).slice(-4000)));
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        const lines = (remainder + chunk).split('\n');
+        remainder = lines.pop() ?? '';
+        for (const line of lines) {
+          const frames = /^frame=(\d+)/.exec(line.trim())?.[1];
+          if (frames !== undefined) {
+            onProgress?.(Number(frames));
+          }
+        }
+      });
+      child.on('error', (error) => {
+        signal?.removeEventListener('abort', onAbort);
+        reject(error);
+      });
+      child.on('close', (code) => {
+        signal?.removeEventListener('abort', onAbort);
+        if (signal?.aborted) {
+          reject(signal.reason ?? new Error('Aborted'));
+        } else if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg exited with code ${code}: ${stderr.trim()}`));
+        }
+      });
+    });
   }
 
   /**

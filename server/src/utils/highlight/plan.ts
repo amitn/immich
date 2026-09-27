@@ -1,6 +1,7 @@
 import type { BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
 import {
   AutoLayoutPhoto,
+  PhotoChapter,
   RankedPhoto,
   formatDateRange,
   formatPlaces,
@@ -54,8 +55,11 @@ const MIN_VIDEO_SECONDS = 1.5;
 const MAX_CARD_SHARE = 0.3;
 /** the clips take at most this share of the film */
 const MAX_CLIP_SHARE = 0.3;
-/** photos narrower than this share of the frame's aspect ratio are shown whole, over a blurred copy of themselves */
-const CONTAIN_BELOW = 0.8;
+/**
+ * photos narrower than this share of the frame's aspect ratio (portraits and squares; not 4:3 photos, which are cropped)
+ * are shown whole, over a blurred copy of themselves
+ */
+const CONTAIN_BELOW = 0.68;
 /** photos this small (the long and short edge, in pixels) would look blurry in 1080p */
 const MIN_LONG_EDGE = 1000;
 const MIN_SHORT_EDGE = 560;
@@ -364,6 +368,46 @@ const redact = (pack: string | undefined, text: string) => {
   return definition ? redactText(definition, text) : text;
 };
 
+/** a chapter of fewer photos than this is not worth a card of its own in a film */
+const MIN_CHAPTER_PHOTOS = 3;
+
+/**
+ * Joins the few photos between two visits of a collection (the street outside the restaurant, taken an hour before the
+ * dinner) to the closest chapter on the same day, which a film would otherwise open with a card for one photo
+ */
+export const absorbSmallChapters = (chapters: PhotoChapter[]): PhotoChapter[] => {
+  const result = chapters.map((chapter) => ({ ...chapter, photos: [...chapter.photos] }));
+  for (let index = 0; index < result.length; index++) {
+    const chapter = result[index];
+    if (chapter.visit || chapter.photos.length >= MIN_CHAPTER_PHOTOS || result.length === 1) {
+      continue;
+    }
+    const start = Math.min(...chapter.photos.map((photo) => photo.takenAt));
+    const end = Math.max(...chapter.photos.map((photo) => photo.takenAt));
+    const gap = (other?: PhotoChapter) => {
+      if (!other || other.photos.length === 0) {
+        return Infinity;
+      }
+      const otherStart = Math.min(...other.photos.map((photo) => photo.takenAt));
+      const otherEnd = Math.max(...other.photos.map((photo) => photo.takenAt));
+      const distance = otherEnd < start ? start - otherEnd : otherStart - end;
+      return day(start) === day(otherStart) || day(end) === day(otherEnd) ? Math.max(0, distance) : Infinity;
+    };
+    const before = gap(result[index - 1]);
+    const after = gap(result[index + 1]);
+    if (!Number.isFinite(Math.min(before, after))) {
+      continue;
+    }
+    const target = result[before <= after ? index - 1 : index + 1];
+    target.photos = [...target.photos, ...chapter.photos].toSorted(
+      (a, b) => a.takenAt - b.takenAt || a.id.localeCompare(b.id),
+    );
+    result.splice(index, 1);
+    index--;
+  }
+  return result;
+};
+
 /** frames of a duration */
 const toFrames = (seconds: number, fps: number) => Math.max(1, Math.round(seconds * fps));
 
@@ -434,7 +478,7 @@ export const planHighlight = (
 
   // about one chapter every 15 seconds
   const maxChapters = Math.max(1, Math.round(target / 15));
-  const chapters = splitChapters(kept, { collection, maxChapters });
+  const chapters = absorbSmallChapters(splitChapters(kept, { collection, maxChapters }));
 
   // the cards: the title, then a map or a title for each chapter (a single chapter gets its map only)
   type Card = { kind: 'chapter' | 'map'; chapter: number; duration: number };
@@ -560,6 +604,13 @@ export const planHighlight = (
     }
     return { title, subtitle: singleDay ? `${dates} · ${formatTime(Math.min(...times))}` : dates };
   });
+  // a chapter that returns to the places of an earlier one is titled with its dates instead
+  for (const [index, chapter] of chapterTitles.entries()) {
+    const repeated = chapterTitles.slice(0, index).some((earlier) => earlier.title === chapter.title);
+    if (repeated && !chapters[index].visit && chapter.subtitle) {
+      chapterTitles[index] = { title: chapter.subtitle, subtitle: chapter.title };
+    }
+  }
 
   const places = formatPlaces(getPlaces(shownAll));
   const shots: HighlightShot[] = [
@@ -603,9 +654,12 @@ export const planHighlight = (
       let caption: string | undefined;
       if (captions) {
         const entry = getEntryCaption(photo);
+        // a visit's card names its place and city: its photos are only named after their entries (the dishes)
         caption = entry
           ? redact(photo.collection?.pack, entry)
-          : getFactualCaption([photo], 'place', { sectionTitle, previous: previousCaption });
+          : chapter.visit
+            ? undefined
+            : getFactualCaption([photo], 'place', { sectionTitle, previous: previousCaption });
         if (caption && caption === previousCaption) {
           caption = undefined;
         }
