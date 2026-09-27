@@ -102,7 +102,7 @@ ENV NODE_ENV=production \
 
 # Fonts of the photo book renderer (see server/src/utils/book/fonts.ts): Liberation Serif/Sans/Mono, metric-compatible
 # with Times New Roman and Arial, and GNU FreeFont for scripts they don't cover (Hebrew, Arabic, ...). The base image
-# only has DejaVu. fontconfig adds fc-match and the font cache. The base image removed ca-certificates, so the HTTPS
+# installs no fonts itself (at most DejaVu, through fontconfig-config). fontconfig adds fc-match and the font cache. The base image removed ca-certificates, so the HTTPS
 # sources (the PostgreSQL repository) are set aside while the Debian ones are refreshed.
 RUN mkdir /tmp/apt-https && \
   for source in /etc/apt/sources.list.d/*; do \
