@@ -2,6 +2,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { Injectable } from '@nestjs/common';
 import { serverVersion } from 'src/constants.js';
+import { ActivityAgentTools } from 'src/services/agent-tools/activity.tools.js';
 import { AlbumAgentTools } from 'src/services/agent-tools/album.tools.js';
 import { ArtAgentTools } from 'src/services/agent-tools/art.tools.js';
 import { BookDraftAgentTools } from 'src/services/agent-tools/book-draft.tools.js';
@@ -70,6 +71,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(CollectionAgentTools, this),
         BaseService.create(QuestionAgentTools, this),
         BaseService.create(HighlightAgentTools, this),
+        BaseService.create(ActivityAgentTools, this),
       ];
 
       this.tools = new Map();
