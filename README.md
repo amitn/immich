@@ -34,4 +34,43 @@ Captured from the local dev instance at 1440×900, logged in as the demo user. T
 - `26-admin-agent-profiles-dark.png`: Admin › AI Assistant › Agent profiles (the local command path is blurred).
 - `27-admin-photo-books-dark.png`: Admin › Settings › Photo books (map tiles and privacy, Stadia key, default map style).
 
+## Collections, themed books, sharing, styles and highlight videos (28–63)
+
+- `28-collections-museum-visits-dark.png`: "Name the artworks" (album "…" menu): the 3 museum visits found, with their artwork, label and named counts.
+- `29-collections-museum-artworks-{dark,light}.png`: The Museu de Évora visit: each artwork matched with its parsed wall-label caption ("Virgin and Child — Nicolau Chanterene, 1535-1540, marble").
+- `30-collections-museum-wall-labels-dark.png`: The same visit: the museum name from the tags and the 15 wall-label photos read.
+- `31-collections-wine-thanksgiving-dark.png`: "Name the wines" on the Thanksgiving tasting 2013: the bottles named producer · wine · vintage.
+- `32-collections-cookbook-quiche-dark.png`: "Name the recipe steps" on the Quiche: the recipe card and "4 steps read on the recipe".
+- `33-collections-cookbook-quiche-steps-dark.png`: The Quiche cooking photos, each matched to its recipe step.
+- `34-collections-travel-crete-dark.png`: "Name the legs of a trip" on Crete, October 2016: the travel documents, the OCR warnings and the legs.
+- `35-book-gallery-spread-{dark,light}.png`: A Gallery (museum) book spread: every artwork shown whole, with a museum-label caption and a catalogue number.
+- `36-book-gallery-spread-sculpture-dark.png`: A Gallery spread of the Kolkata sculptures.
+- `37-book-cellar-notes-tasting-note-dark.png`: A Cellar notes tasting-note page: producer in small caps, wine, vintage and ruled lines for the note.
+- `38-book-cookbook-recipe-dark.png`: A Cookbook recipe page: the Quiche card photo, the title, the times and the typeset ingredients.
+- `39-book-travel-ticket-stub-bus-dark.png`: A Travel ticket-stub page (bus Chania → Soutia): no passenger name or booking code.
+- `40-book-travel-ticket-stub-ferry-dark.png`: A Travel ticket-stub page (ferry Sougia → Sfakia), with the "also written on the ticket" note.
+- `41-photo-books-list-themes-dark.png`: The Photo books list with the themed books.
+- `42-assistant-ask-your-library-dark.png`: The Assistant empty state with the "Ask your library" suggestions.
+- `43-assistant-answer-museums-{dark,light}.png`: A live answer to "Which museums did we visit?": a table of the 3 visits from the collections.
+- `44-assistant-answer-french-laundry-{dark,light}.png`: A live answer to "What did we eat at The French Laundry?": the 12 named courses, with a thumbnail strip.
+- `45-assistant-chat-list-delete-dark.png`: The chat list with its per-chat delete buttons (selected and hovered rows) and "Delete all chats".
+- `46-book-share-modal-dark.png`: Sharing a photo book: the book link description and "Allow downloading the PDF".
+- `47-shared-links-photo-books-tab-dark.png` (crop): Sharing → Shared links, on the new Photo books tab.
+- `48-public-shared-book-{dark,light}.png`: The public shared-book page, logged out, as a page-turning web book.
+- `49-style-create-with-assistant-dark.png`: The "Create a book style" modal (Style menu → Create with assistant…), with example prompts.
+- `50-style-menu-your-styles-dark.png`: The Style menu with the themed presets, "Your styles" (Wedding: ivory, sage and gold) and Create with assistant…
+- `51-manage-styles-modal-dark.png`: The Manage styles modal (Photo books page).
+- `52-book-applying-style-dark.png`: The "Applying the Wedding: ivory, sage and gold style…" status line while the pages re-render.
+- `53-book-wedding-style-applied-dark.png`: The book after the Wedding style was applied.
+- `54-artistic-style-create-with-assistant-dark.png`: The Artistic style modal with its Custom style and "Create with assistant…".
+- `55-highlight-video-modal-dark.png`: The "Make a highlight video" modal: title, length, style, maps, captions and music.
+- `56-highlight-video-progress-dark.png`: The rendering progress card ("Rendering… 54%") on the album.
+- `57-highlight-video-frame-{dark,light}.png`: A frame of the finished 30 s museum highlight video in the viewer, with a museum-label lower third.
+- `58-highlight-video-frame-caption-dark.png`: Another frame of the video (a portrait with its label).
+- `59-book-review-checked-at-dark.png`: The Book review panel after "Check again", showing "Checked at …" and docked beside the page.
+- `60-user-settings-suggested-books-dark.png`: User settings → Features → Suggested books.
+- `61-admin-food-openstreetmap-dark.png`: Admin → Settings → Food: the OpenStreetMap restaurant lookup and the Overpass URL.
+- `62-admin-photo-books-drafts-dark.png`: Admin → Settings → Photo books: map tiles and the Suggested books toggles.
+- `63-admin-photo-books-drafts-limits-dark.png`: Admin → Photo books: the draft kinds and "Books per night".
+
 Demo photos by gnuckx, CC BY 2.0, via Wikimedia Commons (see ATTRIBUTION.md)
