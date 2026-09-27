@@ -8,6 +8,9 @@ export const BOOK_FONT_STACKS: Record<string, string[]> = {
   serif: ['Liberation Serif', 'Times New Roman', 'Times', 'DejaVu Serif', 'Noto Serif', 'FreeSerif', 'serif'],
   'sans-serif': ['Liberation Sans', 'Arial', 'Helvetica', 'DejaVu Sans', 'Noto Sans', 'FreeSans', 'sans-serif'],
   monospace: ['Liberation Mono', 'Courier New', 'DejaVu Sans Mono', 'Noto Sans Mono', 'FreeMono', 'monospace'],
+  // handwriting-like faces, for the labels of a child's artworks (a style names them before sans-serif, which is used
+  // where none is installed)
+  handwriting: ['Patrick Hand', 'Comic Neue', 'Chalkboard SE', 'Segoe Print', 'Bradley Hand'],
 };
 
 const GENERIC_FAMILIES = new Set([...Object.keys(BOOK_FONT_STACKS), 'cursive', 'fantasy', 'system-ui']);

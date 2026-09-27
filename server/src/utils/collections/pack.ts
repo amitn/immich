@@ -184,6 +184,11 @@ export type CollectionPack = {
      * the redaction can't hide from an image (a boarding pass)
      */
     sourceImages?: boolean;
+    /**
+     * whether books show where the pack's photos were taken (map pages, the cities in chapter titles), default true;
+     * off for photos that must not tell where a family lives (a child's artworks)
+     */
+    location?: boolean;
   };
 };
 
@@ -224,6 +229,8 @@ export type CollectionReviewInput = {
     height?: number;
     collection?: { pack: string; place: string; kind: 'entry' | 'source'; entry?: string } | null;
     sourcePage?: CollectionSourcePage | null;
+    /** the faces found on the photo, e.g. for a pack of artworks that must show no child */
+    faces?: NormalizedRect[];
   }>;
   /** the chapters of the pack's places in the book */
   chapters: CollectionChapter[];
@@ -235,7 +242,7 @@ export type CollectionReviewInput = {
 /** an issue of a pack's own book check, of one of the kinds `review_book` reports */
 export type CollectionReviewIssue = {
   severity: 'high' | 'medium' | 'low';
-  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name' | 'could-look-better';
+  type: 'empty-slot' | 'missing-captions' | 'missing-menu-page' | 'missing-dish-name' | 'could-look-better' | 'privacy';
   message: string;
   /** one-based page numbers */
   pages: number[];
@@ -276,9 +283,11 @@ export type CollectionBookTheme = {
   summary: string;
   /**
    * how the renderer draws it: printed is the look of a printed menu (hairline frame, small caps, ornaments); gallery
-   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions)
+   * the look of an exhibition catalogue (photos shown whole, never cropped, with museum-label captions); mounted the
+   * look of drawings on a refrigerator door (photos shown whole on a paper mat, taped at the corners, with
+   * handwritten labels)
    */
-  look: 'printed' | 'gallery';
+  look: 'printed' | 'gallery' | 'mounted';
   /** the heading of the note on the tasting-note layouts, default "Tasting note", e.g. "Notes" in a reading journal */
   noteHeading?: string;
 };

@@ -20,6 +20,10 @@ export const BOOK_STYLE_FONTS: ReadonlyArray<{ fontFamily: string; look: string 
   { fontFamily: 'monospace', look: 'a typewriter face (Liberation Mono), for a notebook or archive look' },
   { fontFamily: 'FreeMono, monospace', look: 'a thin Courier-like typewriter face, for a vintage look' },
   { fontFamily: 'DejaVu Sans Mono, monospace', look: 'a sturdy monospaced face, for a technical or retro look' },
+  {
+    fontFamily: 'Patrick Hand, Comic Neue, sans-serif',
+    look: "a handwriting-like face where one is installed (else the sans-serif), for the labels of children's art",
+  },
 ];
 
 const ALLOWED_FONTS = new Map(
