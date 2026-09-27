@@ -1082,6 +1082,7 @@
   "book_style_deleted": "Deleted the style {name}",
   "book_style_manage": "Manage styles",
   "book_style_manage_description": "The styles you designed. Books keep their copy of a style when you rename or delete it.",
+  "book_style_manage_ellipsis": "Manage styles…",
   "book_style_manage_empty": "You have no styles of your own yet. Describe a look to the assistant and it designs one for you.",
   "book_style_margins": "{margin} mm margins",
   "book_style_name_of": "Name of the style {name}",

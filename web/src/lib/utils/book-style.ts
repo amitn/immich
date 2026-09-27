@@ -88,49 +88,105 @@ const STYLE_KEYS = [
 
 type StyleKey = (typeof STYLE_KEYS)[number];
 
-const sameValue = (a: unknown, b: unknown) =>
-  typeof a === 'string' && typeof b === 'string' ? a.toLowerCase() === b.toLowerCase() : a === b;
+/** the defaults of the server (`defaultBookStyle`) for the sizes older styles don't have */
+const DEFAULT_TITLE_SIZE_PT = 28;
+const DEFAULT_CAPTION_SIZE_PT = 10;
 
-/** The value of a style option, with the defaults of the server for the options older styles don't have */
-const valueOf = (style: BookStyle, key: StyleKey) => {
+/**
+ * The first font of each of the server's font stacks (`BOOK_FONT_STACKS` in `server/src/utils/book/fonts.ts`): a font
+ * family expanded to its stack starts with it, so it stands for the generic family it was expanded from
+ */
+const FONT_STACK_HEADS: Record<string, string> = {
+  'liberation serif': 'serif',
+  'liberation sans': 'sans-serif',
+  'liberation mono': 'monospace',
+};
+
+/** e.g. "#F6F1E7" and "#f6f1e7ff" → "#f6f1e7", "#abc" → "#aabbcc" */
+const normalizeColor = (color: string) => {
+  let hex = color.trim().toLowerCase();
+  if (/^#[\da-f]{3,4}$/.test(hex)) {
+    hex = `#${[...hex.slice(1)].map((digit) => digit + digit).join('')}`;
+  }
+  return hex.length === 9 && hex.endsWith('ff') ? hex.slice(0, 7) : hex;
+};
+
+/**
+ * The first family of a font-family list, the font the pages are drawn with, e.g. "FreeSerif, serif" → "freeserif". A
+ * list expanded to the server's stack of a generic family ("'Liberation Serif', 'Times New Roman', …, serif") is that
+ * generic family, and an empty one the default serif
+ */
+export const normalizeFontFamily = (fontFamily: string | undefined) => {
+  const [first = ''] = (fontFamily ?? '').split(',', 1);
+  const name = first
+    .trim()
+    .replaceAll(/^['"]+|['"]+$/g, '')
+    .trim()
+    .toLowerCase();
+  return FONT_STACK_HEADS[name] ?? (name || 'serif');
+};
+
+/** sizes and distances to a hundredth, so that e.g. 10.5 and 10.500000001 are the same */
+const normalizeNumber = (value: number) => Math.round(value * 100) / 100;
+
+/** The value of a style option, normalized, with the defaults of the server for the options older styles don't have */
+const valueOf = (style: BookStyle, key: StyleKey): string | number => {
   switch (key) {
     case 'theme': {
       return style.theme ?? BookStyleTheme.Plain;
     }
     case 'accentColor': {
-      return style.accentColor ?? style.textColor;
+      return normalizeColor(style.accentColor ?? style.textColor);
+    }
+    case 'background':
+    case 'textColor': {
+      return normalizeColor(style[key]);
+    }
+    case 'fontFamily': {
+      return normalizeFontFamily(style.fontFamily);
+    }
+    case 'titleSizePt': {
+      return normalizeNumber(style.titleSizePt ?? DEFAULT_TITLE_SIZE_PT);
+    }
+    case 'captionSizePt': {
+      return normalizeNumber(style.captionSizePt ?? DEFAULT_CAPTION_SIZE_PT);
     }
     default: {
-      return style[key];
+      return normalizeNumber(style[key]);
     }
   }
 };
 
+/** Whether two styles draw the same pages: their values are equal once normalized (see `valueOf`) */
+export const isSameBookStyle = (a: BookStyle, b: BookStyle) =>
+  STYLE_KEYS.every((key) => valueOf(a, key) === valueOf(b, key));
+
 /** The style's theme, e.g. food for the printed-menu look of the food preset */
-export const getBookStyleTheme = (style?: BookStyle) => (style ? valueOf(style, 'theme') : undefined);
+export const getBookStyleTheme = (style?: BookStyle) => (style ? (style.theme ?? BookStyleTheme.Plain) : undefined);
 
 /** The color of the rules and ornaments of the food theme */
-export const getBookStyleAccent = (style?: BookStyle) => (style ? valueOf(style, 'accentColor') : undefined);
+export const getBookStyleAccent = (style?: BookStyle) => (style ? (style.accentColor ?? style.textColor) : undefined);
 
-/** The preset the style is exactly equal to, or undefined for a custom style */
+/**
+ * The preset the style is equal to, or undefined for a custom style. The values are compared normalized (see
+ * `isSameBookStyle`), so a book keeps its preset when the server changes how it writes it, e.g. expands its fonts
+ */
 export const findBookStylePreset = (
   style: BookStyle,
   available: BookStylePresetResponseDto[],
-): BookStylePresetResponseDto | undefined =>
-  available.find((preset) => STYLE_KEYS.every((key) => sameValue(valueOf(style, key), valueOf(preset.style, key))));
+): BookStylePresetResponseDto | undefined => available.find((preset) => isSameBookStyle(style, preset.style));
 
-/** The user's own style the book's style is exactly equal to (the book has a copy of it) */
+/** The user's own style the book's style is equal to (the book has a copy of it) */
 export const findBookUserStyle = (
   style: BookStyle,
   available: BookUserStyleResponseDto[],
-): BookUserStyleResponseDto | undefined =>
-  available.find((item) => STYLE_KEYS.every((key) => sameValue(valueOf(style, key), valueOf(item.style, key))));
+): BookUserStyleResponseDto | undefined => available.find((item) => isSameBookStyle(style, item.style));
 
 /** how the renderer draws a theme: plain pages, a printed menu (rules, ornaments, small caps) or a gallery catalogue */
 export type BookStyleLook = 'plain' | 'printed' | 'gallery';
 
 export const getBookStyleLook = (style?: BookStyle): BookStyleLook => {
-  switch (style ? valueOf(style, 'theme') : BookStyleTheme.Plain) {
+  switch (getBookStyleTheme(style) ?? BookStyleTheme.Plain) {
     case BookStyleTheme.Plain: {
       return 'plain';
     }

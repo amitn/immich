@@ -3,6 +3,7 @@
   import BookStyleMenuOption from '$lib/components/books/BookStyleMenuOption.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
+  import ManageBookStylesModal from '$lib/modals/ManageBookStylesModal.svelte';
   import StyleCreatorModal from '$lib/modals/StyleCreatorModal.svelte';
   import {
     BOOK_STYLE_PRESET_LABEL_KEYS,
@@ -20,7 +21,7 @@
     type BookUserStyleResponseDto,
   } from '@immich/sdk';
   import { modalManager, toastManager } from '@immich/ui';
-  import { mdiCreationOutline, mdiPaletteSwatchOutline } from '@mdi/js';
+  import { mdiCogOutline, mdiCreationOutline, mdiPaletteSwatchOutline } from '@mdi/js';
   import { onMount } from 'svelte';
   import { t } from 'svelte-i18n';
 
@@ -30,9 +31,11 @@
     onUpdated: (book: BookDetailResponseDto) => void;
     /** Called with the name of the style being applied, and without one when applying it failed */
     onApplying?: (name?: string) => void;
+    /** The classes of the button's label, e.g. to hide it in a narrow toolbar */
+    labelClass?: string;
   };
 
-  const { book, onUpdated, onApplying }: Props = $props();
+  const { book, onUpdated, onApplying, labelClass }: Props = $props();
 
   let presets = $state<BookStylePresetResponseDto[]>([]);
   let userStyles = $state<BookUserStyleResponseDto[]>([]);
@@ -99,18 +102,28 @@
 
   const createWithAssistant = () => modalManager.show(StyleCreatorModal, { target: { kind: 'book', book } });
 
-  onMount(async () => {
-    try {
-      presets = await loadBookStylePresets();
-    } catch (error) {
-      handleError(error, $t('errors.unable_to_load_book_style_presets'), { notify: false });
-    }
+  const loadUserStyles = async () => {
     try {
       userStyles = await loadBookUserStyles();
     } catch (error) {
       // the presets still work without the user's own styles
       handleError(error, $t('errors.unable_to_load_book_styles'), { notify: false });
     }
+  };
+
+  // the styles may have been renamed or deleted there
+  const manageStyles = async () => {
+    await modalManager.show(ManageBookStylesModal, {});
+    await loadUserStyles();
+  };
+
+  onMount(async () => {
+    try {
+      presets = await loadBookStylePresets();
+    } catch (error) {
+      handleError(error, $t('errors.unable_to_load_book_style_presets'), { notify: false });
+    }
+    await loadUserStyles();
   });
 </script>
 
@@ -121,8 +134,11 @@
     label={$t('book_style')}
     color="secondary"
     size="small"
-    align="top-right"
-    menuClass="dark:bg-neutral-900 dark:ring-1 dark:ring-neutral-700 max-h-[70vh] overflow-y-auto"
+    align="bottom-right"
+    direction="left"
+    menuClass="dark:bg-neutral-900 dark:ring-1 dark:ring-neutral-700"
+    menuMaxHeightFraction={0.7}
+    {labelClass}
     hideContent
   >
     {#if !current && !currentUserStyle}
@@ -172,5 +188,6 @@
         onClick={createWithAssistant}
       />
     {/if}
+    <BookStyleMenuAction text={$t('book_style_manage_ellipsis')} icon={mdiCogOutline} onClick={manageStyles} />
   </ButtonContextMenu>
 {/if}

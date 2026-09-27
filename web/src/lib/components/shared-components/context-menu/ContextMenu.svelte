@@ -18,6 +18,8 @@
     onClose?: (() => void) | undefined;
     /** Additional classes for the menu, e.g. its colours in dark mode */
     class?: ClassValue;
+    /** The largest part of the window's height a long menu takes before it scrolls, e.g. 0.7; all of it by default */
+    maxHeightFraction?: number;
     children?: Snippet;
   }
 
@@ -34,6 +36,7 @@
     menuElement = $bindable(),
     onClose = undefined,
     class: className = undefined,
+    maxHeightFraction = 1,
     children,
   }: Props = $props();
 
@@ -49,10 +52,13 @@
     const directionWidth = layoutDirection === 'left' ? rect.width : 0;
 
     const margin = 8;
+    // a menu taller than the cap scrolls, and moves up only as far as it needs to show the capped height
+    const cap = maxHeightFraction < 1 ? windowInnerHeight * maxHeightFraction : Infinity;
+    const height = Math.min(menuElement.clientHeight, cap);
 
     const left = Math.max(margin, Math.min(windowInnerWidth - rect.width - margin, x - directionWidth));
-    const top = Math.max(margin, Math.min(windowInnerHeight - menuElement.clientHeight, y));
-    const maxHeight = windowInnerHeight - top - margin;
+    const top = Math.max(margin, Math.min(windowInnerHeight - height - (cap === Infinity ? 0 : margin), y));
+    const maxHeight = Math.min(cap, windowInnerHeight - top - margin);
 
     const needScrollBar = menuElement.clientHeight > maxHeight;
 

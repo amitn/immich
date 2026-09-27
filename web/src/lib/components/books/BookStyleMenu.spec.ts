@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { Component, ComponentProps } from 'svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
+import ManageBookStylesModal from '$lib/modals/ManageBookStylesModal.svelte';
 import StyleCreatorModal from '$lib/modals/StyleCreatorModal.svelte';
 import { resetBookStylePresets } from '$lib/utils/book-style';
 import { bookDetailFactory, bookUserStyleFactory } from '@test-data/factories/book-factory';
@@ -76,6 +77,49 @@ describe('BookStyleMenu component', () => {
 
     expect(entry).toHaveClass('dark:bg-neutral-900', 'dark:text-immich-dark-fg');
     expect(screen.getByRole('menu').parentElement).toHaveClass('dark:bg-neutral-900');
+  });
+
+  it('should keep a long menu below the header, scrolling within most of the window', async () => {
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+    const clientHeight = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(2000);
+
+    renderMenu({ book, onUpdated });
+    await openMenu();
+
+    const menu = screen.getByRole('menu').parentElement!;
+    const maxHeight = Number(menu.style.maxHeight.replace('px', ''));
+    expect(maxHeight).toBeGreaterThan(0);
+    expect(maxHeight).toBeLessThanOrEqual(window.innerHeight * 0.7);
+    expect(Number(menu.style.top.replace('px', '')) + maxHeight).toBeLessThanOrEqual(window.innerHeight);
+    expect(menu).toHaveClass('overflow-auto');
+    clientHeight.mockRestore();
+  });
+
+  it('should open the Manage styles modal and reload the styles after it', async () => {
+    const show = vi.spyOn(modalManager, 'show').mockResolvedValue(undefined as never);
+    const book = bookDetailFactory.build({ style: { ...soft.style } });
+    sdkMock.getBookUserStyles.mockResolvedValue([]);
+
+    renderMenu({ book, onUpdated });
+    await openMenu();
+    await fireEvent.click(screen.getByRole('menuitem', { name: 'book_style_manage_ellipsis' }));
+
+    expect(show).toHaveBeenCalledWith(ManageBookStylesModal, {});
+    await waitFor(() => expect(sdkMock.getBookUserStyles).toHaveBeenCalledTimes(2));
+  });
+
+  it('should mark the preset of a book whose style was saved with an expanded font stack', async () => {
+    const fontFamily = "'Liberation Serif', 'Times New Roman', Times, 'DejaVu Serif', 'Noto Serif', FreeSerif, serif";
+    const book = bookDetailFactory.build({ style: { ...soft.style, fontFamily } });
+
+    renderMenu({ book, onUpdated });
+    const entries = await openMenu();
+
+    expect(entries).toHaveLength(4);
+    expect(screen.getByRole('menuitemradio', { name: /book_style_preset_soft/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
   });
 
   it('should show a custom style', async () => {
