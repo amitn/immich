@@ -1,5 +1,6 @@
 <script lang="ts">
   import AlbumViewer from '$lib/components/album-page/AlbumViewer.svelte';
+  import BookSharedViewer from '$lib/components/share-page/BookSharedViewer.svelte';
   import IndividualSharedViewer from '$lib/components/share-page/IndividualSharedViewer.svelte';
   import ControlAppBar from '$lib/components/shared-components/ControlAppBar.svelte';
   import ThemeButton from '$lib/components/shared-components/ThemeButton.svelte';
@@ -45,10 +46,12 @@
       sharedLink = await sharedLinkLogin({ key, slug, sharedLinkLoginDto: { password } });
       setSharedLink(sharedLink);
       passwordRequired = false;
-      title = (sharedLink.album ? sharedLink.album.albumName : $t('public_share')) + ' - Immich';
+      title = (sharedLink.album?.albumName ?? sharedLink.book?.title ?? $t('public_share')) + ' - Immich';
       description =
         sharedLink.description ||
-        $t('shared_photos_and_videos_count', { values: { assetCount: sharedLink.assets.length } });
+        (sharedLink.book
+          ? (sharedLink.book.subtitle ?? $t('book_page_count', { values: { count: sharedLink.book.pageCount } }))
+          : $t('shared_photos_and_videos_count', { values: { assetCount: sharedLink.assets.length } }));
       await tick();
       await navigate(
         { targetRoute: 'current', assetId: null, assetGridRouteSearchParams: assetViewerManager.gridScrollTarget },
@@ -107,6 +110,9 @@
 
 {#if !passwordRequired && sharedLink?.type === SharedLinkType.Album}
   <AlbumViewer {sharedLink} />
+{/if}
+{#if !passwordRequired && sharedLink?.type === SharedLinkType.Book && sharedLink.book}
+  <BookSharedViewer {sharedLink} {key} {slug} />
 {/if}
 {#if !passwordRequired && sharedLink?.type === SharedLinkType.Individual}
   <div class="immich-scrollbar">

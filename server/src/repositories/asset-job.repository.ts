@@ -9,6 +9,7 @@ import { DB } from 'src/schema/index.js';
 import {
   anyUuid,
   asUuid,
+  hasPeople,
   withAudioStream,
   withDefaultVisibility,
   withEdits,
@@ -473,5 +474,264 @@ export class AssetJobRepository {
   @GenerateSql({ params: [DummyValue.DATE], stream: true })
   streamForMigrationJob() {
     return this.db.selectFrom('asset').select(['id']).where('asset.deletedAt', 'is', null).stream();
+  }
+
+  /** compact metadata, faces and preview path for the assistant tools; callers must check access */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
+  getForAgent(ids: string[], viewingUserId: string) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.type',
+        'asset.localDateTime',
+        'asset.fileCreatedAt',
+        'asset.isFavorite',
+        'asset.width',
+        'asset.height',
+        'asset.checksum',
+        'asset.updatedAt',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.make',
+        'asset_exif.model',
+        'asset_exif.lensModel',
+        'asset_exif.fNumber',
+        'asset_exif.exposureTime',
+        'asset_exif.iso',
+        'asset_exif.focalLength',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.state',
+        'asset_exif.country',
+        'asset_exif.description',
+        'asset_exif.rating',
+        'asset_exif.timeZone',
+      ])
+      .select((eb) =>
+        eb
+          .selectFrom('asset_file')
+          .select('asset_file.path')
+          .whereRef('asset_file.assetId', '=', 'asset.id')
+          .where('asset_file.type', '=', sql.lit(AssetFileType.Preview))
+          .orderBy('asset_file.isEdited', 'desc')
+          .limit(1)
+          .as('previewPath'),
+      )
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_face')
+            .leftJoin('person', (join) =>
+              join
+                .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
+                .on('person.ownerId', '=', asUuid(viewingUserId))
+                .on('person.isHidden', '=', false),
+            )
+            .select([
+              'asset_face.personGroupId as personId',
+              'person.name',
+              'asset_face.imageWidth',
+              'asset_face.imageHeight',
+              'asset_face.boundingBoxX1',
+              'asset_face.boundingBoxY1',
+              'asset_face.boundingBoxX2',
+              'asset_face.boundingBoxY2',
+            ])
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ).as('faces'),
+      )
+      .where('asset.id', '=', anyUuid(ids))
+      .where('asset.deletedAt', 'is', null)
+      .execute();
+  }
+
+  /** albums of the given assets that the user owns or is a member of */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
+  getAlbumsForAgent(ids: string[], userId: string) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('album_asset')
+      .innerJoin('album', (join) =>
+        join.onRef('album.id', '=', 'album_asset.albumId').on('album.deletedAt', 'is', null),
+      )
+      .innerJoin('album_user', (join) =>
+        join.onRef('album_user.albumId', '=', 'album.id').on('album_user.userId', '=', asUuid(userId)),
+      )
+      .select(['album_asset.assetId', 'album.id', 'album.albumName'])
+      .where('album_asset.assetId', '=', anyUuid(ids))
+      .orderBy('album.albumName')
+      .execute();
+  }
+
+  /** time, place and named people of candidate assets for event splitting, ordered by local time */
+  @GenerateSql({
+    params: [
+      {
+        userIds: [DummyValue.UUID],
+        viewingUserId: DummyValue.UUID,
+        personIds: [DummyValue.UUID],
+        takenAfter: DummyValue.DATE,
+        limit: 5000,
+      },
+    ],
+  })
+  getForAgentEvents(options: {
+    /** owners to search; omit only when `albumId` is set and access to it was checked */
+    userIds?: string[];
+    viewingUserId: string;
+    albumId?: string;
+    personIds?: string[];
+    takenAfter?: Date;
+    takenBefore?: Date;
+    limit: number;
+  }) {
+    const { userIds, viewingUserId, albumId, personIds, takenAfter, takenBefore, limit } = options;
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.localDateTime',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.country',
+      ])
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_face')
+            .innerJoin('person', (join) =>
+              join
+                .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
+                .on('person.ownerId', '=', asUuid(viewingUserId))
+                .on('person.isHidden', '=', false)
+                .on('person.name', '!=', ''),
+            )
+            .select('person.name')
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ).as('people'),
+      )
+      .$if(!!userIds, (qb) => qb.where('asset.ownerId', '=', anyUuid(userIds!)))
+      .$if(!!albumId, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset.id')
+              .where('album_asset.albumId', '=', asUuid(albumId!)),
+          ),
+        ),
+      )
+      .$if(!!personIds && personIds.length > 0, (qb) => hasPeople(qb, personIds!))
+      .$if(!!takenAfter, (qb) => qb.where('asset.fileCreatedAt', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.fileCreatedAt', '<=', takenBefore!))
+      .$if(!!albumId, withDefaultVisibility)
+      .$if(!albumId, (qb) => qb.where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline)))
+      .where('asset.deletedAt', 'is', null)
+      .orderBy('asset.localDateTime', 'asc')
+      .orderBy('asset.id', 'asc')
+      .limit(limit)
+      .execute();
+  }
+
+  /**
+   * when the given people were photographed: the local time of every photo of the user (timeline and archive) that
+   * shows one of them, newest first, e.g. to tell which visits of a collection they were at
+   */
+  @GenerateSql({
+    params: [
+      {
+        userId: DummyValue.UUID,
+        personIds: [DummyValue.UUID],
+        takenAfter: DummyValue.DATE,
+        takenBefore: DummyValue.DATE,
+        limit: 20_000,
+      },
+    ],
+  })
+  getPersonTimesForAgent(options: {
+    userId: string;
+    personIds: string[];
+    /** local time, inclusive */
+    takenAfter?: Date;
+    /** local time, exclusive */
+    takenBefore?: Date;
+    limit: number;
+  }) {
+    const { userId, personIds, takenAfter, takenBefore, limit } = options;
+    if (personIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_face', (join) =>
+        join
+          .onRef('asset_face.assetId', '=', 'asset.id')
+          .on('asset_face.deletedAt', 'is', null)
+          .on('asset_face.isVisible', 'is', true),
+      )
+      .select(['asset_face.personGroupId as personId', 'asset.localDateTime'])
+      .where('asset_face.personGroupId', '=', anyUuid(personIds))
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.deletedAt', 'is', null)
+      .$call(withDefaultVisibility)
+      .$if(!!takenAfter, (qb) => qb.where('asset.localDateTime', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.localDateTime', '<', takenBefore!))
+      .orderBy('asset.localDateTime', 'desc')
+      .limit(limit)
+      .execute();
+  }
+
+  /** people of the viewing user with the number of assets they appear in, most photographed first */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID, { limit: 20 }] })
+  async getPeopleForAgent(
+    userIds: string[],
+    viewingUserId: string,
+    { personIds, limit }: { personIds?: string[]; limit: number },
+  ) {
+    const people = await this.db
+      .selectFrom('person')
+      .innerJoin('asset_face', (join) =>
+        join
+          .onRef('asset_face.personGroupId', '=', 'person.personGroupId')
+          .on('asset_face.deletedAt', 'is', null)
+          .on('asset_face.isVisible', 'is', true),
+      )
+      .innerJoin('asset', (join) =>
+        join
+          .onRef('asset.id', '=', 'asset_face.assetId')
+          .on('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+          .on('asset.deletedAt', 'is', null)
+          .on('asset.ownerId', '=', anyUuid(userIds)),
+      )
+      .select(['person.personGroupId as id', 'person.name'])
+      .select((eb) => eb.fn.count<number>('asset.id').distinct().as('count'))
+      .where('person.ownerId', '=', asUuid(viewingUserId))
+      .where('person.isHidden', '=', false)
+      .$if(!!personIds, (qb) => qb.where('person.personGroupId', '=', anyUuid(personIds!)))
+      .$if(!personIds, (qb) => qb.where('person.name', '!=', ''))
+      .groupBy(['person.ownerId', 'person.personGroupId'])
+      .orderBy('count', 'desc')
+      .orderBy('person.name', 'asc')
+      .limit(limit)
+      .execute();
+
+    return people.map((person) => ({ ...person, count: Number(person.count) }));
   }
 }

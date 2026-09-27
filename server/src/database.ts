@@ -167,6 +167,7 @@ export type AuthSharedLink = {
   expiresAt: Date | null;
   userId: string;
   albumId: string | null;
+  bookId: string | null;
   showExif: boolean;
   allowUpload: boolean;
   allowDownload: boolean;
@@ -177,6 +178,8 @@ export type SharedLink = {
   id: string;
   album?: ShallowDehydrateObject<Album> | null;
   albumId: string | null;
+  book?: SharedLinkBook | null;
+  bookId: string | null;
   allowDownload: boolean;
   allowUpload: boolean;
   assets: ShallowDehydrateObject<MapAsset>[];
@@ -189,6 +192,16 @@ export type SharedLink = {
   type: SharedLinkType;
   userId: string;
   slug: string | null;
+};
+
+/** what a shared link tells about its book: enough for the page that shows it, nothing about its owner or photos */
+export type SharedLinkBook = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  pageCount: number;
+  /** the PDF has been exported and can be downloaded */
+  hasPdf: boolean;
 };
 
 export type Album = Selectable<AlbumTable> & {

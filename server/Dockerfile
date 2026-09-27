@@ -86,12 +86,33 @@ RUN --mount=type=cache,id=pnpm,target=/buildcache/pnpm-store \
   --mount=type=cache,id=mise-tools-${TARGETPLATFORM},target=/buildcache/mise \
   mise //:plugins
 
-FROM ghcr.io/immich-app/base-server-prod:202609151314@sha256:1d71b4254aeba9a547ed9c6a4a1acf490b5e8786d6dad2a943bd61bb0c8ab736
+# The ACP agents of the AI assistant, only used by the server-agents target. The versions are pinned in the script.
+FROM builder AS agents
+
+RUN --mount=type=bind,source=docker/scripts/install-agents.sh,target=/tmp/install-agents.sh \
+  --mount=type=cache,id=npm-agents,target=/buildcache/npm-agents \
+  npm_config_cache=/buildcache/npm-agents bash /tmp/install-agents.sh /opt/immich-agents
+
+FROM ghcr.io/immich-app/base-server-prod:202609151314@sha256:1d71b4254aeba9a547ed9c6a4a1acf490b5e8786d6dad2a943bd61bb0c8ab736 AS prod
 
 WORKDIR /usr/src/app
 ENV NODE_ENV=production \
   NVIDIA_DRIVER_CAPABILITIES=all \
   NVIDIA_VISIBLE_DEVICES=all
+
+# Fonts of the photo book renderer (see server/src/utils/book/fonts.ts): Liberation Serif/Sans/Mono, metric-compatible
+# with Times New Roman and Arial, and GNU FreeFont for scripts they don't cover (Hebrew, Arabic, ...). The base image
+# installs no fonts itself (at most DejaVu, through fontconfig-config). fontconfig adds fc-match and the font cache. The base image removed ca-certificates, so the HTTPS
+# sources (the PostgreSQL repository) are set aside while the Debian ones are refreshed.
+RUN mkdir /tmp/apt-https && \
+  for source in /etc/apt/sources.list.d/*; do \
+  if grep -q 'https://' "$source"; then mv "$source" /tmp/apt-https/; fi; \
+  done && \
+  apt-get update && \
+  apt-get install --no-install-recommends -yqq fontconfig fonts-liberation fonts-freefont-ttf && \
+  apt-get clean && \
+  find /tmp/apt-https -type f -exec mv {} /etc/apt/sources.list.d/ \; && \
+  rm -rf /tmp/apt-https /var/lib/apt/lists/*
 
 COPY --from=server /output/server-pruned ./server
 COPY --from=web /usr/src/app/web/build /build/www
@@ -125,3 +146,24 @@ ENTRYPOINT ["tini", "--", "/bin/bash", "-c"]
 CMD ["start.sh"]
 
 HEALTHCHECK CMD immich-healthcheck
+
+# The server with the ACP agents of the AI assistant (claude-agent-acp with Claude Code, codex-acp with Codex), which it
+# runs as subprocesses. Opt-in: `docker build --target server-agents`, or docker/docker-compose.assistant.yml.
+FROM prod AS server-agents
+
+COPY --from=agents /opt/immich-agents /opt/immich-agents
+COPY --chmod=755 docker/scripts/check-assistant.sh /usr/local/bin/immich-check-assistant
+
+# The home directory of the server and of `docker exec` shells, and so of the agents (they get PATH, HOME, LANG, TZ
+# and their passEnv variables only): it holds the logins and settings of the CLIs (~/.claude, ~/.claude.json,
+# ~/.codex). Mount a volume here to keep them. Owned by 1000:1000 for rootless setups; root can use it too.
+RUN mkdir -p /var/lib/immich-agents && \
+  chown 1000:1000 /var/lib/immich-agents && \
+  chmod 700 /var/lib/immich-agents
+
+ENV HOME=/var/lib/immich-agents \
+  PATH="${PATH}:/opt/immich-agents/bin" \
+  DISABLE_AUTOUPDATER=1
+
+# The default target is the server without agents
+FROM prod

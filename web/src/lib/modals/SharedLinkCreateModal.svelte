@@ -2,7 +2,7 @@
   import SharedLinkFormFields from '$lib/components/SharedLinkFormFields.svelte';
   import { handleCreateSharedLink } from '$lib/services/shared-link.service';
   import { SharedLinkType } from '@immich/sdk';
-  import { FormModal } from '@immich/ui';
+  import { FormModal, Text } from '@immich/ui';
   import { mdiLink } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
@@ -10,9 +10,11 @@
     onClose: () => void;
     albumId?: string;
     assetIds?: string[];
+    /** share a photo book; `hasPdf` tells whether visitors could download its PDF yet */
+    book?: { id: string; hasPdf: boolean };
   }
 
-  let { onClose, albumId, assetIds }: Props = $props();
+  let { onClose, albumId, assetIds, book }: Props = $props();
 
   let description = $state('');
   let allowDownload = $state(true);
@@ -22,21 +24,14 @@
   let slug = $state('');
   let expiresAt = $state<string | null>(null);
 
-  let type = $derived(albumId ? SharedLinkType.Album : SharedLinkType.Individual);
+  let type = $derived(book ? SharedLinkType.Book : albumId ? SharedLinkType.Album : SharedLinkType.Individual);
 
   const onSubmit = async () => {
-    const success = await handleCreateSharedLink({
-      type,
-      albumId,
-      assetIds,
-      expiresAt,
-      allowUpload,
-      description,
-      password,
-      allowDownload,
-      showMetadata,
-      slug,
-    });
+    const common = { type, expiresAt, description, password, allowDownload, showMetadata, slug };
+    const success = await handleCreateSharedLink(
+      // nobody uploads to a book
+      book ? { ...common, bookId: book.id } : { ...common, albumId, assetIds, allowUpload },
+    );
     if (success) {
       onClose();
     }
@@ -59,6 +54,10 @@
     <div>{$t('create_link_to_share_description')}</div>
   {/if}
 
+  {#if type === SharedLinkType.Book}
+    <div>{$t('book_share_description')}</div>
+  {/if}
+
   <SharedLinkFormFields
     bind:slug
     bind:password
@@ -67,5 +66,10 @@
     bind:allowUpload
     bind:showMetadata
     bind:expiresAt
+    isBook={type === SharedLinkType.Book}
   />
+
+  {#if book && allowDownload && !book.hasPdf}
+    <Text size="small" color="muted" class="mt-2">{$t('book_share_export_pdf_hint')}</Text>
+  {/if}
 </FormModal>

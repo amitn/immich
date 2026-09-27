@@ -1,20 +1,31 @@
+import { ActivityLogController } from 'src/controllers/activity-log.controller.js';
 import { ActivityController } from 'src/controllers/activity.controller.js';
+import { AgentMcpController } from 'src/controllers/agent-mcp.controller.js';
+import { AgentController } from 'src/controllers/agent.controller.js';
 import { AlbumController } from 'src/controllers/album.controller.js';
 import { ApiKeyController } from 'src/controllers/api-key.controller.js';
 import { AppController } from 'src/controllers/app.controller.js';
+import { ArtController } from 'src/controllers/art.controller.js';
 import { AssetFilesController } from 'src/controllers/asset-file.controller.js';
 import { AssetMediaController } from 'src/controllers/asset-media.controller.js';
 import { AssetController } from 'src/controllers/asset.controller.js';
 import { AuthAdminController } from 'src/controllers/auth-admin.controller.js';
 import { AuthController } from 'src/controllers/auth.controller.js';
+import { BookStyleController } from 'src/controllers/book-style.controller.js';
+import { BookController } from 'src/controllers/book.controller.js';
 import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
+import { CollageController } from 'src/controllers/collage.controller.js';
+import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
 import { ConfigUserController } from 'src/controllers/config-user.controller.js';
 import { DatabaseBackupController } from 'src/controllers/database-backup.controller.js';
 import { DownloadController } from 'src/controllers/download.controller.js';
 import { DuplicateController } from 'src/controllers/duplicate.controller.js';
+import { EnhanceController } from 'src/controllers/enhance.controller.js';
 import { FaceController } from 'src/controllers/face.controller.js';
+import { FoodController } from 'src/controllers/food.controller.js';
+import { HighlightController } from 'src/controllers/highlight.controller.js';
 import { IntegrityAdminController } from 'src/controllers/integrity-admin.controller.js';
 import { JobController } from 'src/controllers/job.controller.js';
 import { LibraryController } from 'src/controllers/library.controller.js';
@@ -24,6 +35,7 @@ import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
 import { OAuthController } from 'src/controllers/oauth.controller.js';
+import { OrientationController } from 'src/controllers/orientation.controller.js';
 import { PartnerController } from 'src/controllers/partner.controller.js';
 import { PersonController } from 'src/controllers/person.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
@@ -48,7 +60,14 @@ import { WorkflowController } from 'src/controllers/workflow.controller.js';
 export const controllers = [
   ApiKeyController,
   ActivityController,
+  ActivityLogController,
+  AgentController,
+  AgentMcpController,
   AlbumController,
+  ArtController,
+  BookController,
+  BookStyleController,
+  HighlightController,
   AppController,
   AssetController,
   AssetFilesController,
@@ -57,12 +76,17 @@ export const controllers = [
   AuthAdminController,
   ClusterGroupController,
   ConfigUserController,
+  CollectionController,
   ConfigAdminController,
   ConfigPublicController,
   DatabaseBackupController,
   DownloadController,
   DuplicateController,
+  EnhanceController,
+  CollageController,
+  OrientationController,
   FaceController,
+  FoodController,
   IntegrityAdminController,
   JobController,
   LibraryController,

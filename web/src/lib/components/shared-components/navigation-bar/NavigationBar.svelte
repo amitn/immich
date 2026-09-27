@@ -154,7 +154,7 @@
           </div>
 
           {#if shouldShowNotificationPanel}
-            <NotificationPanel />
+            <NotificationPanel onClose={() => (shouldShowNotificationPanel = false)} />
           {/if}
         </div>
 

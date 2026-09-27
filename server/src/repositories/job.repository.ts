@@ -277,6 +277,11 @@ export class JobRepository {
       case JobName.DatabaseBackup: {
         return { deduplication: { id: JobName.DatabaseBackup } };
       }
+      case JobName.BookExport:
+      case JobName.BookExportHtml:
+      case JobName.HighlightRender: {
+        return { deduplication: { id: `${item.name}/${item.data.id}` } };
+      }
       default: {
         return null;
       }

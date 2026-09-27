@@ -101,6 +101,83 @@ where
   and "key" = $2
 commit
 
+-- AssetRepository.getForOrientationCheck
+select
+  "asset"."id",
+  "asset"."width",
+  "asset"."height",
+  "asset"."createdAt",
+  "asset"."fileCreatedAt",
+  "smart_search"."embedding",
+  "asset_job_status"."ocrAt",
+  "asset_job_status"."facesRecognizedAt",
+  (
+    select
+      "asset_file"."path"
+    from
+      "asset_file"
+    where
+      "asset_file"."assetId" = "asset"."id"
+      and "asset_file"."type" = 'preview'
+      and "asset_file"."isEdited" = false
+  ) as "previewPath"
+from
+  "asset"
+  inner join "smart_search" on "smart_search"."assetId" = "asset"."id"
+  left join "asset_job_status" on "asset_job_status"."assetId" = "asset"."id"
+where
+  "asset"."ownerId" = $1::uuid
+  and "asset"."type" = $2
+  and "asset"."deletedAt" is null
+  and "asset"."isEdited" = $3
+  and "asset"."visibility" in ($4, $5)
+  and exists (
+    select
+      "asset_file"."path"
+    from
+      "asset_file"
+    where
+      "asset_file"."assetId" = "asset"."id"
+      and "asset_file"."type" = 'preview'
+      and "asset_file"."isEdited" = false
+  )
+  and not exists (
+    select
+    from
+      "asset_metadata"
+    where
+      "asset_metadata"."assetId" = "asset"."id"
+      and "asset_metadata"."key" = $6
+  )
+  and exists (
+    select
+    from
+      "album_asset"
+    where
+      "album_asset"."assetId" = "asset"."id"
+      and "album_asset"."albumId" = $7::uuid
+  )
+  and "asset"."fileCreatedAt" >= $8
+order by
+  "asset"."fileCreatedAt" desc
+limit
+  $9
+
+-- AssetRepository.getMetadataByKeyForUser
+select
+  "asset_metadata"."assetId",
+  "asset_metadata"."value",
+  "asset_metadata"."updatedAt"
+from
+  "asset_metadata"
+  inner join "asset" on "asset"."id" = "asset_metadata"."assetId"
+where
+  "asset"."ownerId" = $1::uuid
+  and "asset"."deletedAt" is null
+  and "asset_metadata"."key" = $2
+order by
+  "asset"."fileCreatedAt" desc
+
 -- AssetRepository.getByDayOfYear
 with
   "res" as (
@@ -707,3 +784,17 @@ from
   "asset"
 where
   "asset"."id" = $1
+
+-- AssetRepository.getIdsByAlbumId
+select
+  "asset"."id"
+from
+  "asset"
+  inner join "album_asset" on "asset"."id" = "album_asset"."assetId"
+where
+  "album_asset"."albumId" = $1::uuid
+  and "asset"."deletedAt" is null
+order by
+  "asset"."fileCreatedAt" asc
+limit
+  $2

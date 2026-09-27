@@ -21,15 +21,22 @@ import {
   SyncRequestType,
 } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -37,6 +44,7 @@ import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { DuplicateRepository } from 'src/repositories/duplicate.repository.js';
 import { EmailRepository } from 'src/repositories/email.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
@@ -64,6 +72,7 @@ import { TagRepository } from 'src/repositories/tag.repository.js';
 import { TelemetryRepository } from 'src/repositories/telemetry.repository.js';
 import { UserRepository } from 'src/repositories/user.repository.js';
 import { VersionHistoryRepository } from 'src/repositories/version-history.repository.js';
+import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
@@ -467,9 +476,16 @@ export class ExifTestContext extends MediumTestContext<typeof MetadataService> {
 const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely<DB>): InstanceType<T> => {
   switch (key) {
     case AccessRepository:
+    case AgentRepository:
+    case ArtJobRepository:
+    case HighlightJobRepository:
+    case BookRepository:
+    case BookDraftRepository:
+    case CollectionNoticeRepository:
     case AlbumRepository:
     case AlbumUserRepository:
     case ActivityRepository:
+    case ActivityLogRepository:
     case ApiKeyRepository:
     case AssetRepository:
     case AssetEditRepository:
@@ -507,6 +523,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
       return new key(db, LoggingRepository.create(), new ConfigRepository()) as InstanceType<T>;
     }
 
+    case AcpRepository:
     case EmailRepository: {
       return new key(LoggingRepository.create()) as InstanceType<T>;
     }
@@ -541,6 +558,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
 const newMockRepository = <T>(key: ClassConstructor<T>) => {
   switch (key) {
     case ActivityRepository:
+    case ActivityLogRepository:
     case AlbumRepository:
     case AssetRepository:
     case AssetJobRepository:
@@ -614,6 +632,10 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
 
     case StorageRepository: {
       return automock(StorageRepository, { args: [{ setContext: () => {} }] });
+    }
+
+    case WebsocketRepository: {
+      return automock(WebsocketRepository, { args: [undefined, { setContext: () => {} }], strict: false });
     }
 
     default: {

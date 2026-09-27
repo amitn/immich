@@ -1,18 +1,32 @@
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { ActivityService } from 'src/services/activity.service.js';
+import { AgentToolService } from 'src/services/agent-tool.service.js';
+import { AgentService } from 'src/services/agent.service.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { ApiKeyService } from 'src/services/api-key.service.js';
 import { ApiService } from 'src/services/api.service.js';
+import { ArtService } from 'src/services/art.service.js';
 import { AssetFileService } from 'src/services/asset-file.service.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { AuthAdminService } from 'src/services/auth-admin.service.js';
 import { AuthService } from 'src/services/auth.service.js';
+import { BookDraftService } from 'src/services/book-draft.service.js';
+import { BookStyleService } from 'src/services/book-style.service.js';
+import { BookService } from 'src/services/book.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
+import { CollageService } from 'src/services/collage.service.js';
+import { CollectionNoticeService } from 'src/services/collection-notice.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
 import { DatabaseService } from 'src/services/database.service.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
+import { EnhanceService } from 'src/services/enhance.service.js';
+import { FoodService } from 'src/services/food.service.js';
+import { HighlightService } from 'src/services/highlight.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
 import { JobService } from 'src/services/job.service.js';
@@ -25,6 +39,7 @@ import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
 import { NotificationService } from 'src/services/notification.service.js';
 import { OcrService } from 'src/services/ocr.service.js';
+import { OrientationService } from 'src/services/orientation.service.js';
 import { PartnerService } from 'src/services/partner.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
@@ -55,7 +70,16 @@ import { WorkflowService } from 'src/services/workflow.service.js';
 export const services = [
   ApiKeyService,
   ActivityService,
+  ActivityLogService,
+  AgentService,
+  AgentToolService,
   AlbumService,
+  ArtService,
+  BookService,
+  BookDraftService,
+  CollectionNoticeService,
+  BookStyleService,
+  HighlightService,
   ApiService,
   AssetFileService,
   AssetMediaService,
@@ -63,10 +87,16 @@ export const services = [
   AuthService,
   AuthAdminService,
   CliService,
+  CollectionService,
   DatabaseBackupService,
   DatabaseService,
+  DerivedAssetService,
   DownloadService,
   DuplicateService,
+  EnhanceService,
+  CollageService,
+  OrientationService,
+  FoodService,
   IntegrityService,
   HlsService,
   JobService,

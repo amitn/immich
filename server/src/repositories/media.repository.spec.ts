@@ -338,4 +338,40 @@ describe(MediaRepository.name, () => {
       expect(statSync(file).blksize).toBeGreaterThan(0);
     });
   });
+  describe('stackPhotoAboveArtwork', () => {
+    it('should place the photo above the artwork at the same width', async () => {
+      const photo = await sharp({
+        create: { width: 400, height: 300, channels: 3, background: { r: 255, g: 0, b: 0 } },
+      })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const artwork = await sharp({
+        create: { width: 200, height: 150, channels: 3, background: { r: 0, g: 0, b: 255 } },
+      })
+        .png()
+        .toBuffer();
+
+      const result = await sut.stackPhotoAboveArtwork(photo, artwork);
+      const { data, info } = await sharp(result).raw().toBuffer({ resolveWithObject: true });
+      const pixel = (x: number, y: number) => [
+        ...data.subarray((y * info.width + x) * 3, (y * info.width + x) * 3 + 3),
+      ];
+
+      expect(info).toMatchObject({ width: 400, height: 600 });
+      expect(pixel(200, 150)[0]).toBeGreaterThan(200);
+      expect(pixel(200, 450)[2]).toBeGreaterThan(200);
+    });
+
+    it('should never enlarge the photo and keep the long edge within the limit', async () => {
+      const photo = await sharp({ create: { width: 4000, height: 3000, channels: 3, background: '#808080' } })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const artwork = await sharp({ create: { width: 1024, height: 768, channels: 3, background: '#ffffff' } })
+        .png()
+        .toBuffer();
+
+      const metadata = await sharp(await sut.stackPhotoAboveArtwork(photo, artwork, { maxLongEdge: 3000 })).metadata();
+      expect(metadata).toMatchObject({ width: 2000, height: 3000, format: 'jpeg' });
+    });
+  });
 });

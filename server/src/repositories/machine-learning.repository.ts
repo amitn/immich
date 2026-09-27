@@ -26,7 +26,7 @@ export enum ModelType {
   OCR = 'ocr',
 }
 
-export type ModelPayload = { imagePath: string } | { text: string };
+export type ModelPayload = { imagePath: string } | { image: Buffer } | { text: string };
 
 type ModelOptions = { modelName: string };
 
@@ -187,14 +187,16 @@ export class MachineLearningRepository {
     throw new Error(`Machine learning request '${JSON.stringify(config)}' failed for all URLs`);
   }
 
-  async detectFaces(imagePath: string, { modelName, minScore }: FaceDetectionOptions) {
+  /** faces in an image file, or in an encoded image (e.g. a preview turned to check its orientation) */
+  async detectFaces(image: string | Buffer, { modelName, minScore }: FaceDetectionOptions) {
     const request = {
       [ModelTask.FACIAL_RECOGNITION]: {
         [ModelType.DETECTION]: { modelName, options: { minScore } },
         [ModelType.RECOGNITION]: { modelName },
       },
     };
-    const response = await this.predict<FacialRecognitionResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<FacialRecognitionResponse>(payload, request);
     return {
       imageHeight: response.imageHeight,
       imageWidth: response.imageWidth,
@@ -202,9 +204,11 @@ export class MachineLearningRepository {
     };
   }
 
-  async encodeImage(imagePath: string, { modelName }: MachineLearningConfig['clip']) {
+  /** the CLIP embedding of an image file, or of an encoded image (e.g. a preview turned to check its orientation) */
+  async encodeImage(image: string | Buffer, { modelName }: MachineLearningConfig['clip']) {
     const request = { [ModelTask.SEARCH]: { [ModelType.VISUAL]: { modelName } } };
-    const response = await this.predict<ClipVisualResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<ClipVisualResponse>(payload, request);
     return response[ModelTask.SEARCH];
   }
 
@@ -214,14 +218,16 @@ export class MachineLearningRepository {
     return response[ModelTask.SEARCH];
   }
 
-  async ocr(imagePath: string, { modelName, minDetectionScore, minRecognitionScore, maxResolution }: OcrOptions) {
+  /** text boxes of an image file, or of an encoded image (e.g. a tile of a photo), normalized to the image */
+  async ocr(image: string | Buffer, { modelName, minDetectionScore, minRecognitionScore, maxResolution }: OcrOptions) {
     const request = {
       [ModelTask.OCR]: {
         [ModelType.DETECTION]: { modelName, options: { minScore: minDetectionScore, maxResolution } },
         [ModelType.RECOGNITION]: { modelName, options: { minScore: minRecognitionScore } },
       },
     };
-    const response = await this.predict<OcrResponse>({ imagePath }, request);
+    const payload = typeof image === 'string' ? { imagePath: image } : { image };
+    const response = await this.predict<OcrResponse>(payload, request);
     return response[ModelTask.OCR];
   }
 
@@ -232,6 +238,8 @@ export class MachineLearningRepository {
     if ('imagePath' in payload) {
       const fileBuffer = await readFile(payload.imagePath);
       formData.append('image', new Blob([new Uint8Array(fileBuffer)]));
+    } else if ('image' in payload) {
+      formData.append('image', new Blob([new Uint8Array(payload.image)]));
     } else if ('text' in payload) {
       formData.append('text', payload.text);
     } else {

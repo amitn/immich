@@ -2,6 +2,7 @@
   import { clickOutside } from '$lib/actions/click-outside';
   import { languageManager } from '$lib/managers/language-manager.svelte';
   import type { Snippet } from 'svelte';
+  import type { ClassValue } from 'svelte/elements';
 
   interface Props {
     isVisible?: boolean;
@@ -15,6 +16,10 @@
     menuScrollView?: HTMLDivElement | undefined;
     menuElement?: HTMLUListElement | undefined;
     onClose?: (() => void) | undefined;
+    /** Additional classes for the menu, e.g. its colours in dark mode */
+    class?: ClassValue;
+    /** The largest part of the window's height a long menu takes before it scrolls, e.g. 0.7; all of it by default */
+    maxHeightFraction?: number;
     children?: Snippet;
   }
 
@@ -30,6 +35,8 @@
     menuScrollView = $bindable(),
     menuElement = $bindable(),
     onClose = undefined,
+    class: className = undefined,
+    maxHeightFraction = 1,
     children,
   }: Props = $props();
 
@@ -45,10 +52,13 @@
     const directionWidth = layoutDirection === 'left' ? rect.width : 0;
 
     const margin = 8;
+    // a menu taller than the cap scrolls, and moves up only as far as it needs to show the capped height
+    const cap = maxHeightFraction < 1 ? windowInnerHeight * maxHeightFraction : Infinity;
+    const height = Math.min(menuElement.clientHeight, cap);
 
     const left = Math.max(margin, Math.min(windowInnerWidth - rect.width - margin, x - directionWidth));
-    const top = Math.max(margin, Math.min(windowInnerHeight - menuElement.clientHeight, y));
-    const maxHeight = windowInnerHeight - top - margin;
+    const top = Math.max(margin, Math.min(windowInnerHeight - height - (cap === Infinity ? 0 : margin), y));
+    const maxHeight = Math.min(cap, windowInnerHeight - top - margin);
 
     const needScrollBar = menuElement.clientHeight > maxHeight;
 
@@ -66,6 +76,7 @@
   class={[
     'fixed z-70 w-max max-w-75 min-w-50 immich-scrollbar rounded-lg bg-slate-100 shadow-lg duration-250 ease-in-out',
     position.needScrollBar ? 'overflow-auto' : 'overflow-hidden',
+    className,
   ]}
   style:left="{position.left}px"
   style:top="{position.top}px"

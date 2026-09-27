@@ -1,7 +1,11 @@
 <script lang="ts">
+  import AgentSettings from './AgentSettings.svelte';
   import AuthSettings from './AuthSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
+  import BookSettings from './BookSettings.svelte';
+  import CollectionSettings from './CollectionSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
+  import FoodSettings from './FoodSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
   import JobSettings from './JobSettings.svelte';
   import LibrarySettings from './LibrarySettings.svelte';
@@ -28,6 +32,8 @@
     mdiAccountOutline,
     mdiBackupRestore,
     mdiBellOutline,
+    mdiBookOpenPageVariantOutline,
+    mdiBellBadgeOutline,
     mdiBookshelf,
     mdiClockOutline,
     mdiDatabaseOutline,
@@ -37,9 +43,11 @@
     mdiImageOutline,
     mdiLockOutline,
     mdiMapMarkerOutline,
+    mdiCreationOutline,
     mdiPaletteOutline,
     mdiRobotOutline,
     mdiServerOutline,
+    mdiSilverwareForkKnife,
     mdiSync,
     mdiTrashCanOutline,
     mdiUpdate,
@@ -64,6 +72,13 @@
     icon: string;
   }> = [
     {
+      component: AgentSettings,
+      title: $t('admin.agent_settings'),
+      subtitle: $t('admin.agent_settings_description'),
+      key: 'assistant',
+      icon: mdiCreationOutline,
+    },
+    {
       component: AuthSettings,
       title: $t('admin.authentication_settings'),
       subtitle: $t('admin.authentication_settings_description'),
@@ -76,6 +91,20 @@
       subtitle: $t('admin.backup_settings_description'),
       key: 'backup',
       icon: mdiBackupRestore,
+    },
+    {
+      component: CollectionSettings,
+      title: $t('admin.collection_settings'),
+      subtitle: $t('admin.collection_settings_description'),
+      key: 'collections',
+      icon: mdiBellBadgeOutline,
+    },
+    {
+      component: FoodSettings,
+      title: $t('admin.food_settings'),
+      subtitle: $t('admin.food_settings_description'),
+      key: 'food',
+      icon: mdiSilverwareForkKnife,
     },
     {
       component: ImageSettings,
@@ -146,6 +175,13 @@
       subtitle: $t('admin.notification_settings_description'),
       key: 'notifications',
       icon: mdiBellOutline,
+    },
+    {
+      component: BookSettings,
+      title: $t('admin.book_settings'),
+      subtitle: $t('admin.book_settings_description'),
+      key: 'photo-books',
+      icon: mdiBookOpenPageVariantOutline,
     },
     {
       component: ServerSettings,

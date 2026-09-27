@@ -43,11 +43,35 @@ describe(QueueService.name, () => {
         { name: JobName.SessionCleanup },
         { name: JobName.HlsSessionCleanup },
         { name: JobName.AuditTableCleanup },
+        { name: JobName.ActivityLogCleanup },
         { name: JobName.MemoryGenerate },
+        { name: JobName.BookDraftsQueueAll },
+        { name: JobName.CollectionNoticesQueueAll },
+        { name: JobName.OrientationCheckQueueAll },
         { name: JobName.UserSyncUsage },
         { name: JobName.AssetGenerateThumbnailsQueueAll, data: { force: false } },
         { name: JobName.FacialRecognitionQueueAll, data: { force: false, nightly: true } },
       ]);
+    });
+
+    it('should not draft books when suggested books are disabled', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ books: { drafts: { enabled: false } } });
+
+      await sut.handleNightlyJobs();
+
+      expect(mocks.job.queueAll).toHaveBeenCalledWith(
+        expect.not.arrayContaining([{ name: JobName.BookDraftsQueueAll }]),
+      );
+    });
+
+    it('should not look for new collections when their notifications are turned off (on by default)', async () => {
+      mocks.systemMetadata.get.mockResolvedValue({ collections: { notifications: { enabled: false } } });
+
+      await sut.handleNightlyJobs();
+
+      expect(mocks.job.queueAll).toHaveBeenCalledWith(
+        expect.not.arrayContaining([{ name: JobName.CollectionNoticesQueueAll }]),
+      );
     });
   });
 

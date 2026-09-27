@@ -1,6 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
-import { SharedLink } from 'src/database.js';
+import { SharedLink, SharedLinkBook } from 'src/database.js';
 import { HistoryBuilder } from 'src/decorators.js';
 import { AlbumResponseSchema, mapAlbum } from 'src/dtos/album.dto.js';
 import { AssetResponseSchema, mapAsset } from 'src/dtos/asset-response.dto.js';
@@ -15,6 +15,11 @@ const SharedLinkSearchSchema = z
       .optional()
       .describe('Filter by shared link ID')
       .meta(new HistoryBuilder().added('v2.5.0').getExtensions()),
+    bookId: z
+      .uuidv4()
+      .optional()
+      .describe('Filter by book ID')
+      .meta(new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions()),
   })
   .meta({ id: 'SharedLinkSearchDto' });
 
@@ -23,6 +28,11 @@ const SharedLinkCreateSchema = z
     type: SharedLinkTypeSchema,
     assetIds: z.array(z.uuidv4()).optional().describe('Asset IDs (for individual assets)'),
     albumId: z.uuidv4().optional().describe('Album ID (for album sharing)'),
+    bookId: z
+      .uuidv4()
+      .optional()
+      .describe('Book ID (for sharing a photo book)')
+      .meta(new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions()),
     description: z.string().nullable().optional().describe('Link description'),
     password: z.string().nullable().optional().describe('Link password'),
     slug: z.string().nullable().optional().describe('Custom URL slug'),
@@ -31,7 +41,11 @@ const SharedLinkCreateSchema = z
     allowDownload: z.boolean().default(true).optional().describe('Allow downloads'),
     showMetadata: z.boolean().default(true).optional().describe('Show metadata'),
   })
-  .superRefine(({ type, albumId, assetIds }, ctx) => {
+  .superRefine(({ type, albumId, assetIds, bookId }, ctx) => {
+    if (bookId && type !== SharedLinkType.Book) {
+      ctx.addIssue(`bookId can only be used with type ${SharedLinkType.Book}`);
+    }
+
     switch (type) {
       case SharedLinkType.Album: {
         if (!albumId) {
@@ -49,6 +63,18 @@ const SharedLinkCreateSchema = z
 
         if (albumId) {
           ctx.addIssue(`albumId can only be used with type ${SharedLinkType.Album}`);
+        }
+        return;
+      }
+      case SharedLinkType.Book: {
+        if (!bookId) {
+          ctx.addIssue(`bookId is required for type ${SharedLinkType.Book}`);
+        }
+        if (albumId) {
+          ctx.addIssue(`albumId can only be used with type ${SharedLinkType.Album}`);
+        }
+        if (assetIds && assetIds.length > 0) {
+          ctx.addIssue(`assetIds can only be used with type ${SharedLinkType.Individual}`);
         }
         return;
       }
@@ -74,6 +100,17 @@ const SharedLinkLoginSchema = z
   })
   .meta({ id: 'SharedLinkLoginDto' });
 
+const SharedLinkBookResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Book ID'),
+    title: z.string().describe('Book title'),
+    subtitle: z.string().nullable().describe('Book subtitle'),
+    pageCount: z.int().min(0).describe('Number of pages'),
+    hasPdf: z.boolean().describe('Whether the PDF has been exported'),
+  })
+  .describe('The shared photo book')
+  .meta({ id: 'SharedLinkBookResponseDto' });
+
 const SharedLinkResponseSchema = z
   .object({
     id: z.uuidv4().describe('Shared link ID'),
@@ -86,6 +123,9 @@ const SharedLinkResponseSchema = z
     expiresAt: isoDatetimeToDate.nullable().describe('Expiration date'),
     assets: z.array(AssetResponseSchema),
     album: AlbumResponseSchema.optional(),
+    book: SharedLinkBookResponseSchema.optional().meta(
+      new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions(),
+    ),
     allowUpload: z.boolean().describe('Allow uploads'),
     allowDownload: z.boolean().describe('Allow downloads'),
     showMetadata: z.boolean().describe('Show metadata'),
@@ -99,6 +139,14 @@ export class SharedLinkCreateDto extends createZodDto(SharedLinkCreateSchema) {}
 export class SharedLinkEditDto extends createZodDto(SharedLinkEditSchema) {}
 export class SharedLinkLoginDto extends createZodDto(SharedLinkLoginSchema) {}
 export class SharedLinkResponseDto extends createZodDto(SharedLinkResponseSchema) {}
+
+const mapSharedLinkBook = (book: SharedLinkBook) => ({
+  id: book.id,
+  title: book.title,
+  subtitle: book.subtitle,
+  pageCount: Number(book.pageCount ?? 0),
+  hasPdf: !!book.hasPdf,
+});
 
 export function mapSharedLink(sharedLink: SharedLink, options: { stripAssetMetadata: boolean }): SharedLinkResponseDto {
   const assets = sharedLink.assets || [];
@@ -114,6 +162,7 @@ export function mapSharedLink(sharedLink: SharedLink, options: { stripAssetMetad
     expiresAt: sharedLink.expiresAt,
     assets: assets.map((asset) => mapAsset(asset, { stripMetadata: options.stripAssetMetadata })),
     album: sharedLink.album ? mapAlbum(sharedLink.album) : undefined,
+    book: sharedLink.book ? mapSharedLinkBook(sharedLink.book) : undefined,
     allowUpload: sharedLink.allowUpload,
     allowDownload: sharedLink.allowDownload,
     showMetadata: sharedLink.showExif,

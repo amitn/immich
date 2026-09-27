@@ -40,6 +40,26 @@ describe(IntegrityService.name, () => {
         expect(mocks.integrityReport.create).not.toHaveBeenCalled();
       },
     );
+
+    it('should not report exported photo books', async () => {
+      const path = '/data/thumbs/user-id/books/book-id.pdf';
+      mocks.integrityReport.getAssetFilePathsByPaths.mockResolvedValue([]);
+      mocks.integrityReport.getBookExportPathsByPaths.mockResolvedValue([{ path }]);
+
+      await sut.handleUntrackedFiles({ type: 'asset_file', paths: [path] });
+
+      expect(mocks.integrityReport.create).not.toHaveBeenCalled();
+    });
+
+    it('should report exports of deleted photo books', async () => {
+      const path = '/data/thumbs/user-id/books/deleted-book.html';
+      mocks.integrityReport.getAssetFilePathsByPaths.mockResolvedValue([]);
+      mocks.integrityReport.getBookExportPathsByPaths.mockResolvedValue([]);
+
+      await sut.handleUntrackedFiles({ type: 'asset_file', paths: [path] });
+
+      expect(mocks.integrityReport.create).toHaveBeenCalledWith([expect.objectContaining({ path })]);
+    });
   });
 
   describe('handleUntrackedRefresh', () => {

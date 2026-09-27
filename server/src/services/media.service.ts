@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type {
   AudioStreamInfo,
-  DecodeToBufferOptions,
   GenerateThumbnailOptions,
   ImageDimensions,
   JobItem,
@@ -21,7 +20,6 @@ import {
   AssetType,
   AssetVisibility,
   AudioCodec,
-  Colorspace,
   ImageFormat,
   ImmichWorker,
   JobName,
@@ -40,6 +38,7 @@ import { BoundingBox } from 'src/repositories/machine-learning.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { getAssetFile, getDimensions } from 'src/utils/asset.util.js';
 import { checkFaceVisibility, checkOcrVisibility } from 'src/utils/editor.js';
+import { decodeOriginal, extractEmbeddedImage, extractOriginalEmbeddedImage, isSRGB } from 'src/utils/image-decode.js';
 import { BaseConfig, ThumbnailConfig } from 'src/utils/media.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { batched, clamp } from 'src/utils/misc.js';
@@ -230,32 +229,8 @@ export class MediaService extends BaseService {
     return JobStatus.Success;
   }
 
-  private async extractImage(originalPath: string, minSize: number) {
-    let extracted = await this.mediaRepository.extract(originalPath);
-    if (extracted && !(await this.shouldUseExtractedImage(extracted.buffer, minSize))) {
-      extracted = null;
-    }
-
-    return extracted;
-  }
-
-  private async decodeImage(thumbSource: string | Buffer, exifInfo: ThumbnailAsset['exifInfo'], targetSize?: number) {
-    const { image } = await this.getConfig({ withCache: true });
-    const colorspace = this.isSRGB(exifInfo) ? Colorspace.Srgb : image.colorspace;
-    const decodeOptions: DecodeToBufferOptions = {
-      colorspace,
-      processInvalidImages: process.env.IMMICH_PROCESS_INVALID_IMAGES === 'true',
-      size: targetSize,
-      orientation: exifInfo.orientation ? Number(exifInfo.orientation) : undefined,
-    };
-
-    const { info, data } = await this.mediaRepository.decodeImage(thumbSource, decodeOptions);
-    return { info, data, colorspace };
-  }
-
   private async extractOriginalImage(asset: ThumbnailAsset, image: SystemConfig['image'], useEdits = false) {
-    const isExtractEmbedded = image.extractEmbedded && mimeTypes.isRaw(asset.originalFileName);
-    const extracted = isExtractEmbedded ? await this.extractImage(asset.originalPath, image.preview.size) : null;
+    const extracted = await extractOriginalEmbeddedImage(this.mediaRepository, asset, image);
     const isGenerateFullsize =
       ((image.fullsize.enabled || asset.exifInfo.projectionType === 'EQUIRECTANGULAR') &&
         !mimeTypes.isWebSupportedImage(asset.originalPath)) ||
@@ -263,14 +238,10 @@ export class MediaService extends BaseService {
     const isConvertFullsize =
       isGenerateFullsize && (!extracted || !mimeTypes.isWebSupportedImage(` .${extracted.format}`));
 
-    const thumbSource = extracted ? extracted.buffer : asset.originalPath;
-    const { data, info, colorspace } = await this.decodeImage(
-      thumbSource,
-      // only specify orientation to extracted images which don't have EXIF orientation data
-      // or it can double rotate the image
-      extracted ? asset.exifInfo : { ...asset.exifInfo, orientation: null },
-      isConvertFullsize ? undefined : image.preview.size,
-    );
+    const { data, info, colorspace } = await decodeOriginal(this.mediaRepository, asset, image, {
+      extracted,
+      size: isConvertFullsize ? undefined : image.preview.size,
+    });
 
     let isTransparent = false;
     if (!extracted && mimeTypes.canBeTransparent(asset.originalPath)) {
@@ -409,7 +380,7 @@ export class MediaService extends BaseService {
       }
       inputImage = previewPath;
     } else if (image.extractEmbedded && mimeTypes.isRaw(originalPath)) {
-      const extracted = await this.extractImage(originalPath, image.preview.size);
+      const extracted = await extractEmbeddedImage(this.mediaRepository, originalPath, image.preview.size);
       inputImage = extracted ? extracted.buffer : originalPath;
     } else {
       inputImage = originalPath;
@@ -730,24 +701,8 @@ export class MediaService extends BaseService {
     return name !== VideoContainer.Mp4 && !ffmpegConfig.acceptedContainers.includes(name);
   }
 
-  isSRGB({
-    colorspace,
-    profileDescription,
-    bitsPerSample,
-  }: {
-    colorspace: string | null;
-    profileDescription: string | null;
-    bitsPerSample: number | null;
-  }): boolean {
-    if (colorspace || profileDescription) {
-      return [colorspace, profileDescription].some((s) => s?.toLowerCase().includes('srgb'));
-    }
-    if (bitsPerSample) {
-      // assume sRGB for 8-bit images with no color profile or colorspace metadata
-      return bitsPerSample === 8;
-    }
-    // assume sRGB for images with no relevant metadata
-    return true;
+  isSRGB(exifInfo: { colorspace: string | null; profileDescription: string | null; bitsPerSample: number | null }) {
+    return isSRGB(exifInfo);
   }
 
   private parseBitrateToBps(bitrateString: string) {
@@ -765,12 +720,6 @@ export class MediaService extends BaseService {
       return bitrateValue * 1_000_000; // Megabits per second to bits per second
     }
     return bitrateValue;
-  }
-
-  private async shouldUseExtractedImage(extractedPathOrBuffer: string | Buffer, targetSize: number) {
-    const { width, height } = await this.mediaRepository.getImageMetadata(extractedPathOrBuffer);
-    const extractedSize = Math.min(width, height);
-    return extractedSize >= targetSize;
   }
 
   private async syncFiles(

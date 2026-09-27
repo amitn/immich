@@ -44,8 +44,12 @@
   } from '$lib/services/album.service';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetBulkActions } from '$lib/services/asset.service';
+  import { getAlbumBookActions } from '$lib/services/book.service';
+  import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
+  import { getCollageBulkAction } from '$lib/services/collage.service';
+  import { getAlbumHighlightAction, getHighlightBulkAction } from '$lib/services/highlight.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
-  import { handlePromiseError } from '$lib/utils';
+  import { handlePromiseError, isEnabled } from '$lib/utils';
   import { handleError } from '$lib/utils/handle-error';
   import { isAlbumsRoute, navigate, type AssetGridRouteSearchParams } from '$lib/utils/navigation';
   import { AlbumUserRole, AssetVisibility, getAlbumInfo, updateAlbumInfo, type AlbumResponseDto } from '@immich/sdk';
@@ -329,6 +333,9 @@
 
   const { Cast } = $derived(getGlobalActions($t));
   const { Share, Leave } = $derived(getAlbumActions($t, album));
+  const { ExportAsBook } = $derived(getAlbumBookActions($t, album));
+  const CollectionActions = $derived(getAlbumCollectionActions($t, album));
+  const MakeHighlight = $derived(getAlbumHighlightAction($t, album));
   const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, timelineMultiSelectManager.assets));
 
   const Close = $derived({
@@ -470,6 +477,7 @@
     {#if assetMultiSelectManager.selectionActive}
       <AssetSelectControlBar>
         {@const Actions = getAssetBulkActions($t, album)}
+        {@const CollectionBulkActions = getCollectionBulkActions($t)}
         <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
         <CreateSharedLink />
         <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
@@ -504,6 +512,11 @@
           {#if authManager.preferences.tags.enabled && assetMultiSelectManager.isAllUserOwned}
             <TagAction menuItem />
           {/if}
+          {#each CollectionBulkActions as action (action.title)}
+            <ActionMenuItem {action} />
+          {/each}
+          <ActionMenuItem action={getHighlightBulkAction($t)} />
+          <ActionMenuItem action={getCollageBulkAction($t, isEditor ? album.id : undefined)} />
 
           <ActionMenuItem action={Actions.RemoveFromAlbum} />
           {#if assetMultiSelectManager.isAllUserOwned}
@@ -561,13 +574,18 @@
               />
             {/if}
 
-            {#if isOwned || album.albumUsers.length > 1}
+            {#if isOwned || album.albumUsers.length > 1 || isEnabled(ExportAsBook) || isEnabled(MakeHighlight) || CollectionActions.some( (action) => isEnabled(action) )}
               <ButtonContextMenu
                 icon={mdiDotsVertical}
                 title={$t('album_options')}
                 color="secondary"
                 offset={{ x: 175, y: 25 }}
               >
+                <ActionMenuItem action={ExportAsBook} />
+                <ActionMenuItem action={MakeHighlight} />
+                {#each CollectionActions as action (action.title)}
+                  <ActionMenuItem {action} />
+                {/each}
                 {#if containsEditors}
                   <MenuOption
                     icon={showAlbumUsers ? mdiAccountEye : mdiAccountEyeOutline}
