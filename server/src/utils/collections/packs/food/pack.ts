@@ -31,22 +31,29 @@ export const getMealType = (time: number): MealType => {
 };
 
 /**
- * The meal of a visit, from today: "last night" (yesterday's dinner), "tonight", "today's lunch", "yesterday's
- * breakfast", or "your lunch on Saturday"
+ * The meal of a visit, from today, and where it was: "last night at Taormina" (yesterday's dinner), "tonight",
+ * "today's lunch at Trattoria da Nino", "yesterday's breakfast", or "your lunch at Nino on Saturday"
  */
-export const getMealPhrase = ({ type, day, today }: Pick<CollectionNoticeVisit, 'type' | 'day' | 'today'>) => {
+export const getMealPhrase = ({
+  type,
+  day,
+  today,
+  place,
+  city,
+}: Pick<CollectionNoticeVisit, 'type' | 'day' | 'today' | 'place' | 'city'>) => {
   const meal = (type ?? 'meal').toLowerCase();
   const when = getNoticeDay(day, today);
+  const at = (place ?? city) ? ` at ${place ?? city}` : '';
   if (meal === 'dinner' && when.days === 1) {
-    return 'last night';
+    return `last night${at}`;
   }
   if (meal === 'dinner' && when.days === 0) {
-    return 'tonight';
+    return `tonight${at}`;
   }
   if (when.days === 0 || when.days === 1) {
-    return `${when.text}'s ${meal}`;
+    return `${when.text}'s ${meal}${at}`;
   }
-  return `your ${meal} ${when.text}`;
+  return `your ${meal}${at} ${when.text}`;
 };
 
 /** texts for dishes that are usually not on a menu; the best of them competes with the items as "not on the menu" */
@@ -160,9 +167,6 @@ export const foodPack: CollectionPack = {
     smartSearchDisabled:
       'Smart search is disabled: dishes cannot be recognized, only menus, signs and receipts by their text',
     ocrDisabled: 'OCR is disabled: menus, signs and receipts are recognized by their look only',
-    newVisit: (visit) => {
-      const at = visit.place ?? visit.city;
-      return `Name the dishes from ${getMealPhrase(visit)}${at ? ` at ${at}` : ''}?`;
-    },
+    newVisit: (visit) => `Name the dishes from ${getMealPhrase(visit)}?`,
   },
 };

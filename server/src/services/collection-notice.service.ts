@@ -30,10 +30,14 @@ export type NewVisitStatus =
   | 'new'
   /** some of its photos already have tags of the pack */
   | 'named'
-  /** fewer subject photos than the pack's minimum */
+  /** fewer subject photos than the pack's minimum, or no source photo when the pack needs one (a ticket) */
   | 'small'
   /** notified before: its key, or one of its photos */
-  | 'notified';
+  | 'notified'
+  /** the same photos are a named visit of another pack (the dishes of a named meal, taken for cooking photos) */
+  | 'named-elsewhere'
+  /** the same photos are a new visit of another pack, which is notified instead */
+  | 'duplicate';
 
 export type NewVisit = {
   pack: string;
@@ -43,6 +47,8 @@ export type NewVisit = {
   assetIds: string[];
   subjects: number;
   start: string;
+  /** the name of the place in the notification, when it is sure enough */
+  place?: string;
   /** the question of the notification, e.g. "Name the dishes from last night at Taormina?" (redacted) */
   title: string;
   /** e.g. "12 dishes · Taormina, 26 September 2026" (redacted) */
@@ -52,25 +58,35 @@ export type NewVisit = {
 /** the notification data of a new visit: the web opens the naming dialog of the pack on these photos */
 export type CollectionNoticeData = { collectionPack: string; assetIds: string[]; visitKey: string };
 
+/** a place read on the photos is named in a notification from this confidence on (a tag of another pack always is) */
+const MIN_PLACE_CONFIDENCE = 0.5;
+
 /**
- * The key of a visit, stable while its photos come in: its day, its kind (the meal) and its city (or where it was, to
- * about a kilometre), e.g. `2026-09-26|Dinner|Taormina`
+ * The key of a visit: the hour it started, its kind (the meal) and its city (or where it was, to about a kilometre),
+ * e.g. `2026-09-26T20|Dinner|Taormina`. A photo of the visit uploaded later that moves its start is caught by the
+ * photos of the notice instead.
  */
 export const getVisitKey = (
-  visit: Pick<CollectionVisitResponse, 'day' | 'type' | 'city' | 'latitude' | 'longitude'>,
+  visit: Pick<CollectionVisitResponse, 'start' | 'type' | 'city' | 'latitude' | 'longitude'>,
 ) => {
   const where =
     visit.city ??
     (visit.latitude === undefined || visit.longitude === undefined
       ? ''
       : `${visit.latitude.toFixed(2)},${visit.longitude.toFixed(2)}`);
-  return `${visit.day}|${visit.type ?? ''}|${where}`;
+  return `${visit.start.slice(0, 13)}|${visit.type ?? ''}|${where}`;
 };
+
+/** the name of the place of a visit when it is sure enough for a notification: a tag, or a name read clearly */
+export const getNoticePlace = (visit: Pick<CollectionVisitResponse, 'place'>) =>
+  visit.place.source === 'tag' || (visit.place.source !== 'fallback' && visit.place.confidence >= MIN_PLACE_CONFIDENCE)
+    ? visit.place.name
+    : undefined;
 
 /** the question and the line of a notification of a visit, in the words of its pack, redacted by the pack */
 export const getNoticeText = (pack: CollectionPack, visit: CollectionVisitResponse, today: string) => {
   const subjects = visit.subjectIds.length;
-  const place = visit.place.source === 'fallback' ? undefined : visit.place.name;
+  const place = getNoticePlace(visit);
   const title = getCollectionMessages(pack).newVisit({
     type: visit.type,
     place,
@@ -194,14 +210,16 @@ export class CollectionNoticeService extends BaseService {
         const ids = [...visit.subjectIds, ...visit.sourceIds, ...visit.signIds, ...visit.receiptIds];
         const key = getVisitKey(visit);
         const subjects = visit.subjectIds.length;
+        const minSubjects = pack.notices?.minSubjects ?? DEFAULT_NOTICE_MIN_SUBJECTS;
         const status: NewVisitStatus =
           visit.saved.length > 0
             ? 'named'
             : keys.has(`${pack.id}\n${key}`) || ids.some((id) => noticed.has(id))
               ? 'notified'
-              : subjects < (pack.notices?.minSubjects ?? DEFAULT_NOTICE_MIN_SUBJECTS)
+              : subjects < minSubjects || (pack.notices?.requireSource && visit.sourceIds.length === 0)
                 ? 'small'
                 : 'new';
+        const place = getNoticePlace(visit);
         visits.push({
           pack: pack.id,
           key,
@@ -209,11 +227,34 @@ export class CollectionNoticeService extends BaseService {
           assetIds: ids,
           subjects,
           start: visit.start,
+          ...(place && { place: redactText(pack, place) }),
           ...getNoticeText(pack, visit, today),
         });
       }
     }
-    return visits.toSorted((a, b) => b.start.localeCompare(a.start) || a.pack.localeCompare(b.pack));
+
+    // the newest first; of the visits of the same photos in several packs, the one with the most subjects is notified
+    const sorted = visits.toSorted(
+      (a, b) => b.start.localeCompare(a.start) || b.subjects - a.subjects || a.pack.localeCompare(b.pack),
+    );
+    // photos of a visit named in one pack are that pack's: another pack finding them is mistaken
+    const named = new Set(sorted.flatMap((visit) => (visit.status === 'named' ? visit.assetIds : [])));
+    const taken = new Set<string>();
+    for (const visit of sorted.toSorted((a, b) => b.subjects - a.subjects || b.start.localeCompare(a.start))) {
+      if (visit.status !== 'new') {
+        continue;
+      }
+      if (visit.assetIds.some((id) => named.has(id))) {
+        visit.status = 'named-elsewhere';
+      } else if (visit.assetIds.some((id) => taken.has(id))) {
+        visit.status = 'duplicate';
+      } else {
+        for (const id of visit.assetIds) {
+          taken.add(id);
+        }
+      }
+    }
+    return sorted;
   }
 
   /** claims the key of the visit and notifies the user; false when it was notified meanwhile */

@@ -218,4 +218,6 @@ export const museumPack: CollectionPack = {
         ? `Name the artworks from your visit to ${/^the /i.test(place) ? '' : 'the '}${place}?`
         : `Name the artworks from your museum visit${city ? ` in ${city}` : ''} ${getNoticeDay(day, today).text}?`,
   },
+  // a museum visit is more than a few photos that look like art
+  notices: { minSubjects: 5 },
 };

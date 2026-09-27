@@ -174,8 +174,8 @@ export const travelPack: CollectionPack = {
     newVisit: ({ place, city }) =>
       place || city ? `Name the legs of your trip to ${place ?? city}?` : 'Name the legs of your trip?',
   },
-  // a trip is more than a few photos
-  notices: { minSubjects: 5 },
+  // every photo of a trip is a trip photo: a trip is worth naming when it has a ticket or another travel document
+  notices: { minSubjects: 3, requireSource: true },
 
   privacy: { redact: redactTravelText, sourceImages: false },
 };

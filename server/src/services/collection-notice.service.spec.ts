@@ -16,8 +16,8 @@ const config = { enabled: true, maxPerRun: 3, windowDays: 14 };
 
 const visit = (overrides: Partial<CollectionVisitResponse> = {}): CollectionVisitResponse => ({
   index: 0,
-  start: '2026-09-26T20:10:00',
-  end: '2026-09-26T21:40:00',
+  start: `${overrides.day ?? '2026-09-26'}T20:10:00`,
+  end: `${overrides.day ?? '2026-09-26'}T21:40:00`,
   day: '2026-09-26',
   type: 'Dinner',
   city: 'Taormina',
@@ -41,6 +41,7 @@ const visits = (pack: string, items: CollectionVisitResponse[]): CollectionVisit
 });
 
 const pack = (id: string) => getCollectionPack(id)!;
+const six = () => Array.from({ length: 6 }, () => newUuid());
 
 describe('new collection messages', () => {
   const today = '2026-09-27';
@@ -73,7 +74,7 @@ describe('new collection messages', () => {
       'Name the dishes from tonight at Taormina?',
     );
     expect(getNoticeText(food, visit({ type: 'Breakfast', day: '2026-09-23' }), today).title).toBe(
-      'Name the dishes from your breakfast on Wednesday at Taormina?',
+      'Name the dishes from your breakfast at Taormina on Wednesday?',
     );
   });
 
@@ -133,8 +134,20 @@ describe('new collection messages', () => {
   });
 
   it('should key a visit by its day, kind and city', () => {
-    expect(getVisitKey(visit())).toBe('2026-09-26|Dinner|Taormina');
-    expect(getVisitKey({ day: '2026-09-26', latitude: 37.8512, longitude: 15.2877 })).toBe('2026-09-26||37.85,15.29');
+    expect(getVisitKey(visit())).toBe('2026-09-26T20|Dinner|Taormina');
+    expect(getVisitKey({ start: '2026-09-26T11:05:00', latitude: 37.8512, longitude: 15.2877 })).toBe(
+      '2026-09-26T11||37.85,15.29',
+    );
+  });
+
+  it.each([
+    ['sign', 0.8, 'Nino'],
+    ['sign', 0.2, 'Taormina'],
+    ['tag', 0, 'Nino'],
+    ['fallback', 0, 'Taormina'],
+  ] as const)('should only name a place read clearly enough (%s, %s)', (source, confidence, at) => {
+    const meal = visit({ place: { name: 'Nino', source, confidence, assetIds: [] } });
+    expect(getNoticeText(pack('food'), meal, today).title).toBe(`Name the dishes from last night at ${at}?`);
   });
 });
 
@@ -238,7 +251,7 @@ describe(CollectionNoticeService.name, () => {
       expect(mocks.collectionNotice.claim).toHaveBeenCalledWith({
         userId: auth.user.id,
         pack: 'food',
-        key: '2026-09-26|Dinner|Taormina',
+        key: '2026-09-26T20|Dinner|Taormina',
         assetIds,
       });
       expect(mocks.notification.create).toHaveBeenCalledWith({
@@ -248,7 +261,7 @@ describe(CollectionNoticeService.name, () => {
         // the user's today is the 27th: the dinner of the 26th was last night
         title: 'Name the dishes from last night at Taormina?',
         description: '4 dishes · Taormina, 26 September 2026',
-        data: JSON.stringify({ collectionPack: 'food', assetIds, visitKey: '2026-09-26|Dinner|Taormina' }),
+        data: JSON.stringify({ collectionPack: 'food', assetIds, visitKey: '2026-09-26T20|Dinner|Taormina' }),
       });
       expect(mocks.collectionNotice.setNotification).toHaveBeenCalled();
       expect(mocks.websocket.clientSend).toHaveBeenCalledWith('on_notification', auth.user.id, expect.anything());
@@ -261,7 +274,7 @@ describe(CollectionNoticeService.name, () => {
       const byKey = visit({ day: '2026-09-24' });
       const byPhoto = visit({ day: '2026-09-23' });
       setup({ food: [named, small, byKey, byPhoto] }, [
-        { pack: 'food', key: '2026-09-24|Dinner|Taormina', assetIds: [] },
+        { pack: 'food', key: '2026-09-24T20|Dinner|Taormina', assetIds: [] },
         { pack: 'food', key: 'other', assetIds: [byPhoto.subjectIds[1]] },
       ]);
 
@@ -277,6 +290,37 @@ describe(CollectionNoticeService.name, () => {
       expect(mocks.notification.create).not.toHaveBeenCalled();
     });
 
+    it('should only notify a trip with a travel document', async () => {
+      setup({ travel: [visit({ type: undefined, sourceIds: [] }), visit({ type: undefined, day: '2026-09-20' })] });
+      const found = await sut.findNewVisits(auth, config, NOW);
+      expect(found.map(({ status }) => status)).toEqual(['small', 'new']);
+    });
+
+    it('should notify photos found by several packs once, in the pack with the most subjects', async () => {
+      const dishes = [newUuid(), newUuid(), newUuid(), newUuid()];
+      const named = [newUuid(), newUuid(), newUuid()];
+      setup({
+        food: [
+          visit({ subjectIds: dishes }),
+          visit({ day: '2026-09-20', subjectIds: named, saved: [{ assetId: named[0], place: 'Nino', source: false }] }),
+        ],
+        cookbook: [
+          visit({ type: undefined, subjectIds: dishes.slice(0, 3) }),
+          // the dishes of a named meal, taken for cooking photos
+          visit({ type: undefined, day: '2026-09-20', subjectIds: named }),
+        ],
+      });
+
+      const found = await sut.findNewVisits(auth, config, NOW);
+
+      expect(found.map(({ pack, status }) => `${pack} ${status}`)).toEqual([
+        'food new',
+        'cookbook duplicate',
+        'cookbook named-elsewhere',
+        'food named',
+      ]);
+    });
+
     it('should use the minimum of the pack: two bottles are a tasting', async () => {
       setup({ wine: [visit({ type: undefined, subjectIds: [newUuid(), newUuid()] })] });
       await expect(sut.notifyNewVisits(auth, config, NOW)).resolves.toHaveLength(1);
@@ -286,7 +330,9 @@ describe(CollectionNoticeService.name, () => {
       const days = ['2026-09-20', '2026-09-26', '2026-09-22', '2026-09-24'];
       setup({
         food: days.map((day) => visit({ day, start: `${day}T20:00:00` })),
-        museum: [visit({ type: undefined, day: '2026-09-25', start: '2026-09-25T11:00:00', city: 'Évora' })],
+        museum: [
+          visit({ type: undefined, day: '2026-09-25', start: '2026-09-25T11:00:00', city: 'Évora', subjectIds: six() }),
+        ],
       });
 
       const notified = await sut.notifyNewVisits(auth, { ...config, maxPerRun: 3 }, NOW);
@@ -340,11 +386,11 @@ describe(CollectionNoticeService.name, () => {
     });
 
     it('should go on with the other packs when one fails', async () => {
-      const findVisits = setup({ museum: [visit({ type: undefined, city: 'Évora' })] });
+      const findVisits = setup({});
       findVisits.mockImplementation((_auth, packId) =>
         packId === 'food'
           ? Promise.reject(new Error('broken'))
-          : Promise.resolve(visits(packId, packId === 'museum' ? [visit({ type: undefined, city: 'Évora' })] : [])),
+          : Promise.resolve(visits(packId, packId === 'wine' ? [visit({ type: undefined, city: 'Évora' })] : [])),
       );
       await expect(sut.notifyNewVisits(auth, config, NOW)).resolves.toHaveLength(1);
     });

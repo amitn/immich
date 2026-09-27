@@ -177,6 +177,8 @@ export type CollectionPack = {
   notices?: {
     /** a new visit is notified when it has at least this many subject photos, default 3 */
     minSubjects?: number;
+    /** only a visit with a source photo is notified, e.g. a trip with a ticket: its subjects are any photos */
+    requireSource?: boolean;
   };
 
   privacy?: {
