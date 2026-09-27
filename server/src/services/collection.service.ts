@@ -375,7 +375,9 @@ export class CollectionService extends BaseService {
     });
     // videos have embeddings of their thumbnail too, but only photos are named
     const images = await this.getImageIds(classified.map(({ id }) => id));
-    const found = classified.filter(({ id }) => images.has(id));
+    // a photo named in another collection belongs there: a museum label is not a travel ticket
+    const claimed = await this.getClaimedIds(pack, [...images]);
+    const found = classified.filter(({ id }) => images.has(id) && !claimed.has(id));
 
     const options: Partial<VisitOptions> = {
       ...pack.visits.options,
@@ -981,6 +983,23 @@ export class CollectionService extends BaseService {
    * text (the OCR stored for them, scored as the pack scores the text of its sources). Tools that return images leave
    * them out or blur them.
    */
+  /** the photos among `ids` that carry the tags of another pack */
+  private async getClaimedIds(pack: CollectionPack, ids: string[]): Promise<Set<string>> {
+    const claimed = new Set<string>();
+    for (const other of getCollectionPacks()) {
+      if (other.id === pack.id || ids.length === 0) {
+        continue;
+      }
+      const prefix = getTagPrefix(getCollectionTagRules(other));
+      for (const chunk of chunks(unique(ids))) {
+        for (const { assetId } of await this.tagRepository.getAssetTagsByPrefix(chunk, prefix)) {
+          claimed.add(assetId);
+        }
+      }
+    }
+    return claimed;
+  }
+
   async getPrivateSourceIds(ids: string[]): Promise<Set<string>> {
     const packs = getCollectionPacks().filter((pack) => pack.privacy?.sourceImages === false);
     const found = new Set<string>();

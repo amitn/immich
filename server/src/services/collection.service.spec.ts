@@ -139,7 +139,6 @@ describe(CollectionService.name, () => {
       expect(mocks.machineLearning.encodeText).toHaveBeenCalledTimes(getPromptList(labelsPack.prompts).length);
       expect(mocks.machineLearning.encodeText).toHaveBeenCalledWith('a photo of a plant', expect.anything());
       expect(mocks.tag.getAssetTagsByPrefix).toHaveBeenCalledWith(expect.any(Array), 'Labels/');
-      expect(mocks.tag.getAssetTagsByPrefix).not.toHaveBeenCalledWith(expect.any(Array), 'Food/');
       expect(result).toMatchObject({ pack: 'labels', count: 6, photos: 5, warnings: [] });
       expect(result.visits).toHaveLength(2);
       expect(result.visits[0]).toMatchObject({
@@ -155,6 +154,31 @@ describe(CollectionService.name, () => {
         subjectIds: [kew],
         place: { name: 'Garden walk in Kew', source: 'fallback', confidence: 0 },
       });
+    });
+
+    it('should leave out photos another collection already named', async () => {
+      const albumId = newUuid();
+      const [fern, pasta] = [newUuid(), newUuid()];
+      const plant = getPromptList(labelsPack.prompts).map(({ kind }) => (kind === 'subject' ? 0.3 : 0.1));
+      mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+      mocks.assetJob.getForAgentEvents.mockResolvedValue([
+        eventRow(fern, '2024-05-02T10:12:00', { city: 'Palermo' }),
+        eventRow(pasta, '2024-05-02T10:20:00', { city: 'Palermo' }),
+      ] as never);
+      mocks.ocr.getByAssetIds.mockResolvedValue([]);
+      mocks.search.getEmbeddingSimilarities.mockResolvedValue([
+        { assetId: fern, similarities: plant },
+        { assetId: pasta, similarities: plant },
+      ]);
+      mocks.tag.getAssetTagsByPrefix.mockImplementation((_ids: string[], prefix: string) =>
+        Promise.resolve(
+          prefix === 'Food/' ? [{ assetId: pasta, tagId: 'tag:food', value: 'Food/Nino/Carbonara' }] : [],
+        ),
+      );
+
+      const result = await sut.findVisits(auth, 'labels', { albumId });
+
+      expect(result.visits.flatMap(({ subjectIds }) => subjectIds)).toEqual([fern]);
     });
 
     it('should read its sources with its parser, hide what its privacy hook hides, and match the subjects', async () => {

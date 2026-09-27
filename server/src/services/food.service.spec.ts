@@ -173,10 +173,13 @@ describe(FoodService.name, () => {
       mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([pasta]));
       mocks.assetJob.getForAgent.mockResolvedValue([agentRow(pasta)]);
       mocks.search.getEmbeddingSimilarities.mockResolvedValue([{ assetId: pasta, similarities: dish }]);
-      mocks.tag.getAssetTagsByPrefix.mockResolvedValue([
+      const tags = [
         { assetId: pasta, tagId: newUuid(), value: 'Food/Il Gabbiano/Spaghetti' },
         { assetId: pasta, tagId: newUuid(), value: 'Food/Il Gabbiano' },
-      ]);
+      ];
+      mocks.tag.getAssetTagsByPrefix.mockImplementation((_ids: string[], prefix: string) =>
+        Promise.resolve(tags.filter(({ value }) => value.startsWith(prefix))),
+      );
 
       const { meals } = await sut.findMeals(auth, { assetIds: [pasta] });
 
