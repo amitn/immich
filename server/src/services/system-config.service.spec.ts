@@ -77,6 +77,13 @@ const updatedConfig = Object.freeze<SystemConfig>({
       stadiaApiKey: '',
       defaultStyle: 'watercolor',
     },
+    drafts: {
+      enabled: true,
+      maxPerRun: 3,
+      yearly: true,
+      trips: true,
+      birthdays: true,
+    },
   },
   food: {
     openStreetMap: {

@@ -10,7 +10,7 @@ import {
 } from '@immich/sql-tools';
 import type { BookStyle } from 'src/dtos/book.dto.js';
 import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
-import { BookExportStatus } from 'src/enum.js';
+import { BookExportStatus, BookStatus } from 'src/enum.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
@@ -44,6 +44,10 @@ export class BookTable {
 
   @Column({ type: 'jsonb' })
   style!: BookStyle;
+
+  /** a draft is a book suggested in the background, left out of the list of books until the user keeps it */
+  @Column({ default: BookStatus.Active })
+  status!: Generated<BookStatus>;
 
   @Column({ nullable: true })
   exportStatus!: BookExportStatus | null;

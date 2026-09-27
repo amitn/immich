@@ -414,6 +414,8 @@ export type JobItem =
   | { name: JobName.HlsSessionCleanup; data?: IBaseJob }
 
   // Books
+  | { name: JobName.BookDraftsQueueAll; data?: IBaseJob }
+  | { name: JobName.BookDraftsGenerate; data: IEntityJob }
   | { name: JobName.BookExport; data: IEntityJob }
   | { name: JobName.BookExportHtml; data: IEntityJob }
 
@@ -614,6 +616,9 @@ export type UserPreferences = {
   };
   recentlyAdded: {
     sidebarWeb: boolean;
+  };
+  bookDrafts: {
+    enabled: boolean;
   };
 };
 

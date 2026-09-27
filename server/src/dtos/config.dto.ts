@@ -207,6 +207,19 @@ const AdminConfigSchemaWithVisibility = z
             defaultStyle: z.enum(bookMapStyles).describe('Map style used when a book asks for the automatic style'),
           })
           .meta({ id: 'AdminConfigBookMapsDto' }),
+        drafts: z
+          .object({
+            enabled: configBool.describe(
+              'Draft photo books for the users in the background with the nightly tasks (a year of a collection, a trip, a birthday), for them to keep or discard',
+            ),
+            maxPerRun: z.int().min(1).max(20).describe('Most books drafted for a user per run'),
+            yearly: configBool.describe('Draft a book of a year of a collection, e.g. "2026 in food"'),
+            trips: configBool.describe('Draft a book of every trip'),
+            birthdays: configBool.describe(
+              'Draft a book of the year that ended on the latest birthday of the named people with a birth date',
+            ),
+          })
+          .meta({ id: 'AdminConfigBookDraftsDto' }),
       })
       .describe('Photo book config')
       .meta({ id: 'AdminConfigBooksDto' }),
@@ -637,6 +650,13 @@ export const defaults = Object.freeze<SystemConfig>({
     maps: {
       stadiaApiKey: '',
       defaultStyle: 'watercolor',
+    },
+    drafts: {
+      enabled: true,
+      maxPerRun: 3,
+      yearly: true,
+      trips: true,
+      birthdays: true,
     },
   },
   food: {

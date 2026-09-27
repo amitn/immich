@@ -454,6 +454,7 @@ export enum ManualJobName {
   UserCleanup = 'user-cleanup',
   MemoryCleanup = 'memory-cleanup',
   MemoryCreate = 'memory-create',
+  BookDraftsCreate = 'book-drafts-create',
   BackupDatabase = 'backup-database',
   IntegrityMissingFiles = `integrity-missing-files`,
   IntegrityUntrackedFiles = `integrity-untracked-files`,
@@ -880,6 +881,8 @@ export enum JobName {
 
   AuditTableCleanup = 'AuditTableCleanup',
 
+  BookDraftsQueueAll = 'BookDraftsQueueAll',
+  BookDraftsGenerate = 'BookDraftsGenerate',
   BookExport = 'BookExport',
   BookExportHtml = 'BookExportHtml',
 
@@ -1382,3 +1385,39 @@ export const BookExportFormatSchema = z
   .enum(BookExportFormat)
   .describe('Book export format: a print-ready PDF or a single self-contained HTML file')
   .meta({ id: 'BookExportFormat' });
+
+export enum BookStatus {
+  /** suggested and laid out in the background, waiting for the user to keep or discard it */
+  Draft = 'draft',
+  Active = 'active',
+}
+
+export const BookStatusSchema = z
+  .enum(BookStatus)
+  .describe('Book status: a draft made for the user in the background, or a book of theirs')
+  .meta({ id: 'BookStatus' });
+
+export enum BookDraftKind {
+  /** a year of a collection pack, e.g. "2026 in food" */
+  Yearly = 'yearly',
+  /** a trip: a Travel/<Trip> tag, or days away from home */
+  Trip = 'trip',
+  /** the year of a person's life that ended on their latest birthday */
+  Birthday = 'birthday',
+}
+
+export const BookDraftKindSchema = z
+  .enum(BookDraftKind)
+  .describe('Kind of suggested book')
+  .meta({ id: 'BookDraftKind' });
+
+export enum BookDraftState {
+  Drafted = 'drafted',
+  Kept = 'kept',
+  Discarded = 'discarded',
+}
+
+export const BookDraftStateSchema = z
+  .enum(BookDraftState)
+  .describe('What became of a suggested book')
+  .meta({ id: 'BookDraftState' });

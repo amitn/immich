@@ -1,5 +1,6 @@
 import { Selectable } from 'kysely';
 import { NormalizedRect, defaultBookStyle } from 'src/dtos/book.dto.js';
+import { BookStatus } from 'src/enum.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
 import { newDate, newUuid, newUuidV7 } from 'test/small.factory.js';
@@ -20,6 +21,7 @@ export const BookFactory = {
       pageWidthMm: 210,
       pageHeightMm: 210,
       style: { ...defaultBookStyle },
+      status: BookStatus.Active,
       exportStatus: null,
       exportPath: null,
       htmlExportStatus: null,

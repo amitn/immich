@@ -52,6 +52,7 @@ import { AssetMetadataTable } from 'src/schema/tables/asset-metadata.table.js';
 import { AssetOcrAuditTable } from 'src/schema/tables/asset-ocr-audit.table.js';
 import { AssetOcrTable } from 'src/schema/tables/asset-ocr.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
+import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
@@ -131,6 +132,7 @@ export class ImmichDatabase {
     AssetFileTable,
     AssetExifTable,
     BookTable,
+    BookDraftTable,
     BookPageTable,
     BookPageAssetTable,
     ClusterGroupTable,
@@ -248,6 +250,7 @@ export interface DB {
   ocr_search: OcrSearchTable;
 
   book: BookTable;
+  book_draft: BookDraftTable;
   book_page: BookPageTable;
   book_page_asset: BookPageAssetTable;
 

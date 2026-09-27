@@ -106,10 +106,21 @@ const RecentlyAddedUpdateSchema = z
   .optional()
   .meta({ id: 'RecentlyAddedUpdate' });
 
+const BookDraftsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .optional()
+  .meta({ id: 'BookDraftsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
     albums: AlbumsUpdateSchema,
     avatar: AvatarUpdateSchema,
+    bookDrafts: BookDraftsUpdateSchema,
     cast: CastUpdateSchema,
     download: DownloadUpdateSchema,
     emailNotifications: EmailNotificationsUpdateSchema,
@@ -207,6 +218,12 @@ const RecentlyAddedResponseSchema = z
   })
   .meta({ id: 'RecentlyAddedResponse' });
 
+const BookDraftsResponseSchema = z
+  .object({
+    enabled: z.boolean().describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .meta({ id: 'BookDraftsResponse' });
+
 const UserPreferencesResponseSchema = z
   .object({
     albums: AlbumsResponseSchema,
@@ -221,6 +238,7 @@ const UserPreferencesResponseSchema = z
     purchase: PurchaseResponseSchema,
     cast: CastResponseSchema,
     recentlyAdded: RecentlyAddedResponseSchema,
+    bookDrafts: BookDraftsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 
