@@ -22,6 +22,7 @@ With its tools, the assistant can:
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
+- make [collages](#collages) of a few photos;
 - create [artistic versions](#artistic-styles) of photos;
 - [design book and artistic styles of your own](#designing-your-own-styles) from a description;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
@@ -44,7 +45,7 @@ The assistant can search and look at your photos freely. Actions that change you
 - **Allow all in this chat** runs it and turns on auto-approve for the rest of the chat.
 - **Deny** refuses it. The assistant is told not to retry and asks you what to do instead.
 
-Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
+Actions that ask for approval include creating an album, adding or removing photos, cropping, straightening, enhancing or improving photos, saving a collage, creating artwork, illustrating maps, exporting or sharing a book, and editing a book that wasn't created in the current chat. Books the assistant creates in the chat are drafts, so it edits them without asking. An unanswered request counts as declined after 10 minutes.
 
 To skip the prompts, turn on **Auto-approve** at the top of a chat. It only applies to that chat. An administrator can also turn on **Auto-approve changes** in the settings, which skips approvals for every user.
 
@@ -244,6 +245,19 @@ The video is rendered in the background, with its progress in the corner of the 
 Rendering takes about half a minute to a few minutes on the CPU, depending on the length and the number of clips. When your administrator turns on hardware acceleration for [video transcoding](/features/hardware-transcoding), the film is encoded on the GPU, and on the CPU if that fails.
 
 You can also ask the assistant: _"make a one-minute video of our trip to Sicily"_. It uses `make_highlight_video`, which asks for approval, and tells you when the video is ready.
+
+## Collages
+
+A collage puts 2 to 9 photos on one page. Select the photos in the timeline or in an album, then **Make a collage…** in the **⋮** menu. The dialog shows a live preview drawn by the server, and lets you choose:
+
+- **Aspect ratio**: 1:1 (square), 4:5 (portrait, e.g. for a feed), 9:16 (a phone screen or a story) or 16:9 (a screen).
+- **Layout**: the layouts for that number of photos, from the [photo book](#photo-books) catalogue plus denser ones made for collages. The one that fits your photos best comes first: portrait photos go into tall slots and landscapes into wide ones, and faces are kept whole. **Shuffle layout** goes through the others.
+- **Style**: a book style preset, or one of [your own styles](#designing-your-own-styles), with its margins, gaps, page colour and font.
+- **Title**: optional, drawn in a band at the foot of the collage.
+
+**Download** saves the collage (3000 pixels on the long side) to your computer. **Save collage** adds it to your timeline as a new photo, dated like its last photo and tagged `Collages/<title>` (or `Collages/<dates>` without a title), then opens it. A collage made in an album you can add to is added to that album. The photos themselves are never changed.
+
+You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 photos of each day"_. It picks the photos, previews the collages with `preview_collage`, and saves the ones you agree to with `make_collage`, which asks for approval.
 
 ## Artistic styles
 
