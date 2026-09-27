@@ -1,5 +1,8 @@
 {
   "admin": {
+    "agent_mcp_url_description": "URL the agent uses to reach the Noodle Gallery tools. Leave empty to use http://127.0.0.1:<port>/api/agent/mcp.",
+    "agent_profiles_description": "Agents Noodle Gallery can start, and how to start them",
+    "agent_security_description": "The agent runs as a process on the Noodle Gallery server and can use the Noodle Gallery tools with the permissions of the user who is chatting. Cloud-based agents send photo previews, metadata and the names of people to their provider. Only configure agents you trust.",
     "asset_offline_description": "This external library asset is no longer found on disk and has been moved to trash. If the file was moved within the library, check your timeline for the new corresponding asset. To restore this asset, please ensure that the file path below can be accessed by Noodle Gallery and scan the library.",
     "backup_onboarding_description": "A <backblaze-link>3-2-1 backup strategy</backblaze-link> is recommended to protect your data. You should keep copies of your uploaded photos/videos as well as the Noodle Gallery database for a comprehensive backup solution.",
     "backup_onboarding_footer": "For more information about backing up Noodle Gallery, please refer to the <link>documentation</link>.",
@@ -20,6 +23,7 @@
   "assets_trashed_from_server": "{count} asset(s) trashed from the Noodle Gallery server",
   "background_location_permission_content": "Noodle Gallery uses background location permission so it can keep reading the Wi-Fi network name while automatic server switching runs. The Wi-Fi network name is saved on this device for matching. Your precise device location is not stored or shared.",
   "backup_controller_page_background_battery_info_message": "For the best background backup experience, please disable any battery optimizations restricting background activity for Noodle Gallery.\n\nSince this is device-specific, please lookup the required information for your device manufacturer.",
+  "book_share_description": "Anyone with the link can read this photo book as a web book, without a Noodle Gallery account. The photos in it are not shared one by one.",
   "buy": "Support Noodle Gallery",
   "cache_settings_subtitle": "Control the caching behaviour of the Noodle Gallery mobile application",
   "cleanup_confirm_description": "Noodle Gallery found {count} assets (created before {date}) safely backed up to the server. Remove the local copies from this device?",
@@ -32,6 +36,7 @@
   "delete_dialog_alert_remote": "These items will be permanently deleted from the Noodle Gallery server",
   "download_sucess_android": "The media has been downloaded to DCIM/NoodleGallery",
   "empty_trash_confirmation": "Are you sure you want to empty the trash? This will remove all the assets in trash permanently from Noodle Gallery.\nYou cannot undo this action!",
+  "highlight_video_music_description": "Noodle Gallery includes no music: pick an audio file you uploaded, upload one, or keep the video silent",
   "ignore_icloud_photos_description": "Photos that are stored on iCloud will not be uploaded to the Noodle Gallery server",
   "immich_logo": "Noodle Gallery Logo",
   "immich_web_interface": "Noodle Gallery Web Interface",

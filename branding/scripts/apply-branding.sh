@@ -489,6 +489,26 @@ patch_emails() {
 }
 
 #
+# --- AI assistant ---
+#
+# The assistant's instructions and tool descriptions name the product to the agent, which repeats the name to the
+# user in chat. Only the capitalised word is rewritten: identifiers (IMMICH_MCP_SERVER_NAME, getImmichToolName,
+# ImmichWorker) contain it inside a longer word, so the word boundaries leave them alone.
+patch_assistant() {
+  echo "--- Patching AI assistant prose ---"
+  local file
+  for file in "$REPO_ROOT"/server/src/utils/agent/instructions.ts "$REPO_ROOT"/server/src/services/agent-tools/*.tools.ts; do
+    [[ -f "$file" ]] || continue
+    sed -i -E "s/\ban Immich\b/a ${NAME}/g; s/\bImmich\b/${NAME}/g" "$file"
+  done
+  local tool_service="$REPO_ROOT/server/src/services/agent-tool.service.ts"
+  if [[ -f "$tool_service" ]]; then
+    sed -i "s|title: 'Immich'|title: '${NAME}'|g" "$tool_service"
+  fi
+  echo "  Patched the assistant's instructions and tool descriptions"
+}
+
+#
 # --- Help Modal ---
 #
 patch_help_modal() {
@@ -1032,6 +1052,7 @@ main() {
   patch_web
   patch_app_download_modal
   patch_emails
+  patch_assistant
   patch_help_modal
   patch_assets
   patch_android
