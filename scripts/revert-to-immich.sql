@@ -22,6 +22,10 @@
 --   * Asset duplicate checksums
 --   * Library sync state (library_audit, library_user, library.createId)
 --   * Storage migration history
+--   * The AI assistant: its chats, artistic styles and jobs, photo books (with
+--     their pages, drafts, styles, revisions and share links), highlight videos,
+--     the activity log and the collection notices. The photos they made (crops,
+--     enhanced copies, artworks, exported videos) are ordinary assets and stay.
 --
 -- Assets you uploaded through Gallery are preserved as long as they are stored
 -- in Immich-native rows (asset, asset_exif, asset_face, etc.). If an asset
@@ -160,6 +164,22 @@ DROP TABLE IF EXISTS "classification_category" CASCADE;
 DROP TABLE IF EXISTS "storage_migration_log" CASCADE;
 DROP TABLE IF EXISTS "asset_duplicate_checksum" CASCADE;
 
+-- AI assistant, photo books, highlight videos, activity log and collection notices
+DROP TABLE IF EXISTS "activity_log" CASCADE;
+DROP TABLE IF EXISTS "agent_message" CASCADE;
+DROP TABLE IF EXISTS "agent_session" CASCADE;
+DROP TABLE IF EXISTS "art_job" CASCADE;
+DROP TABLE IF EXISTS "art_style" CASCADE;
+DROP TABLE IF EXISTS "book_page_asset" CASCADE;
+DROP TABLE IF EXISTS "book_page" CASCADE;
+DROP TABLE IF EXISTS "book_revision" CASCADE;
+DROP TABLE IF EXISTS "book_draft" CASCADE;
+DROP TABLE IF EXISTS "book_style" CASCADE;
+DROP TABLE IF EXISTS "book" CASCADE;
+DROP TABLE IF EXISTS "collection_notice_check" CASCADE;
+DROP TABLE IF EXISTS "collection_notice" CASCADE;
+DROP TABLE IF EXISTS "highlight_job" CASCADE;
+
 -- -----------------------------------------------------------------------------
 -- 3. Drop Gallery-only functions.
 --
@@ -214,6 +234,10 @@ ALTER TABLE "person"            DROP COLUMN IF EXISTS "identityId";
 -- #1018: the space a share link was created from. Dropping it implicitly drops
 -- shared_link_spaceId_idx; the links themselves survive as owner-only links.
 ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "spaceId";
+-- The links to photo books: upstream has no BOOK shared link type, and the books themselves were
+-- dropped in section 2 (which also took the shared_link_bookId_fkey constraint with it).
+DELETE FROM "shared_link" WHERE "type" = 'BOOK';
+ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "bookId";
 
 -- -----------------------------------------------------------------------------
 -- 5. Strip Gallery's merged 'classification' key out of system_metadata's
@@ -223,6 +247,12 @@ UPDATE "system_metadata"
    SET "value" = "value" - 'classification'
  WHERE "key" = 'system-config'
    AND "value" ? 'classification';
+
+-- The config sections of the AI assistant, photo books, collections and food photos.
+UPDATE "system_metadata"
+   SET "value" = "value" - 'agent' - 'books' - 'collections' - 'food'
+ WHERE "key" = 'system-config'
+   AND ("value" ? 'agent' OR "value" ? 'books' OR "value" ? 'collections' OR "value" ? 'food');
 
 -- -----------------------------------------------------------------------------
 -- 6. Delete Gallery-added rows from migration_overrides.
@@ -313,7 +343,15 @@ DELETE FROM "migration_overrides"
    'trigger_shared_space_person_updatedAt',
    'trigger_shared_space_updatedAt',
    'trigger_user_group_updatedAt',
-   'trigger_shared_space_album_folder_updatedAt'
+   'trigger_shared_space_album_folder_updatedAt',
+   'trigger_agent_session_updatedAt',
+   'trigger_art_job_updatedAt',
+   'trigger_art_style_updatedAt',
+   'trigger_book_draft_updatedAt',
+   'trigger_book_page_updatedAt',
+   'trigger_book_style_updatedAt',
+   'trigger_book_updatedAt',
+   'trigger_highlight_job_updatedAt'
  );
 
 -- -----------------------------------------------------------------------------
@@ -510,6 +548,18 @@ DELETE FROM "kysely_migrations"
   -- had already recorded the pre-rename name. Drop that row too, or upstream's migrator aborts
   -- with "corrupted migrations" on a reverted rolling-derived DB.
   '1793000000000-ClearPreOptionMFaceRepairScans',
+  -- AI assistant, photo books, highlight videos, activity log and collection notices
+  '1794000000000-AiAssistant',
+  '1794100000000-AgentSessionAutoApprove',
+  '1794200000000-BookHtmlExport',
+  '1794300000000-BookPageMap',
+  '1794400000000-BookExportTracking',
+  '1794500000000-SharedLinkBook',
+  '1794600000000-BookDrafts',
+  '1794700000000-UserStyles',
+  '1794800000000-HighlightJob',
+  '1794900000000-ActivityLog',
+  '1795000000000-CollectionNotices',
 
    -- Pre-rename names for two migrations that were renumbered off timestamp collisions
    -- ("renumber AddFaceRepairScanFlaggedFace off the #722 collision",
@@ -581,7 +631,18 @@ BEGIN
       OR "name" LIKE '%AddFaceRepairDecline%'
       OR "name" LIKE '%AddFaceRepairLock%'
       OR "name" LIKE '%AddFaceRepairScanFlaggedFace%'
-      OR "name" LIKE '%AddFaceRepairScanInFlightIndex%';
+      OR "name" LIKE '%AddFaceRepairScanInFlightIndex%'
+      OR "name" = '1794000000000-AiAssistant'
+      OR "name" = '1794100000000-AgentSessionAutoApprove'
+      OR "name" = '1794200000000-BookHtmlExport'
+      OR "name" = '1794300000000-BookPageMap'
+      OR "name" = '1794400000000-BookExportTracking'
+      OR "name" = '1794500000000-SharedLinkBook'
+      OR "name" = '1794600000000-BookDrafts'
+      OR "name" = '1794700000000-UserStyles'
+      OR "name" = '1794800000000-HighlightJob'
+      OR "name" = '1794900000000-ActivityLog'
+      OR "name" = '1795000000000-CollectionNotices';
   IF fork_rows_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery row(s) still present in kysely_migrations after cleanup — aborting.', fork_rows_left;
   END IF;
@@ -610,7 +671,8 @@ BEGIN
        'storage_migration_log', 'asset_duplicate_checksum',
        'face_person_verdict', 'face_repair_scan', 'face_repair_decline',
        'face_repair_scan_flagged_face', 'face_repair_lock',
-       'pet_search'
+       'pet_search',
+       'activity_log', 'agent_message', 'agent_session', 'art_job', 'art_style', 'book_page_asset', 'book_page', 'book_revision', 'book_draft', 'book_style', 'book', 'collection_notice_check', 'collection_notice', 'highlight_job'
      );
   IF fork_tables_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery table(s) still present after cleanup — aborting.', fork_tables_left;
