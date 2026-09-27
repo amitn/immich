@@ -1,6 +1,7 @@
 <script lang="ts">
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
+  import BookDraftBanner from '$lib/components/books/BookDraftBanner.svelte';
   import BookEditPanel from '$lib/components/books/BookEditPanel.svelte';
   import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
   import BookPageEditor from '$lib/components/books/BookPageEditor.svelte';
@@ -14,11 +15,13 @@
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
   import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
   import { BookEditorManager } from '$lib/managers/book-editor-manager.svelte';
+  import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
   import BookRelayoutModal from '$lib/modals/BookRelayoutModal.svelte';
   import SharedLinkCreateModal from '$lib/modals/SharedLinkCreateModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
+  import { discardBookDraftWithConfirm, keepBookDraftWithToast, polishBookDraft } from '$lib/services/book.service';
   import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
   import { locale } from '$lib/stores/preferences.store';
   import { websocketEvents } from '$lib/stores/websocket';
@@ -40,6 +43,7 @@
     AgentMessageKind,
     BookExportFormat,
     BookExportStatus,
+    BookStatus,
     deleteBook,
     exportBook,
     getBook,
@@ -357,6 +361,32 @@
   const handleEditWithAssistant = () =>
     openAssistant({ prompt: $t('book_edit_prompt', { values: { title: book.title, id: book.id } }) });
 
+  const isDraft = $derived(book.status === BookStatus.Draft);
+  let draftBusy = $state(false);
+
+  const handleKeepDraft = async () => {
+    draftBusy = true;
+    try {
+      const kept = await keepBookDraftWithToast($t, book);
+      if (kept) {
+        book = { ...book, status: kept.status };
+      }
+    } finally {
+      draftBusy = false;
+    }
+  };
+
+  const handleDiscardDraft = async () => {
+    draftBusy = true;
+    try {
+      if (await discardBookDraftWithConfirm($t, book)) {
+        await goto(Route.books());
+      }
+    } finally {
+      draftBusy = false;
+    }
+  };
+
   const handleDelete = async () => {
     const confirmed = await modalManager.showDialog({
       title: $t('book_delete'),
@@ -630,6 +660,16 @@
       />
     </div>
   {/snippet}
+
+  {#if isDraft}
+    <BookDraftBanner
+      assistant={featureFlagsManager.value.assistant}
+      busy={draftBusy}
+      onKeep={() => void handleKeepDraft()}
+      onDiscard={() => void handleDiscardDraft()}
+      onPolish={() => void polishBookDraft($t, book)}
+    />
+  {/if}
 
   {#if pages.length === 0}
     <div class="mx-auto mt-16 flex max-w-md flex-col items-center gap-4 text-center">

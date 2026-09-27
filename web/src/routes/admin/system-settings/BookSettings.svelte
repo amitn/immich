@@ -1,6 +1,7 @@
 <script lang="ts">
   import SettingSelect from './SettingSelect.svelte';
   import SettingInputField from '$lib/components/shared-components/settings/SettingInputField.svelte';
+  import SettingSwitch from '$lib/components/shared-components/settings/SettingSwitch.svelte';
   import SettingButtonsRow from '$lib/components/shared-components/settings/SystemConfigButtonRow.svelte';
   import { SettingInputFieldType } from '$lib/constants';
   import FormatMessage from '$lib/elements/FormatMessage.svelte';
@@ -73,6 +74,49 @@
 
         {#if !hasKey && books.maps.defaultStyle !== DefaultStyle.Sketch}
           <Text size="small" class="text-orange-700 dark:text-orange-300">{$t('admin.book_maps_style_needs_key')}</Text>
+        {/if}
+
+        <SettingSwitch
+          title={$t('admin.book_drafts_enabled')}
+          subtitle={$t('admin.book_drafts_enabled_description')}
+          bind:checked={books.drafts.enabled}
+          {disabled}
+          isEdited={books.drafts.enabled !== config.books.drafts.enabled}
+        />
+        {#if books.drafts.enabled}
+          <div class="ms-4 flex flex-col gap-4">
+            <SettingSwitch
+              title={$t('admin.book_drafts_yearly')}
+              subtitle={$t('admin.book_drafts_yearly_description')}
+              bind:checked={books.drafts.yearly}
+              {disabled}
+              isEdited={books.drafts.yearly !== config.books.drafts.yearly}
+            />
+            <SettingSwitch
+              title={$t('admin.book_drafts_trips')}
+              subtitle={$t('admin.book_drafts_trips_description')}
+              bind:checked={books.drafts.trips}
+              {disabled}
+              isEdited={books.drafts.trips !== config.books.drafts.trips}
+            />
+            <SettingSwitch
+              title={$t('admin.book_drafts_birthdays')}
+              subtitle={$t('admin.book_drafts_birthdays_description')}
+              bind:checked={books.drafts.birthdays}
+              {disabled}
+              isEdited={books.drafts.birthdays !== config.books.drafts.birthdays}
+            />
+            <SettingInputField
+              inputType={SettingInputFieldType.NUMBER}
+              label={$t('admin.book_drafts_max_per_run')}
+              description={$t('admin.book_drafts_max_per_run_description')}
+              min={1}
+              max={20}
+              {disabled}
+              bind:value={books.drafts.maxPerRun}
+              isEdited={books.drafts.maxPerRun !== config.books.drafts.maxPerRun}
+            />
+          </div>
         {/if}
       </div>
     </form>

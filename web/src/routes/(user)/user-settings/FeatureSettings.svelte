@@ -36,6 +36,9 @@
   let tagsEnabled = $state(authManager.preferences.tags?.enabled ?? false);
   let tagsSidebar = $state(authManager.preferences.tags?.sidebarWeb ?? false);
 
+  // Suggested books
+  let bookDraftsEnabled = $state(authManager.preferences.bookDrafts?.enabled ?? true);
+
   // Cast
   let gCastEnabled = $state(authManager.preferences.cast?.gCastEnabled ?? false);
 
@@ -55,6 +58,7 @@
           tags: { enabled: tagsEnabled, sidebarWeb: tagsSidebar },
           cast: { gCastEnabled },
           recentlyAdded: { sidebarWeb: recentlyAddedSidebar },
+          bookDrafts: { enabled: bookDraftsEnabled },
         },
       });
 
@@ -134,6 +138,18 @@
                 <NumberInput bind:value={peopleMinFaces} />
               </Field>
             {/if}
+          </div>
+        </SettingAccordion>
+
+        <SettingAccordion
+          key="book-drafts"
+          title={$t('book_drafts_setting')}
+          subtitle={$t('book_drafts_setting_description')}
+        >
+          <div class="mt-4 flex flex-col gap-4 sm:ms-4">
+            <Field label={$t('enable')}>
+              <Switch bind:checked={bookDraftsEnabled} />
+            </Field>
           </div>
         </SettingAccordion>
 

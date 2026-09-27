@@ -5,6 +5,9 @@ export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
   albums: {
     defaultAssetOrder: AssetOrder.Desc,
   },
+  bookDrafts: {
+    enabled: true,
+  },
   cast: {
     gCastEnabled: false,
   },

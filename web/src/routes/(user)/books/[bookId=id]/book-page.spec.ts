@@ -1,4 +1,11 @@
-import { AgentMessageKind, BookStylePreset, Orientation, Severity, type BookPageResponseDto } from '@immich/sdk';
+import {
+  AgentMessageKind,
+  BookStatus,
+  BookStylePreset,
+  Orientation,
+  Severity,
+  type BookPageResponseDto,
+} from '@immich/sdk';
 import { modalManager, toastManager } from '@immich/ui';
 import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { ComponentProps } from 'svelte';
@@ -6,6 +13,7 @@ import { goto } from '$app/navigation';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import { AgentToolCallStatus } from '$lib/managers/agent-conversation.svelte';
+import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import BookPreviewModal from '$lib/modals/BookPreviewModal.svelte';
 import { openAssistant } from '$lib/services/assistant.service';
 import { resetBookLayouts } from '$lib/utils/book-review';
@@ -316,6 +324,77 @@ describe('book page', () => {
       await waitFor(() => expect(screen.queryByText('book_style_applying')).not.toBeInTheDocument());
       expect(screen.queryByTestId('book-page-loading')).not.toBeInTheDocument();
       expect(success).toHaveBeenCalledWith('book_style_changed');
+    });
+  });
+  describe('a draft', () => {
+    const draft = bookDetailFactory.build({
+      title: '2025 in food',
+      status: BookStatus.Draft,
+      updatedAt: '2026-09-25T10:00:00.000Z',
+      pages: [pageFactory('page-1', 0)],
+    });
+
+    it('should not show the banner for a book of the user', () => {
+      renderPage();
+
+      expect(screen.queryByTestId('book-draft-banner')).not.toBeInTheDocument();
+    });
+
+    it('should offer to keep or discard it', () => {
+      renderPage({ book: draft, meta: { title: draft.title } });
+
+      expect(screen.getByTestId('book-draft-banner')).toHaveTextContent('book_draft_banner');
+      expect(screen.getByRole('button', { name: 'book_draft_keep' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'book_draft_discard' })).toBeInTheDocument();
+      // the assistant is off
+      expect(screen.queryByRole('button', { name: 'book_draft_polish' })).not.toBeInTheDocument();
+    });
+
+    it('should keep it', async () => {
+      sdkMock.keepBookDraft.mockResolvedValue({ ...draft, status: BookStatus.Active });
+      const success = vi.spyOn(toastManager, 'success');
+      renderPage({ book: draft, meta: { title: draft.title } });
+
+      await fireEvent.click(screen.getByRole('button', { name: 'book_draft_keep' }));
+
+      expect(sdkMock.keepBookDraft).toHaveBeenCalledWith({ id: draft.id });
+      await waitFor(() => expect(screen.queryByTestId('book-draft-banner')).not.toBeInTheDocument());
+      expect(success).toHaveBeenCalledWith('book_draft_kept');
+    });
+
+    it('should discard it once confirmed and go back to the books', async () => {
+      vi.spyOn(modalManager, 'showDialog').mockResolvedValue(true);
+      sdkMock.discardBookDraft.mockResolvedValue(undefined as never);
+      renderPage({ book: draft, meta: { title: draft.title } });
+
+      await fireEvent.click(screen.getByRole('button', { name: 'book_draft_discard' }));
+
+      await waitFor(() => expect(sdkMock.discardBookDraft).toHaveBeenCalledWith({ id: draft.id }));
+      await waitFor(() => expect(goto).toHaveBeenCalledWith('/books'));
+    });
+
+    it('should keep the draft when discarding is cancelled', async () => {
+      vi.spyOn(modalManager, 'showDialog').mockResolvedValue(false);
+      renderPage({ book: draft, meta: { title: draft.title } });
+
+      await fireEvent.click(screen.getByRole('button', { name: 'book_draft_discard' }));
+
+      await waitFor(() => expect(modalManager.showDialog).toHaveBeenCalled());
+      expect(sdkMock.discardBookDraft).not.toHaveBeenCalled();
+      expect(goto).not.toHaveBeenCalled();
+    });
+
+    it('should open the assistant to polish it', async () => {
+      featureFlagsManager.value.assistant = true;
+      try {
+        renderPage({ book: draft, meta: { title: draft.title } });
+
+        await fireEvent.click(screen.getByRole('button', { name: 'book_draft_polish' }));
+
+        expect(openAssistant).toHaveBeenCalledWith({ prompt: 'book_draft_polish_prompt' });
+      } finally {
+        featureFlagsManager.value.assistant = false;
+      }
     });
   });
 });
