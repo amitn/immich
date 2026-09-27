@@ -305,6 +305,34 @@ describe(CollectionService.name, () => {
       });
     });
 
+    it('should tag a source with another source leaf of its pack when the entry names it', async () => {
+      const [lineUp, setlist, stage] = [newUuid(), newUuid(), newUuid()];
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([lineUp, setlist, stage]));
+      mocks.tag.upsertValue.mockImplementation(({ value }: { value: string }) =>
+        Promise.resolve({ id: `tag:${value}`, value } as never),
+      );
+      vi.spyOn(TagService.prototype, 'addAssets').mockImplementation((_, __, { ids }) =>
+        Promise.resolve(ids.map((id) => ({ id, success: true }))),
+      );
+      vi.spyOn(AssetService.prototype, 'update').mockResolvedValue({} as never);
+      mocks.assetJob.getForAgent.mockResolvedValue([agentRow(lineUp), agentRow(setlist), agentRow(stage)]);
+
+      const result = await sut.saveEntries(auth, 'concerts', {
+        place: 'Primavera Sound 2019',
+        photos: [
+          { id: lineUp, entry: 'line-up' },
+          { id: setlist, source: true },
+          { id: stage, entry: 'Kali Uchis' },
+        ],
+      });
+
+      expect(result.results.map(({ tag }) => tag)).toEqual([
+        'Concerts/Primavera Sound 2019/Line-up',
+        'Concerts/Primavera Sound 2019/Setlist',
+        'Concerts/Primavera Sound 2019/Kali Uchis',
+      ]);
+    });
+
     it('should need a place and an entry', async () => {
       await expect(
         sut.saveEntries(auth, 'labels', { place: ' / ', photos: [{ id: newUuid(), entry: 'Rosa' }] }),

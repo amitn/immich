@@ -8,6 +8,7 @@ import {
   LayoutTextArea,
   PageSize,
   PxRect,
+  SETLIST_LAYOUT,
   TASTING_LAYOUTS,
   TICKET_STUB_LAYOUT,
   getLayout,
@@ -19,6 +20,7 @@ import {
   toPxRect,
 } from 'src/utils/book/layouts.js';
 import { getRecipeBlocks } from 'src/utils/book/recipe-page.js';
+import { getSetlistBlocks } from 'src/utils/book/setlist-page.js';
 import { getTastingNoteBlocks } from 'src/utils/book/tasting-note.js';
 import { getTicketStub } from 'src/utils/book/ticket-stub.js';
 
@@ -944,6 +946,20 @@ export const planPage = (
           );
           decorations.push(...stub.decorations);
           blocks.push(...stub.blocks);
+        } else if (page.caption && layout.id === SETLIST_LAYOUT) {
+          // the setlist typeset beside the photo of the sheet: the act, then the songs in bold capitals
+          const setlist = getSetlistBlocks(page.caption, rect, {
+            fontPx: captionPx * 1.05,
+            ink,
+            accent: food ? accent : (style.accentColor ?? ink),
+            pxPerMm: mmToPx(1, dpi),
+            wrap: wrapText,
+            lineHeight: LINE_HEIGHT,
+            capsCharWidth: SMALL_CAPS_CHAR_WIDTH,
+            charWidth: CHAR_WIDTH,
+          });
+          blocks.push(...setlist.blocks);
+          decorations.push(...setlist.decorations);
         } else if (page.caption && layout.id === 'recipe') {
           // the recipe typeset below the photo of the card: meta, ingredients and method
           const recipe = getRecipeBlocks(page.caption, rect, {

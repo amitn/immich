@@ -81,6 +81,7 @@ import {
   snapEntryPlaces,
 } from 'src/utils/collections/source.js';
 import {
+  findSourceLeaf,
   getEntryTag,
   getSourceTag,
   getTagPlaceName,
@@ -647,7 +648,9 @@ export class CollectionService extends BaseService {
         warnings.push(...reading.warnings);
       }
       const readings = await this.snapPlaces(auth, read, [...subjectIds, ...sourceIds], warnings);
-      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
+      const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings), {
+        repeats: pack.source.repeats,
+      });
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
         name: item.name,
@@ -781,7 +784,7 @@ export class CollectionService extends BaseService {
    */
   private async assignSubjects(
     pack: CollectionPack,
-    rows: Array<{ id: string; localDateTime: Date }>,
+    rows: Array<{ id: string; localDateTime: Date; latitude?: number | null; longitude?: number | null }>,
     embeddings: Map<string, Float32Array>,
     entries: CollectionEntryResponse[],
     courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>,
@@ -813,6 +816,8 @@ export class CollectionService extends BaseService {
         id: row.id,
         time: row.localDateTime.getTime(),
         embedding: embeddings.get(row.id) ?? new Float32Array(0),
+        ...(typeof row.latitude === 'number' &&
+          typeof row.longitude === 'number' && { latitude: row.latitude, longitude: row.longitude }),
         ...(ocr.has(row.id) && {
           text: redactText(
             pack,
@@ -926,15 +931,16 @@ export class CollectionService extends BaseService {
       throw new BadRequestException(getCollectionMessages(pack).placeNeedsName);
     }
 
-    const sourceLeaf = pack.sourceLeaf.toLowerCase();
-    const byId = new Map<string, { entry?: string; source: boolean }>();
+    const byId = new Map<string, { entry?: string; source: boolean; leaf?: string }>();
     for (const photo of dto.photos) {
       const entry = photo.entry?.trim();
-      const source = photo.source === true || entry?.toLowerCase() === sourceLeaf;
+      // a source leaf as the entry (e.g. "menu", or another leaf of the pack such as "Line-up") marks a source
+      const leaf = findSourceLeaf(rules, entry);
+      const source = photo.source === true || leaf !== undefined;
       if (!source && !entry) {
         throw new BadRequestException(`Photo ${photo.id} needs an entry, or source: true`);
       }
-      byId.set(photo.id, source ? { source } : { entry: redactText(pack, entry!), source });
+      byId.set(photo.id, source ? { source, ...(leaf && { leaf }) } : { entry: redactText(pack, entry!), source });
     }
     const ids = byId.keys().toArray();
     if (ids.length > COLLECTION_LIMITS.photos) {
@@ -954,8 +960,8 @@ export class CollectionService extends BaseService {
 
     const tagValues = new Map(
       targets.map((id) => {
-        const { entry, source } = byId.get(id)!;
-        return [id, source ? getSourceTag(rules, place) : getEntryTag(rules, place, entry!)];
+        const { entry, source, leaf } = byId.get(id)!;
+        return [id, source ? getSourceTag(rules, place, leaf) : getEntryTag(rules, place, entry!)];
       }),
     );
     const tags = await upsertTags(this.tagRepository, {

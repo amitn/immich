@@ -30,6 +30,8 @@ const PACK_WORDS: Record<string, string[]> = {
   ],
   cookbook: ['cook', 'cooked', 'cooking', 'bake', 'baked', 'baking', 'recipe', 'recipes'],
   travel: ['trip', 'trips', 'flight', 'flights', 'flew', 'fly', 'train', 'trains', 'travel', 'traveled', 'travelled'],
+  concerts: ['concert', 'concerts', 'festival', 'festivals', 'band', 'bands', 'lineup', 'performer', 'performers'],
+  nature: ['plant', 'plants', 'tree', 'trees', 'flower', 'flowers', 'botanical', 'arboretum', 'zoo', 'zoos'],
 };
 
 const STOPWORDS = new Set([
