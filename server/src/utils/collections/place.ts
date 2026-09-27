@@ -134,6 +134,9 @@ const normalize = (name: string, keepSpaces = false) =>
     .toLowerCase()
     .replaceAll(keepSpaces ? /[^\p{L}\d\s]/gu : /[^\p{L}\d]/gu, '');
 
+/** Whether two names are the same but for case, accents and punctuation: "Crème brûlée" is "CREME BRULEE" */
+export const isSamePlaceName = (a: string, b: string) => normalize(a) === normalize(b);
+
 /** "Pizzeria" alone names a kind of place, not a place */
 const isPlaceWordOnly = (name: string, rules: PlaceNameRules) => !name.includes(' ') && rules.words.test(name);
 

@@ -16,6 +16,11 @@ describe('ASSISTANT_INSTRUCTIONS', () => {
     expect(section).toMatch(/Only save_book_style after the user approves/);
   });
 
+  it('should tell the agent not to print photo ids, as the chat shows the photos of the tool results', () => {
+    expect(ASSISTANT_INSTRUCTIONS).toMatch(/Don't print photo ids in your replies/);
+    expect(ASSISTANT_INSTRUCTIONS).not.toMatch(/show the matching photos by their ids/);
+  });
+
   it('should only name tools that exist', () => {
     const { sut } = newTestService(AgentToolService);
     const tools = new Set(sut.getTools().map((tool) => tool.name));

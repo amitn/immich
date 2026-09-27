@@ -57,14 +57,16 @@
       {#each sessions as session (session.id)}
         {@const active = session.id === activeId}
         {@const title = session.title || $t('assistant_untitled_chat')}
+        <!-- the open chat is tinted and marked on its start edge; a hovered one only gets a faint background -->
         <li
-          class="group flex items-center gap-1 rounded-xl pe-1 {active
-            ? 'bg-primary/10 text-primary'
-            : 'hover:bg-gray-100 dark:hover:bg-gray-800'}"
+          class="group flex items-center gap-1 rounded-xl border-s-4 pe-1 transition-colors {active
+            ? 'border-primary bg-primary/15 text-primary dark:bg-primary/20'
+            : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5'}"
+          data-active={active || undefined}
         >
           <button
             type="button"
-            class="flex min-w-0 flex-1 flex-col items-start px-3 py-2 text-start"
+            class="flex min-w-0 flex-1 flex-col items-start rounded-xl px-3 py-2 text-start outline-none focus-visible:ring-2 focus-visible:ring-primary"
             aria-current={active ? 'true' : undefined}
             onclick={() => onSelect(session)}
           >
@@ -90,7 +92,7 @@
             shape="round"
             class="shrink-0 {active
               ? ''
-              : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100'}"
+              : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100'}"
             aria-label={$t('assistant_delete_chat_named', { values: { title } })}
             onclick={() => onDelete(session)}
           />

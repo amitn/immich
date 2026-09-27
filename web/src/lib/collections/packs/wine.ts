@@ -20,6 +20,8 @@ export const winePack: WebCollectionPack = {
   icon: mdiGlassWine,
   tagRoot: 'Wine',
   limits: WINE_LIMITS,
+  // each bottle carries its own label, read by the server: the tasting needs no wine list
+  sourceOnSubjects: true,
   // the preset of the wine pack, which the SDK lists once it is regenerated with the pack
   bookStylePreset: 'wine' as BookStylePreset,
   bookStyleLabels: {

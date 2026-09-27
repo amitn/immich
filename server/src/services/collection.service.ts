@@ -54,7 +54,7 @@ import {
   getCollectionTagRules,
   redactText,
 } from 'src/utils/collections/pack.js';
-import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
+import { PlaceCandidate, PlacePhoto, findPlaceNames, isGarbled, isSamePlaceName } from 'src/utils/collections/place.js';
 import {
   CollectionPersonTimes,
   CollectionQueryFilters,
@@ -73,10 +73,12 @@ import {
   ParsedSource,
   chooseReading,
   chooseSourceOcr,
+  cleanReadTitle,
   combineSourceOcr,
   getEntriesFocus,
   getTitlePrompt,
   mergeSourceEntries,
+  snapEntryPlaces,
 } from 'src/utils/collections/source.js';
 import {
   getEntryTag,
@@ -479,7 +481,10 @@ export class CollectionService extends BaseService {
             confidence: 0,
             assetIds: [],
           },
-          candidates: candidates.filter((candidate) => candidate !== place),
+          // the other names read, but not the name of the place again (a title read on the recipe it is tagged with)
+          candidates: candidates.filter(
+            (candidate) => candidate !== place && !(place && isSamePlaceName(candidate.name, place.name)),
+          ),
           saved,
         };
       }),
@@ -625,6 +630,8 @@ export class CollectionService extends BaseService {
 
     const warnings: string[] = [];
     let entries: CollectionEntryResponse[];
+    // the entries whose names may be misspelled (Greek print read as Latin lookalikes): their photos are to check
+    const toCheck = new Set<number>();
     // where each entry is in the order of the source (e.g. the courses of a menu), and whether it has a price
     let courses: Array<Pick<EntryCandidate, 'course' | 'priced'>>;
     if (dto.entries && dto.entries.length > 0) {
@@ -635,10 +642,11 @@ export class CollectionService extends BaseService {
       // entries passed in are in the order they were read; the matcher only follows it when the photos do
       courses = entries.map((_, index) => ({ course: index }));
     } else {
-      const readings = await mapLimit(sourceIds, 2, (id) => this.getSourceReading(pack, id, true));
-      for (const reading of readings) {
+      const read = await mapLimit(sourceIds, 2, (id) => this.getSourceReading(pack, id, true));
+      for (const reading of read) {
         warnings.push(...reading.warnings);
       }
+      const readings = await this.snapPlaces(auth, read, [...subjectIds, ...sourceIds], warnings);
       const merged = mergeSourceEntries(await this.chooseReadings(pack, readings, subjectIds, warnings));
       entries = merged.map(({ sourceId, item }, index) => ({
         index,
@@ -649,6 +657,11 @@ export class CollectionService extends BaseService {
         sourceId,
       }));
       courses = merged.map(({ item, course }) => ({ course, priced: item.price !== undefined }));
+      for (const [index, { item }] of merged.entries()) {
+        if (item.check) {
+          toCheck.add(index);
+        }
+      }
     }
     // a pack whose subjects carry their source (a bottle's label) needs no other
     if (entries.length === 0 && (sourceIds.length > 0 || !pack.source.onSubjects)) {
@@ -721,7 +734,7 @@ export class CollectionService extends BaseService {
         assetIds: match.ids,
         ...(match.item !== undefined && { index: match.item, name: entries[match.item].name }),
         score: match.score,
-        unsure: match.unsure,
+        unsure: match.unsure || (match.item !== undefined && toCheck.has(match.item)),
         ...(match.shared && { shared: true }),
         ...(match.offList !== undefined && { offList: match.offList }),
         suggestions: match.suggestions.map(({ item, score }) => ({ index: item, name: entries[item].name, score })),
@@ -729,6 +742,37 @@ export class CollectionService extends BaseService {
       noEmbedding,
       warnings: unique(warnings),
     };
+  }
+
+  /**
+   * The readings with the place names to check (read from Greek lookalikes, "Soutia") corrected to the closest place
+   * the visit knows: the cities and regions of its photos, and the places read clearly on its other sources ("Sougia"
+   * on a ferry ticket). What was corrected is said, and stays to check.
+   */
+  private async snapPlaces<T extends SourceReading>(
+    auth: AuthDto,
+    readings: T[],
+    assetIds: string[],
+    warnings: string[],
+  ): Promise<T[]> {
+    if (readings.every((reading) => reading.items.every((item) => !item.check || !item.places?.length))) {
+      return readings;
+    }
+    const rows = await this.assetJobRepository.getForAgent(assetIds, auth.user.id);
+    const known = unique([
+      ...rows.flatMap(({ city, state }) => [city, state].filter((name): name is string => !!name)),
+      ...readings.flatMap((reading) => reading.items.flatMap((item) => (item.check ? [] : (item.places ?? [])))),
+    ]);
+    if (known.length === 0) {
+      return readings;
+    }
+    return readings.map((reading) => {
+      const { items, snapped } = snapEntryPlaces(reading.items, known);
+      for (const { from, to } of snapped) {
+        warnings.push(`"${from}" was read as the closest place of the photos, "${to}": check it`);
+      }
+      return snapped.length > 0 ? { ...reading, items } : reading;
+    });
   }
 
   /**
@@ -1044,11 +1088,17 @@ export class CollectionService extends BaseService {
     };
     return readings.map((reading) => {
       const chosen = chooseReading(reading, fit);
-      if (chosen.alternatives?.length) {
-        const others = chosen.alternatives.flatMap(({ title }) => (title ? [title] : []));
+      // the other titles as the user can read them: without the words OCR tore, the garbled ones and the chosen one
+      const others = unique(
+        (chosen.alternatives ?? []).flatMap(({ title }) => {
+          const cleaned = title ? cleanReadTitle(title, isGarbled) : undefined;
+          return cleaned && !(chosen.title && isSamePlaceName(cleaned, chosen.title)) ? [cleaned] : [];
+        }),
+      );
+      if (others.length > 0) {
         warnings.push(
           `The ${pack.names.source} photo also shows ${others.join(', ')}: the ${pack.names.entries} of ` +
-            `${chosen.title} fit the photos best`,
+            `${cleanReadTitle(chosen.title ?? '', isGarbled) ?? chosen.title} fit the photos best`,
         );
       }
       return chosen;

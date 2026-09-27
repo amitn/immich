@@ -14,12 +14,14 @@
 
   type Props = {
     message: ChatMessage;
+    /** the photos of the chat, whose ids the replies may print */
+    assetIds?: ReadonlySet<string>;
     onPermission: (message: ChatMessage, response: AgentPermissionResponseDto & { approved: boolean }) => Promise<void>;
     /** the changes of the chat, for the Undo buttons of the tool calls */
     activity?: ActivityLogState;
   };
 
-  const { message, onPermission, activity }: Props = $props();
+  const { message, assetIds, onPermission, activity }: Props = $props();
 
   const content = $derived(message.content);
   const activityIds = $derived(content.activityIds ?? []);
@@ -52,7 +54,7 @@
   </div>
 {:else if message.kind === AgentMessageKind.Text}
   <div class="flex flex-col gap-2">
-    <AssistantMarkdown text={content.text} />
+    <AssistantMarkdown text={content.text} {assetIds} />
     {#if content.assetIds?.length}
       <AssistantAssetStrip assetIds={content.assetIds} />
     {/if}
@@ -65,7 +67,7 @@
       {$t('assistant_thinking')}
     </summary>
     <div class="mt-1 border-s-2 border-gray-300 ps-3 dark:border-gray-600">
-      <AssistantMarkdown text={content.text} class="text-xs/5" />
+      <AssistantMarkdown text={content.text} {assetIds} class="text-xs/5" />
     </div>
   </details>
 {:else if message.kind === AgentMessageKind.ToolCall}

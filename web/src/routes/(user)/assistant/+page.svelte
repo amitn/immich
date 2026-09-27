@@ -536,7 +536,12 @@
             {:else}
               {#each conversation.messages as message (message.id)}
                 {@const turnId = turnEnds.get(message.id)}
-                <AssistantMessage {message} onPermission={respondToPermission} activity={chatActivity} />
+                <AssistantMessage
+                  {message}
+                  assetIds={conversation.assetIds}
+                  onPermission={respondToPermission}
+                  activity={chatActivity}
+                />
                 {#if turnId}
                   {@const changes = chatActivity.group(turnId)}
                   <AssistantTurnUndo
