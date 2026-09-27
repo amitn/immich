@@ -54,6 +54,59 @@ export type ActivityStatisticsResponseDto = {
     /** Number of likes */
     likes: number;
 };
+export type ActivityLogResponseDto = {
+    action: ActivityLogAction;
+    /** The photos and videos that were changed or created */
+    assetIds: string[];
+    /** Whether the undone change can be applied again */
+    canRedo: boolean;
+    /** Whether the change can be undone (it may still be refused by the safety checks) */
+    canUndo: boolean;
+    /** When the change was made */
+    createdAt: string;
+    /** Group of the change: the changes of one chat turn or one web request */
+    groupId: string;
+    /** Change ID */
+    id: string;
+    /** Assistant chat that made the change */
+    sessionId: string | null;
+    source: ActivityLogSource;
+    /** What changed */
+    summary: string;
+    /** The album, book, style, shared link or highlight video that was changed or created */
+    targetId: string | null;
+    /** Assistant tool that made the change */
+    toolName: string | null;
+    /** When the change was undone */
+    undoneAt: string | null;
+    /** Who undid the change */
+    undoneBy: (ActivityLogSource) | null;
+};
+export type ActivityUndoDto = {
+    /** Undo every change of this group (a chat turn or a web request) */
+    groupId?: string;
+    /** Changes to undo; they are undone newest first */
+    ids?: string[];
+};
+export type ActivityUndoResultDto = {
+    /** Change ID */
+    id: string;
+    /** Why the change was not undone, or not all of it */
+    message?: string;
+    status: ActivityUndoStatus;
+    /** What changed */
+    summary: string;
+    /** What undoing left as it was, e.g. a photo that was already in the trash */
+    warnings: string[];
+};
+export type ActivityUndoResponseDto = {
+    /** Number of changes that were refused or failed */
+    refused: number;
+    /** One result per change, in the order they were undone */
+    results: ActivityUndoResultDto[];
+    /** Number of changes undone (fully or partly) */
+    undone: number;
+};
 export type AdminConfigAgentEnvDto = {
     name: string;
     value: string;
@@ -71,6 +124,8 @@ export type AdminConfigAgentProfileDto = {
     passEnv: string[];
 };
 export type AdminConfigAgentDto = {
+    /** Days the activity log keeps the changes made by the assistant, which can be undone until then */
+    activityRetentionDays: number;
     /** Profile used for artistic transforms (empty to disable) */
     artProfile: string;
     /** Allow the agent to modify the library without asking for approval */
@@ -960,6 +1015,8 @@ export type AgentPermissionOptionDto = {
     optionId: string;
 };
 export type AgentMessageContentDto = {
+    /** Changes the tool call made, as recorded in the activity log, where they can be undone (tool_call) */
+    activityIds?: string[];
     /** Albums referenced by tool results */
     albumIds?: string[];
     /** Assets referenced by the message (context or tool results) */
@@ -5238,6 +5295,80 @@ export function deleteActivity({ id }: {
     return oazapfts.ok(oazapfts.fetchText(`/activities/${encodeURIComponent(id)}`, {
         ...opts,
         method: "DELETE"
+    }));
+}
+/**
+ * Retrieve the activity log
+ */
+export function getActivityLog({ action, $from, groupId, limit, offset, sessionId, source, to, undone }: {
+    action?: ActivityLogAction;
+    $from?: string;
+    groupId?: string;
+    limit?: number;
+    offset?: number;
+    sessionId?: string;
+    source?: ActivityLogSource;
+    to?: string;
+    undone?: boolean;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto[];
+    }>(`/activity${QS.query(QS.explode({
+        action,
+        "from": $from,
+        groupId,
+        limit,
+        offset,
+        sessionId,
+        source,
+        to,
+        undone
+    }))}`, {
+        ...opts
+    }));
+}
+/**
+ * Undo changes
+ */
+export function undoActivities({ activityUndoDto }: {
+    activityUndoDto: ActivityUndoDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>("/activity/undo", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: activityUndoDto
+    })));
+}
+/**
+ * Redo a change
+ */
+export function redoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityLogResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/redo`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Undo a change
+ */
+export function undoActivity({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>(`/activity/${encodeURIComponent(id)}/undo`, {
+        ...opts,
+        method: "POST"
     }));
 }
 /**
@@ -10161,6 +10292,34 @@ export enum UserAvatarColor {
     Gray = "gray",
     Amber = "amber"
 }
+export enum ActivityLogAction {
+    AlbumCreate = "album.create",
+    AlbumAddAssets = "album.addAssets",
+    AlbumRemoveAssets = "album.removeAssets",
+    AssetCopy = "asset.copy",
+    AssetCreate = "asset.create",
+    ArtworkCreate = "artwork.create",
+    ArtStyleCreate = "artStyle.create",
+    BookCreate = "book.create",
+    BookEdit = "book.edit",
+    BookDraftKeep = "bookDraft.keep",
+    BookDraftDiscard = "bookDraft.discard",
+    BookStyleCreate = "bookStyle.create",
+    CollectionEntries = "collection.entries",
+    HighlightCreate = "highlight.create",
+    SharedLinkCreate = "sharedLink.create"
+}
+export enum ActivityLogSource {
+    Assistant = "assistant",
+    Web = "web"
+}
+export enum ActivityUndoStatus {
+    Undone = "undone",
+    Partial = "partial",
+    Refused = "refused",
+    AlreadyUndone = "alreadyUndone",
+    Failed = "failed"
+}
 export enum DefaultStyle {
     Styled = "styled",
     Sketch = "sketch",
@@ -10337,6 +10496,8 @@ export enum Permission {
     ActivityUpdate = "activity.update",
     ActivityDelete = "activity.delete",
     ActivityStatistics = "activity.statistics",
+    ActivityLogRead = "activityLog.read",
+    ActivityLogUndo = "activityLog.undo",
     AgentSessionCreate = "agentSession.create",
     AgentSessionRead = "agentSession.read",
     AgentSessionUpdate = "agentSession.update",
@@ -10829,6 +10990,7 @@ export enum JobName {
     AssetGenerateThumbnailsQueueAll = "AssetGenerateThumbnailsQueueAll",
     AssetGenerateThumbnails = "AssetGenerateThumbnails",
     AuditTableCleanup = "AuditTableCleanup",
+    ActivityLogCleanup = "ActivityLogCleanup",
     BookDraftsQueueAll = "BookDraftsQueueAll",
     BookDraftsGenerate = "BookDraftsGenerate",
     BookExport = "BookExport",
