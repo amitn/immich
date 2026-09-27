@@ -217,6 +217,15 @@ where
   and "asset"."ownerId" = $2
   and "asset"."deletedAt" is null
 
+-- AccessRepository.highlightJob.checkOwnerAccess
+select
+  "highlight_job"."id"
+from
+  "highlight_job"
+where
+  "highlight_job"."id" in ($1)
+  and "highlight_job"."ownerId" = $2
+
 -- AccessRepository.memory.checkOwnerAccess
 select
   "memory"."id"
