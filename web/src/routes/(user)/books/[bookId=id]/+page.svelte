@@ -1,6 +1,7 @@
 <script lang="ts">
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
+  import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import BookEditPanel from '$lib/components/books/BookEditPanel.svelte';
   import BookMenuOption from '$lib/components/books/BookMenuOption.svelte';
   import BookPageEditor from '$lib/components/books/BookPageEditor.svelte';
@@ -19,6 +20,7 @@
   import SharedLinkCreateModal from '$lib/modals/SharedLinkCreateModal.svelte';
   import { Route } from '$lib/route';
   import { openAssistant } from '$lib/services/assistant.service';
+  import { getBookHighlightAction } from '$lib/services/highlight.service';
   import { mediaQueryManager } from '$lib/stores/media-query-manager.svelte';
   import { locale } from '$lib/stores/preferences.store';
   import { websocketEvents } from '$lib/stores/websocket';
@@ -616,6 +618,7 @@
               onClick={() => handleExport(format)}
             />
           {/each}
+          <ActionMenuItem action={getBookHighlightAction($t, book)} />
         </ButtonContextMenu>
       {/if}
       <IconButton
