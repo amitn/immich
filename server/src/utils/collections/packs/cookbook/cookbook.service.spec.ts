@@ -118,6 +118,34 @@ describe('cookbook pack', () => {
     });
   });
 
+  it('should not list the tagged title again among the other titles read', async () => {
+    const albumId = newUuid();
+    const [shells, recipe] = [newUuid(), newUuid()];
+    mocks.access.album.checkOwnerAccess.mockResolvedValue(new Set([albumId]));
+    mocks.assetJob.getForAgentEvents.mockResolvedValue([
+      eventRow(shells, '2006-11-15T18:17:00'),
+      eventRow(recipe, '2006-11-15T18:20:00'),
+    ] as never);
+    mocks.search.getEmbeddingSimilarities.mockResolvedValue([
+      { assetId: shells, similarities: cooking },
+      { assetId: recipe, similarities: page },
+    ]);
+    mocks.ocr.getByAssetIds.mockResolvedValue(recipeBoxes.map((ocr) => ({ assetId: recipe, ...ocr })) as never);
+    // tagged in other cases and accents than the recipe prints it
+    const tags = [
+      { assetId: shells, tagId: newUuid(), value: 'Recipes/QUICHÉ/Step 1: Line the pie plate' },
+      { assetId: recipe, tagId: newUuid(), value: 'Recipes/QUICHÉ/Recipe' },
+    ];
+    mocks.tag.getAssetTagsByPrefix.mockImplementation((_ids: string[], prefix: string) =>
+      Promise.resolve(tags.filter(({ value }) => value.startsWith(prefix))),
+    );
+
+    const result = await sut.findVisits(auth, 'cookbook', { albumId });
+
+    expect(result.visits[0].place).toMatchObject({ name: 'QUICHÉ', source: 'tag' });
+    expect(result.visits[0].candidates.map(({ name }) => name)).not.toContain('Quiche');
+  });
+
   it('should match the photos with the steps of the recipe that fits them, in order', async () => {
     const [recipe, shells, bowl, oven, done] = Array.from({ length: 5 }, () => newUuid());
     mocks.access.asset.checkOwnerAccess.mockImplementation((_userId: string, ids: Set<string>) =>
@@ -181,6 +209,48 @@ describe('cookbook pack', () => {
       [oven, 'Step 3: Pour into the pastry shell'],
       [done, 'Result'],
     ]);
+  });
+
+  it('should name the other recipe of the page without the word OCR tore at the edge of the photo', async () => {
+    const [recipe, shells, done] = Array.from({ length: 3 }, () => newUuid());
+    mocks.access.asset.checkOwnerAccess.mockImplementation((_userId: string, ids: Set<string>) =>
+      Promise.resolve(new Set(ids)),
+    );
+    mocks.asset.getById.mockResolvedValue({
+      id: recipe,
+      type: AssetType.Image,
+      deletedAt: null,
+      exifInfo: null,
+      files: [],
+    } as never);
+    mocks.ocr.getByAssetId.mockResolvedValue(
+      recipeBoxes.map((ocr) =>
+        ocr.text === 'Spinach Quiche' ? { ...ocr, text: 'Spinach Quiche Batl' } : ocr,
+      ) as never,
+    );
+    const texts: Array<[RegExp, string]> = [
+      [/^a photo of Quiche$/, '[1,0,0]'],
+      [/^a photo of Spinach Quiche Batl$/, '[0,0,1]'],
+      [/Preheat/, '[0,1,0]'],
+    ];
+    mocks.machineLearning.encodeText.mockImplementation((text: string) =>
+      Promise.resolve(texts.find(([pattern]) => pattern.test(text))?.[1] ?? '[0.1,0.1,0.1]'),
+    );
+    mocks.assetJob.getForAgent.mockResolvedValue([
+      agentRow(shells, '2006-11-15T18:17:00'),
+      agentRow(done, '2006-11-15T19:46:00'),
+    ]);
+    mocks.search.getEmbeddings.mockResolvedValue([
+      { assetId: shells, embedding: '[0.3,0.9,0]' },
+      { assetId: done, embedding: '[0.9,0,0]' },
+    ]);
+
+    const result = await sut.matchVisit(auth, 'cookbook', { subjectIds: [shells, done], sourceIds: [recipe] });
+
+    expect(result.warnings).toContain(
+      'The recipe photo also shows Spinach Quiche: the steps of Quiche fit the photos best',
+    );
+    expect(result.warnings.join(' ')).not.toContain('Batl');
   });
 
   it('should typeset the tagged recipe of the page for a book', async () => {

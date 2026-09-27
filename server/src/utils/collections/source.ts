@@ -128,6 +128,39 @@ export const getEntriesFocus = (items: Array<Pick<SourceEntry, 'box'>>, { pad = 
   return { x: round(x), y: round(y), width: round(width), height: round(height) } satisfies FocusRect;
 };
 
+/**
+ * two consonants that end words of English, French, Italian or German titles ("Pork", "Tart", "Frosting", "Dahl"); a
+ * word torn at the edge of a photo ends in others ("Spinach Quiche Batl")
+ */
+const WORD_ENDINGS = new Set(
+  (
+    'bb bs ch ck ct dd ds dt ff ft gg gh gs gt hl hn ht ks lb ld lf lk ll lm lp ls lt mb mm mn mp ms nc nd ng nk nn ' +
+    'ns nt nz ph pp ps pt rb rc rd rf rg rk rl rm rn rp rr rs rt rz sh sk sp ss st th ts tt tz wd wk wl wn ws wt xt zz'
+  ).split(' '),
+);
+
+/** the last word of a title is torn: a short word OCR cut off at the edge of the photo, "Batl" */
+const isTornWord = (word: string) => {
+  const letters = stripAccents(word)
+    .toLowerCase()
+    .replaceAll(/[^a-z]/g, '');
+  const end = letters.slice(-2);
+  return letters.length >= 2 && letters.length <= 5 && /^[^aeiouy]{2}$/.test(end) && !WORD_ENDINGS.has(end);
+};
+
+/**
+ * The title of a reading as shown to the user: without a last word the OCR tore ("Spinach Quiche Batl" is "Spinach
+ * Quiche"), or none when what is left is not a title. The engine still chooses the readings by the titles as read.
+ */
+export const cleanReadTitle = (title: string, isGarbled: (text: string) => boolean = () => false) => {
+  const words = title.trim().split(/\s+/);
+  if (words.length > 1 && isTornWord(words.at(-1)!)) {
+    words.pop();
+  }
+  const cleaned = words.join(' ').replace(/[\s,;:.-]+$/, '');
+  return cleaned && /\p{L}/u.test(cleaned) && !isGarbled(cleaned) ? cleaned : undefined;
+};
+
 /** the CLIP text of the title of a reading, compared with the subject photos */
 export const getTitlePrompt = (title: string) => `a photo of ${title}`;
 

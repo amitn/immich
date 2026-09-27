@@ -19,6 +19,7 @@
     getCollectionAssistantPrompt,
     getCollectionEntriesDto,
     getEntryRows,
+    getOtherPlaceNames,
     getVisitAssetIds,
     hasSubjectReadings,
     summarizeCollectionEntries,
@@ -98,6 +99,8 @@
   const visit = $derived(current === undefined ? undefined : visits.find(({ index }) => index === current));
   const draft = $derived(current === undefined ? undefined : drafts[current]);
   const fallback = $derived(visit?.place.source === 'fallback');
+  /** the other names read, not the one the place has now */
+  const otherNames = $derived(visit && draft ? getOtherPlaceNames(visit.candidates, draft.place) : []);
   const canSave = $derived(
     !!visit &&
       !!draft &&
@@ -308,10 +311,10 @@
               </p>
             </Alert>
           {/if}
-          {#if visit.candidates.length > 0}
+          {#if otherNames.length > 0}
             <div class="flex flex-wrap items-center gap-2 text-sm">
               <span class="text-gray-600 dark:text-gray-400">{$t(label('other_names'))}</span>
-              {#each visit.candidates as candidate (candidate.name + candidate.source)}
+              {#each otherNames as candidate (candidate.name + candidate.source)}
                 <button
                   type="button"
                   class="rounded-full border border-gray-300 px-3 py-0.5 hover:border-primary hover:text-primary dark:border-gray-600"
@@ -449,6 +452,7 @@
         <ul class="flex flex-col gap-2">
           {#each visits as item (item.index)}
             {@const named = item.saved.length}
+            {@const alsoRead = getOtherPlaceNames(item.candidates, item.place.name)}
             <li>
               <button
                 type="button"
@@ -468,9 +472,9 @@
                   <span class="truncate font-medium">{item.place.name}</span>
                   <span class="text-xs text-gray-600 dark:text-gray-400">
                     {$t(getPlaceSourceLabel(pack, item.place.source))}
-                    {#if item.candidates.length > 0}
+                    {#if alsoRead.length > 0}
                       · {$t(label('also_read'), {
-                        values: { names: item.candidates.map(({ name }) => name).join(', ') },
+                        values: { names: alsoRead.map(({ name }) => name).join(', ') },
                       })}
                     {/if}
                   </span>

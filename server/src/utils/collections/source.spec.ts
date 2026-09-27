@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { OcrBoxInput } from 'src/utils/collections/ocr.js';
-import { ParsedSource, chooseReading, chooseSourceOcr, mergeSourceEntries } from 'src/utils/collections/source.js';
+import {
+  ParsedSource,
+  chooseReading,
+  chooseSourceOcr,
+  cleanReadTitle,
+  mergeSourceEntries,
+} from 'src/utils/collections/source.js';
 
 /** an OCR box of `text` at (left, top), about as wide as the text in a font of `height` */
 const box = (text: string, left: number, top: number, height = 0.022, width?: number): OcrBoxInput => {
@@ -68,5 +74,30 @@ describe('chooseReading', () => {
   it('should return a reading without alternatives as it is', () => {
     const page = reading('Quiche');
     expect(chooseReading(page, () => 1)).toBe(page);
+  });
+});
+
+describe('cleanReadTitle', () => {
+  it('should drop a last word OCR tore at the edge of the photo', () => {
+    expect(cleanReadTitle('Spinach Quiche Batl')).toBe('Spinach Quiche');
+    expect(cleanReadTitle('Lemon Tarte Tatn')).toBe('Lemon Tarte');
+  });
+
+  it('should keep the words titles end with', () => {
+    for (const title of [
+      'Pulled Pork',
+      'Lemon Tart',
+      'Basic Buttercream Frosting',
+      'Red Lentil Dahl',
+      'Fish',
+      'Quiche',
+    ]) {
+      expect(cleanReadTitle(title)).toBe(title);
+    }
+  });
+
+  it('should leave out a title that is garbled', () => {
+    expect(cleanReadTitle('MZSDGUICAT Quiche', (text) => /[^aeiou\s]{5}/i.test(text))).toBeUndefined();
+    expect(cleanReadTitle(' - ')).toBeUndefined();
   });
 });

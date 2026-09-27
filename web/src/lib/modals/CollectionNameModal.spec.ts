@@ -5,6 +5,7 @@ import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import { getIntersectionObserverMock } from '$lib/__mocks__/intersection-observer.mock';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import { getVisualViewportMock } from '$lib/__mocks__/visual-viewport.mock';
+import { cookbookPack } from '$lib/collections/packs/cookbook';
 import { foodPack } from '$lib/collections/packs/food';
 import { travelPack } from '$lib/collections/packs/travel';
 import { winePack } from '$lib/collections/packs/wine';
@@ -515,6 +516,23 @@ describe('CollectionNameModal component with named subjects', () => {
 
     expect(await screen.findAllByTestId('collection-entry')).toHaveLength(1);
     expect(screen.getByText('collections.wine.no_source')).toBeInTheDocument();
+  });
+
+  it('should not list the title of the recipe among the other titles read', async () => {
+    const visit = visitOf({
+      subjectIds: ['shells'],
+      sourceIds: ['recipe'],
+      place: { name: 'Quiche', source: 'tag', confidence: 1, assetIds: ['recipe'] },
+      candidates: [{ name: 'QUICHE', source: 'source', confidence: 0.8, assetIds: ['recipe'] }],
+    });
+    sdkMock.findCollectionVisits.mockResolvedValue(findResult(visit, 'cookbook'));
+    sdkMock.matchCollectionVisit.mockResolvedValue({ entries: [], subjects: [], noEmbedding: [], warnings: [] });
+
+    render(CollectionNameModal, { props: { pack: cookbookPack, album, onClose } });
+
+    expect(await screen.findByRole('textbox', { name: /collections\.cookbook\.place/ })).toHaveValue('Quiche');
+    expect(screen.queryByText('collections.cookbook.other_names')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'QUICHE' })).not.toBeInTheDocument();
   });
 
   it('should show the saved leg of a trip photo instead of "on no leg"', async () => {

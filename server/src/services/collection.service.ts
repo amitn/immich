@@ -46,7 +46,7 @@ import {
   getCollectionTagRules,
   redactText,
 } from 'src/utils/collections/pack.js';
-import { PlaceCandidate, PlacePhoto, findPlaceNames } from 'src/utils/collections/place.js';
+import { PlaceCandidate, PlacePhoto, findPlaceNames, isGarbled, isSamePlaceName } from 'src/utils/collections/place.js';
 import {
   CollectionPersonTimes,
   CollectionQueryFilters,
@@ -64,6 +64,7 @@ import {
   ParsedSource,
   chooseReading,
   chooseSourceOcr,
+  cleanReadTitle,
   combineSourceOcr,
   getEntriesFocus,
   getTitlePrompt,
@@ -429,7 +430,10 @@ export class CollectionService extends BaseService {
             confidence: 0,
             assetIds: [],
           },
-          candidates: candidates.filter((candidate) => candidate !== place),
+          // the other names read, but not the name of the place again (a title read on the recipe it is tagged with)
+          candidates: candidates.filter(
+            (candidate) => candidate !== place && !(place && isSamePlaceName(candidate.name, place.name)),
+          ),
           saved,
         };
       }),
@@ -966,11 +970,17 @@ export class CollectionService extends BaseService {
     };
     return readings.map((reading) => {
       const chosen = chooseReading(reading, fit);
-      if (chosen.alternatives?.length) {
-        const others = chosen.alternatives.flatMap(({ title }) => (title ? [title] : []));
+      // the other titles as the user can read them: without the words OCR tore, the garbled ones and the chosen one
+      const others = unique(
+        (chosen.alternatives ?? []).flatMap(({ title }) => {
+          const cleaned = title ? cleanReadTitle(title, isGarbled) : undefined;
+          return cleaned && !(chosen.title && isSamePlaceName(cleaned, chosen.title)) ? [cleaned] : [];
+        }),
+      );
+      if (others.length > 0) {
         warnings.push(
           `The ${pack.names.source} photo also shows ${others.join(', ')}: the ${pack.names.entries} of ` +
-            `${chosen.title} fit the photos best`,
+            `${cleanReadTitle(chosen.title ?? '', isGarbled) ?? chosen.title} fit the photos best`,
         );
       }
       return chosen;

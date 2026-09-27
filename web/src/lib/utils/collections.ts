@@ -36,6 +36,27 @@ export const isOffListSubject = (subject: CollectionSubjectMatch) =>
   subject.offList !== undefined &&
   subject.offList > (subject.suggestions[0]?.score ?? 0);
 
+const normalizeName = (name: string) =>
+  name
+    .normalize('NFD')
+    .replaceAll(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/** The other names read for the place of a visit, but not the name it has (in another case or with other accents) */
+export const getOtherPlaceNames = <T extends { name: string }>(candidates: T[], place: string) => {
+  const key = normalizeName(place);
+  const seen = new Set<string>();
+  return candidates.filter(({ name }) => {
+    const candidate = normalizeName(name);
+    if (!candidate || candidate === key || seen.has(candidate)) {
+      return false;
+    }
+    seen.add(candidate);
+    return true;
+  });
+};
+
 /** Every photo of a visit */
 export const getVisitAssetIds = (visit: CollectionVisit) => [
   ...new Set([...visit.sourceIds, ...visit.subjectIds, ...visit.signIds, ...visit.receiptIds]),

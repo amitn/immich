@@ -16,6 +16,7 @@ import {
   getCollectionEntriesDto,
   getEntryOptions,
   getEntryRows,
+  getOtherPlaceNames,
   getVisitAssetIds,
   hasSubjectReadings,
   isCollectionPhotoTag,
@@ -105,6 +106,18 @@ describe('isOffListSubject', () => {
 
   it('should not mark a weak match without a menu to compare with', () => {
     expect(isOffListSubject(subject({ index: undefined, offMenu: undefined }))).toBe(false);
+  });
+});
+
+describe('getOtherPlaceNames', () => {
+  it('should leave out the name of the place, whatever its case and accents, and repeated names', () => {
+    const candidates = [
+      { name: 'QUICHÉ', source: 'source' },
+      { name: 'Spinach Quiche', source: 'source' },
+      { name: 'spinach quiche', source: 'sign' },
+      { name: '—', source: 'sign' },
+    ];
+    expect(getOtherPlaceNames(candidates, 'Quiche')).toEqual([{ name: 'Spinach Quiche', source: 'source' }]);
   });
 });
 
