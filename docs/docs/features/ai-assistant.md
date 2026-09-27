@@ -467,20 +467,62 @@ See [Tags](/features/tags) for more.
 
 ## Setup
 
-1. Install an ACP agent adapter in the server container. For example, extend the image:
+The assistant needs an ACP agent in the server container, logged in to its provider. Then you turn it on in the settings.
 
-   ```dockerfile
-   FROM ghcr.io/immich-app/immich-server:release
-   RUN npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp
+### Docker
+
+The published images don't include the agents. Build the server image from this repository with `docker/docker-compose.assistant.yml`, which uses the `server-agents` target of `server/Dockerfile`:
+
+1. In the `docker` folder of the repository, create `.env` from `example.env` if you haven't, and build and start Immich with the override:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
    ```
 
-2. Give the agent its credentials in the server environment, for example `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. The default profiles forward these variables to the agent.
-3. In **Administration > Settings > AI Assistant**:
+   The override also works on top of `docker-compose.rootless.yml` and `docker-compose.prod.yml`. Use `--build` again after updating the repository. For development, use `docker-compose.dev.assistant.yml` on top of `docker-compose.dev.yml` in the same way.
+
+2. Log in to the agents you want to use, or give them an API key. A login uses your subscription; an API key is billed per use.
+   - **Claude Code** with a Claude subscription: run `docker exec -it immich_server claude`, type `/login`, open the link in your browser and paste the code back, then `/exit`. With an API key instead, set `ANTHROPIC_API_KEY` in `.env` and run the `up -d` command again.
+   - **Codex** with a ChatGPT subscription: run `docker exec -it immich_server codex login --device-auth`, open the link and enter the code. With an API key instead, set `OPENAI_API_KEY` in `.env`, run the `up -d` command again, then `docker exec immich_server sh -c 'printenv OPENAI_API_KEY | codex login --with-api-key'`.
+
+   `docker exec` runs as the user of the server (`1000:1000` with `docker-compose.rootless.yml`), so the login is saved where the agents look for it.
+
+3. Check the container:
+
+   ```bash
+   docker exec immich_server immich-check-assistant
+   ```
+
+   It checks the agents (`claude-agent-acp --version`, `codex-acp --version`), the agent home, the logins, the fonts of the photo books and `ffmpeg`, and lists what's missing.
+
+4. Turn the assistant on in the settings, as below.
+
+The `server-agents` image adds:
+
+| What                                                                 | Why                                                                                                                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `claude-agent-acp`, with the Claude Code binary it comes with        | The `claude` profile. `claude` runs the same Claude Code, for logging in.                                                                           |
+| `codex-acp` and `codex`                                              | The `codex` profile, and the Codex CLI for logging in. Codex can generate images, so it can be the **Art profile**.                                 |
+| The agent home, `/var/lib/immich-agents`, on the `agent-home` volume | `HOME` of the server, of `docker exec` and so of the agents: their logins and settings (`~/.claude`, `~/.claude.json`, `~/.codex`) survive updates. |
+
+The agents are installed in `/opt/immich-agents`, at the versions pinned in `docker/scripts/install-agents.sh`, and add about 650 MB to the image. Every image built from `server/Dockerfile` also has the fonts that photo books are drawn with (Liberation and GNU FreeFont); the image already has the `ffmpeg` that highlight videos use.
+
+:::note Agents in the server container
+The agents run as processes inside the Immich server container, for now. They see its filesystem with the permissions of the server, including the library in `/data`. What limits them is the [scrubbed environment and the tool checks](#security-and-privacy): they get no database or Immich secrets, start in an empty directory, and can only use Immich's tools, which ask for approval before changing the library. Running the agents in a separate container is a future hardening.
+:::
+
+### Other installations
+
+Install an ACP agent adapter where the server runs, for example `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`, so that its command is on the server's `PATH`. Log in as the user the server runs as (`claude-agent-acp --cli` runs Claude Code, and codex-acp installs `codex`), or give the server an API key such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`: the default profiles forward these variables to the agent. For photo books, install the Liberation fonts (`fonts-liberation` on Debian and Ubuntu).
+
+### Settings in Immich
+
+1. In **Administration > Settings > AI Assistant**:
    - turn on **Enable AI assistant**;
    - check the **Agent profiles** (command, arguments, environment variables and forwarded server variables);
    - choose the **Chat profile** and, optionally, the **Art profile** (for example `codex`) to enable artistic styles and illustrated maps.
-4. Optionally, in **Administration > Settings > Photo books**, add a **Stadia Maps API key** for the watercolor, toner and terrain map styles.
-5. Optionally, in **Administration > Settings > Food**, turn on **Look up restaurants on OpenStreetMap** (see [Restaurant names](#restaurant-names)).
+2. Optionally, in **Administration > Settings > Photo books**, add a **Stadia Maps API key** for the watercolor, toner and terrain map styles.
+3. Optionally, in **Administration > Settings > Food**, turn on **Look up restaurants on OpenStreetMap** (see [Restaurant names](#restaurant-names)).
 
 ### Settings
 
@@ -518,7 +560,8 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 
 ## Troubleshooting
 
-- **The agent isn't found.** The chat shows an error such as `Agent claude exited during initialization`, with `ENOENT` in the message. Check that the profile's **Command** is installed in the server container and on its `PATH`.
+- **The agent isn't found.** The chat shows an error such as `Agent claude exited during initialization`, with `ENOENT` in the message. Check that the profile's **Command** is installed in the server container and on its `PATH`. With Docker, the image must be built with `docker-compose.assistant.yml` (see [Docker](#docker)); `docker exec immich_server immich-check-assistant` shows what's missing.
+- **The agent isn't logged in.** The chat shows an authentication error, such as _Please run /login_. Log in again as in [Docker](#docker), or check the API key in `.env`. Logins are kept on the `agent-home` volume; they're lost if it's removed, for example with `docker compose down -v`.
 - **No image is generated.** The error _The art agent did not produce an image_ means the art profile's agent can't generate images. Choose an agent with image generation, such as Codex, as the **Art profile**.
 - **Maps are drawn as sketches.** The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**.
 - **The menu isn't read.** The dialog says _No items could be read on the menu_, or the assistant finds few items. The menu may be blurry, tilted, in a strong perspective, too dark or partly covered. Photograph the menu straight on, flat and in focus, in several parts for a long menu. You can still name the dishes by hand, or **Ask the assistant**: it looks at the menu photos itself, reads the items, and matches the dishes with what it read.
