@@ -1,4 +1,4 @@
-import { HighlightJobStatus, type HighlightJobResponseDto } from '@immich/sdk';
+import { HighlightFormat, HighlightJobStatus, type HighlightJobResponseDto } from '@immich/sdk';
 import { toastManager } from '@immich/ui';
 import { goto } from '$app/navigation';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
@@ -17,6 +17,7 @@ const job = (overrides: Partial<HighlightJobResponseDto> = {}): HighlightJobResp
   albumId: null,
   bookId: null,
   durationSeconds: 60,
+  format: HighlightFormat.Landscape,
   resultAssetId: null,
   error: null,
   warnings: [],
@@ -31,6 +32,7 @@ describe('highlightManager', () => {
     vi.spyOn(toastManager, 'success').mockImplementation(() => {});
     vi.spyOn(toastManager, 'danger').mockImplementation(() => {});
     highlightManager.jobs = [];
+    highlightManager.ready = [];
     location.url = new URL('http://localhost/photos');
     // the thumbnail of the video is made
     sdkMock.getAssetInfo.mockResolvedValue({ id: 'video', thumbhash: 'abc' } as never);
@@ -56,11 +58,19 @@ describe('highlightManager', () => {
     });
     await vi.waitFor(() => expect(highlightManager.jobs).toEqual([]));
     expect(sdkMock.getAssetInfo).toHaveBeenCalledWith({ id: 'video' });
-    expect(toastManager.success).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'highlight_video_ready', description: 'Sicily' }),
-      expect.anything(),
-    );
+    // a card offers to share or download it
+    expect(highlightManager.ready).toEqual([expect.objectContaining({ id: started.id, resultAssetId: 'video' })]);
     expect(goto).toHaveBeenCalledWith('/photos/video');
+  });
+
+  it('should keep the card of a finished video until it is closed', async () => {
+    const running = job();
+    highlightManager.track(running);
+    highlightManager.onUpdate({ ...running, status: HighlightJobStatus.Completed, resultAssetId: 'video' });
+    await vi.waitFor(() => expect(highlightManager.ready).toHaveLength(1));
+
+    highlightManager.dismiss(running.id);
+    expect(highlightManager.ready).toEqual([]);
   });
 
   it('should announce and open the video only once its thumbnail is made', async () => {
@@ -81,13 +91,13 @@ describe('highlightManager', () => {
 
     // the card stays, preparing the video
     expect(highlightManager.jobs).toEqual([expect.objectContaining({ status: HighlightJobStatus.Completed })]);
-    expect(toastManager.success).not.toHaveBeenCalled();
+    expect(highlightManager.ready).toEqual([]);
     expect(goto).not.toHaveBeenCalled();
 
     await vi.advanceTimersByTimeAsync(2000);
 
     expect(highlightManager.jobs).toEqual([]);
-    expect(toastManager.success).toHaveBeenCalled();
+    expect(highlightManager.ready).toHaveLength(1);
     expect(goto).toHaveBeenCalledWith('/photos/video');
   });
 
@@ -108,12 +118,9 @@ describe('highlightManager', () => {
 
     highlightManager.onUpdate({ ...running, status: HighlightJobStatus.Completed, resultAssetId: 'video' });
 
-    await vi.waitFor(() => expect(toastManager.success).toHaveBeenCalled());
+    await vi.waitFor(() => expect(highlightManager.ready).toHaveLength(1));
     expect(goto).not.toHaveBeenCalled();
-    const [[toast]] = vi.mocked(toastManager.success).mock.calls as unknown as [
-      [{ button: (close: () => void) => { onclick: () => Promise<void> } }],
-    ];
-    await toast.button(() => {}).onclick();
+    await highlightManager.open(highlightManager.ready[0]);
     expect(goto).toHaveBeenCalledWith('/albums/album-1/photos/video');
   });
 
@@ -121,7 +128,7 @@ describe('highlightManager', () => {
     const running = job();
     highlightManager.onUpdate(running);
     highlightManager.onUpdate({ ...running, status: HighlightJobStatus.Completed, resultAssetId: 'video' });
-    await vi.waitFor(() => expect(toastManager.success).toHaveBeenCalled());
+    await vi.waitFor(() => expect(highlightManager.ready).toHaveLength(1));
     expect(goto).not.toHaveBeenCalled();
   });
 
@@ -145,7 +152,7 @@ describe('highlightManager', () => {
 
     expect(sdkMock.cancelHighlight).toHaveBeenCalledWith({ id: running.id });
     expect(highlightManager.jobs).toEqual([]);
-    expect(toastManager.success).not.toHaveBeenCalled();
+    expect(highlightManager.ready).toEqual([]);
     expect(toastManager.danger).not.toHaveBeenCalled();
   });
 
