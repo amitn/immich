@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { type Insertable, Kysely, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import type { BookSnapshot } from 'src/utils/activity-log.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { ActivityLogAction, ActivityLogSource, AlbumUserRole } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { ActivityLogTable } from 'src/schema/tables/activity-log.table.js';
-import type { BookSnapshot } from 'src/utils/activity-log.js';
 import { anyUuid } from 'src/utils/database.js';
 
 export type ActivityLogSearch = {
@@ -59,7 +59,10 @@ export class ActivityLogRepository {
 
   /** the changes of a user, newest first */
   @GenerateSql({ params: [DummyValue.UUID, { limit: 50, undone: false }] })
-  search(userId: string, { sessionId, groupId, source, action, from, to, undone, limit, offset = 0 }: ActivityLogSearch) {
+  search(
+    userId: string,
+    { sessionId, groupId, source, action, from, to, undone, limit, offset = 0 }: ActivityLogSearch,
+  ) {
     return this.db
       .selectFrom('activity_log')
       .selectAll()
@@ -109,7 +112,10 @@ export class ActivityLogRepository {
   /** removes the changes made before `date`, and the book revisions nothing refers to anymore */
   @GenerateSql({ params: [DummyValue.DATE] })
   async deleteOlderThan(date: Date): Promise<number> {
-    const result = await this.db.deleteFrom('activity_log').where('activity_log.createdAt', '<', date).executeTakeFirst();
+    const result = await this.db
+      .deleteFrom('activity_log')
+      .where('activity_log.createdAt', '<', date)
+      .executeTakeFirst();
     await this.db.deleteFrom('book_revision').where('book_revision.createdAt', '<', date).execute();
     return Number(result.numDeletedRows);
   }
@@ -276,5 +282,16 @@ export class ActivityLogRepository {
       )
       .where('album.id', '=', albumId)
       .executeTakeFirst();
+  }
+
+  /** the number of shared links to a book */
+  @GenerateSql({ params: [DummyValue.UUID] })
+  async countBookSharedLinks(bookId: string): Promise<number> {
+    const { count } = await this.db
+      .selectFrom('shared_link')
+      .select((eb) => eb.fn.countAll<number>().as('count'))
+      .where('shared_link.bookId', '=', bookId)
+      .executeTakeFirstOrThrow();
+    return Number(count);
   }
 }

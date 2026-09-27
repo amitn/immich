@@ -1,5 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { AuthDto } from 'src/dtos/auth.dto.js';
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
+import type { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
+import type { BookRepository } from 'src/repositories/book.repository.js';
 import { ActivityLogAction, ActivityLogSource, BookDraftState, BookStatus } from 'src/enum.js';
 
 /** how many snapshots of a book are kept for undo; undoing an older change is refused */
@@ -32,8 +35,9 @@ export type ActivityCopy = { id: string; sourceId: string };
 
 export type ActivityCollectionPhoto = {
   id: string;
-  /** the tag the change gave the photo */
+  /** the tag the photo has after the change, and whether the change added it */
   tag: string;
+  tagAdded: boolean;
   /** the tags of the pack the photo had before, which the change removed */
   previousTags: string[];
   /** the description the change wrote, and the one it replaced */
@@ -43,7 +47,8 @@ export type ActivityCollectionPhoto = {
 
 /** what undoing each kind of change needs */
 export type ActivityUndoMap = {
-  [ActivityLogAction.AlbumCreate]: { albumId: string; name: string; assetIds: string[] };
+  /** the album as it was created: undoing deletes it only while it is still like this */
+  [ActivityLogAction.AlbumCreate]: { albumId: string; name: string; description: string | null; assetIds: string[] };
   [ActivityLogAction.AlbumAddAssets]: { albumId: string; assetIds: string[] };
   [ActivityLogAction.AlbumRemoveAssets]: { albumId: string; assetIds: string[] };
   [ActivityLogAction.AssetCopy]: { copies: ActivityCopy[] };
@@ -108,6 +113,129 @@ export class ActivityRecorder {
     return new ActivityRecorder({ source: ActivityLogSource.Assistant, sessionId, toolName, groupId });
   }
 }
+
+/**
+ * Records a change in the activity log, when the request has a recorder (the web paths and the assistant's tool
+ * calls pass one). A change that could not be logged still happened, so a failure is only logged as a warning.
+ */
+export const recordActivity = async (
+  { repository, logger }: { repository: ActivityLogRepository; logger?: { warn: (message: string) => void } },
+  userId: string,
+  recorder: ActivityRecorder | undefined,
+  entry: ActivityEntry,
+): Promise<string | undefined> => {
+  if (!recorder) {
+    return;
+  }
+
+  try {
+    const { origin } = recorder;
+    const row = await repository.create({
+      userId,
+      source: origin.source,
+      sessionId: origin.sessionId ?? null,
+      toolName: origin.toolName ?? null,
+      groupId: origin.groupId,
+      action: entry.action,
+      summary: entry.summary,
+      targetId: entry.targetId ?? null,
+      assetIds: [...new Set(entry.assetIds)],
+      undo: entry.undo,
+    });
+    recorder.ids.push(row.id);
+    return row.id;
+  } catch (error) {
+    logger?.warn(`Unable to record "${entry.summary}" in the activity log: ${error}`);
+  }
+};
+
+export const snapshotBook = async (bookRepository: BookRepository, bookId: string) => {
+  const book = await bookRepository.get(bookId);
+  if (!book) {
+    return;
+  }
+  return toBookSnapshot(book, await bookRepository.getPages(bookId));
+};
+
+export type BookChange = {
+  /**
+   * Records the change of the book, when it changed. For a new book (`beginBookChange` without a book), pass its id.
+   * `copies` are photos the change created, which undoing moves to the trash (e.g. `apply_improvements`).
+   */
+  finish: (
+    auth: AuthDto,
+    options: { summary: (title: string) => string; bookId?: string; copies?: ActivityCopy[] },
+  ) => Promise<void>;
+};
+
+/**
+ * Takes a snapshot of a book before a change (none for a book about to be created); `finish` records the change with
+ * the snapshot (kept in `book_revision`), so that undoing it restores the book as it was. Nothing is recorded without
+ * a recorder, or when the book did not change.
+ */
+export const beginBookChange = async (
+  {
+    activityLogRepository,
+    bookRepository,
+    logger,
+  }: {
+    activityLogRepository: ActivityLogRepository;
+    bookRepository: BookRepository;
+    logger?: { warn: (message: string) => void };
+  },
+  recorder: ActivityRecorder | undefined,
+  bookId?: string,
+): Promise<BookChange | undefined> => {
+  if (!recorder) {
+    return;
+  }
+
+  const before = bookId ? await snapshotBook(bookRepository, bookId) : undefined;
+  if (bookId && !before) {
+    return;
+  }
+
+  return {
+    finish: async (auth, { summary, bookId: createdId, copies = [] }) => {
+      const id = bookId ?? createdId;
+      try {
+        const after = id ? await snapshotBook(bookRepository, id) : undefined;
+        if (!id || !after) {
+          return;
+        }
+
+        const record = (entry: ActivityEntry) =>
+          recordActivity({ repository: activityLogRepository, logger }, auth.user.id, recorder, entry);
+        const fingerprint = fingerprintBook(after);
+        if (!before) {
+          await record({
+            action: ActivityLogAction.BookCreate,
+            summary: summary(after.title),
+            targetId: id,
+            undo: { bookId: id, fingerprint },
+          });
+          return;
+        }
+
+        if (fingerprintBook(before) === fingerprint && copies.length === 0) {
+          return;
+        }
+
+        const revision = await activityLogRepository.createRevision(id, before);
+        await activityLogRepository.pruneRevisions(id, BOOK_REVISIONS_KEPT);
+        await record({
+          action: ActivityLogAction.BookEdit,
+          summary: summary(after.title),
+          targetId: id,
+          assetIds: copies.map((copy) => copy.id),
+          undo: { bookId: id, revisionId: revision.id, fingerprint, ...(copies.length > 0 && { copies }) },
+        });
+      } catch (error) {
+        logger?.warn(`Unable to record the change of book ${id}: ${error}`);
+      }
+    },
+  };
+};
 
 /** JSON with sorted keys, so equal values give equal text */
 export const stableStringify = (value: unknown): string => {
