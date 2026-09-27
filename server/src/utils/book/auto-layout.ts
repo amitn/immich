@@ -559,7 +559,7 @@ type SlotShape = { aspect: number; area: number; rectMm: LayoutRect };
  * limited resource: the best artworks up to `budget`, shown next to their original as an intentional pair (at most
  * `maxPairs`), or instead of it when they rank higher. Heroes are always kept on their own.
  */
-const resolveStacks = (
+export const resolveStacks = (
   photos: Candidate[],
   budget: number,
   maxPairs: number,
@@ -1105,36 +1105,23 @@ const isTypesetOnly = (photo: AutoLayoutPhoto) => {
   return !!typeset && getLayout(typeset.layout)?.slots.length === 0;
 };
 
+/** A photo ranked for a book or a film: its importance, and whether it is a hero, located or artwork */
+export type RankedPhoto = Candidate;
+
+/** why a photo of a book or a film was left out */
+export type DropPhoto = (photo: RankedPhoto, reason: AutoLayoutDropReason) => void;
+
 /**
- * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
- * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
- * opener, followed by content pages. Stacks show one photo (or an artwork next to its original), artwork is limited,
- * and no photo is placed in a slot it can't fill at print resolution. Important photos (heroes, favourites, high
- * scores, faces) get whole pages or hero slots, the others fill denser layouts, and the main people are kept in every
- * section. Page sizes, layouts and the order of photos in them minimize crop loss, never cut faces, and avoid
- * repeated layouts, long runs of single photos, artwork back to back and similar photos on neighbouring pages.
- * The result only depends on the input.
+ * The photos once each, in time order, ranked by `getImportance` (heroes, favourites, scores, faces and the main
+ * people), with the main people: the given ones or the people who appear most often (see `getMainPeople`)
  */
-export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOptions): AutoLayoutPlan => {
-  const layouts = options.layouts ?? bookLayouts;
+export const rankPhotos = (
+  input: AutoLayoutPhoto[],
+  options: { heroIds?: string[]; mainPersonIds?: string[] } = {},
+): { unique: AutoLayoutPhoto[]; photos: RankedPhoto[]; mainPersonIds: string[] } => {
   const seen = new Set<string>();
   const unique = input.filter((photo) => !seen.has(photo.id) && !!seen.add(photo.id));
-  const collectionBook =
-    options.collection ?? (isCollectionTheme(options.style.theme) || unique.some((photo) => photo.collection));
-  const planner = new LayoutPlanner(options.size, options.style, layouts, collectionBook);
   const heroes = new Set(options.heroIds);
-  const includeMaps = options.includeMaps ?? true;
-  const mapStyle = options.mapStyle ?? 'sketch';
-  const withCover = options.cover ?? true;
-  const captions = options.captions ?? (collectionBook ? 'dish' : 'place');
-  const layoutIds = new Set(layouts.map((layout) => layout.id));
-  const hasLayout = (id: string) => layoutIds.has(id);
-  /** the name of the entry (dish) below its photo, as its pack sets it on the layout (e.g. a wine's fiche) */
-  const dishCaption = (photo: AutoLayoutPhoto, layout: BookLayout) => {
-    const dish =
-      captions === 'dish' ? getEntryCaption(photo, { layout: layout.id, description: photo.description }) : undefined;
-    return dish ? { caption: dish } : {};
-  };
   const mainPersonIds =
     options.mainPersonIds ?? getMainPeople(unique.map((photo) => ({ personIds: photo.people?.map(({ id }) => id) })));
   const mainPeople = new Set(mainPersonIds);
@@ -1147,6 +1134,114 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
       artwork: photo.kind === 'artwork',
     }))
     .toSorted(byTime);
+  return { unique, photos, mainPersonIds };
+};
+
+/**
+ * One photo per near-duplicate cluster, the most important (heroes are always kept; a cluster the cover already shows
+ * counts as shown), and the second best of the clusters when that leaves fewer than `wanted` photos; in time order
+ */
+export const pickClusterRepresentatives = (
+  pool: RankedPhoto[],
+  wanted: number,
+  options: { coverClusterId?: number | null; drop?: DropPhoto } = {},
+): RankedPhoto[] => {
+  const clusterRanks = new Map<string, number>();
+  const byCluster = new Map<number, Candidate[]>();
+  for (const photo of pool) {
+    if (photo.clusterId !== null && photo.clusterId !== undefined) {
+      byCluster.set(photo.clusterId, [...(byCluster.get(photo.clusterId) ?? []), photo]);
+    }
+  }
+  for (const [clusterId, members] of byCluster) {
+    // a cluster already represented on the cover counts as used
+    const offset = options.coverClusterId === clusterId ? 1 : 0;
+    for (const [rank, photo] of members.toSorted(byImportance).entries()) {
+      clusterRanks.set(photo.id, rank + offset);
+    }
+  }
+
+  let kept = pool.filter((photo) => photo.hero || (clusterRanks.get(photo.id) ?? 0) === 0);
+  if (kept.length < wanted) {
+    const extras = pool
+      .filter((photo) => !kept.includes(photo) && (clusterRanks.get(photo.id) ?? 0) === 1)
+      .toSorted(byImportance)
+      .slice(0, wanted - kept.length);
+    kept = [...kept, ...extras].toSorted(byTime);
+  }
+  for (const photo of pool) {
+    if (!kept.includes(photo)) {
+      options.drop?.(photo, 'duplicate');
+    }
+  }
+  return kept;
+};
+
+/** the place of a chapter that is a visit of a collection (a restaurant), and the entry of a chapter per entry (a leg) */
+export type ChapterVisit = { pack: string; place: string; entry?: string };
+
+export type PhotoChapter = { photos: RankedPhoto[]; visit?: ChapterVisit };
+
+/**
+ * The chapters of time-ordered photos: with `collection`, one per visit of a place of a pack (a restaurant, a leg of a
+ * trip), and the photos between the visits split by event as usual; otherwise one per event. Events are merged until
+ * there are at most `maxChapters` (see `mergeEvents`); in time order.
+ */
+export const splitChapters = (
+  kept: RankedPhoto[],
+  options: { collection: boolean; maxChapters: number; events?: EventSplitOptions },
+): PhotoChapter[] => {
+  const { visits, others } = options.collection ? getPlaceVisits(kept) : { visits: [], others: kept };
+  if (visits.length === 0) {
+    return mergeEvents(getEvents(kept, options.events), options.maxChapters, MIN_SECTION_SIZE).map((section) => ({
+      photos: section,
+    }));
+  }
+
+  const otherSections = Math.max(1, options.maxChapters - visits.length);
+  return [
+    ...visits.map((visit) => ({
+      photos: visit.photos,
+      visit: { pack: visit.pack, place: visit.place, ...(visit.entry && { entry: visit.entry }) },
+    })),
+    ...getRunsBetweenVisits(others, visits).flatMap((run) =>
+      mergeEvents(
+        getEvents(run, options.events),
+        Math.max(1, Math.round((otherSections * run.length) / others.length)),
+        MIN_SECTION_SIZE,
+      ).map((section) => ({ photos: section })),
+    ),
+  ].toSorted((a, b) => byTime(a.photos[0], b.photos[0]));
+};
+
+/**
+ * Lays out photos as a photo book: a cover, then one section per event (merged when events are small or too many;
+ * a single day is split into chapters by its own gaps and distances), each opened by a map (with GPS) or a section
+ * opener, followed by content pages. Stacks show one photo (or an artwork next to its original), artwork is limited,
+ * and no photo is placed in a slot it can't fill at print resolution. Important photos (heroes, favourites, high
+ * scores, faces) get whole pages or hero slots, the others fill denser layouts, and the main people are kept in every
+ * section. Page sizes, layouts and the order of photos in them minimize crop loss, never cut faces, and avoid
+ * repeated layouts, long runs of single photos, artwork back to back and similar photos on neighbouring pages.
+ * The result only depends on the input.
+ */
+export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOptions): AutoLayoutPlan => {
+  const layouts = options.layouts ?? bookLayouts;
+  const { unique, photos, mainPersonIds } = rankPhotos(input, options);
+  const collectionBook =
+    options.collection ?? (isCollectionTheme(options.style.theme) || unique.some((photo) => photo.collection));
+  const planner = new LayoutPlanner(options.size, options.style, layouts, collectionBook);
+  const includeMaps = options.includeMaps ?? true;
+  const mapStyle = options.mapStyle ?? 'sketch';
+  const withCover = options.cover ?? true;
+  const captions = options.captions ?? (collectionBook ? 'dish' : 'place');
+  const layoutIds = new Set(layouts.map((layout) => layout.id));
+  const hasLayout = (id: string) => layoutIds.has(id);
+  /** the name of the entry (dish) below its photo, as its pack sets it on the layout (e.g. a wine's fiche) */
+  const dishCaption = (photo: AutoLayoutPhoto, layout: BookLayout) => {
+    const dish =
+      captions === 'dish' ? getEntryCaption(photo, { layout: layout.id, description: photo.description }) : undefined;
+    return dish ? { caption: dish } : {};
+  };
 
   const empty: AutoLayoutPlan = {
     pages: [],
@@ -1254,63 +1349,17 @@ export const planAutoLayout = (input: AutoLayoutPhoto[], options: AutoLayoutOpti
 
   // one photo per near-duplicate cluster, unless that leaves too few photos for the pages
   const contentEstimate = Math.max(1, target - pages.length);
-  const clusterRanks = new Map<string, number>();
-  const byCluster = new Map<number, Candidate[]>();
-  for (const photo of pool) {
-    if (photo.clusterId !== null && photo.clusterId !== undefined) {
-      byCluster.set(photo.clusterId, [...(byCluster.get(photo.clusterId) ?? []), photo]);
-    }
-  }
-  for (const [clusterId, members] of byCluster) {
-    // a cluster already represented on the cover counts as used
-    const offset = cover?.clusterId === clusterId ? 1 : 0;
-    for (const [rank, photo] of members.toSorted(byImportance).entries()) {
-      clusterRanks.set(photo.id, rank + offset);
-    }
-  }
-
-  let kept = pool.filter((photo) => photo.hero || (clusterRanks.get(photo.id) ?? 0) === 0);
-  const wanted = Math.ceil(contentEstimate * 1.5);
-  if (kept.length < wanted) {
-    const extras = pool
-      .filter((photo) => !kept.includes(photo) && (clusterRanks.get(photo.id) ?? 0) === 1)
-      .toSorted(byImportance)
-      .slice(0, wanted - kept.length);
-    kept = [...kept, ...extras].toSorted(byTime);
-  }
-  for (const photo of pool) {
-    if (!kept.includes(photo)) {
-      drop(photo, 'duplicate');
-    }
-  }
+  const kept = pickClusterRepresentatives(pool, Math.ceil(contentEstimate * 1.5), {
+    coverClusterId: cover?.clusterId,
+    drop,
+  });
 
   // sections; a short book gets more, smaller chapters
   const shortBook = isShortSpan(photos.map((photo) => ({ time: photo.takenAt })));
   const maxSections = Math.max(1, Math.round(contentEstimate / (shortBook ? 3.5 : 4.5)));
   // a collection book has a chapter for every visit of a place (a restaurant), and the photos between them are split
   // by event as usual
-  let sections: Array<{ photos: Candidate[]; visit?: { pack: string; place: string; entry?: string } }>;
-  const { visits, others } = collectionBook ? getPlaceVisits(kept) : { visits: [], others: kept };
-  if (visits.length > 0) {
-    const otherSections = Math.max(1, maxSections - visits.length);
-    sections = [
-      ...visits.map((visit) => ({
-        photos: visit.photos,
-        visit: { pack: visit.pack, place: visit.place, ...(visit.entry && { entry: visit.entry }) },
-      })),
-      ...getRunsBetweenVisits(others, visits).flatMap((run) =>
-        mergeEvents(
-          getEvents(run, options.events),
-          Math.max(1, Math.round((otherSections * run.length) / others.length)),
-          MIN_SECTION_SIZE,
-        ).map((section) => ({ photos: section })),
-      ),
-    ].toSorted((a, b) => byTime(a.photos[0], b.photos[0]));
-  } else {
-    sections = mergeEvents(getEvents(kept, options.events), maxSections, MIN_SECTION_SIZE).map((section) => ({
-      photos: section,
-    }));
-  }
+  const sections = splitChapters(kept, { collection: collectionBook, maxChapters: maxSections, events: options.events });
   const singleDay =
     sections.length > 1 &&
     formatDateRange(photos[0].takenAt, photos.at(-1)!.takenAt) === dateFormat.format(photos[0].takenAt);
