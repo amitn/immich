@@ -122,7 +122,7 @@
     "book_maps_stadia_api_key_description": "Needed for the watercolor, toner and terrain map styles. Get a key at <link>stadiamaps.com</link>.",
     "book_maps_style_needs_key": "This style needs a Stadia Maps API key. Without one, maps use the offline sketch style.",
     "book_settings": "Photo books",
-    "book_settings_description": "Manage the map pages of photo books",
+    "book_settings_description": "Map pages and suggested books",
     "cleared_jobs": "Cleared jobs for: {job}",
     "config_set_by_file": "Config is currently set by a config file",
     "confirm_delete_library": "Are you sure you want to delete {library} library?",
