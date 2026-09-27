@@ -130,7 +130,7 @@
   <SearchBar placeholder={$t('search_albums')} bind:name={searchQuery} showLoadingSpinner={false} />
 </div>
 
-{#if featureFlagsManager.value.assistant}
+{#if featureFlagsManager.valueOrUndefined?.assistant}
   <!-- Create Album with the assistant -->
   <Button
     leadingIcon={mdiCreationOutline}

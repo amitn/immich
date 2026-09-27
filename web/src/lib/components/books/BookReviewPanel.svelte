@@ -116,10 +116,12 @@
     });
 
   const onkeydown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      onClose();
+    if (event.key !== 'Escape') {
+      return;
     }
+
+    event.stopPropagation();
+    onClose();
   };
 
   onMount(() => heading?.focus());

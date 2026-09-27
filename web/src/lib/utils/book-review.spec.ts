@@ -1,4 +1,4 @@
-import { Severity, Type } from '@immich/sdk';
+import { Severity, BookReviewIssueType } from '@immich/sdk';
 import { init, register, t, waitLocale, type MessageFormatter } from 'svelte-i18n';
 import { get } from 'svelte/store';
 import {
@@ -90,7 +90,7 @@ describe('formatBookReviewLocation', () => {
   });
 
   it('should be empty for an issue that is not on a page', () => {
-    const issue = bookReviewIssueFactory.build({ pages: [], type: Type.PersonUnderrepresented });
+    const issue = bookReviewIssueFactory.build({ pages: [], type: BookReviewIssueType.PersonUnderrepresented });
 
     expect(formatBookReviewLocation($t, issue, 'en')).toBe('');
   });

@@ -73,10 +73,12 @@
   };
 
   const onpointerup = (event: PointerEvent) => {
-    if (drag?.pointerId === event.pointerId) {
-      frame?.releasePointerCapture?.(event.pointerId);
-      drag = undefined;
+    if (drag?.pointerId !== event.pointerId) {
+      return;
     }
+
+    frame?.releasePointerCapture?.(event.pointerId);
+    drag = undefined;
   };
 
   const onwheel = (event: WheelEvent) => {

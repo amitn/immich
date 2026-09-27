@@ -123,7 +123,12 @@
   />
 
   {#if featureFlagsManager.value.assistant}
-    <SidebarNavItem title={$t('assistant')} href={Route.assistant()} icon={mdiCreationOutline} activeIcon={mdiCreation} />
+    <SidebarNavItem
+      title={$t('assistant')}
+      href={Route.assistant()}
+      icon={mdiCreationOutline}
+      activeIcon={mdiCreation}
+    />
   {/if}
 
   <SidebarNavGroup title={$t('library')} />

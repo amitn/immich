@@ -70,10 +70,12 @@
   };
 
   const onkeydown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape' && editor.selected) {
-      event.preventDefault();
-      editor.select();
+    if (!(event.key === 'Escape' && editor.selected)) {
+      return;
     }
+
+    event.preventDefault();
+    editor.select();
   };
 </script>
 

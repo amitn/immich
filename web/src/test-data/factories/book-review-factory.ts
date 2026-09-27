@@ -2,7 +2,7 @@ import {
   BookStylePreset,
   BookStyleTheme,
   Severity,
-  Type,
+  BookReviewIssueType,
   type BookReviewIssueDto,
   type BookReviewResponseDto,
   type BookStylePresetResponseDto,
@@ -73,7 +73,7 @@ export const bookStylePresets: BookStylePresetResponseDto[] = [
 
 export const bookReviewIssueFactory = Sync.makeFactory<BookReviewIssueDto>({
   severity: Severity.Medium,
-  type: Type.RepeatedLayout,
+  type: BookReviewIssueType.RepeatedLayout,
   message: 'Pages 4 and 5 use the same layout; use a different one',
   pages: [4, 5],
 });

@@ -23,8 +23,6 @@
     leading?: Snippet;
     descriptionTrailing?: Snippet;
     sidebar?: Snippet;
-    /** Rendered before the title, e.g. a back button */
-    leading?: Snippet;
     buttons?: Snippet;
     children?: Snippet;
   }
@@ -39,7 +37,6 @@
     leading,
     descriptionTrailing,
     sidebar,
-    leading,
     buttons,
     children,
   }: Props = $props();

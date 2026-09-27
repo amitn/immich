@@ -547,7 +547,7 @@ export const bookReviewIssueTypes = [
 const BookReviewIssueSchema = z
   .object({
     severity: z.enum(bookReviewSeverities).describe('How much the issue hurts the book'),
-    type: z.enum(bookReviewIssueTypes).describe('Kind of issue'),
+    type: z.enum(bookReviewIssueTypes).describe('Kind of issue').meta({ id: 'BookReviewIssueType' }),
     message: z.string().describe('What is wrong and how to fix it'),
     pages: z.array(z.int().min(1)).describe('One-based page numbers'),
     slot: z.int().min(1).optional().describe('One-based slot number'),

@@ -22,6 +22,7 @@ describe('explore page load', () => {
     sdkMock.getAllPeople.mockResolvedValue({ people: [], total: 0, hidden: 0, hasNextPage: false });
     sdkMock.searchMemories.mockResolvedValue([]);
     sdkMock.memoriesStatistics.mockResolvedValue({ total: 0 });
+    sdkMock.getAllTags.mockResolvedValue([]);
   });
 
   it('loads visible global people with shared-space identities', async () => {

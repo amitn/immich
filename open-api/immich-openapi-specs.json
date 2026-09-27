@@ -36681,25 +36681,7 @@
             "type": "integer"
           },
           "type": {
-            "description": "Kind of issue",
-            "enum": [
-              "duplicate-stack",
-              "low-dpi",
-              "empty-slot",
-              "too-much-artwork",
-              "artwork-back-to-back",
-              "singles-in-a-row",
-              "similar-neighbours",
-              "map-style-fallback",
-              "person-underrepresented",
-              "too-many-pairs",
-              "repeated-layout",
-              "missing-captions",
-              "could-look-better",
-              "missing-dish-name",
-              "missing-menu-page"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/BookReviewIssueType"
           }
         },
         "required": [
@@ -36709,6 +36691,27 @@
           "type"
         ],
         "type": "object"
+      },
+      "BookReviewIssueType": {
+        "description": "Kind of issue",
+        "enum": [
+          "duplicate-stack",
+          "low-dpi",
+          "empty-slot",
+          "too-much-artwork",
+          "artwork-back-to-back",
+          "singles-in-a-row",
+          "similar-neighbours",
+          "map-style-fallback",
+          "person-underrepresented",
+          "too-many-pairs",
+          "repeated-layout",
+          "missing-captions",
+          "could-look-better",
+          "missing-dish-name",
+          "missing-menu-page"
+        ],
+        "type": "string"
       },
       "BookReviewPlacementDto": {
         "properties": {

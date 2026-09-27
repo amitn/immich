@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { languageManager } from '$lib/managers/language-manager.svelte';
   import { afterNavigate, goto } from '$app/navigation';
   import { shortcuts } from '$lib/actions/shortcut';
   import BookDraftBanner from '$lib/components/books/BookDraftBanner.svelte';
@@ -57,6 +58,7 @@
   import { Button, IconButton, LoadingSpinner, modalManager, toastManager } from '@immich/ui';
   import {
     mdiArrowLeft,
+    mdiArrowRight,
     mdiAutoFix,
     mdiBookOpenVariantOutline,
     mdiBookshelf,
@@ -191,10 +193,12 @@
   };
 
   const stopPolling = () => {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = undefined;
+    if (!pollTimer) {
+      return;
     }
+
+    clearInterval(pollTimer);
+    pollTimer = undefined;
   };
 
   const formatLabel = (format: BookExportFormat) =>
@@ -425,15 +429,17 @@
   };
 
   $effect(() => {
-    if (
+    if (!(
       applyingStyle &&
       book.updatedAt !== styleFrom &&
       current.length > 0 &&
       current.every((page) => loaded.has(page.id))
-    ) {
-      toastManager.success($t('book_style_changed', { values: { name: applyingStyle } }));
-      applyingStyle = undefined;
+    )) {
+      return;
     }
+
+    toastManager.success($t('book_style_changed', { values: { name: applyingStyle } }));
+    applyingStyle = undefined;
   });
 
   const toggleReview = () => {
@@ -479,19 +485,21 @@
 
   const onAgentUpdate = ({ message }: AgentUpdateDto) => {
     // re-render when the assistant finishes changing this book
-    if (
+    if (!(
       message?.kind === AgentMessageKind.ToolCall &&
       message.content.status === AgentToolCallStatus.Completed &&
       message.content.bookIds?.includes(book.id)
-    ) {
-      const previous = book.updatedAt;
-      void refresh().then((updated) => {
-        // e.g. after review_book the book is the same, so the effect does not review it again
-        if (updated && updated.updatedAt === previous) {
-          void review.reload();
-        }
-      });
+    )) {
+      return;
     }
+
+    const previous = book.updatedAt;
+    void refresh().then((updated) => {
+      // e.g. after review_book the book is the same, so the effect does not review it again
+      if (updated && updated.updatedAt === previous) {
+        void review.reload();
+      }
+    });
   };
 
   onMount(() => {
@@ -521,8 +529,7 @@
       size="small"
       color="secondary"
       shape="round"
-      icon={mdiArrowLeft}
-      directional
+      icon={languageManager.rtl ? mdiArrowRight : mdiArrowLeft}
       aria-label={$t('book_back_to_list')}
       title={$t('book_back_to_list')}
     />
@@ -770,8 +777,7 @@
           shape="round"
           variant="ghost"
           color="secondary"
-          icon={mdiChevronLeft}
-          directional
+          icon={languageManager.rtl ? mdiChevronRight : mdiChevronLeft}
           disabled={!hasPrevious}
           aria-label={$t('previous')}
           onclick={() => goToView(viewIndex - 1)}
@@ -816,8 +822,7 @@
           shape="round"
           variant="ghost"
           color="secondary"
-          icon={mdiChevronRight}
-          directional
+          icon={languageManager.rtl ? mdiChevronLeft : mdiChevronRight}
           disabled={!hasNext}
           aria-label={$t('next')}
           onclick={() => goToView(viewIndex + 1)}

@@ -2859,8 +2859,7 @@ export type BookReviewIssueDto = {
     severity: Severity;
     /** One-based slot number */
     slot?: number;
-    /** Kind of issue */
-    "type": Type2;
+    "type": BookReviewIssueType;
 };
 export type BookReviewSuggestionDto = {
     /** Photo ID */
@@ -4059,7 +4058,7 @@ export type ScopedPersonProfileRefDto = {
     /** Space ID for Space Person refs */
     spaceId?: string;
     /** Scoped profile type */
-    "type": Type3;
+    "type": Type2;
 };
 export type DetachScopedPersonDto = {
     /** Scoped profile to detach */
@@ -14183,7 +14182,7 @@ export enum Severity {
     Medium = "medium",
     Low = "low"
 }
-export enum Type2 {
+export enum BookReviewIssueType {
     DuplicateStack = "duplicate-stack",
     LowDpi = "low-dpi",
     EmptySlot = "empty-slot",
@@ -14331,7 +14330,7 @@ export enum PartnerDirection {
     SharedBy = "shared-by",
     SharedWith = "shared-with"
 }
-export enum Type3 {
+export enum Type2 {
     Person = "person",
     SpacePerson = "space-person"
 }

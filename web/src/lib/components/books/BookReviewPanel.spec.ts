@@ -1,4 +1,4 @@
-import { Severity, Type } from '@immich/sdk';
+import { Severity, BookReviewIssueType } from '@immich/sdk';
 import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { Component, ComponentProps } from 'svelte';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
@@ -21,13 +21,13 @@ describe('BookReviewPanel component', () => {
 
   const duplicate = bookReviewIssueFactory.build({
     severity: Severity.High,
-    type: Type.DuplicateStack,
+    type: BookReviewIssueType.DuplicateStack,
     message: 'Pages 2 and 7 show the same photo',
     pages: [2, 7],
   });
   const lowDpi = bookReviewIssueFactory.build({
     severity: Severity.High,
-    type: Type.LowDpi,
+    type: BookReviewIssueType.LowDpi,
     message: 'Page 4, photo 2 prints at 120 dpi',
     pages: [4],
     slot: 2,
@@ -35,13 +35,13 @@ describe('BookReviewPanel component', () => {
   });
   const layout = bookReviewIssueFactory.build({
     severity: Severity.Medium,
-    type: Type.RepeatedLayout,
+    type: BookReviewIssueType.RepeatedLayout,
     message: 'Pages 5 and 6 use the same layout',
     pages: [5, 6],
   });
   const person = bookReviewIssueFactory.build({
     severity: Severity.Low,
-    type: Type.PersonUnderrepresented,
+    type: BookReviewIssueType.PersonUnderrepresented,
     message: 'Anna is in 1 photo',
     pages: [],
   });

@@ -34,6 +34,7 @@ function renderPage(people: PersonResponseDto[] = [makePerson()], items: SearchE
         hasNextPage: false,
       },
       memories: [],
+      tags: [],
       meta: { title: 'Explore' },
     },
   };

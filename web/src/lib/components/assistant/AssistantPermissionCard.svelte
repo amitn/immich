@@ -121,7 +121,9 @@
     </div>
   {:else if resolved}
     <div>
-      <Badge color={resolved.color} size="small" shape="round" leadingIcon={resolved.icon}>{resolved.label}</Badge>
+      <Badge color={resolved.color} size="small" shape="round">
+        <span class="flex items-center gap-1"><Icon icon={resolved.icon} size="1em" />{resolved.label}</span>
+      </Badge>
     </div>
   {/if}
 </div>

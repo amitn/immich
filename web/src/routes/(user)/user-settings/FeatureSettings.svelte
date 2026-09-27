@@ -185,7 +185,7 @@
           </div>
         </SettingAccordion>
 
-        {#if featureFlagsManager.value.assistant}
+        {#if featureFlagsManager.valueOrUndefined?.assistant}
           <SettingAccordion
             key="ai-answers"
             title={$t('ai_answers_setting')}

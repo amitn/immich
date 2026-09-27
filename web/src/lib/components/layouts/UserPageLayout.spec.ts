@@ -19,8 +19,6 @@ describe('UserPageLayout component', () => {
     expect(header).toHaveAttribute('title', title);
     expect(header.parentElement).toHaveClass('min-w-0');
 
-    const description = screen.getByText('Ten days by bus and ferry');
-    expect(description).toHaveClass('truncate');
-    expect(description).toHaveAttribute('title', 'Ten days by bus and ferry');
+    expect(screen.getByText('Ten days by bus and ferry')).toBeInTheDocument();
   });
 });

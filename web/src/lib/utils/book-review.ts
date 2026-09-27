@@ -1,7 +1,7 @@
 import {
   getBookLayouts,
   Severity,
-  Type,
+  BookReviewIssueType,
   type BookDetailResponseDto,
   type BookLayoutRect,
   type BookLayoutResponseDto,
@@ -18,22 +18,22 @@ export const BOOK_REVIEW_SEVERITY_LABEL_KEYS: Record<Severity, Translations> = {
   [Severity.Low]: 'book_review_severity_low',
 };
 
-export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<Type, Translations> = {
-  [Type.DuplicateStack]: 'book_review_issue_duplicate_stack',
-  [Type.LowDpi]: 'book_review_issue_low_dpi',
-  [Type.EmptySlot]: 'book_review_issue_empty_slot',
-  [Type.TooMuchArtwork]: 'book_review_issue_too_much_artwork',
-  [Type.ArtworkBackToBack]: 'book_review_issue_artwork_back_to_back',
-  [Type.SinglesInARow]: 'book_review_issue_singles_in_a_row',
-  [Type.SimilarNeighbours]: 'book_review_issue_similar_neighbours',
-  [Type.MapStyleFallback]: 'book_review_issue_map_style_fallback',
-  [Type.PersonUnderrepresented]: 'book_review_issue_person_underrepresented',
-  [Type.TooManyPairs]: 'book_review_issue_too_many_pairs',
-  [Type.RepeatedLayout]: 'book_review_issue_repeated_layout',
-  [Type.MissingCaptions]: 'book_review_issue_missing_captions',
-  [Type.CouldLookBetter]: 'book_review_issue_could_look_better',
-  [Type.MissingDishName]: 'book_review_issue_missing_dish_name',
-  [Type.MissingMenuPage]: 'book_review_issue_missing_menu_page',
+export const BOOK_REVIEW_ISSUE_LABEL_KEYS: Record<BookReviewIssueType, Translations> = {
+  [BookReviewIssueType.DuplicateStack]: 'book_review_issue_duplicate_stack',
+  [BookReviewIssueType.LowDpi]: 'book_review_issue_low_dpi',
+  [BookReviewIssueType.EmptySlot]: 'book_review_issue_empty_slot',
+  [BookReviewIssueType.TooMuchArtwork]: 'book_review_issue_too_much_artwork',
+  [BookReviewIssueType.ArtworkBackToBack]: 'book_review_issue_artwork_back_to_back',
+  [BookReviewIssueType.SinglesInARow]: 'book_review_issue_singles_in_a_row',
+  [BookReviewIssueType.SimilarNeighbours]: 'book_review_issue_similar_neighbours',
+  [BookReviewIssueType.MapStyleFallback]: 'book_review_issue_map_style_fallback',
+  [BookReviewIssueType.PersonUnderrepresented]: 'book_review_issue_person_underrepresented',
+  [BookReviewIssueType.TooManyPairs]: 'book_review_issue_too_many_pairs',
+  [BookReviewIssueType.RepeatedLayout]: 'book_review_issue_repeated_layout',
+  [BookReviewIssueType.MissingCaptions]: 'book_review_issue_missing_captions',
+  [BookReviewIssueType.CouldLookBetter]: 'book_review_issue_could_look_better',
+  [BookReviewIssueType.MissingDishName]: 'book_review_issue_missing_dish_name',
+  [BookReviewIssueType.MissingMenuPage]: 'book_review_issue_missing_menu_page',
 };
 
 /** At most this many issues are listed in the prompt that fixes them all */

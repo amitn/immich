@@ -48,7 +48,7 @@ describe('collections service', () => {
 
       expect(NameDishes.title).toBe('collections.food.name_action');
       expect(NameDishes.$if?.()).toBe(true);
-      await NameDishes.onAction({ action: NameDishes, event: new Event('click') });
+      await NameDishes.onAction(NameDishes);
       expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, { pack: foodPack, album });
     });
 
@@ -66,7 +66,7 @@ describe('collections service', () => {
         'collections.food.name_action',
         'collections.labels.name_action',
       ]);
-      await actions[1].onAction({ action: actions[1], event: new Event('click') });
+      await actions[1].onAction(actions[1]);
       expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, { pack: labelsPack, album });
     });
   });
@@ -76,7 +76,7 @@ describe('collections service', () => {
       const [NameDishes] = getCollectionBulkActions($t);
 
       expect(NameDishes.$if?.()).toBe(true);
-      await NameDishes.onAction({ action: NameDishes, event: new Event('click') });
+      await NameDishes.onAction(NameDishes);
       expect(selection.clear).toHaveBeenCalled();
       expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, { pack: foodPack, assetIds: ['a', 'b'] });
     });

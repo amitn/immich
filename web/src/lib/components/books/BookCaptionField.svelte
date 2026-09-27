@@ -48,10 +48,12 @@
   });
 
   const cancelTimer = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = undefined;
+    if (!timer) {
+      return;
     }
+
+    clearTimeout(timer);
+    timer = undefined;
   };
 
   const save = async () => {
