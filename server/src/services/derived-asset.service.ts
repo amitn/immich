@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Tags } from 'exiftool-vendored';
 import { DateTime } from 'luxon';
-import { parse } from 'node:path';
+import { isAbsolute, parse } from 'node:path';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { OnEvent } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
@@ -196,10 +196,13 @@ export class DerivedAssetService extends BaseService {
     }
 
     const id = this.cryptoRepository.randomUUID();
+    // made on disk, where its metadata is written, then stored in the write backend (see `storeLocalFile`)
     const path = StorageCore.getNestedPath(StorageFolder.Upload, source.ownerId, `${id}.${extension}`);
+    const key = StorageCore.getRelativeNestedPath(StorageFolder.Upload, source.ownerId, `${id}.${extension}`);
     this.storageCore.ensureFolders(path);
 
     let created = false;
+    let originalPath = path;
     try {
       await ('buffer' in file
         ? this.storageRepository.createFile(path, file.buffer)
@@ -217,6 +220,7 @@ export class DerivedAssetService extends BaseService {
 
       const checksum = await this.cryptoRepository.hashFile(path);
       const now = new Date();
+      originalPath = await this.storeLocalFile(path, key, mimeTypes.lookup(fileName));
 
       let asset;
       try {
@@ -227,7 +231,7 @@ export class DerivedAssetService extends BaseService {
           type: AssetType.Image,
           checksum,
           checksumAlgorithm: ChecksumAlgorithm.sha1File,
-          originalPath: path,
+          originalPath,
           originalFileName: fileName,
           fileCreatedAt: source.fileCreatedAt,
           fileModifiedAt: now,
@@ -245,7 +249,7 @@ export class DerivedAssetService extends BaseService {
           throw error;
         }
 
-        await this.storageRepository.unlink(path);
+        await this.removeFile(originalPath);
         return { id: duplicateId, duplicate: true };
       }
 
@@ -260,7 +264,7 @@ export class DerivedAssetService extends BaseService {
 
       await this.eventRepository.emit('AssetCreate', {
         asset,
-        file: { uuid: id, checksum, originalPath: path, originalName: fileName, size },
+        file: { uuid: id, checksum, originalPath, originalName: fileName, size },
       });
       await this.jobRepository.queue({ name: JobName.AssetExtractMetadata, data: { id: asset.id, source: 'upload' } });
 
@@ -269,7 +273,7 @@ export class DerivedAssetService extends BaseService {
       if (created) {
         await this.assetRepository.remove({ id });
       }
-      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [path] } });
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [...new Set([path, originalPath])] } });
       throw error;
     }
   }
@@ -309,10 +313,13 @@ export class DerivedAssetService extends BaseService {
   ): Promise<DerivedAssetResult> {
     const id = this.cryptoRepository.randomUUID();
     const extension = parse(fileName).ext.toLowerCase();
+    // made on disk, where its metadata is written, then stored in the write backend (see `storeLocalFile`)
     const path = StorageCore.getNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
+    const key = StorageCore.getRelativeNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
     this.storageCore.ensureFolders(path);
 
     let created = false;
+    let originalPath = path;
     try {
       if ('buffer' in file) {
         await this.storageRepository.createFile(path, file.buffer);
@@ -344,6 +351,7 @@ export class DerivedAssetService extends BaseService {
       const { size } = await this.storageRepository.stat(path);
       this.requireQuota(auth, size);
       const checksum = await this.cryptoRepository.hashFile(path);
+      originalPath = await this.storeLocalFile(path, key, mimeTypes.lookup(fileName));
 
       let asset;
       try {
@@ -354,7 +362,7 @@ export class DerivedAssetService extends BaseService {
           type,
           checksum,
           checksumAlgorithm: ChecksumAlgorithm.sha1File,
-          originalPath: path,
+          originalPath,
           originalFileName: fileName,
           fileCreatedAt: dateOf.fileCreatedAt,
           fileModifiedAt: new Date(),
@@ -370,7 +378,7 @@ export class DerivedAssetService extends BaseService {
         if (!duplicateId) {
           throw error;
         }
-        await this.storageRepository.unlink(path);
+        await this.removeFile(originalPath);
         return { id: duplicateId, duplicate: true };
       }
 
@@ -380,7 +388,7 @@ export class DerivedAssetService extends BaseService {
       });
       await this.eventRepository.emit('AssetCreate', {
         asset,
-        file: { uuid: id, checksum, originalPath: path, originalName: fileName, size },
+        file: { uuid: id, checksum, originalPath, originalName: fileName, size },
       });
       await this.jobRepository.queue({ name: JobName.AssetExtractMetadata, data: { id: asset.id, source: 'upload' } });
       return { id: asset.id, duplicate: false };
@@ -388,8 +396,17 @@ export class DerivedAssetService extends BaseService {
       if (created) {
         await this.assetRepository.remove({ id });
       }
-      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [path] } });
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [...new Set([path, originalPath])] } });
       throw error;
+    }
+  }
+
+  /** removes a file this service stored: on disk at once, in a storage backend by a job */
+  private async removeFile(path: string) {
+    if (isAbsolute(path)) {
+      await this.storageRepository.unlink(path);
+    } else {
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [path] } });
     }
   }
 

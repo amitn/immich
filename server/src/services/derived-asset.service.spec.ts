@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
+import { Readable } from 'node:stream';
 import { AssetType, AssetVisibility, ChecksumAlgorithm, JobName } from 'src/enum.js';
 import {
   DerivedAssetService,
@@ -11,6 +12,7 @@ import { AssetFactory } from 'test/factories/asset.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { getForAsset } from 'test/mappers.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 describe(DerivedAssetService.name, () => {
@@ -330,6 +332,117 @@ describe(DerivedAssetService.name, () => {
       await expect(
         sut.createGeneratedImage(AuthFactory.create(), Buffer.from('x'), { fileName: 'Collage.mp4', dateOf }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('with S3 storage', () => {
+    const dateOf = {
+      fileCreatedAt: new Date('2024-06-01T10:00:00.000Z'),
+      localDateTime: new Date('2024-06-01T12:00:00Z'),
+    };
+    let s3: ReturnType<typeof useS3Backend>;
+
+    beforeEach(() => {
+      s3 = useS3Backend();
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('image')]));
+      mocks.storage.unlink.mockResolvedValue();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should write the tags on disk, then store the copy in S3 and remove the local file', async () => {
+      const { auth, source } = setup();
+      const key = `upload/${source.ownerId}/ne/w-/new-asset-id.jpg`;
+
+      await expect(
+        sut.createDerivedAsset(auth, source.id, { buffer: Buffer.from('image'), extension: 'jpg' }, { suffix: 'crop' }),
+      ).resolves.toEqual({ id: 'new-asset-id', duplicate: false });
+
+      const path = mocks.storage.createFile.mock.calls[0][0];
+      expect(path).toMatch(/^\/.+new-asset-id\.jpg$/);
+      expect(mocks.metadata.writeTags).toHaveBeenCalledWith(path, expect.anything());
+      expect(mocks.crypto.hashFile).toHaveBeenCalledWith(path);
+      expect(s3.put).toHaveBeenCalledWith(key, expect.anything(), { contentType: 'image/jpeg' });
+      expect(s3.stored.get(key)?.data).toEqual(Buffer.from('image'));
+      expect(mocks.storage.unlink).toHaveBeenCalledWith(path);
+      expect(mocks.asset.create).toHaveBeenCalledWith(expect.objectContaining({ originalPath: key }));
+      expect(mocks.event.emit).toHaveBeenCalledWith('AssetCreate', {
+        asset: expect.anything(),
+        file: expect.objectContaining({ originalPath: key }),
+      });
+    });
+
+    it('should remove the stored copy of a duplicate', async () => {
+      const { auth, source } = setup();
+      mocks.asset.create.mockRejectedValue({ constraint_name: 'UQ_assets_owner_checksum' });
+      mocks.asset.getUploadAssetIdByChecksum.mockResolvedValue('existing-id');
+
+      await expect(
+        sut.createDerivedAsset(auth, source.id, { buffer: Buffer.from('image'), extension: 'jpg' }),
+      ).resolves.toEqual({ id: 'existing-id', duplicate: true });
+
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.FileDelete,
+        data: { files: [expect.stringMatching(/^upload\/.+new-asset-id\.jpg$/)] },
+      });
+    });
+
+    it('should remove the local file and the stored copy when the copy fails', async () => {
+      const { auth, source } = setup();
+      mocks.stack.create.mockRejectedValue(new Error('boom'));
+
+      await expect(
+        sut.createDerivedAsset(auth, source.id, { buffer: Buffer.from('image'), extension: 'jpg' }),
+      ).rejects.toThrow('boom');
+
+      expect(mocks.asset.remove).toHaveBeenCalledWith({ id: 'new-asset-id' });
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.FileDelete,
+        data: {
+          files: [
+            expect.stringMatching(/^\/.+new-asset-id\.jpg$/),
+            expect.stringMatching(/^upload\/.+new-asset-id\.jpg$/),
+          ],
+        },
+      });
+    });
+
+    it('should not create the asset when the upload fails', async () => {
+      const { auth, source } = setup();
+      s3.put.mockRejectedValue(new Error('S3 unavailable'));
+
+      await expect(
+        sut.createDerivedAsset(auth, source.id, { buffer: Buffer.from('image'), extension: 'jpg' }),
+      ).rejects.toThrow('S3 unavailable');
+
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.FileDelete,
+        data: { files: [expect.stringMatching(/^\/.+new-asset-id\.jpg$/)] },
+      });
+    });
+
+    it('should store a highlight video and a collage in S3', async () => {
+      const auth = AuthFactory.create();
+
+      await sut.createGeneratedVideo(auth, '/data/upload/tmp/film.mp4', { fileName: 'Sicily.mp4', dateOf });
+      await sut.createGeneratedImage(auth, Buffer.from('jpeg'), { fileName: 'Collage.jpg', dateOf });
+
+      const keys = [...s3.stored.keys()];
+      expect(keys).toEqual([
+        `upload/${auth.user.id}/ne/w-/new-asset-id.mp4`,
+        `upload/${auth.user.id}/ne/w-/new-asset-id.jpg`,
+      ]);
+      expect(s3.stored.get(keys[0])?.contentType).toBe('video/mp4');
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ type: AssetType.Video, originalPath: keys[0] }),
+      );
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ type: AssetType.Image, originalPath: keys[1] }),
+      );
+      expect(mocks.storage.unlink).toHaveBeenCalledTimes(2);
     });
   });
 
