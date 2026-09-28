@@ -263,7 +263,8 @@ export class OrientationService extends BaseService {
 
   /** keeps photos as they are: their suggestions are not made again */
   async reject(auth: AuthDto, assetIds: string[]): Promise<BulkIdResponseDto[]> {
-    return this.review(auth, assetIds, Permission.AssetUpdate, (_, record) => {
+    // owner-only like fixing: AssetUpdate would let a space editor dismiss the suggestions of another member's photo
+    return this.review(auth, assetIds, Permission.AssetEditCreate, (_, record) => {
       if (!record) {
         return Promise.resolve('Nothing to reject: the photo has no suggested turn');
       }

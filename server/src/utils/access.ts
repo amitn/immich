@@ -477,6 +477,15 @@ export const hasDirectAlbumReadAccess = async (
   return isShared.has(albumId);
 };
 
+/**
+ * The assets the user owns, for the assistant's features that write to a photo: the copies stacked with it (crop,
+ * straighten, enhance, improve, artwork) and its naming (the collection tags and descriptions). A photo that is only
+ * shared with the user (a partner's, or another member's in a shared space) is read-only for them. Not
+ * `Permission.AssetUpdate`, which in this fork also admits space editors; the pure owner arm of `AssetCopy` instead.
+ */
+export const checkOwnedAssets = (access: AccessRepository, auth: AuthDto, ids: Set<string> | string[]) =>
+  checkAccess(access, { auth, permission: Permission.AssetCopy, ids });
+
 export const requireElevatedPermission = (auth: AuthDto) => {
   if (!auth.session?.hasElevatedPermission) {
     throw new UnauthorizedException('Elevated permission is required');

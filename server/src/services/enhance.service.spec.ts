@@ -142,8 +142,16 @@ describe(EnhanceService.name, () => {
 
   describe('createEnhancedCopy', () => {
     it('should require owner access', async () => {
-      await expect(sut.createEnhancedCopy(auth, newUuid())).rejects.toThrow('asset.update');
+      await expect(sut.createEnhancedCopy(auth, newUuid())).rejects.toThrow('asset.copy');
       expect(mocks.media.decodeImage).not.toHaveBeenCalled();
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+    });
+
+    it("should not copy another member's photo for a space editor", async () => {
+      const id = newUuid();
+      mocks.access.asset.checkSpaceEditAccess.mockResolvedValue(new Set([id]));
+
+      await expect(sut.createEnhancedCopy(auth, id)).rejects.toThrow('asset.copy');
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });
 

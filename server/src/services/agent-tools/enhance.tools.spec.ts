@@ -131,7 +131,7 @@ describe(EnhanceAgentTools.name, () => {
   describe('enhance_photo', () => {
     it('should require owner access', async () => {
       const text = errorText(await call('enhance_photo', { id: newUuid() }));
-      expect(text).toContain('Not found or no asset.update access');
+      expect(text).toContain('Not found or no asset.copy access');
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });
 
@@ -181,7 +181,7 @@ describe(EnhanceAgentTools.name, () => {
 
     it('should require owner access', async () => {
       const text = errorText(await call('improve_photos', { photos: [{ id: newUuid(), ...recipe }] }));
-      expect(text).toContain('Not found or no asset.update access');
+      expect(text).toContain('Not found or no asset.copy access');
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });
 

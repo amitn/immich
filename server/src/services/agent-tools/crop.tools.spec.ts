@@ -318,7 +318,7 @@ describe(CropAgentTools.name, () => {
 
     it('should require owner access', async () => {
       const text = errorText(await call('crop_photo', { id: newUuid(), aspectRatio: '1:1' }));
-      expect(text).toContain('Not found or no asset.update access');
+      expect(text).toContain('Not found or no asset.copy access');
       expect(mocks.media.decodeImage).not.toHaveBeenCalled();
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });

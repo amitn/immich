@@ -181,8 +181,9 @@ export class DerivedAssetService extends BaseService {
     file: DerivedAssetFile,
     { description, suffix = 'edit', stack = true, tags = DERIVED_ASSET_TAGS[suffix] ?? [] }: DerivedAssetOptions = {},
   ): Promise<DerivedAssetResult> {
-    // the copy belongs to the owner of the source and is stacked with it
-    await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [sourceAssetId] });
+    // the copy is stacked with the source in its owner's library, so only the owner makes one: a photo that is only
+    // shared with the user (a partner's, or another member's in a shared space) is read-only, like `AssetCopy`
+    await this.requireAccess({ auth, permission: Permission.AssetCopy, ids: [sourceAssetId] });
 
     const source = await this.assetRepository.getById(sourceAssetId, { exifInfo: true });
     if (!source || source.deletedAt) {

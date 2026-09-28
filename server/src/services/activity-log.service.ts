@@ -38,6 +38,7 @@ import { BookService } from 'src/services/book.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
 import {
   ActivityEntry,
   ActivityRecorder,
@@ -726,7 +727,8 @@ export class ActivityLogService extends BaseService {
     }
     const rules = getCollectionTagRules(pack);
     const ids = photos.map(({ id }) => id);
-    const allowed = await this.checkAccess({ auth, permission: Permission.AssetUpdate, ids });
+    // naming is owner-only, and so is undoing it (see `CollectionService.saveEntries`)
+    const allowed = await checkOwnedAssets(this.accessRepository, auth, ids);
 
     const current = new Map<string, Array<{ tagId: string; value: string }>>();
     for (const { assetId, tagId, value } of await this.tagRepository.getAssetTagsByPrefix(ids, getTagPrefix(rules))) {

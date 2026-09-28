@@ -160,8 +160,8 @@ export class ArtService extends BaseService {
 
     const style = dto.style === undefined ? undefined : await this.resolveStyle(auth, dto.style);
 
-    // the artwork is stacked with the photo, so the user has to own it
-    await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [dto.assetId] });
+    // the artwork is stacked with the photo, so the user has to own it (to test a style on it too)
+    await this.requireAccess({ auth, permission: Permission.AssetCopy, ids: [dto.assetId] });
     const asset = await this.assetRepository.getById(dto.assetId);
     if (!asset || asset.type !== AssetType.Image) {
       throw new BadRequestException('Only photos can be transformed');

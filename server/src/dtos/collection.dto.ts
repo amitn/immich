@@ -114,6 +114,13 @@ const CollectionVisitSchema = z
     place: CollectionPlaceCandidateSchema.describe('The best name for the place'),
     candidates: z.array(CollectionPlaceCandidateSchema).describe('Other names read on the photos'),
     saved: z.array(CollectionSavedEntrySchema).describe('Tags of the pack already on the photos of the visit'),
+    readOnlyIds: z
+      .array(uuid())
+      .optional()
+      .describe(
+        "Photos of the visit the user doesn't own (e.g. another member's in a shared space): read to name the " +
+          'place and the entries, but only their owner can name them',
+      ),
   })
   .meta({ id: 'CollectionVisitResponseDto' });
 
