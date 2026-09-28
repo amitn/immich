@@ -52,11 +52,23 @@ import {
   planHighlight,
 } from 'src/utils/highlight/plan.js';
 import { HighlightClipSource, renderHighlight } from 'src/utils/highlight/render.js';
+import { LocalFile } from 'src/utils/local-files.js';
 
 type HighlightJob = Selectable<HighlightJobTable>;
 
 /** the audio files the music of a highlight video can be */
 export const HIGHLIGHT_MUSIC_EXTENSIONS = new Set(['.mp3', '.m4a', '.aac', '.wav', '.flac', '.ogg', '.oga', '.opus']);
+/** the content type a music file is stored with in S3 */
+const MUSIC_CONTENT_TYPES: Record<string, string> = {
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/opus',
+};
 /** the largest music file */
 export const MAX_MUSIC_BYTES = 100 * 1024 * 1024;
 /** how often a render checks whether it was cancelled */
@@ -217,10 +229,13 @@ export class HighlightService extends BaseService {
     }
 
     const id = this.cryptoRepository.randomUUID();
+    // probed on disk, then stored in the write backend (see `storeLocalFile`)
     const path = StorageCore.getNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
+    const key = StorageCore.getRelativeNestedPath(StorageFolder.Upload, auth.user.id, `${id}${extension}`);
     this.storageCore.ensureFolders(path);
     await this.storageRepository.createFile(path, file.buffer);
 
+    let originalPath = path;
     try {
       const { audioStreams, format } = await this.mediaRepository.probe(path);
       if (audioStreams.length === 0) {
@@ -229,6 +244,7 @@ export class HighlightService extends BaseService {
 
       const checksum = this.cryptoRepository.hashSha1(file.buffer);
       const now = new Date();
+      originalPath = await this.storeLocalFile(path, key, MUSIC_CONTENT_TYPES[extension]);
       try {
         const asset = await this.assetRepository.create({
           id,
@@ -237,7 +253,7 @@ export class HighlightService extends BaseService {
           type: AssetType.Audio,
           checksum,
           checksumAlgorithm: ChecksumAlgorithm.sha1File,
-          originalPath: path,
+          originalPath,
           originalFileName: file.originalname,
           fileCreatedAt: now,
           fileModifiedAt: now,
@@ -263,11 +279,15 @@ export class HighlightService extends BaseService {
         if (!duplicate) {
           throw new BadRequestException('This file is already in the library, but it is not an audio file');
         }
-        await this.storageRepository.unlink(path);
+        if (originalPath === path) {
+          await this.storageRepository.unlink(path);
+        } else {
+          await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [originalPath] } });
+        }
         return mapHighlightMusic(duplicate);
       }
     } catch (error) {
-      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [path] } });
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [...new Set([path, originalPath])] } });
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -313,6 +333,7 @@ export class HighlightService extends BaseService {
     }, CANCEL_POLL_MS);
 
     const warnings: string[] = [];
+    let musicFile: LocalFile | undefined;
     try {
       await this.updateJob(job, { status: HighlightJobStatus.Running, progress: 0 });
       this.storageRepository.mkdirSync(workdir);
@@ -329,6 +350,14 @@ export class HighlightService extends BaseService {
         : undefined;
       if (job.musicAssetId && !music) {
         warnings.push('The music was deleted, so the video is silent');
+      }
+      // a local copy: the film loops the music, which a short-lived URL of S3 would not outlast
+      if (music) {
+        try {
+          musicFile = await this.ensureLocalFile(music.originalPath);
+        } catch (error: any) {
+          warnings.push(`The music could not be read (${error?.message ?? error}), so the video is silent`);
+        }
       }
 
       const config = await this.getConfig({ withCache: true });
@@ -354,6 +383,8 @@ export class HighlightService extends BaseService {
         style,
         photos,
         clips,
+        withLocalFile: (path, fn) => this.withLocalFile(path, fn),
+        getReadableInput: (input) => this.getProbeInput(input),
         renderMap: async (shot, size) => {
           const { data } = await renderMap(
             {
@@ -373,7 +404,7 @@ export class HighlightService extends BaseService {
           return data;
         },
         toneMap,
-        music: music?.originalPath,
+        music: musicFile?.localPath,
         encoder,
         title: job.title,
         output,
@@ -449,6 +480,7 @@ export class HighlightService extends BaseService {
       return JobStatus.Failed;
     } finally {
       clearInterval(poll);
+      await musicFile?.cleanup();
       await this.storageRepository.unlinkDir(workdir, { recursive: true, force: true }).catch((error) => {
         this.logger.warn(`Unable to remove the work folder of highlight video ${job.id}: ${error}`);
       });
@@ -552,7 +584,9 @@ export class HighlightService extends BaseService {
       if (!photo || photo.faces.length > 0 || typeof preview !== 'string') {
         continue;
       }
-      const point = await this.mediaRepository.getAttentionPoint(preview).catch(() => null);
+      const point = await this.withLocalFile(preview, (path) => this.mediaRepository.getAttentionPoint(path)).catch(
+        () => null,
+      );
       if (point) {
         focus.set(photo.id, point);
       }
@@ -567,7 +601,7 @@ export class HighlightService extends BaseService {
       }
       const row = videoRows.find((item) => item.id === shot.assetId)!;
       try {
-        const info = await this.mediaRepository.probe(row.originalPath);
+        const info = await this.mediaRepository.probe(await this.getProbeInput(row.originalPath));
         const stream = info.videoStreams[0];
         if (!stream) {
           throw new Error('no video stream');
@@ -626,7 +660,7 @@ export class HighlightService extends BaseService {
     for (let index = 0; index < CLIP_SAMPLES; index++) {
       const middle = ((index + 0.5) / CLIP_SAMPLES) * duration;
       try {
-        const frame = await this.mediaRepository.getVideoFrame(path, middle);
+        const frame = await this.mediaRepository.getVideoFrame(await this.getProbeInput(path), middle);
         const analysis = await this.mediaRepository.analyzeImage(frame);
         const score = scorePhoto(analysis, [], { isFavorite: false, rating: null }).overall;
         // the very start is often shaky: a little less for the first sample

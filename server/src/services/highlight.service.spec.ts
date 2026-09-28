@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
+import { Readable } from 'node:stream';
 import { vitest } from 'vitest';
 import { bookStylePresets } from 'src/dtos/book.dto.js';
 import {
@@ -24,6 +25,7 @@ import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AutoLayoutPhoto } from 'src/utils/book/auto-layout.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const HOUR = 60 * 60 * 1000;
@@ -285,6 +287,29 @@ describe(HighlightService.name, () => {
       expect(result).toEqual({ id: 'music-id', name: 'Summer.mp3', durationSeconds: 183.5 });
     });
 
+    it('should store the music in S3', async () => {
+      const s3 = useS3Backend();
+      mocks.crypto.randomUUID.mockReturnValue('music-id');
+      mocks.crypto.hashSha1.mockReturnValue(Buffer.from('checksum'));
+      mocks.media.probe.mockResolvedValue({
+        format: { duration: 3 },
+        videoStreams: [],
+        audioStreams: [{ index: 0 }],
+      } as any);
+      mocks.asset.create.mockImplementation((asset) => Promise.resolve(asset) as any);
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('audio')]));
+      mocks.storage.unlink.mockResolvedValue();
+
+      await sut.uploadMusic(auth, file('Summer.mp3'));
+
+      const path = mocks.storage.createFile.mock.calls[0][0];
+      const key = `upload/${auth.user.id}/mu/si/music-id.mp3`;
+      expect(mocks.media.probe).toHaveBeenCalledWith(path);
+      expect(s3.stored.get(key)).toEqual({ data: Buffer.from('audio'), contentType: 'audio/mpeg' });
+      expect(mocks.storage.unlink).toHaveBeenCalledWith(path);
+      expect(mocks.asset.create).toHaveBeenCalledWith(expect.objectContaining({ originalPath: key }));
+    });
+
     it('should refuse a file without sound and delete it', async () => {
       mocks.crypto.randomUUID.mockReturnValue('music-id');
       mocks.media.probe.mockResolvedValue({ format: {}, videoStreams: [], audioStreams: [] } as any);
@@ -393,6 +418,97 @@ describe(HighlightService.name, () => {
       await sut.handleRender({ id: job.id });
       expect(mocks.media.runFfmpeg.mock.calls.at(-1)![0]).toEqual(
         expect.arrayContaining(['-stream_loop', '-1', '-i', '/data/upload/song.mp3']),
+      );
+    });
+
+    it('should render from S3: local copies of the photos and music, short-lived URLs of the clips', async () => {
+      const s3 = useS3Backend();
+      const musicAssetId = newUuid();
+      const videoId = newUuid();
+      const { job, shown } = setupRender({ musicAssetId });
+      mocks.assetJob.getForAgentEvents.mockResolvedValue([...shown, { id: videoId }] as any);
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([...shown.map(({ id }) => id), videoId]));
+      mocks.book.getAssetsForRender.mockImplementation(
+        (ids) =>
+          Promise.resolve(
+            ids.map((id) => ({
+              ...renderAsset(id),
+              originalPath: `upload/owner/ab/cd/${id}.jpg`,
+              files: [{ type: 'preview', path: `thumbs/owner/ab/cd/${id}-preview.jpeg`, isEdited: false }],
+            })),
+          ) as any,
+      );
+      mocks.highlightJob.getVideos.mockResolvedValue([
+        {
+          id: videoId,
+          originalPath: 'upload/owner/ab/cd/clip.mov',
+          duration: 20_000,
+          localDateTime: new Date(start + 5 * 60_000),
+          isFavorite: true,
+          width: 1920,
+          height: 1080,
+          stackId: null,
+          latitude: null,
+          longitude: null,
+          city: 'Taormina',
+          country: null,
+          rating: 5,
+          description: null,
+        },
+      ] as any);
+      mocks.media.probe.mockResolvedValue({
+        format: { duration: 20 },
+        videoStreams: [{ width: 1920, height: 1080, rotation: 0 }],
+        audioStreams: [{ index: 1 }],
+      } as any);
+      mocks.media.getVideoFrame.mockResolvedValue(Buffer.from('frame'));
+      mocks.highlightJob.getMusicAsset.mockResolvedValue({
+        id: musicAssetId,
+        originalPath: 'upload/owner/ab/cd/song.mp3',
+      } as any);
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('film')]));
+      mocks.storage.unlink.mockResolvedValue();
+
+      await expect(sut.handleRender({ id: job.id })).resolves.toBe(JobStatus.Success);
+
+      const url = 'https://s3.test/bucket/upload/owner/ab/cd/clip.mov?signature';
+      expect(mocks.media.probe).toHaveBeenCalledWith(url);
+      expect(mocks.media.getVideoFrame).toHaveBeenCalledWith(url, expect.any(Number));
+      const args = mocks.media.runFfmpeg.mock.calls.map(([args]) => args);
+      expect(args.some((segment) => segment.includes(url))).toBe(true);
+      const music = s3.temps.find(({ key }) => key.endsWith('song.mp3'))!;
+      expect(args.at(-1)).toEqual(expect.arrayContaining(['-stream_loop', '-1', '-i', music.tempPath]));
+      const temps = new Set(s3.temps.map(({ tempPath }) => tempPath));
+      for (const [{ input }] of mocks.media.composeHighlightStill.mock.calls) {
+        expect(temps.has(input)).toBe(true);
+      }
+      expect(mocks.media.composeHighlightStill).toHaveBeenCalled();
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+      expect(s3.stored.get(`upload/${auth.user.id}/vi/de/video-id.mp4`)?.contentType).toBe('video/mp4');
+      expect(mocks.asset.create).toHaveBeenCalledWith(
+        expect.objectContaining({ originalPath: `upload/${auth.user.id}/vi/de/video-id.mp4` }),
+      );
+    });
+
+    it('should make a silent video when the music cannot be read from S3', async () => {
+      const s3 = useS3Backend();
+      s3.downloadToTemp.mockRejectedValue(new Error('NoSuchKey'));
+      const musicAssetId = newUuid();
+      const { job } = setupRender({ musicAssetId });
+      mocks.highlightJob.getMusicAsset.mockResolvedValue({
+        id: musicAssetId,
+        originalPath: 'upload/o/ab/cd/song.mp3',
+      } as any);
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('film')]));
+
+      await expect(sut.handleRender({ id: job.id })).resolves.toBe(JobStatus.Success);
+
+      expect(mocks.media.runFfmpeg.mock.calls.at(-1)![0]).not.toContain('-stream_loop');
+      expect(mocks.highlightJob.update).toHaveBeenLastCalledWith(
+        job.id,
+        expect.objectContaining({
+          warnings: expect.arrayContaining([expect.stringMatching(/music could not be read/)]),
+        }),
       );
     });
 
