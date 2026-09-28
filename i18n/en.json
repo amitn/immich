@@ -1578,7 +1578,7 @@
   "book_saving": "Saving…",
   "book_section_title": "Section title",
   "book_share_allow_pdf_download": "Allow downloading the PDF",
-  "book_share_description": "Anyone with the link can read this photo book as a web book, without an Immich account. The photos in it are not shared one by one.",
+  "book_share_description": "Anyone with the link can read this photo book as a web book, without an account on Immich. The photos in it are not shared one by one.",
   "book_share_export_pdf_hint": "The PDF has not been exported yet. Export it to let visitors download it.",
   "book_share_pdf_download": "PDF download",
   "book_share_photo_details": "Dates and file names",

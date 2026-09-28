@@ -23,7 +23,7 @@
   "assets_trashed_from_server": "{count} asset(s) trashed from the Noodle Gallery server",
   "background_location_permission_content": "Noodle Gallery uses background location permission so it can keep reading the Wi-Fi network name while automatic server switching runs. The Wi-Fi network name is saved on this device for matching. Your precise device location is not stored or shared.",
   "backup_controller_page_background_battery_info_message": "For the best background backup experience, please disable any battery optimizations restricting background activity for Noodle Gallery.\n\nSince this is device-specific, please lookup the required information for your device manufacturer.",
-  "book_share_description": "Anyone with the link can read this photo book as a web book, without a Noodle Gallery account. The photos in it are not shared one by one.",
+  "book_share_description": "Anyone with the link can read this photo book as a web book, without an account on Noodle Gallery. The photos in it are not shared one by one.",
   "buy": "Support Noodle Gallery",
   "cache_settings_subtitle": "Control the caching behaviour of the Noodle Gallery mobile application",
   "cleanup_confirm_description": "Noodle Gallery found {count} assets (created before {date}) safely backed up to the server. Remove the local copies from this device?",
