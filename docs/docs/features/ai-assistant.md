@@ -2,12 +2,12 @@
 
 The AI assistant lets you ask for things in plain language, such as _"Make an album of our summer holiday in Italy, about 150 photos, make sure both girls are in it, and crop the portraits to square"_ or _"Make a 20-page photo book of our Italy trip"_. It can also turn photos into artwork, such as a watercolor travel-journal page.
 
-Immich doesn't include an AI model itself. It connects to an AI agent you already use, such as [Claude Code](https://www.anthropic.com/claude-code), [Codex](https://openai.com/codex), Gemini CLI or OpenCode, through the [Agent Client Protocol (ACP)](https://agentclientprotocol.com). The agent plans the work, and Immich gives it a set of photo tools over [MCP](https://modelcontextprotocol.io).
+Gallery doesn't include an AI model itself. It connects to an AI agent you already use, such as [Claude Code](https://www.anthropic.com/claude-code), [Codex](https://openai.com/codex), Gemini CLI or OpenCode, through the [Agent Client Protocol (ACP)](https://agentclientprotocol.com). The agent plans the work, and Gallery gives it a set of photo tools over [MCP](https://modelcontextprotocol.io).
 
 Some related features don't use AI at all: [auto-enhance and straightening](#auto-enhance-and-straighten) run locally on your server, photo books can be laid out, edited and exported without the assistant, and [naming the dishes](#food) of your meals uses the smart search and OCR models of your server.
 
 :::caution Experimental
-This feature is experimental and disabled by default. The agent runs as a process inside the Immich server container. When it uses a cloud model, the photos it looks at (previews, contact sheets and rendered book pages), their metadata and the names of people are sent to that provider.
+This feature is experimental and disabled by default. The agent runs as a process inside the Gallery server container. When it uses a cloud model, the photos it looks at (previews, contact sheets and rendered book pages), their metadata and the names of people are sent to that provider.
 :::
 
 ## The assistant
@@ -146,7 +146,7 @@ Crops inside a photo book are stored in the book only; they don't create copies.
 
 ### Picking photos on what they can become
 
-When the assistant picks the best photos for an album or a book, it doesn't only look at the photos as they are. It also considers how they would look after the fixes Immich can make: straightening, a tighter crop and auto-enhance. These fixes are tried on small previews first, without creating anything. A slightly dark, color-cast, tilted or loosely framed photo of a great moment is no longer beaten by a clean but dull one. Blurry photos still lose, because blur can't be fixed.
+When the assistant picks the best photos for an album or a book, it doesn't only look at the photos as they are. It also considers how they would look after the fixes Gallery can make: straightening, a tighter crop and auto-enhance. These fixes are tried on small previews first, without creating anything. A slightly dark, color-cast, tilted or loosely framed photo of a great moment is no longer beaten by a clean but dull one. Blurry photos still lose, because blur can't be fixed.
 
 For the photos it picks that a fix measurably helps, the assistant then creates an improved copy (stacked with the original and tagged `Edits/Improved`) and uses it in the album or book. It tells you which photos it improved.
 
@@ -248,7 +248,7 @@ Anyone with the link can read the book, so check what the pages show before you 
 
 ### Suggested books
 
-Every night, Immich looks for books your photos are enough for, and drafts them in the background for you to review. The drafts are laid out by the server's own automatic layout, like **Export as book**: no assistant is involved, nothing leaves your server, and it costs no AI credits.
+Every night, Gallery looks for books your photos are enough for, and drafts them in the background for you to review. The drafts are laid out by the server's own automatic layout, like **Export as book**: no assistant is involved, nothing leaves your server, and it costs no AI credits.
 
 | Kind              | Example                                                                                  | Drafted when                                                                                                                                                                                              | Style                        |
 | ----------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
@@ -271,7 +271,7 @@ Turn suggestions off for yourself under **Account Settings > Features > Suggeste
 
 Map pages show the route, the numbered stops, place names, a compass, a scale bar and the section title. Choose the **Map style** when you create or re-lay out a book, or for one map page in **Edit pages**. Each style shows a small preview of the map, drawn by the server:
 
-- **Styled map** (recommended, and the default): the real streets, water, parks, forests, railways and place names, drawn in the look of the book. It uses the same map data as Immich's own **Map** page, from the tile server set in **Administration > Settings > Map** (by default the OpenStreetMap-based tiles of `tiles.immich.cloud`), with the credit _© OpenStreetMap contributors_ on the page. A walk in a town shows the streets around it, and a road trip or an island shows its coast, sea and towns. The look follows the style of the book, or you can choose one:
+- **Styled map** (recommended, and the default): the real streets, water, parks, forests, railways and place names, drawn in the look of the book. It uses the same map data as Gallery's own **Map** page, from the tile server set in **Administration > Settings > Map** (by default the OpenStreetMap-based tiles of `tiles.immich.cloud`), with the credit _© OpenStreetMap contributors_ on the page. A walk in a town shows the streets around it, and a road trip or an island shows its coast, sea and towns. The look follows the style of the book, or you can choose one:
   - **Watercolor wash**: soft washes of water and parks with hand-drawn edges on warm paper; for the Soft, Food and Cookbook styles and your own styles with warm paper.
   - **Engraved atlas**: fine ink coasts with water lines, hatched woods and sepia land; for the Classic and Cellar notes (wine) styles.
   - **Minimal**: thin grey lines on white with small sans-serif labels; for the Gallery (museum) and Bold styles.
@@ -300,11 +300,11 @@ A highlight video is a short film of a trip, a dinner or a museum visit: a book 
 - **Style**: the look of the title cards and captions, from the [book styles](#photo-books). **Automatic** uses the style of the book, or the style of the collection the photos belong to, so a food video looks like a food book and a museum video like an exhibition catalogue.
 - **Maps**: open each chapter that has GPS locations with a map.
 - **Captions**: name the dishes, artworks, wines and recipe steps, and the places, in a label at the bottom of the photos.
-- **Music**: an audio file you uploaded (MP3, M4A, AAC, WAV, FLAC, OGG or Opus), or none. Immich includes no music, so videos are silent unless you upload your own.
+- **Music**: an audio file you uploaded (MP3, M4A, AAC, WAV, FLAC, OGG or Opus), or none. Gallery includes no music, so videos are silent unless you upload your own.
 
 The video picks and orders its photos like the [automatic book layout](#how-the-automatic-layout-works): one photo per stack and per burst, the best ones first, and a chapter per day or stop (or per restaurant visit, recipe, tasting, museum visit or leg of a trip). Each chapter opens with a map or a title card with its place and dates. Photos slowly zoom towards the faces, or towards the most interesting part of the photo when there are none, and never crop a face out of the frame; portraits are shown whole over a blurred copy of themselves. Short clips of 3 to 5 seconds are cut from the best part of the videos, with their sound. Travel documents and menus are never shown.
 
-The video is rendered in the background, with its progress in the corner of the screen, where you can also cancel it. When it's done you get a notification, _Your highlight video is ready_, and the video opens. A card in the corner stays until you close it, with **Share**, **Download** and **Open**. **Share** sends the file itself to another app (WhatsApp, Instagram, Messages…) where the browser can share files, as on phones; elsewhere it downloads it. It's saved as a new 1080p video (MP4, H.264 and AAC) in your timeline, dated like the last photo of the trip, tagged `Highlights/<title>`, and added to the album it was made from. Immich then makes its thumbnails and transcodes it like any other video.
+The video is rendered in the background, with its progress in the corner of the screen, where you can also cancel it. When it's done you get a notification, _Your highlight video is ready_, and the video opens. A card in the corner stays until you close it, with **Share**, **Download** and **Open**. **Share** sends the file itself to another app (WhatsApp, Instagram, Messages…) where the browser can share files, as on phones; elsewhere it downloads it. It's saved as a new 1080p video (MP4, H.264 and AAC) in your timeline, dated like the last photo of the trip, tagged `Highlights/<title>`, and added to the album it was made from. Gallery then makes its thumbnails and transcodes it like any other video.
 
 Rendering takes about half a minute to a few minutes on the CPU, depending on the length and the number of clips. When your administrator turns on hardware acceleration for [video transcoding](/features/hardware-transcoding), the film is encoded on the GPU, and on the CPU if that fails.
 
@@ -337,7 +337,7 @@ You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 
 
 ## Artistic styles
 
-Artistic styles are made by the **art agent**: an ACP agent whose model can generate images, such as Codex. An administrator chooses it as the **Art profile**. The art agent receives the preview of the photo and a prompt, and returns one image. It gets no Immich tools.
+Artistic styles are made by the **art agent**: an ACP agent whose model can generate images, such as Codex. An administrator chooses it as the **Art profile**. The art agent receives the preview of the photo and a prompt, and returns one image. It gets no Gallery tools.
 
 Open a photo you own and choose **Artistic style…** from the menu, or ask the assistant. Pick a style:
 
@@ -367,7 +367,7 @@ The **Editorial watercolor split**, **Gouache travel poster**, **Vintage lithogr
 Select **Generate**. It usually takes 30 seconds to 2 minutes, and stops after 10 minutes. You can **Close (keeps running)**: a notification tells you when the artwork is ready or if it failed. The artwork is a new photo stacked with the original and tagged `AI Artwork/<style name>`.
 
 - **Upscaling**: generated images are often too small for a printed page. When the long edge is under 2400 pixels, the artwork is upscaled to twice its size, between 2400 and 3000 pixels.
-- **Editorial watercolor split**: image generation redraws a photo instead of keeping it. So the art agent only paints the watercolor half, and Immich places your untouched original photo above it.
+- **Editorial watercolor split**: image generation redraws a photo instead of keeping it. So the art agent only paints the watercolor half, and Gallery places your untouched original photo above it.
 
 ## Designing your own styles
 
@@ -437,7 +437,7 @@ A straightened copy keeps the original shape and crops away the blank corners, a
 
 ## Sideways and upside-down photos
 
-Immich looks for photos that are stored sideways (turned 90° either way) or upside down, and lists them under **Utilities → Fix photo orientation**. It needs smart search (CLIP) to be enabled; face detection and OCR make it more reliable. For each photo it compares the preview in its four turns with CLIP, then reads the faces (they should be upright) and the text (it should read left to right) of the turn it prefers. Only confident cases are suggested, each with the turn, how sure it is and why.
+Gallery looks for photos that are stored sideways (turned 90° either way) or upside down, and lists them under **Utilities → Fix photo orientation**. It needs smart search (CLIP) to be enabled; face detection and OCR make it more reliable. For each photo it compares the preview in its four turns with CLIP, then reads the faces (they should be upright) and the text (it should read left to right) of the turn it prefers. Only confident cases are suggested, each with the turn, how sure it is and why.
 
 - **Every night**, the photos uploaded since the night before are checked, up to 500 per user (the first night, the uploads of the last 30 days).
 - **Check photos** checks all your photos (newest first, up to 5000 at a time), those of an album, or those taken between two dates, in the background.
@@ -450,7 +450,7 @@ On a benchmark of 37 upright photos from the demo library (a trip to Sicily and 
 
 ## Food
 
-Immich can find the restaurant meals among your photos, read the menus you photographed, and suggest which menu item each dish photo shows. You check the names, and Immich tags the photos by restaurant and dish. A **Food** photo book then lays them out like a printed menu.
+Gallery can find the restaurant meals among your photos, read the menus you photographed, and suggest which menu item each dish photo shows. You check the names, and Gallery tags the photos by restaurant and dish. A **Food** photo book then lays them out like a printed menu.
 
 It uses the smart search (CLIP) and OCR models of your server: nothing is sent anywhere, unless you ask the [assistant](#the-assistant) for help or turn on the [OpenStreetMap lookup](#restaurant-names). Without smart search, dishes can't be recognized, so **Name the dishes…** isn't shown.
 
@@ -458,7 +458,7 @@ It uses the smart search (CLIP) and OCR models of your server: nothing is sent a
 
 Open an album and choose **Name the dishes…** from its menu, or select photos you own and choose **Name the dishes…** from the menu of the selection.
 
-1. **Finding the meals.** Immich recognizes the photos of dishes and drinks, menus, restaurant signs and receipts, and groups them into meals by time and place. The dialog lists each meal with its **Breakfast**, **Lunch** or **Dinner** time, its place, the name of the restaurant and where the name comes from, and the other names read on the photos. Select a meal to name its dishes. When nothing is found, the dialog says _No food photos found in this album_.
+1. **Finding the meals.** Gallery recognizes the photos of dishes and drinks, menus, restaurant signs and receipts, and groups them into meals by time and place. The dialog lists each meal with its **Breakfast**, **Lunch** or **Dinner** time, its place, the name of the restaurant and where the name comes from, and the other names read on the photos. Select a meal to name its dishes. When nothing is found, the dialog says _No food photos found in this album_.
 2. **Reading the menu.** The **Menu** photos of the meal are shown first; tap one to see it large. They're read again at full resolution, in overlapping tiles, so that small or thin print isn't missed; tilted menus and menus photographed in several parts are read too. The text read this way is only used for matching, it isn't stored.
 3. **Matching the dishes.** Each dish photo is compared with the names and descriptions of the menu items. Photos of the same dish are grouped, and each dish gets a different menu item unless two dishes clearly share one, such as two plates of the same pasta. Every dish has a **Dish** field with the suggested item, where you can choose another item of the menu or type any name:
    - weak matches are highlighted with **Check this match**;
@@ -535,7 +535,7 @@ Name the bottles you taste, at a winery, a wine bar, a dinner or at home. Choose
 
 ## Travel documents
 
-Photograph your boarding passes and tickets on a trip, and Immich matches the photos of the trip with its legs. Choose **Name the legs of a trip…** from the menu of an album or of selected photos, or ask the assistant. It uses the same smart search and OCR models as [Food](#food), locally.
+Photograph your boarding passes and tickets on a trip, and Gallery matches the photos of the trip with its legs. Choose **Name the legs of a trip…** from the menu of an album or of selected photos, or ask the assistant. It uses the same smart search and OCR models as [Food](#food), locally.
 
 - **Documents.** Boarding passes, bus, train, ferry and monorail tickets, park and museum tickets and fare receipts are read into legs: the mode, the carrier, the flight or train number, from → to, the date and time, the seat and the class, in English, Greek, Japanese and Chinese. What can't be read is said, such as a date printed vertically, a year that isn't printed or a time written over by hand.
 - **Legs.** A leg runs from a little before its departure (the wait at the station or the airport) until the next leg, or the end of its day; the photos between two legs belong to the destination of the earlier one. A document with only a date covers its day, one without a date the day it was photographed. The places and look a photo shares with a leg, such as a ferry's name on its hull, can move it to that leg. Days without documents stay unassigned: name them yourself, such as _Chania day_.
@@ -543,12 +543,12 @@ Photograph your boarding passes and tickets on a trip, and Immich matches the ph
 - **Travel books.** The **Travel** style is a travel journal: a chapter per leg, opened by a ticket stub typeset from the fields of its document, with a route line and a date stamp, then the photos of the leg. Review reports legs without photos, photos no document covers, documents without a date, and a page that prints a document itself.
 
 :::info Travel documents and privacy
-Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Immich reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields: the tools that show it photos, contact sheets and book pages leave the documents out or blur them, whether they are tagged as tickets or only read as one. Ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
+Travel documents carry names, booking references (PNRs), ticket and sequence numbers, frequent flyer and SSR codes, and barcodes that encode them. Gallery reads only the fields of the journey, and hides everything else from every name it suggests, saves or prints: `PNR: A41NQS` becomes `PNR: •••`. The assistant never sees the documents, only these redacted fields: the tools that show it photos, contact sheets and book pages leave the documents out or blur them, whether they are tagged as tickets or only read as one. Ticket stubs replace the documents in books. The documents themselves stay in your library, unchanged.
 :::
 
 ## Museum & gallery visits
 
-Immich can also find your museum visits: the photos of artworks (paintings, sculptures, objects), the wall labels you photographed next to them, and the museum's signs and tickets. Open an album or select photos and choose **Name the artworks…**. It works like [naming dishes](#name-the-dishes), with the same local models:
+Gallery can also find your museum visits: the photos of artworks (paintings, sculptures, objects), the wall labels you photographed next to them, and the museum's signs and tickets. Open an album or select photos and choose **Name the artworks…**. It works like [naming dishes](#name-the-dishes), with the same local models:
 
 - **Reading the labels.** Each wall label is read at full resolution for the title, the artist (with _attributed to_, _workshop of_ and the like), the date (_1544_, _circa 1760_, _14th century_, _XVe siècle_), the medium (_Oil on panel_, _Huile sur toile_) and the inventory number. A label printed in two languages gives one artwork in English, keeping the original title; an explanatory panel gives its title, not its paragraphs; the label of a case gives each of its objects (_A_, _B_, _C_…).
 - **Pairing the artworks.** A label is usually photographed a few seconds after its artwork, sometimes before it. Each artwork is paired with the label photographed next to it, which the smart search then confirms or corrects. Details of one painting share its label, an artwork without a label is marked **No label** for you to name, and labels that no artwork matched are reported.
@@ -591,7 +591,7 @@ Follow the plants of your garden over seasons and years, from their seed packets
 
 ## Concerts
 
-Photograph the setlist, the line-up or the board of stage times at a gig or a festival, and Immich names your stage photos after the acts. Choose **Name the acts…** from the menu of an album or a selection, or ask the assistant.
+Photograph the setlist, the line-up or the board of stage times at a gig or a festival, and Gallery names your stage photos after the acts. Choose **Name the acts…** from the menu of an album or a selection, or ask the assistant.
 
 - **Gigs.** The photos of a night are grouped by time and place: a festival's stages can be far apart, and a gig has long changeovers. At a festival, pass the line-ups of the other days too: a stage banner often lists the whole week.
 - **Reading the sources.** A line-up gives each act its day and start, such as _Saturday 19:30 · Night Pro_, and a board of stage times its start and stage, such as _20:45 · Seat_. A setlist gives its band and the acts billed with it (_Sidney Gish w/ The Beths_), the date, the city and the venue, then the songs. A setlist of songs only is shown as _(setlist: Future Me, Knees Deep …)_ and goes to the next act on the bill.
@@ -603,14 +603,14 @@ Photograph the setlist, the line-up or the board of stage times at a gig or a fe
 
 Name the plants and animals you photograph in botanical gardens, arboretums and zoos from the labels beside them. Choose **Name the plants and animals…** from the menu of an album or a selection, or ask the assistant.
 
-- **Reading the labels.** From the engraved accession tag of a tree, Immich reads the scientific name, the family, the common name, where the species comes from and the garden's code, such as _Kahanu_. From a zoo plaque, it reads the common name as its title. The chalk label of a rose gives its cultivar and its kind, colour and scent, such as a floribunda, even when OCR misreads a letter (_FLORISUNDA_). Handwriting is kept as read (_Lady Madmalade_): correct it when you save.
+- **Reading the labels.** From the engraved accession tag of a tree, Gallery reads the scientific name, the family, the common name, where the species comes from and the garden's code, such as _Kahanu_. From a zoo plaque, it reads the common name as its title. The chalk label of a rose gives its cultivar and its kind, colour and scent, such as a floribunda, even when OCR misreads a letter (_FLORISUNDA_). Handwriting is kept as read (_Lady Madmalade_): correct it when you save.
 - **Pairing.** A label is photographed a few seconds before or after its plant, and several photos of one plant (its habit, flowers, fruit and bark) share its label. A species labelled on two trees is paired with each label. Plants without a label are marked **No label**.
 - **Tags.** `Nature/<Garden or zoo>/<Common name (Scientific name, Family)>`, such as `Nature/Kahanu/Moreton Bay Chestnut (Castanospermum australe, Fabaceae)` or `Nature/Copped Hall/Rose 'Proper Job' (Rosa)`, with `…/Label` on the labels. The garden is read on a sign or the accession tags, or looked up on OpenStreetMap (gardens, parks, zoos and protected areas).
 - **Field guide books.** The **Field guide** style uses cream paper and fine ink, with a chapter per walk. Every plant or animal is shown whole as a numbered plate, captioned with its scientific name in italics, then its common name and its family. The label photos stay out of the book. The review reports plates without a scientific name.
 
 ## New collection found
 
-Every night Immich looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the collections: a meal, a museum visit, a tasting, a cooking session, a trip, a gig, a garden walk, a garden over the years, a reading period or a year of a child's artworks. A visit that nobody named yet (none of its photos has tags of that collection) gets a notification in the words of its collection, which you click to open the naming dialog on exactly those photos:
+Every night Gallery looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the collections: a meal, a museum visit, a tasting, a cooking session, a trip, a gig, a garden walk, a garden over the years, a reading period or a year of a child's artworks. A visit that nobody named yet (none of its photos has tags of that collection) gets a notification in the words of its collection, which you click to open the naming dialog on exactly those photos:
 
 - _Name the dishes from last night at Taormina?_
 - _Name the artworks from your visit to the Museu de Évora?_
@@ -644,7 +644,7 @@ The assistant needs an ACP agent in the server container, logged in to its provi
 
 The published images don't include the agents. Build the server image from this repository with `docker/docker-compose.assistant.yml`, which uses the `server-agents` target of `server/Dockerfile`:
 
-1. In the `docker` folder of the repository, create `.env` from `example.env` if you haven't, and build and start Immich with the override:
+1. In the `docker` folder of the repository, create `.env` from `example.env` if you haven't, and build and start Gallery with the override:
 
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
@@ -679,14 +679,14 @@ The `server-agents` image adds:
 The agents are installed in `/opt/immich-agents`, at the versions pinned in `docker/scripts/install-agents.sh`, and add about 650 MB to the image. Every image built from `server/Dockerfile` also has the fonts that photo books are drawn with (Liberation and GNU FreeFont); the image already has the `ffmpeg` that highlight videos use.
 
 :::note Agents in the server container
-The agents run as processes inside the Immich server container, for now. They see its filesystem with the permissions of the server, including the library in `/data`. What limits them is the [scrubbed environment and the tool checks](#security-and-privacy): they get no database or Immich secrets, start in an empty directory, and can only use Immich's tools, which ask for approval before changing the library. Running the agents in a separate container is a future hardening.
+The agents run as processes inside the Gallery server container, for now. They see its filesystem with the permissions of the server, including the library in `/data`. What limits them is the [scrubbed environment and the tool checks](#security-and-privacy): they get no database or Gallery secrets, start in an empty directory, and can only use Gallery's tools, which ask for approval before changing the library. Running the agents in a separate container is a future hardening.
 :::
 
 ### Other installations
 
 Install an ACP agent adapter where the server runs, for example `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`, so that its command is on the server's `PATH`. Log in as the user the server runs as (`claude-agent-acp --cli` runs Claude Code, and codex-acp installs `codex`), or give the server an API key such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`: the default profiles forward these variables to the agent. For photo books, install the Liberation fonts (`fonts-liberation` on Debian and Ubuntu).
 
-### Settings in Immich
+### Settings in Gallery
 
 1. In **Administration > Settings > AI Assistant**:
    - turn on **Enable AI assistant**;
@@ -700,14 +700,14 @@ Install an ACP agent adapter where the server runs, for example `npm install -g 
 | Setting                                | Default                                              | Description                                                                                                                                                                                                                                              |
 | -------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent.enabled`                        | `false`                                              | **Enable AI assistant**.                                                                                                                                                                                                                                 |
-| `agent.profiles`                       | `claude` (`claude-agent-acp`), `codex` (`codex-acp`) | **Agent profiles**: the ACP agents Immich can start. Each has a `name`, a `command`, `args`, `env` (variables set on the agent process) and `passEnv` (names of server environment variables to forward).                                                |
+| `agent.profiles`                       | `claude` (`claude-agent-acp`), `codex` (`codex-acp`) | **Agent profiles**: the ACP agents Gallery can start. Each has a `name`, a `command`, `args`, `env` (variables set on the agent process) and `passEnv` (names of server environment variables to forward).                                               |
 | `agent.chatProfile`                    | `claude`                                             | **Chat profile** used for assistant chats.                                                                                                                                                                                                               |
 | `agent.artProfile`                     | _(empty)_                                            | **Art profile** used for artistic styles and illustrated maps. It must be an agent that can generate images. Empty disables artistic styles.                                                                                                             |
 | `agent.maxConcurrentSessions`          | `3`                                                  | **Maximum concurrent sessions**: agent processes running at once. Idle chats are stopped to make room; new chats are rejected when all are busy. Art jobs are also limited to this number.                                                               |
 | `agent.idleTimeoutMinutes`             | `15`                                                 | **Idle timeout (minutes)**: an idle agent process is stopped after this time. The chat is kept and continues on your next message.                                                                                                                       |
 | `agent.autoApproveWrites`              | `false`                                              | **Auto-approve changes**: lets the agent change the library of every user without asking for approval.                                                                                                                                                   |
 | `agent.activityRetentionDays`          | `90`                                                 | **Activity log retention (days)**: how long changes stay in the activity log, where they can be undone (see [Undoing the assistant's changes](#undoing-the-assistants-changes)).                                                                         |
-| `agent.mcpUrl`                         | _(empty)_                                            | **MCP URL** the agent uses to reach Immich's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                  |
+| `agent.mcpUrl`                         | _(empty)_                                            | **MCP URL** the agent uses to reach Gallery's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                 |
 | `books.maps.stadiaApiKey`              | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Not needed for styled and sketch maps.                                                                                                                                         |
 | `books.maps.defaultStyle`              | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                  |
 | `books.drafts.enabled`                 | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                   |
@@ -726,10 +726,10 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 ## Security and privacy
 
 - **Scrubbed environment.** An agent process doesn't inherit the server environment. It only gets `PATH`, `HOME`, `LANG` and `TZ`, the variables named in its profile's forwarded server variables, and the variables set in the profile. Variables starting with `DB_`, `REDIS_`, `IMMICH_`, `TYPESENSE_` or `MACHINE_LEARNING_` are never forwarded, even when configured.
-- **Empty working directory.** Each agent starts in its own empty, private temporary directory, which is removed when it stops. Immich gives it no access to files or a terminal.
-- **Per-session token.** Each running chat gets its own random token for Immich's tools. It is only kept in memory, and revoked when the agent stops. Tool calls run with the permissions of the user who is chatting.
-- **Only Immich tools.** Immich rejects any tool that isn't an Immich tool, such as the shell, files or the web. For Claude Code, the built-in tools are also removed, and the host user's settings, hooks and MCP servers are ignored.
-- **Restricted art agent.** The art agent gets no Immich tools. It may only generate images and write files inside its own working directory; everything else is rejected.
+- **Empty working directory.** Each agent starts in its own empty, private temporary directory, which is removed when it stops. Gallery gives it no access to files or a terminal.
+- **Per-session token.** Each running chat gets its own random token for Gallery's tools. It is only kept in memory, and revoked when the agent stops. Tool calls run with the permissions of the user who is chatting.
+- **Only Gallery tools.** Gallery rejects any tool that isn't a Gallery tool, such as the shell, files or the web. For Claude Code, the built-in tools are also removed, and the host user's settings, hooks and MCP servers are ignored.
+- **Restricted art agent.** The art agent gets no Gallery tools. It may only generate images and write files inside its own working directory; everything else is rejected.
 - **Cloud providers.** With a cloud model, photo previews, metadata and the names of people are sent to the provider. Artistic styles and illustrated maps send the photo or the map to the art agent's provider. Only configure agents you trust.
 - **OpenStreetMap.** The [restaurant lookup](#restaurant-names) is off by default. When it's on, the location of a meal is sent to the Overpass API only when the assistant asks and the user approves.
 
@@ -740,5 +740,5 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 - **No image is generated.** The error _The art agent did not produce an image_ means the art profile's agent can't generate images. Choose an agent with image generation, such as Codex, as the **Art profile**.
 - **Maps are drawn as sketches.** Styled maps need the map to be turned on in **Administration > Settings > Map**, and the server must reach its tile server (by default `tiles.immich.cloud`). The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**. A custom map style whose tiles are served as a single PMTiles file, or only as raster images, can't be used for styled maps.
 - **The menu isn't read.** The dialog says _No items could be read on the menu_, or the assistant finds few items. The menu may be blurry, tilted, in a strong perspective, too dark or partly covered. Photograph the menu straight on, flat and in focus, in several parts for a long menu. You can still name the dishes by hand, or **Ask the assistant**: it looks at the menu photos itself, reads the items, and matches the dishes with what it read.
-- **A highlight video fails.** The notification says why. Videos are rendered with the `ffmpeg` that Immich uses to transcode videos; when the server runs outside Docker, `ffmpeg` and `ffprobe` must be installed, or their paths set with `FFMPEG_PATH` and `FFPROBE_PATH`. Photos smaller than about 1000 pixels are left out, as they would look blurry in 1080p.
+- **A highlight video fails.** The notification says why. Videos are rendered with the `ffmpeg` that Gallery uses to transcode videos; when the server runs outside Docker, `ffmpeg` and `ffprobe` must be installed, or their paths set with `FFMPEG_PATH` and `FFPROBE_PATH`. Photos smaller than about 1000 pixels are left out, as they would look blurry in 1080p.
 - **A photo isn't enhanced.** _This photo already looks good, there is nothing to enhance at this strength._ Auto-enhance only applies corrections a photo needs. Try the **Strong** strength, or leave the photo as it is.
