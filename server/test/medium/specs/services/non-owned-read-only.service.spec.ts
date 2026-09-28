@@ -1,4 +1,5 @@
 import { Kysely } from 'kysely';
+import { DiskStorageBackend } from 'src/backends/disk-storage.backend.js';
 import { AssetFileType, AssetType, BookExportStatus, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
@@ -32,6 +33,7 @@ import { CollageService } from 'src/services/collage.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { StorageService } from 'src/services/storage.service.js';
 import { newMediumService } from 'test/medium.factory.js';
 import { factory } from 'test/small.factory.js';
 import { getKyselyDB } from 'test/utils.js';
@@ -74,6 +76,8 @@ const setup = (db?: Kysely<DB>) => {
   ctx.getMock(JobRepository).queue.mockResolvedValue();
   ctx.getMock(JobRepository).queueAll.mockResolvedValue();
   ctx.getMock(EventRepository).emit.mockResolvedValue();
+  // the PDF export of a book is served only when its file is there
+  ctx.getMock(StorageRepository).checkFileExists.mockResolvedValue(true);
   // the pages are not drawn: the spec of a page says which photos it shows
   const composeBookPage = vi
     .spyOn(ctx.get(MediaRepository), 'composeBookPage')
@@ -149,6 +153,8 @@ const setupBook = async () => {
 };
 
 beforeAll(async () => {
+  // the downloads are served through the disk backend
+  (StorageService as any).diskBackend = new DiskStorageBackend('/data');
   defaultDatabase = await getKyselyDB();
 });
 
