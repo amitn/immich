@@ -230,7 +230,7 @@ describe(AgentService.name, () => {
     const result = await waitForIdle(session.id);
 
     const permission = result.messages.find((message) => message.kind === AgentMessageKind.Permission);
-    expect(permission?.content).toMatchObject({ toolName: 'make_album', summary: 'name: Italy', status: 'approved' });
+    expect(permission?.content).toMatchObject({ toolName: 'make_album', summary: 'Name: Italy', status: 'approved' });
 
     const toolCall = result.messages.find((message) => message.kind === AgentMessageKind.ToolCall);
     expect(toolCall?.content).toMatchObject({ toolName: 'make_album', status: 'completed', albumIds: [albumId] });
