@@ -38537,6 +38537,15 @@
             "$ref": "#/components/schemas/CollectionPlaceCandidateDto",
             "description": "The best name for the place"
           },
+          "readOnlyIds": {
+            "description": "Photos of the visit the user doesn't own (e.g. another member's in a shared space): read to name the place and the entries, but only their owner can name them",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "receiptIds": {
             "description": "Photos of a receipt or a ticket",
             "items": {
@@ -41513,6 +41522,15 @@
           },
           "menuIds": {
             "description": "Photos of the menu",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readOnlyIds": {
+            "description": "Photos of the meal the user doesn't own (e.g. another member's in a shared space): read to name the restaurant and the dishes, but only their owner can name them",
             "items": {
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
@@ -48503,7 +48521,7 @@
             "type": "string"
           },
           "spaceId": {
-            "description": "Shared space this link is created from. Lets the link cover assets contributed by other members, which requires the caller to be an Owner or Editor of the space.",
+            "description": "Shared space this link is created from. Lets the link cover assets contributed by other members, which requires the caller to be an Owner or Editor of the space. For a book, the space that holds the book's photos of others; when omitted, a space the caller edits that holds them all.",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
