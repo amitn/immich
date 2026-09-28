@@ -26,6 +26,18 @@ describe('collection packs', () => {
     expect(hasKey(pack.bookStyleLabels.name)).toBe(true);
   });
 
+  // the album and selection menus list one action per pack, keyed by its title
+  it('should give every pack its own action title', () => {
+    const titles = collectionPacks.map((pack) => {
+      let node: unknown = en;
+      for (const part of getCollectionLabel(pack, 'name_action').split('.')) {
+        node = (node as Record<string, unknown>)[part];
+      }
+      return node;
+    });
+    expect(new Set(titles).size).toBe(titles.length);
+  });
+
   it('should keep the labels of food', () => {
     expect(en.collections.food.name_action).toBe('Name the dishes…');
     expect(en.collections.food.title).toBe('Name the dishes');
