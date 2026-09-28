@@ -45,7 +45,8 @@ const SharedLinkCreateSchema = z
       .optional()
       .describe(
         'Shared space this link is created from. Lets the link cover assets contributed by other ' +
-          'members, which requires the caller to be an Owner or Editor of the space.',
+          'members, which requires the caller to be an Owner or Editor of the space. For a book, the space ' +
+          "that holds the book's photos of others; when omitted, a space the caller edits that holds them all.",
       ),
   })
   .superRefine(({ type, albumId, assetIds, bookId }, ctx) => {

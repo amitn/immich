@@ -63,6 +63,7 @@ import { BaseService } from 'src/services/base.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
 import { ActivityRecorder, beginBookChange, quote } from 'src/utils/activity-log.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
@@ -125,6 +126,7 @@ import {
   MapRenderContext,
   MapRenderResult,
   MapRenderSize,
+  getBookPhotoIds,
   getMapAssetIds,
   parsePolygon,
   renderMap,
@@ -151,11 +153,19 @@ import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
 import { requireNotSharedLink, requireSharedLinkLogin } from 'src/utils/shared-link.js';
+import { setDifference } from 'src/utils/set.js';
 
 type Book = NonNullable<Awaited<ReturnType<BookRepository['get']>>>;
 type BookPage = Awaited<ReturnType<BookRepository['getPages']>>[number];
 type RenderAsset = Awaited<ReturnType<BookRepository['getAssetsForRender']>>[number];
 type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
+
+/**
+ * A shared link renders the book with the auth of its owner (see `getRenderAuth`), marked with the link: the photos it
+ * shows are then only those the owner can read AND the link may show (`getReadableAssetIds`)
+ */
+const RENDER_LINK = Symbol('renderLink');
+type RenderAuth = AuthDto & { [RENDER_LINK]?: string };
 
 export type BookRenderResult = {
   data: Buffer;
@@ -888,9 +898,16 @@ export class BookService extends BaseService {
 
     // the PDF prints private sources such as travel documents as they are, so a shared link doesn't get it
     if (auth.sharedLink) {
-      const hidden = await this.getPrivateSourceIds(book, await this.bookRepository.getPages(id));
+      const pages = await this.bookRepository.getPages(id);
+      const hidden = await this.getPrivateSourceIds(book, pages);
       if (hidden.size > 0) {
         throw new BadRequestException('This book shows travel documents, so its PDF is not shared');
+      }
+      // the PDF was printed with the photos of others the link showed then; once one of them is no longer shared
+      // (taken out of the space, or the link's creator is no longer an Owner or Editor of it) the PDF is not either
+      const withheld = await this.getWithheldAssetIds(auth.sharedLink.id, book, pages);
+      if (withheld.size > 0) {
+        throw new BadRequestException('Some photos of this book are no longer shared, so its PDF is not shared');
       }
     }
 
@@ -916,14 +933,20 @@ export class BookService extends BaseService {
 
     const stripMetadata = !!auth.sharedLink && !auth.sharedLink.showExif;
     const hidePrivate = !!auth.sharedLink;
+    let pages = auth.sharedLink ? await this.bookRepository.getPages(id) : undefined;
+    // the photos of others a link may no longer show are left out, so they are part of what the web book is
+    const withheld =
+      auth.sharedLink && pages ? await this.getWithheldAssetIds(auth.sharedLink.id, book, pages) : new Set();
     const version = `${book.id}/${book.contentUpdatedAt.toISOString()}/`;
-    const key = `${version}${stripMetadata ? 'plain' : 'full'}${hidePrivate ? '-shared' : ''}`;
+    const key =
+      `${version}${stripMetadata ? 'plain' : 'full'}${hidePrivate ? '-shared' : ''}` +
+      (withheld.size > 0 ? `-without:${[...withheld].toSorted().join(',')}` : '');
     const cached = previewCache.get(key);
     if (cached) {
       return cached;
     }
 
-    const pages = await this.bookRepository.getPages(id);
+    pages ??= await this.bookRepository.getPages(id);
     const { html } = await this.createBookHtml(
       await this.getRenderAuth(auth, book),
       book,
@@ -1092,10 +1115,7 @@ export class BookService extends BaseService {
       }
     }
 
-    const allowed =
-      assetIds.size > 0
-        ? await this.checkAccess({ auth, permission: Permission.AssetRead, ids: assetIds })
-        : new Set<string>();
+    const allowed = await this.getReadableAssetIds(auth, assetIds);
     const assets = await this.bookRepository.getAssetsForRender([...allowed]);
     const { image } = await this.getConfig({ withCache: true });
 
@@ -1296,7 +1316,7 @@ export class BookService extends BaseService {
       layout,
       { map, sectionTitle: page.sectionTitle },
       ctx,
-      assetIds[0],
+      assetIds,
     );
     const updated = await findOrFail(
       () => this.bookRepository.updatePage(id, pageId, { map: { ...map, artJobId } }),
@@ -1440,7 +1460,7 @@ export class BookService extends BaseService {
       return [];
     }
 
-    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: new Set(assetIds) });
+    const allowed = await this.getReadableAssetIds(auth, new Set(assetIds));
     const rows = await this.bookRepository.getAssetLocations([...allowed]);
     return rows
       .filter((row) => row.latitude !== null && row.longitude !== null && !(row.latitude === 0 && row.longitude === 0))
@@ -1495,7 +1515,7 @@ export class BookService extends BaseService {
       return;
     }
 
-    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: new Set([assetId]) });
+    const allowed = await this.getReadableAssetIds(auth, new Set([assetId]));
     const [asset] = allowed.has(assetId) ? await this.bookRepository.getAssetsForRender([assetId]) : [];
     if (!asset) {
       warnings.push('the illustrated map is missing or not accessible, so the map is rendered');
@@ -1513,8 +1533,14 @@ export class BookService extends BaseService {
     layout: BookLayout,
     page: { map: BookMap; sectionTitle?: string | null },
     ctx: MapRenderContext,
-    sourceAssetId: string,
+    assetIds: string[],
   ): Promise<string> {
+    // the map is made in the user's library, from (and dated like) one of their own photos on it
+    const owned = await checkOwnedAssets(this.accessRepository, auth, assetIds);
+    const sourceAssetId = assetIds.find((assetId) => owned.has(assetId));
+    if (!sourceAssetId) {
+      throw new BadRequestException('An illustrated map needs one of your own photos on it');
+    }
     const rect = getMapRectMm(layout, book, resolveBookStyle(book.style))!;
     const aspect = rect.width / rect.height;
     const size =
@@ -1657,6 +1683,7 @@ export class BookService extends BaseService {
     });
     const byId = new Map(photos.map((photo) => [photo.id, photo]));
     const improvements = this.getImprovements([...allowed], byId, estimates);
+    const owned = allowed.size > 0 ? await checkOwnedAssets(this.accessRepository, auth, allowed) : new Set<string>();
 
     const failures = new Map<string, string>();
     const copies = await this.createImprovedCopies(auth, improvements, [], failures);
@@ -1692,6 +1719,9 @@ export class BookService extends BaseService {
       }
       if (!allowed.has(assetId)) {
         return 'no access';
+      }
+      if (!owned.has(assetId)) {
+        return "someone else's photo: only its owner can make copies of it";
       }
       const photo = byId.get(assetId);
       if (photo?.kind === 'improved') {
@@ -1832,7 +1862,7 @@ export class BookService extends BaseService {
           layout,
           { map: page.map, sectionTitle: page.sectionTitle },
           ctx,
-          assetIds[0],
+          assetIds,
         );
         page.map = { ...page.map, artJobId };
       } catch (error: any) {
@@ -1925,7 +1955,9 @@ export class BookService extends BaseService {
     }
     const analyses = await mapLimit(rows, 4, (row) => this.getImageAnalysis(row, analyze));
     if (improve && analyze) {
-      await this.estimateImprovements(rows, analyses, heroIds, improve);
+      // only the owner of a photo makes an improved copy of it: the photos of others are laid out as they are
+      const owned = await checkOwnedAssets(this.accessRepository, auth, ids);
+      await this.estimateImprovements(rows, analyses, heroIds, improve, owned);
     }
 
     const photos = rows.map((row, index): AutoLayoutPhoto => {
@@ -1999,9 +2031,12 @@ export class BookService extends BaseService {
     analyses: Array<ImageAnalysis | null>,
     heroIds: Set<string>,
     improve: { estimates: LayoutEstimates; only?: Set<string> },
+    owned: Set<string>,
   ) {
     const sources = rows.map((row) => toImproveSource(row));
-    let pool = sources.filter((source, index) => analyses[index] && (!improve.only || improve.only.has(source.id)));
+    let pool = sources.filter(
+      (source, index) => analyses[index] && owned.has(source.id) && (!improve.only || improve.only.has(source.id)),
+    );
     if (!improve.only && pool.length > IMPROVE_MAX_POOL) {
       const scores = new Map(
         sources.map((source, index) => [
@@ -2054,7 +2089,7 @@ export class BookService extends BaseService {
       return sources;
     }
 
-    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: new Set(assetIds) });
+    const allowed = await this.getReadableAssetIds(auth, new Set(assetIds));
     for (const asset of await this.bookRepository.getAssetsForRender([...allowed])) {
       const input = getRenderInput(asset, mode);
       if (input) {
@@ -2160,7 +2195,41 @@ export class BookService extends BaseService {
   }
 
   private async getRenderAuth(auth: AuthDto, book: Book): Promise<AuthDto> {
-    return auth.sharedLink ? this.getOwnerAuth(book) : auth;
+    if (!auth.sharedLink) {
+      return auth;
+    }
+    const owner: RenderAuth = await this.getOwnerAuth(book);
+    owner[RENDER_LINK] = auth.sharedLink.id;
+    return owner;
+  }
+
+  /**
+   * The photos the book may show: those the user can read. Rendered for a shared link, only those the link may show
+   * too: the owner's own photos, and the photos of others while the link's space tether holds (see
+   * `SharedLinkService.getBookLinkSpaceId`), so a photo pulled out of the space, or a creator who is no longer an
+   * Owner or Editor of it, takes the photo out of the pages and the web book at once.
+   */
+  private async getReadableAssetIds(auth: RenderAuth, assetIds: Set<string>): Promise<Set<string>> {
+    if (assetIds.size === 0) {
+      return new Set();
+    }
+    const allowed = await this.checkAccess({ auth, permission: Permission.AssetRead, ids: assetIds });
+    const sharedLinkId = auth[RENDER_LINK];
+    return sharedLinkId && allowed.size > 0
+      ? this.sharedLinkRepository.getServableAssetIds(sharedLinkId, [...allowed])
+      : allowed;
+  }
+
+  /** the photos of others in the book that a shared link may not show (any more): their tether lapsed */
+  private async getWithheldAssetIds(sharedLinkId: string, book: Book, pages: BookPage[]): Promise<Set<string>> {
+    const ids = getBookPhotoIds(book, pages);
+    if (ids.size === 0) {
+      return ids;
+    }
+    const owned = await this.accessRepository.asset.checkOwnerAccess(book.ownerId, ids, true);
+    const others = setDifference(ids, owned);
+    const servable = await this.sharedLinkRepository.getServableAssetIds(sharedLinkId, [...others]);
+    return setDifference(others, servable);
   }
 
   private async getOwnerAuth(book: Book): Promise<AuthDto> {

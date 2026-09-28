@@ -13,8 +13,11 @@ import {
 } from 'src/dtos/shared-link.dto.js';
 import { ActivityLogAction, Permission, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
 import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
+import { getBookPhotoIds } from 'src/utils/book/map.js';
 import { OpenGraphTags, findOrFail, getExternalDomain } from 'src/utils/misc.js';
+import { setDifference } from 'src/utils/set.js';
 import { sharedLinkPublisherRoles } from 'src/utils/shared-link-space-tether.js';
 import { asSharedLinkToken } from 'src/utils/shared-link.js';
 
@@ -84,6 +87,7 @@ export class SharedLinkService extends BaseService {
       await this.requireSpaceEditor(auth, dto.spaceId);
     }
 
+    let bookSpaceId: string | null = null;
     switch (dto.type) {
       case SharedLinkType.Album: {
         if (!dto.albumId) {
@@ -134,6 +138,7 @@ export class SharedLinkService extends BaseService {
           throw new BadRequestException('Invalid bookId');
         }
         await this.requireAccess({ auth, permission: Permission.BookShare, ids: [dto.bookId] });
+        bookSpaceId = await this.getBookLinkSpaceId(auth, dto.bookId, dto.spaceId);
         break;
       }
     }
@@ -156,8 +161,8 @@ export class SharedLinkService extends BaseService {
         allowDownload: dto.showMetadata === false && !isBook ? false : (dto.allowDownload ?? true),
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
-        // a book is not tethered to a space; its pages are rendered from the book itself
-        spaceId: isBook ? null : dto.spaceId || null,
+        // a book's photos of others are shown through the space they are in (see `getBookLinkSpaceId`)
+        spaceId: isBook ? bookSpaceId : dto.spaceId || null,
       });
 
       if (isBook && activity) {
@@ -186,6 +191,50 @@ export class SharedLinkService extends BaseService {
     if (!member || !sharedLinkPublisherRoles.includes(member.role as SharedSpaceRole)) {
       throw new BadRequestException('Not found or no shared space editor access');
     }
+  }
+
+  /**
+   * A book link shows the photos of the book, rendered. Photos of others in it (e.g. other members' photos in a shared
+   * space, or a partner's) are read-only for the user: the link shows them only through a space tether, exactly as an
+   * individual link does (#1018). It records the space they are all in, of which the user must be an Owner or Editor,
+   * and its pages, web book and PDF show them only while the tether holds (see `BookService`). Without `spaceId`, the
+   * space the user may publish from that holds all of them is found; a book of the user's own photos needs none.
+   */
+  private async getBookLinkSpaceId(auth: AuthDto, bookId: string, spaceId?: string): Promise<string | null> {
+    const book = await findOrFail(() => this.bookRepository.get(bookId), 'Book');
+    const ids = getBookPhotoIds(book, await this.bookRepository.getPages(bookId));
+    const owned = ids.size > 0 ? await checkOwnedAssets(this.accessRepository, auth, ids) : new Set<string>();
+    const others = setDifference(ids, owned);
+    if (others.size === 0) {
+      return spaceId ?? null;
+    }
+
+    const candidates = spaceId ? [spaceId] : await this.getPublisherSpaceIds(auth);
+    for (const candidate of candidates) {
+      const visible = await this.accessRepository.asset.checkSpaceAccessForSpace(auth.user.id, candidate, others);
+      if (visible.size === others.size) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      spaceId
+        ? `This book shows ${others.size} photos of others that are not in this space, so it can't be shared from it`
+        : `This book shows ${others.size} photos of others, and no shared space you can edit holds them all, so it ` +
+            `can't be shared with a link`,
+    );
+  }
+
+  /** the spaces the user may publish other members' photos from: Owner or Editor */
+  private async getPublisherSpaceIds(auth: AuthDto): Promise<string[]> {
+    const spaceIds: string[] = [];
+    for (const space of await this.sharedSpaceRepository.getAllByUserId(auth.user.id)) {
+      const member = await this.sharedSpaceRepository.getMember(space.id, auth.user.id);
+      if (member && sharedLinkPublisherRoles.includes(member.role as SharedSpaceRole)) {
+        spaceIds.push(space.id);
+      }
+    }
+    return spaceIds;
   }
 
   private handleError(error: unknown): never {
