@@ -430,7 +430,7 @@ describe(DerivedAssetService.name, () => {
       await sut.createGeneratedVideo(auth, '/data/upload/tmp/film.mp4', { fileName: 'Sicily.mp4', dateOf });
       await sut.createGeneratedImage(auth, Buffer.from('jpeg'), { fileName: 'Collage.jpg', dateOf });
 
-      const keys = [...s3.stored.keys()];
+      const keys = s3.stored.keys().toArray();
       expect(keys).toEqual([
         `upload/${auth.user.id}/ne/w-/new-asset-id.mp4`,
         `upload/${auth.user.id}/ne/w-/new-asset-id.jpg`,

@@ -1,24 +1,24 @@
 import { LocalFiles } from 'src/utils/local-files.js';
 
-describe(LocalFiles.name, () => {
-  const setup = () => {
-    const removed: string[] = [];
-    const open = vi.fn((path: string) => {
-      if (path.startsWith('missing/')) {
-        return Promise.reject(new Error(`NoSuchKey: ${path}`));
-      }
-      const localPath = `/tmp/${path.replaceAll('/', '_')}`;
-      return Promise.resolve({
-        localPath,
-        cleanup: () => {
-          removed.push(localPath);
-          return Promise.resolve();
-        },
-      });
+const setup = () => {
+  const removed: string[] = [];
+  const open = vi.fn((path: string) => {
+    if (path.startsWith('missing/')) {
+      return Promise.reject(new Error(`NoSuchKey: ${path}`));
+    }
+    const localPath = `/tmp/${path.replaceAll('/', '_')}`;
+    return Promise.resolve({
+      localPath,
+      cleanup: () => {
+        removed.push(localPath);
+        return Promise.resolve();
+      },
     });
-    return { files: new LocalFiles(open), open, removed };
-  };
+  });
+  return { files: new LocalFiles(open), open, removed };
+};
 
+describe(LocalFiles.name, () => {
   it('should fetch each file once, and remove every copy on cleanup', async () => {
     const { files, open, removed } = setup();
 

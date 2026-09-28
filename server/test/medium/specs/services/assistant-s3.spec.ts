@@ -85,6 +85,8 @@ let temporary: string;
 let previousTmpdir: string | undefined;
 let s3: S3StorageBackend;
 let bucket: string;
+/** the contexts of the tests, whose exiftool processes are ended after them */
+const contexts: MediumTestContext[] = [];
 
 /** every file under a folder */
 const listFiles = async (folder: string) => {
@@ -157,6 +159,7 @@ const setup = () => {
   ctx.getMock(JobRepository).queue.mockResolvedValue();
   ctx.getMock(JobRepository).queueAll.mockResolvedValue();
   ctx.getMock(EventRepository).emit.mockResolvedValue();
+  contexts.push(ctx);
   return { sut, ctx };
 };
 
@@ -267,6 +270,9 @@ describe.skipIf(!endpoint)('assistant features with S3 storage (MinIO)', () => {
   });
 
   afterAll(async () => {
+    for (const ctx of contexts) {
+      await ctx.get(MetadataRepository).teardown();
+    }
     process.env.TMPDIR = previousTmpdir;
     (StorageService as any).s3Backend = undefined;
     (StorageService as any).writeBackendType = 'disk';
