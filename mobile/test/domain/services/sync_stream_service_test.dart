@@ -40,6 +40,9 @@ class _MockAbortCallbackWrapper extends Mock implements _AbortCallbackWrapper {}
 /// older fork server (no capability signalling) produces.
 ServerFeaturesDto makeServerFeatures({Optional<List<String>?> syncRequestTypes = const Optional.absent()}) =>
     ServerFeaturesDto(
+      artisticStyles: false,
+      assistant: false,
+      bookStadiaMaps: false,
       configFile: false,
       duplicateDetection: false,
       email: false,
@@ -52,6 +55,7 @@ ServerFeaturesDto makeServerFeatures({Optional<List<String>?> syncRequestTypes =
       passwordLogin: true,
       peopleStatistics: false,
       realtimeTranscoding: false,
+      restaurantLookup: false,
       reverseGeocoding: true,
       search: true,
       sidecar: true,
