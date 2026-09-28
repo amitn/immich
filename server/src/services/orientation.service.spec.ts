@@ -7,6 +7,7 @@ import { OrientationService, clearOrientationPrompts } from 'src/services/orient
 import { ORIENTATION_PROMPTS } from 'src/utils/orientation.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 /** 4-dimensional embeddings: the upright, sideways and upside-down prompts, and anything else */
@@ -220,6 +221,38 @@ describe(OrientationService.name, () => {
         limit: 100,
       });
       expect(mocks.asset.upsertMetadata).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('with S3 storage', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should turn a local copy of the preview, fetched once, and remove it', async () => {
+      const s3 = useS3Backend();
+      const asset = candidate(180, { previewPath: 'thumbs/owner/ab/cd/preview.jpeg' });
+      setup(180);
+      mocks.asset.getForOrientationCheck.mockResolvedValue([asset] as never);
+
+      await expect(sut.find(auth, { assetIds: [asset.id] })).resolves.toEqual([
+        expect.objectContaining({ assetId: asset.id, rotate: 180 }),
+      ]);
+
+      expect(s3.downloadToTemp).toHaveBeenCalledTimes(1);
+      expect(mocks.media.turnToJpeg).toHaveBeenCalledWith(s3.temps[0].tempPath, expect.any(Number));
+      expect(mocks.media.turnToJpeg.mock.calls.every(([input]) => input === s3.temps[0].tempPath)).toBe(true);
+      expect(s3.temps[0].removed).toBe(true);
+    });
+
+    it('should skip a photo whose preview cannot be fetched', async () => {
+      const s3 = useS3Backend();
+      s3.downloadToTemp.mockRejectedValue(new Error('NoSuchKey'));
+      const asset = candidate(180, { previewPath: 'thumbs/owner/ab/cd/preview.jpeg' });
+      setup(180);
+      mocks.asset.getForOrientationCheck.mockResolvedValue([asset] as never);
+
+      await expect(sut.find(auth, { assetIds: [asset.id] })).resolves.toEqual([]);
     });
   });
 

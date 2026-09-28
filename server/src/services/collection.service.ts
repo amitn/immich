@@ -107,7 +107,7 @@ import {
   groupVisits,
   summarizeVisit,
 } from 'src/utils/collections/visits.js';
-import { decodeOriginal } from 'src/utils/image-decode.js';
+import { DecodableAsset } from 'src/utils/image-decode.js';
 import { isOcrEnabled, isSmartSearchEnabled } from 'src/utils/misc.js';
 import { upsertTags } from 'src/utils/tag.js';
 
@@ -601,15 +601,18 @@ export class CollectionService extends BaseService {
     const previewPath = asset.files?.find((file) => file.type === AssetFileType.Preview)?.path;
     const images: Buffer[] = [];
     if (previewPath) {
-      images.push(await this.mediaRepository.resizeToJpeg(previewPath, zoom ? 1024 : SOURCE_IMAGE_SIZE));
+      images.push(
+        await this.withLocalFile(previewPath, (path) =>
+          this.mediaRepository.resizeToJpeg(path, zoom ? 1024 : SOURCE_IMAGE_SIZE),
+        ),
+      );
     }
     if (!zoom || asset.type !== AssetType.Image || !asset.exifInfo) {
       return images;
     }
 
     const { image } = await this.getConfig({ withCache: true });
-    const decoded = await decodeOriginal(
-      this.mediaRepository,
+    const decoded = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
       image,
     );
@@ -644,8 +647,7 @@ export class CollectionService extends BaseService {
         if (!focus || !asset || asset.type !== AssetType.Image || !asset.exifInfo) {
           return;
         }
-        const decoded = await decodeOriginal(
-          this.mediaRepository,
+        const decoded = await this.decodeAssetOriginal(
           { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
           image,
         );
@@ -1638,7 +1640,7 @@ export class CollectionService extends BaseService {
     checksum: Buffer;
     originalPath: string;
     originalFileName: string;
-    exifInfo: Parameters<typeof decodeOriginal>[1]['exifInfo'];
+    exifInfo: DecodableAsset['exifInfo'];
   }): Promise<OcrBoxInput[]> {
     const { machineLearning, image } = await this.getConfig({ withCache: true });
     const key = `${asset.id}:${asset.checksum.toString('hex')}:${machineLearning.ocr.modelName}`;
@@ -1647,8 +1649,7 @@ export class CollectionService extends BaseService {
       return cached;
     }
 
-    const decoded = await decodeOriginal(
-      this.mediaRepository,
+    const decoded = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
       image,
     );

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { join } from 'node:path';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { isAbsolute, join } from 'node:path';
 import type { JobOf } from 'src/types.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { OnJob } from 'src/decorators.js';
@@ -149,7 +149,7 @@ import {
 } from 'src/utils/book/render.js';
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
-import { ImmichFileResponse } from 'src/utils/file.js';
+import { ImmichMediaResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
 import { setDifference } from 'src/utils/set.js';
@@ -270,6 +270,10 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promis
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 };
+
+/** where the export of a book is stored in a storage backend (S3); on disk, see `getBookPdfPath` */
+export const getBookExportKey = (book: { id: string; ownerId: string }, extension: 'pdf' | 'html') =>
+  join(StorageFolder.Thumbnails, book.ownerId, 'books', `${book.id}.${extension}`);
 
 export const getBookPdfPath = (book: { id: string; ownerId: string }) =>
   join(StorageCore.getFolderLocation(StorageFolder.Thumbnails, book.ownerId), 'books', `${book.id}.pdf`);
@@ -650,9 +654,14 @@ export class BookService extends BaseService {
 
     const files = [
       ...new Set(
-        [getBookPdfPath(book), book.exportPath, getBookHtmlPath(book), book.htmlExportPath].filter(
-          (path): path is string => !!path,
-        ),
+        [
+          getBookPdfPath(book),
+          getBookExportKey(book, 'pdf'),
+          book.exportPath,
+          getBookHtmlPath(book),
+          getBookExportKey(book, 'html'),
+          book.htmlExportPath,
+        ].filter((path): path is string => !!path),
       ),
     ];
     await this.jobRepository.queue({ name: JobName.FileDelete, data: { files } });
@@ -888,7 +897,7 @@ export class BookService extends BaseService {
     return mapBook({ ...book, exportStatus: BookExportStatus.Pending });
   }
 
-  async downloadPdf(auth: AuthDto, id: string, sharedLinkTokens: string[] = []): Promise<ImmichFileResponse> {
+  async downloadPdf(auth: AuthDto, id: string, sharedLinkTokens: string[] = []): Promise<ImmichMediaResponse> {
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     requireSharedLinkLogin(this.cryptoRepository, auth, sharedLinkTokens);
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
@@ -911,12 +920,13 @@ export class BookService extends BaseService {
       }
     }
 
-    return new ImmichFileResponse({
-      path: book.exportPath,
-      contentType: 'application/pdf',
-      cacheControl: CacheControl.PrivateWithoutCache,
-      fileName: `${book.title.replaceAll(/[\\/:*?"<>|]/g, '_')}.pdf`,
-    });
+    await this.requireExportFile(book, book.exportPath, BookExportFormat.Pdf);
+    return this.serveFromBackend(
+      book.exportPath,
+      'application/pdf',
+      CacheControl.PrivateWithoutCache,
+      `${book.title.replaceAll(/[\\/:*?"<>|]/g, '_')}.pdf`,
+    );
   }
 
   /**
@@ -964,7 +974,7 @@ export class BookService extends BaseService {
     return html;
   }
 
-  async downloadHtml(auth: AuthDto, id: string): Promise<ImmichFileResponse> {
+  async downloadHtml(auth: AuthDto, id: string): Promise<ImmichMediaResponse> {
     requireNotSharedLink(auth);
     await this.requireAccess({ auth, permission: Permission.BookDownload, ids: [id] });
     const book = await findOrFail(() => this.bookRepository.get(id), 'Book');
@@ -972,13 +982,40 @@ export class BookService extends BaseService {
       throw new BadRequestException('The book has not been exported as HTML yet');
     }
 
-    return new ImmichFileResponse({
-      path: book.htmlExportPath,
-      contentType: 'text/html',
-      cacheControl: CacheControl.PrivateWithoutCache,
-      fileName: getHtmlFileName(book.title),
-      disposition: 'attachment',
-    });
+    await this.requireExportFile(book, book.htmlExportPath, BookExportFormat.Html);
+    return this.serveFromBackend(
+      book.htmlExportPath,
+      'text/html',
+      CacheControl.PrivateWithoutCache,
+      getHtmlFileName(book.title),
+      'attachment',
+    );
+  }
+
+  /**
+   * An export whose file is gone (e.g. the storage moved to another backend, or the file was removed) is made again, in
+   * the background, instead of failing every download
+   */
+  private async requireExportFile(book: Book, path: string, format: BookExportFormat) {
+    if (await this.storedFileExists(path)) {
+      return;
+    }
+
+    const html = format === BookExportFormat.Html;
+    const status = html ? book.htmlExportStatus : book.exportStatus;
+    if (status !== BookExportStatus.Pending && status !== BookExportStatus.Running) {
+      this.logger.warn(`The ${html ? 'HTML' : 'PDF'} export of book ${book.id} is missing, so it is made again`);
+      if (html) {
+        await this.bookRepository.setHtmlExportStatus(book.id, BookExportStatus.Pending);
+        await this.jobRepository.queue({ name: JobName.BookExportHtml, data: { id: book.id } });
+      } else {
+        await this.bookRepository.setExportStatus(book.id, BookExportStatus.Pending);
+        await this.jobRepository.queue({ name: JobName.BookExport, data: { id: book.id } });
+      }
+    }
+    throw new NotFoundException(
+      `The ${html ? 'HTML' : 'PDF'} file of this book was not found, so it is being made again; download it when it is ready`,
+    );
   }
 
   @OnJob({ name: JobName.BookExport, queue: QueueName.BackgroundTask })
@@ -1008,11 +1045,9 @@ export class BookService extends BaseService {
 
       const pdf = await createBookPdf(renderPages(this), book, { title: book.title, subject: book.subtitle });
 
-      const path = getBookPdfPath(book);
-      this.storageCore.ensureFolders(path);
-      await this.storageRepository.createOrOverwriteFile(`${path}.tmp`, pdf);
-      await this.storageRepository.rename(`${path}.tmp`, path);
+      const path = await this.storeBuffer(getBookPdfPath(book), getBookExportKey(book, 'pdf'), pdf, 'application/pdf');
       await this.bookRepository.setExportStatus(id, BookExportStatus.Completed, path);
+      await this.removeOldExport(book.exportPath, path);
 
       for (const warning of warnings) {
         this.logger.debug(`Book ${id}: ${warning.message}`);
@@ -1057,11 +1092,9 @@ export class BookService extends BaseService {
       const { html, imageCount } = await this.createBookHtml(auth, book, pages);
       const data = Buffer.from(html);
 
-      const path = getBookHtmlPath(book);
-      this.storageCore.ensureFolders(path);
-      await this.storageRepository.createOrOverwriteFile(`${path}.tmp`, data);
-      await this.storageRepository.rename(`${path}.tmp`, path);
+      const path = await this.storeBuffer(getBookHtmlPath(book), getBookExportKey(book, 'html'), data, 'text/html');
       await this.bookRepository.setHtmlExportStatus(id, BookExportStatus.Completed, path);
+      await this.removeOldExport(book.htmlExportPath, path);
 
       const size = asHumanReadable(data.length);
       const large = data.length > HTML_LARGE_FILE_BYTES;
@@ -1134,7 +1167,9 @@ export class BookService extends BaseService {
 
       let size: ImageSize = getAssetDimensions(asset);
       if (!size.width || !size.height) {
-        size = await this.mediaRepository.getImageMetadata(input).catch(() => ({ width: 0, height: 0 }));
+        size = await this.withLocalFiles(async (files) =>
+          this.mediaRepository.getImageMetadata(await files.input(input)),
+        ).catch(() => ({ width: 0, height: 0 }));
       }
       if (size.width && size.height) {
         sources.set(asset.id, { asset, preview, full, size });
@@ -1159,14 +1194,16 @@ export class BookService extends BaseService {
         width = Math.max(1, Math.round(width * shrink));
         height = Math.max(1, Math.round(height * shrink));
       }
-      const result = await this.mediaRepository.composeBookPage({
-        width,
-        height,
-        background: '#ffffff',
-        quality: quality.jpegQuality,
-        overlay: null,
-        slots: [{ left: 0, top: 0, width, height, input, crop: request.region }],
-      });
+      const result = await this.withLocalFiles(async (files) =>
+        this.mediaRepository.composeBookPage({
+          width,
+          height,
+          background: '#ffffff',
+          quality: quality.jpegQuality,
+          overlay: null,
+          slots: [{ left: 0, top: 0, width, height, input: await files.input(input), crop: request.region }],
+        }),
+      );
       const [slot] = result.slots;
       if (slot && 'error' in slot) {
         this.logger.warn(`Book ${book.id}: photo ${assetId} could not be embedded (${slot.error})`);
@@ -1230,13 +1267,18 @@ export class BookService extends BaseService {
       if (source) {
         sources.set(assetId, {
           ...source,
-          input: await this.mediaRepository.resizeToJpeg(source.input, HIDDEN_SOURCE_PX),
+          input: await this.withLocalFiles(async (files) =>
+            this.mediaRepository.resizeToJpeg(await files.input(source.input), HIDDEN_SOURCE_PX),
+          ),
         });
       }
     }
     const { mapImage, warnings } = await this.renderMapArea(auth, book, page, number, options);
     const plan = planPage(book, page, { ...options, sources, mapImage });
-    const result = await this.mediaRepository.composeBookPage(plan.spec);
+    // the photos of the page are fetched from their storage backend for the page, and removed after it
+    const result = await this.withLocalFiles(async (files) =>
+      this.mediaRepository.composeBookPage({ ...plan.spec, slots: await files.inputs(plan.spec.slots) }),
+    );
     return {
       data: result.data,
       warnings: [...getPageWarnings(plan, result, number), ...warnings],
@@ -1523,7 +1565,16 @@ export class BookService extends BaseService {
     }
 
     // a new artwork has no thumbnails for a little while
-    return getRenderInput(asset, mode)?.input ?? asset.originalPath;
+    const input = getRenderInput(asset, mode)?.input ?? asset.originalPath;
+    if (typeof input !== 'string' || isAbsolute(input)) {
+      return input;
+    }
+    // in a storage backend: read now, as the map is drawn later
+    try {
+      return await this.readStoredFile(input);
+    } catch (error: any) {
+      warnings.push(`the illustrated map could not be read (${error?.message ?? error}), so the map is rendered`);
+    }
   }
 
   /** saves the rendered map as an asset next to the section's first photo and starts an art job that redraws it */
@@ -2074,7 +2125,7 @@ export class BookService extends BaseService {
     }
 
     try {
-      const analysis = await this.mediaRepository.analyzeImage(row.previewPath);
+      const analysis = await this.withLocalFile(row.previewPath, (path) => this.mediaRepository.analyzeImage(path));
       analysisCache.set(key, analysis);
       return analysis;
     } catch (error) {
@@ -2248,6 +2299,13 @@ export class BookService extends BaseService {
         quotaSizeInBytes: owner.quotaSizeInBytes,
       },
     };
+  }
+
+  /** the file of an earlier export stored elsewhere, e.g. on disk before the storage moved to S3 */
+  private async removeOldExport(oldPath: string | null, path: string) {
+    if (oldPath && oldPath !== path) {
+      await this.jobRepository.queue({ name: JobName.FileDelete, data: { files: [oldPath] } });
+    }
   }
 
   private async notifyOwner(

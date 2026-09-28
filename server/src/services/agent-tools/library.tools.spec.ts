@@ -7,6 +7,7 @@ import { AssetFactory } from 'test/factories/asset.factory.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { getForAsset } from 'test/mappers.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
@@ -499,6 +500,39 @@ describe(LibraryAgentTools.name, () => {
       });
     });
 
+    it('should show previews stored in S3 from temporary copies, and remove them', async () => {
+      const s3 = useS3Backend();
+      const assets = [
+        agentAsset({ previewPath: 'thumbs/o/ab/cd/a.jpeg' }),
+        agentAsset({ previewPath: 'thumbs/o/ab/cd/b.jpeg' }),
+      ];
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) => Promise.resolve(new Set(ids)));
+      mocks.assetJob.getForAgent.mockImplementation((ids) =>
+        Promise.resolve(assets.filter(({ id }) => ids.includes(id))),
+      );
+      mocks.media.resizeToJpeg.mockResolvedValue(Buffer.from('jpeg'));
+      mocks.media.createContactSheet.mockResolvedValue(Buffer.from('sheet'));
+
+      await call('view_photos', { ids: [assets[0].id] });
+      expect(mocks.media.resizeToJpeg).toHaveBeenCalledWith(s3.temps[0].tempPath, 1024);
+
+      await call('view_photos', { ids: assets.map(({ id }) => id) });
+      expect(mocks.media.createContactSheet).toHaveBeenCalledWith(
+        [
+          { input: s3.temps[1].tempPath, label: '1' },
+          { input: s3.temps[2].tempPath, label: '2' },
+        ],
+        { tileSize: 256 },
+      );
+      expect(s3.temps.map(({ key }) => key)).toEqual([
+        'thumbs/o/ab/cd/a.jpeg',
+        'thumbs/o/ab/cd/a.jpeg',
+        'thumbs/o/ab/cd/b.jpeg',
+      ]);
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+      vi.restoreAllMocks();
+    });
+
     it('should deny inaccessible photos', async () => {
       const result = await call('view_photos', { ids: [newUuid(), newUuid()] });
       expect(result.isError).toBe(true);
@@ -615,6 +649,26 @@ describe(LibraryAgentTools.name, () => {
         potential: 0.85,
         recipe: { enhance: { strength: 'normal' }, gain: 0.15 },
       });
+      vi.restoreAllMocks();
+    });
+
+    it('should analyze and simulate on a preview stored in S3, fetched once and removed', async () => {
+      const s3 = useS3Backend();
+      const asset = agentAsset({ checksum: Buffer.from('s3-score'), previewPath: 'thumbs/o/ab/cd/s3.jpeg' });
+      allowAssets(asset.id);
+      mocks.assetJob.getForAgent.mockResolvedValue([asset]);
+      mocks.media.analyzeImage.mockResolvedValue(analysis);
+      mocks.media.getSmallRgb.mockResolvedValue({
+        data: Buffer.alloc(12),
+        info: { width: 2, height: 2, channels: 3 },
+      } as never);
+
+      json(await call('score_photo', { ids: [asset.id], considerImprovements: true }));
+
+      // one copy for the analysis, one for the simulations, each removed
+      expect(s3.temps.map(({ key }) => key)).toEqual(['thumbs/o/ab/cd/s3.jpeg', 'thumbs/o/ab/cd/s3.jpeg']);
+      expect(mocks.media.getSmallRgb).toHaveBeenCalledWith(s3.temps[1].tempPath, expect.any(Number));
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
       vi.restoreAllMocks();
     });
 

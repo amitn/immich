@@ -31,7 +31,6 @@ import { ImageAnalysis, ScoreFace, normalizeFaceBox } from 'src/utils/agent/scor
 import { TiltEstimate, estimateTilt, getStraightenedSize } from 'src/utils/agent/straighten.js';
 import { getDimensions, isPanorama } from 'src/utils/asset.util.js';
 import { EnhanceCorrectionType, planEnhancement } from 'src/utils/enhance.js';
-import { decodeOriginal } from 'src/utils/image-decode.js';
 
 const IMPROVED_QUALITY = 93;
 const SIMULATION_SIZE = 512;
@@ -129,7 +128,7 @@ export class ImproveService extends BaseService {
     }
 
     try {
-      const analysis = await this.mediaRepository.analyzeImage(source.previewPath);
+      const analysis = await this.withLocalFile(source.previewPath, (path) => this.mediaRepository.analyzeImage(path));
       analysisCache.set(key, analysis);
       return analysis;
     } catch (error) {
@@ -151,7 +150,19 @@ export class ImproveService extends BaseService {
       return null;
     }
 
+    // the preview is only fetched when something is not cached yet
     const previewPath = source.previewPath;
+    return this.withLocalFiles((files) =>
+      this.estimateFrom(source, previewPath, () => files.get(previewPath), options),
+    );
+  }
+
+  private async estimateFrom(
+    source: ImproveSource,
+    previewPath: string,
+    preview: () => Promise<string>,
+    options: ImproveOptions,
+  ): Promise<ImproveEstimate | null> {
     const asset = { ...source, previewPath };
     const extra: ScoreExtra = { isFavorite: source.isFavorite, rating: source.rating };
     const size = { width: source.width, height: source.height };
@@ -161,7 +172,7 @@ export class ImproveService extends BaseService {
     let now = analysisCache.get(getAnalysisKey(asset));
     if (!now) {
       try {
-        now = await this.mediaRepository.analyzeImage(await this.render(bitmaps, previewPath, {}, size));
+        now = await this.mediaRepository.analyzeImage(await this.render(bitmaps, preview, {}, size));
         analysisCache.set(getAnalysisKey(asset), now);
       } catch (error) {
         this.logger.warn(`Unable to analyze preview of asset ${source.id}: ${error}`);
@@ -175,7 +186,7 @@ export class ImproveService extends BaseService {
         const key = getSimulatedAnalysisKey(asset, getRecipeKey(recipe));
         let analysis = analysisCache.get(key);
         if (!analysis) {
-          analysis = await this.mediaRepository.analyzeImage(await this.render(bitmaps, previewPath, recipe, size));
+          analysis = await this.mediaRepository.analyzeImage(await this.render(bitmaps, preview, recipe, size));
           analysisCache.set(key, analysis);
         }
         return analysis;
@@ -186,7 +197,7 @@ export class ImproveService extends BaseService {
       let bestAnalysis = now;
       let faces = source.faces;
 
-      const tilt = await this.getTilt(asset, () => this.render(bitmaps, previewPath, {}, size));
+      const tilt = await this.getTilt(asset, () => this.render(bitmaps, preview, {}, size));
       if (
         tilt?.recommended &&
         Math.abs(tilt.angle) <= IMPROVE_MAX_ROTATE &&
@@ -271,8 +282,7 @@ export class ImproveService extends BaseService {
     }
 
     const { image } = await this.getConfig({ withCache: true });
-    const decoded = await decodeOriginal(
-      this.mediaRepository,
+    const decoded = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo },
       image,
     );
@@ -378,16 +388,14 @@ export class ImproveService extends BaseService {
   /** the small preview after the fixes of a recipe, memoized in `bitmaps` */
   private render(
     bitmaps: Map<string, Promise<Bitmap>>,
-    previewPath: string,
+    preview: () => Promise<string>,
     recipe: ImproveRecipe,
     size: Size,
   ): Promise<Bitmap> {
     const key = getRecipeKey(recipe);
     let bitmap = bitmaps.get(key);
     if (!bitmap) {
-      bitmap = this.renderSimulation(previewPath, recipe, size, (base) =>
-        this.render(bitmaps, previewPath, base, size),
-      );
+      bitmap = this.renderSimulation(preview, recipe, size, (base) => this.render(bitmaps, preview, base, size));
       bitmaps.set(key, bitmap);
     }
     return bitmap;
@@ -395,7 +403,7 @@ export class ImproveService extends BaseService {
 
   /** builds on the rendering of the recipe without its last fix */
   private async renderSimulation(
-    previewPath: string,
+    preview: () => Promise<string>,
     recipe: ImproveRecipe,
     size: Size,
     render: (recipe: ImproveRecipe) => Promise<Bitmap>,
@@ -426,7 +434,7 @@ export class ImproveService extends BaseService {
       );
     }
 
-    const small = await this.mediaRepository.getSmallRgb(previewPath, SIMULATION_SIZE);
+    const small = await this.mediaRepository.getSmallRgb(await preview(), SIMULATION_SIZE);
     return recipe.rotate ? this.mediaRepository.straightenBitmap(small, recipe.rotate, null) : small;
   }
 

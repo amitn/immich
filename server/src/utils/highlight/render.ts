@@ -64,6 +64,16 @@ export type HighlightRenderContext = {
   /** the image each photo is drawn from, e.g. its original or its full-size preview */
   photos: Map<string, string>;
   clips: Map<string, HighlightClipSource>;
+  /**
+   * runs `fn` with a local copy of the image of a photo, e.g. one downloaded from S3 (see `BaseService.withLocalFile`);
+   * by default the image is read where it is
+   */
+  withLocalFile?: <T>(path: string, fn: (localPath: string) => Promise<T>) => Promise<T>;
+  /**
+   * what ffmpeg reads a clip from, asked right before its segment is rendered: its path, or a short-lived URL of the
+   * video in S3 (see `BaseService.getProbeInput`); by default the input of the clip
+   */
+  getReadableInput?: (input: string) => Promise<string>;
   /** the map of a map card, as an image of the given size */
   renderMap: (shot: HighlightMapShot, size: HighlightMapSize) => Promise<Buffer>;
   /** the filter that tone maps HDR clips, see `MediaRepository.getFfmpegFilters` */
@@ -102,6 +112,9 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T, index: nu
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;
 };
+
+/** reads a file where it is */
+const readInPlace = <T>(path: string, fn: (localPath: string) => Promise<T>) => fn(path);
 
 /** a card holds still: the same square at the start and the end */
 const FULL = { x: 0, y: 0, size: 1 };
@@ -172,13 +185,15 @@ export const renderHighlight = async (plan: HighlightPlan, ctx: HighlightRenderC
             throw new Error('the photo has no image to draw from');
           }
           const input = join(ctx.workdir, `${index}-still.png`);
-          await ctx.media.composeHighlightStill({
-            input: source,
-            output: input,
-            frame: shot.frame,
-            crop: shot.crop,
-            ...still,
-          });
+          await (ctx.withLocalFile ?? readInPlace)(source, (localPath) =>
+            ctx.media.composeHighlightStill({
+              input: localPath,
+              output: input,
+              frame: shot.frame,
+              crop: shot.crop,
+              ...still,
+            }),
+          );
           return { kind: 'still', input, from: shot.from, to: shot.to, overlay, ...base };
         }
         case 'clip': {
@@ -222,7 +237,11 @@ export const renderHighlight = async (plan: HighlightPlan, ctx: HighlightRenderC
     }
     throwIfAborted(ctx.signal);
     try {
-      await ctx.media.runFfmpeg(toFfmpegArgs(getSegmentCommand(spec)), {
+      const input =
+        spec.kind === 'clip' && ctx.getReadableInput
+          ? { ...spec, input: await ctx.getReadableInput(spec.input) }
+          : spec;
+      await ctx.media.runFfmpeg(toFfmpegArgs(getSegmentCommand(input)), {
         signal: ctx.signal,
         onProgress: (done) => {
           segmentProgress.set(index, Math.min(done, spec.frames));

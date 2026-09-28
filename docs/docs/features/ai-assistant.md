@@ -144,6 +144,8 @@ Everything the assistant and the related tools make is a **new photo**, stacked 
 
 Crops inside a photo book are stored in the book only; they don't create copies.
 
+With [S3 storage](/features/s3-storage), the copies, collages, highlight videos, music and book exports are stored in the bucket like uploads, and the tools read the photos from wherever they are stored, on disk or in S3.
+
 ### Photos you don't own
 
 Photos that are only shared with you, such as the photos other members added to a shared space, or a partner's, are read-only for these features, even when you're an **Editor** of the space:
@@ -239,7 +241,7 @@ When you replace or add a photo, you can search your library or show **Only phot
 - **PDF**: a print-ready file with every page rendered at 300 dpi.
 - **HTML (single file)**: one self-contained web page with the photos embedded, which works offline and makes no external requests. It can be shared or emailed, and turns pages like a book. Photos are sized for sharp screens (up to 2000 pixels), not for print. You're warned when the file is over 60 MB, since it may be too large to email.
 
-Both exports run in the background and send a notification when they're done. Download them from **Export → Download PDF** or **Download HTML**.
+Both exports run in the background and send a notification when they're done. Download them from **Export → Download PDF** or **Download HTML**. If an exported file has gone missing, for example after the storage moved, the download starts a new export instead, and you are notified when it's ready.
 
 ### Sharing a book
 

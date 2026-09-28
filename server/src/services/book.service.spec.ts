@@ -1,8 +1,9 @@
-import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
+import { DiskStorageBackend } from 'src/backends/disk-storage.backend.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { BookMap, BookStyleSchema, bookStylePresetIds } from 'src/dtos/book.dto.js';
 import {
@@ -19,9 +20,10 @@ import {
 } from 'src/enum.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { ArtService } from 'src/services/art.service.js';
-import { BookService, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
+import { BookService, getBookExportKey, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
+import { StorageService } from 'src/services/storage.service.js';
 import { ImproveEstimate } from 'src/utils/agent/improve.js';
 import { validatePageStyle } from 'src/utils/book/layouts.js';
 import { getDpiForLongEdge } from 'src/utils/book/render.js';
@@ -30,6 +32,7 @@ import { BookFactory, BookPageFactory } from 'test/factories/book.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { userStub } from 'test/fixtures/user.stub.js';
 import { factory, newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 type AgentAsset = Awaited<ReturnType<AssetJobRepository['getForAgent']>>[number];
@@ -142,6 +145,17 @@ const tokenFor = (linkAuth: AuthDto) =>
 
 const textPage = (bookId: string) => BookPageFactory.create({ bookId, layout: 'text', caption: 'Hello <world>' });
 
+/** the photo of `setupExport`, stored in S3 */
+const s3Asset = (id: string) =>
+  renderAsset({
+    id,
+    originalPath: 'upload/owner/ab/cd/photo.jpg',
+    files: [
+      { type: AssetFileType.Preview, path: 'thumbs/owner/ab/cd/preview.jpeg', isEdited: false },
+      { type: AssetFileType.Thumbnail, path: 'thumbs/owner/ab/cd/thumbnail.webp', isEdited: false },
+    ],
+  });
+
 describe(BookService.name, () => {
   let sut: BookService;
   let mocks: ServiceMocks;
@@ -235,6 +249,9 @@ describe(BookService.name, () => {
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookService));
+    // files on disk; the S3 tests below replace the backends
+    (StorageService as any).diskBackend = new DiskStorageBackend('/data');
+    mocks.storage.checkFileExists.mockResolvedValue(true);
     mocks.tag.getAssetTagValues.mockResolvedValue([]);
 
     mocks.book.update.mockResolvedValue();
@@ -452,8 +469,10 @@ describe(BookService.name, () => {
         data: {
           files: [
             getBookPdfPath(book),
+            getBookExportKey(book, 'pdf'),
             '/data/thumbs/owner/books/old.pdf',
             getBookHtmlPath(book),
+            getBookExportKey(book, 'html'),
             '/data/thumbs/owner/books/old.html',
           ],
         },
@@ -1337,6 +1356,140 @@ describe(BookService.name, () => {
       mocks.book.get.mockResolvedValue(undefined);
       await expect(sut.handleBookExportHtml({ id: newUuid() })).resolves.toBe(JobStatus.Skipped);
       expect(mocks.book.setHtmlExportStatus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('with S3 storage', () => {
+    let s3: ReturnType<typeof useS3Backend>;
+    beforeEach(() => {
+      s3 = useS3Backend();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should draw the photos of a page from local copies, and remove them after the page', async () => {
+      const { book, asset } = await setupExport();
+      mocks.book.getAssetsForRender.mockResolvedValue([s3Asset(asset.id)]);
+
+      await expect(sut.handleBookExport({ id: book.id })).resolves.toBe(JobStatus.Success);
+
+      expect(s3.downloadToTemp).toHaveBeenCalledWith('upload/owner/ab/cd/photo.jpg');
+      const spec = mocks.media.composeBookPage.mock.calls[0][0];
+      expect(spec.slots[0]).toEqual(expect.objectContaining({ input: s3.temps[0].tempPath }));
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+    });
+
+    it('should store the PDF in S3, and remove the export that was on disk', async () => {
+      const { book } = await setupExport();
+      mocks.book.get.mockResolvedValue({ ...book, exportPath: getBookPdfPath(book) });
+      const key = getBookExportKey(book, 'pdf');
+
+      await expect(sut.handleBookExport({ id: book.id })).resolves.toBe(JobStatus.Success);
+
+      expect(key).toBe(`thumbs/${book.ownerId}/books/${book.id}.pdf`);
+      expect(s3.put).toHaveBeenCalledWith(key, expect.any(Buffer), { contentType: 'application/pdf' });
+      expect(s3.stored.get(key)!.data.subarray(0, 5).toString()).toBe('%PDF-');
+      expect(mocks.book.setExportStatus).toHaveBeenLastCalledWith(book.id, BookExportStatus.Completed, key);
+      expect(mocks.storage.createOrOverwriteFile).not.toHaveBeenCalled();
+      expect(mocks.job.queue).toHaveBeenCalledWith({
+        name: JobName.FileDelete,
+        data: { files: [getBookPdfPath(book)] },
+      });
+    });
+
+    it('should store the HTML file in S3', async () => {
+      const { book } = await setupExport();
+      const key = getBookExportKey(book, 'html');
+
+      await expect(sut.handleBookExportHtml({ id: book.id })).resolves.toBe(JobStatus.Success);
+
+      expect(s3.put).toHaveBeenCalledWith(key, expect.any(Buffer), { contentType: 'text/html' });
+      expect(s3.stored.get(key)!.data.toString()).toContain('<!doctype html>');
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenLastCalledWith(book.id, BookExportStatus.Completed, key);
+    });
+
+    it('should serve the exports from S3', async () => {
+      const book = BookFactory.create({
+        title: 'Rome',
+        exportPath: 'thumbs/o/books/b.pdf',
+        htmlExportPath: 'thumbs/o/books/b.html',
+      });
+      s3.stored.set('thumbs/o/books/b.pdf', { data: Buffer.from('%PDF-') });
+      s3.stored.set('thumbs/o/books/b.html', { data: Buffer.from('<!doctype html>') });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.downloadPdf(auth, book.id)).resolves.toEqual(
+        expect.objectContaining({ url: 'https://s3.test/bucket/thumbs/o/books/b.pdf?signature' }),
+      );
+      expect(s3.getServeStrategy).toHaveBeenCalledWith(
+        'thumbs/o/books/b.pdf',
+        expect.objectContaining({ contentType: 'application/pdf', fileName: 'Rome.pdf', disposition: 'inline' }),
+      );
+      await sut.downloadHtml(auth, book.id);
+      expect(s3.getServeStrategy).toHaveBeenCalledWith(
+        'thumbs/o/books/b.html',
+        expect.objectContaining({ contentType: 'text/html', fileName: 'rome.html', disposition: 'attachment' }),
+      );
+    });
+
+    it('should make a missing export again', async () => {
+      const book = BookFactory.create({
+        exportPath: 'thumbs/o/books/b.pdf',
+        exportStatus: BookExportStatus.Completed,
+        htmlExportPath: '/data/thumbs/o/books/b.html',
+        htmlExportStatus: BookExportStatus.Completed,
+      });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.storage.checkFileExists.mockResolvedValue(false);
+
+      await expect(sut.downloadPdf(auth, book.id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(mocks.book.setExportStatus).toHaveBeenCalledWith(book.id, BookExportStatus.Pending);
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExport, data: { id: book.id } });
+
+      await expect(sut.downloadHtml(auth, book.id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(mocks.storage.checkFileExists).toHaveBeenCalledWith('/data/thumbs/o/books/b.html');
+      expect(mocks.book.setHtmlExportStatus).toHaveBeenCalledWith(book.id, BookExportStatus.Pending);
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: JobName.BookExportHtml, data: { id: book.id } });
+    });
+
+    it('should not queue a missing export again while it is being made', async () => {
+      const book = BookFactory.create({ exportPath: 'thumbs/o/books/b.pdf', exportStatus: BookExportStatus.Running });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+
+      await expect(sut.downloadPdf(auth, book.id)).rejects.toBeInstanceOf(NotFoundException);
+      expect(mocks.job.queue).not.toHaveBeenCalled();
+    });
+
+    it('should draw an illustrated map stored in S3', async () => {
+      const book = BookFactory.create();
+      const page = BookPageFactory.create({
+        bookId: book.id,
+        layout: 'map',
+        map: { illustratedAssetId: newUuid() } as BookMap,
+      });
+      const map = await sharp({ create: { width: 40, height: 30, channels: 3, background: '#00ff00' } })
+        .png()
+        .toBuffer();
+      s3.stored.set('upload/o/ab/cd/map.png', { data: map });
+      allowBook(book.id);
+      mocks.book.get.mockResolvedValue(book);
+      mocks.book.getPages.mockResolvedValue([page]);
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([page.map!.illustratedAssetId!]));
+      mocks.book.getAssetsForRender.mockResolvedValue([
+        renderAsset({ id: page.map!.illustratedAssetId, originalPath: 'upload/o/ab/cd/map.png', files: [] }),
+      ]);
+      mocks.book.getAssetLocations.mockResolvedValue([]);
+      mocks.media.composeBookPage.mockResolvedValue({ data: Buffer.from(''), slots: [] });
+
+      const { warnings } = await sut.renderPage(auth, book.id, page.id);
+
+      expect(s3.get).toHaveBeenCalledWith('upload/o/ab/cd/map.png');
+      expect(warnings.filter(({ type }) => type === 'map')).toEqual([]);
     });
   });
 

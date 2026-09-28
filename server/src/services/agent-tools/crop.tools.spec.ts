@@ -1,4 +1,5 @@
 import { Stats } from 'node:fs';
+import { Readable } from 'node:stream';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { ActivityLogAction, AssetFileType, AssetType, Colorspace } from 'src/enum.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
@@ -10,6 +11,7 @@ import { AuthFactory } from 'test/factories/auth.factory.js';
 import { AssetExifLike, AssetLike } from 'test/factories/types.js';
 import { getForAsset, getForAssetFace } from 'test/mappers.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const PREVIEW_PATH = '/data/thumbs/preview.jpeg';
@@ -470,6 +472,44 @@ describe(CropAgentTools.name, () => {
       const asset = setupAsset(dto, exif);
       expect(errorText(await call('crop_photo', { id: asset.id, aspectRatio: '1:1' }))).toContain(message);
       expect(mocks.media.decodeImage).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('with S3 storage', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should suggest a crop and crop the photo from temporary copies, remove them, and store the copy in S3', async () => {
+      const s3 = useS3Backend();
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('cropped')]));
+      mocks.storage.unlink.mockResolvedValue();
+      const asset = AssetFactory.from({
+        ownerId: auth.user.id,
+        originalFileName: 'IMG_0001.jpg',
+        originalPath: 'upload/owner/ab/cd/IMG_0001.jpg',
+      })
+        .exif({ exifImageWidth: 4000, exifImageHeight: 3000, orientation: null, projectionType: null })
+        .file({ type: AssetFileType.Preview, path: 'thumbs/owner/ab/cd/preview.jpeg', isEdited: false })
+        .build();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset.id]));
+      mocks.asset.getById.mockResolvedValue(getForAsset(asset));
+      mocks.media.getGrayscale.mockResolvedValue(tilted(0));
+      mocks.media.getAttentionPoint.mockResolvedValue({ x: 0.5, y: 0.5 });
+
+      parse(await call('suggest_crop', { id: asset.id, aspectRatio: '1:1' }));
+      const result = parse(await call('crop_photo', { id: asset.id, rotate: 3 }));
+
+      expect(result).toMatchObject({ id: 'new-asset-id', duplicate: false });
+      const keys = s3.temps.map(({ key }) => key);
+      expect(keys).toContain('thumbs/owner/ab/cd/preview.jpeg');
+      expect(keys).toContain('upload/owner/ab/cd/IMG_0001.jpg');
+      expect(mocks.media.decodeImage).toHaveBeenCalledWith(
+        s3.temps.find(({ key }) => key.startsWith('upload/'))!.tempPath,
+        expect.anything(),
+      );
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+      expect(s3.stored.has(`upload/${auth.user.id}/ne/w-/new-asset-id.jpg`)).toBe(true);
     });
   });
 });

@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { AssetType } from 'src/enum.js';
+import { AssetFileType, AssetType } from 'src/enum.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { TagService } from 'src/services/tag.service.js';
@@ -12,6 +12,7 @@ import {
 import { AuthFactory } from 'test/factories/auth.factory.js';
 import { labelsPack } from 'test/fixtures/collections/labels.pack.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 /** CLIP similarities with the prompts of the labels pack, every prompt of a kind at the given value */
@@ -83,6 +84,40 @@ describe(CollectionService.name, () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('with S3 storage', () => {
+    it('should read a source from temporary copies of its preview and original, and remove them', async () => {
+      const s3 = useS3Backend();
+      const id = newUuid();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([id]));
+      mocks.asset.getById.mockResolvedValue({
+        id,
+        type: AssetType.Image,
+        deletedAt: null,
+        originalPath: 'upload/owner/ab/cd/menu.jpg',
+        originalFileName: 'menu.jpg',
+        exifInfo: { orientation: null, colorspace: 'sRGB', profileDescription: null, bitsPerSample: 8 },
+        files: [{ type: AssetFileType.Preview, path: 'thumbs/owner/ab/cd/menu-preview.jpeg', isEdited: false }],
+      } as never);
+      mocks.media.resizeToJpeg.mockResolvedValue(Buffer.from('preview'));
+      mocks.media.decodeImage.mockResolvedValue({
+        data: Buffer.from('pixels'),
+        info: { width: 4000, height: 3000 },
+      } as never);
+      mocks.media.getJpegCrops.mockResolvedValue([Buffer.from('left'), Buffer.from('right')]);
+
+      const images = await sut.getSourceImages(auth, id, { zoom: true });
+
+      expect(images).toEqual([Buffer.from('preview'), Buffer.from('left'), Buffer.from('right')]);
+      expect(s3.temps.map(({ key }) => key)).toEqual([
+        'thumbs/owner/ab/cd/menu-preview.jpeg',
+        'upload/owner/ab/cd/menu.jpg',
+      ]);
+      expect(mocks.media.resizeToJpeg).toHaveBeenCalledWith(s3.temps[0].tempPath, 1024);
+      expect(mocks.media.decodeImage).toHaveBeenCalledWith(s3.temps[1].tempPath, expect.anything());
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+    });
   });
 
   describe('packs', () => {
