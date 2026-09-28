@@ -196,7 +196,9 @@ export class CollageService extends BaseService {
       },
       { dpi: getDpiForLongEdge(size, longEdgePx), mode, sources, layout: chosen.layout, quality: 90 },
     );
-    const result = await this.mediaRepository.composeBookPage(plan.spec);
+    const result = await this.withLocalFiles(async (files) =>
+      this.mediaRepository.composeBookPage({ ...plan.spec, slots: await files.inputs(plan.spec.slots) }),
+    );
     const failed = result.slots.findIndex((slot) => !!slot && 'error' in slot);
     if (failed !== -1) {
       throw new BadRequestException(`Photo ${failed + 1} of the collage could not be drawn`);

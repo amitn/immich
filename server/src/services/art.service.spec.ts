@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { Readable } from 'node:stream';
 import type { AcpAgent, AcpClientHandlers, AcpPermissionRequest } from 'src/repositories/acp.repository.js';
 import { ArtJobStatus, AssetType, Colorspace, NotificationLevel, NotificationType } from 'src/enum.js';
 import {
@@ -11,6 +12,7 @@ import {
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { factory } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const PNG = Buffer.from('fake png');
@@ -504,6 +506,54 @@ describe(ArtService.name, () => {
           tags: ['AI Artwork/Ink split'],
         }),
       );
+    });
+
+    it('should read the photo from S3 and store the artwork there, with no temporary file left', async () => {
+      const s3 = useS3Backend();
+      s3.stored.set('thumbs/owner/ab/cd/preview.jpg', { data: Buffer.from('s3 preview') });
+      mocks.asset.getForThumbnail.mockResolvedValue({
+        path: 'thumbs/owner/ab/cd/preview.jpg',
+        originalPath: 'upload/owner/ab/cd/original.jpg',
+        originalFileName: 'IMG.jpg',
+      });
+      mocks.media.decodeImage.mockResolvedValue({
+        data: Buffer.from('pixels'),
+        info: { width: 4000, height: 3000 },
+      } as never);
+      mocks.media.stackPhotoAboveArtwork.mockResolvedValue(Buffer.from('stacked'));
+      mocks.storage.stat.mockResolvedValue({ size: 100 } as never);
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('stacked')]));
+      mocks.storage.unlink.mockResolvedValue();
+      mocks.crypto.randomUUID.mockReturnValue('new-asset-id');
+      mocks.asset.create.mockImplementation((asset) => Promise.resolve({ id: 'new-asset-id', ...asset }) as never);
+      mocks.stack.create.mockResolvedValue({ id: 'stack-id' } as never);
+      // a fake art agent: it answers with an image
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+
+      const job = newJob({ style: 'watercolor-editorial-split' });
+      await start(job);
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([job.sourceAssetId]));
+      mocks.asset.getById.mockResolvedValue({
+        id: job.sourceAssetId,
+        ownerId: auth.user.id,
+        type: AssetType.Image,
+        originalPath: 'upload/owner/ab/cd/original.jpg',
+        originalFileName: 'IMG.jpg',
+        localDateTime: new Date('2024-06-01T12:00:00.000Z'),
+        exifInfo: { orientation: null, profileDescription: 'sRGB', colorspace: 'sRGB', bitsPerSample: 8 },
+      } as never);
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+
+      // the preview is sent to the agent from S3, and the original decoded from a temporary copy
+      expect(mocks.storage.createFile).toHaveBeenCalledWith(
+        '/tmp/immich-agent/art/source.jpg',
+        Buffer.from('s3 preview'),
+      );
+      expect(s3.temps).toEqual([expect.objectContaining({ key: 'upload/owner/ab/cd/original.jpg', removed: true })]);
+      expect(mocks.media.decodeImage).toHaveBeenCalledWith(s3.temps[0].tempPath, expect.anything());
+      const key = `upload/${auth.user.id}/ne/w-/new-asset-id.jpg`;
+      expect(s3.stored.get(key)?.data).toEqual(Buffer.from('stacked'));
+      expect(mocks.asset.create).toHaveBeenCalledWith(expect.objectContaining({ originalPath: key }));
     });
 
     it('should mark the artwork of a test job as a test', async () => {

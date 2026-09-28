@@ -248,7 +248,9 @@ export class BookStyleService extends BaseService {
       if (!input) {
         continue;
       }
-      const { data, info } = await this.mediaRepository.getSmallRgb(input, PALETTE_SAMPLE_PX);
+      const { data, info } = await this.withLocalFile(input, (path) =>
+        this.mediaRepository.getSmallRgb(path, PALETTE_SAMPLE_PX),
+      );
       images.push({ data, channels: info.channels });
       used.push(asset.id);
     }

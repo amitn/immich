@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
+import { Readable } from 'node:stream';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AssetFileType, AssetType, Colorspace } from 'src/enum.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
@@ -10,6 +11,7 @@ import { AuthFactory } from 'test/factories/auth.factory.js';
 import { AssetExifLike, AssetLike } from 'test/factories/types.js';
 import { getForAsset } from 'test/mappers.js';
 import { newUuid } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
 const PREVIEW_PATH = '/data/thumbs/preview.jpeg';
@@ -237,6 +239,49 @@ describe(EnhanceService.name, () => {
         id: 'existing-id',
         duplicate: true,
       });
+    });
+  });
+
+  describe('with S3 storage', () => {
+    it('should read the preview and the original from temporary copies, remove them, and store the copy in S3', async () => {
+      const s3 = useS3Backend();
+      mocks.storage.createPlainReadStream.mockImplementation(() => Readable.from([Buffer.from('enhanced')]));
+      mocks.storage.unlink.mockResolvedValue();
+      const asset = AssetFactory.from({
+        ownerId: auth.user.id,
+        originalFileName: 'IMG_0001.jpg',
+        originalPath: 'upload/owner/ab/cd/IMG_0001.jpg',
+      })
+        .exif({ exifImageWidth: 4000, exifImageHeight: 3000, orientation: null, projectionType: null, iso: 100 })
+        .file({ type: AssetFileType.Preview, path: 'thumbs/owner/ab/cd/preview.jpeg', isEdited: false })
+        .build();
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset.id]));
+      mocks.asset.getById.mockResolvedValue(getForAsset(asset));
+
+      await sut.analyze(auth, asset.id);
+      await sut.renderEnhancePreview(auth, asset.id);
+      const { id } = await sut.createEnhancedCopy(auth, asset.id);
+
+      expect(s3.temps.map(({ key }) => key)).toEqual([
+        'thumbs/owner/ab/cd/preview.jpeg',
+        'thumbs/owner/ab/cd/preview.jpeg',
+        'upload/owner/ab/cd/IMG_0001.jpg',
+      ]);
+      for (const { tempPath } of s3.temps) {
+        expect(mocks.media.decodeImage).toHaveBeenCalledWith(tempPath, expect.anything());
+      }
+      expect(s3.temps.every(({ removed }) => removed)).toBe(true);
+      expect(id).toBe('new-asset-id');
+      expect(s3.stored.has(`upload/${auth.user.id}/ne/w-/new-asset-id.jpg`)).toBe(true);
+    });
+
+    it('should remove the temporary copy when the original cannot be decoded', async () => {
+      const s3 = useS3Backend();
+      const asset = setupAsset({ originalPath: 'upload/owner/ab/cd/IMG_0001.jpg' });
+      mocks.media.decodeImage.mockRejectedValue(new Error('corrupt'));
+
+      await expect(sut.createEnhancedCopy(auth, asset.id)).rejects.toThrow('corrupt');
+      expect(s3.temps).toEqual([expect.objectContaining({ key: 'upload/owner/ab/cd/IMG_0001.jpg', removed: true })]);
     });
   });
 });

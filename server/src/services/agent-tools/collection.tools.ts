@@ -289,7 +289,11 @@ export class CollectionAgentTools extends BaseService {
                     .map(({ name, score }) => `${name} ${percent(score)}`)
                     .join('\n'),
           }));
-          const image = await this.mediaRepository.createContactSheet(tiles, { tileSize: crops.size > 0 ? 400 : 320 });
+          const image = await this.withLocalFiles(async (files) =>
+            this.mediaRepository.createContactSheet(await files.inputs(tiles), {
+              tileSize: crops.size > 0 ? 400 : 320,
+            }),
+          );
           const sheet = Object.fromEntries(
             result.subjects.slice(0, 36).map((subject, index) => [index + 1, subject.assetIds[0]]),
           );

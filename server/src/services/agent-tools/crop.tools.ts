@@ -25,7 +25,6 @@ import {
 } from 'src/utils/agent/straighten.js';
 import { AgentTool, defineTool, toolError, toolImage, toolJson } from 'src/utils/agent/tools.js';
 import { getDimensions, isPanorama } from 'src/utils/asset.util.js';
-import { decodeOriginal } from 'src/utils/image-decode.js';
 
 const CROP_PREVIEW_SIZE = 768;
 const CROP_QUALITY = 95;
@@ -345,8 +344,7 @@ export class CropAgentTools extends BaseService {
     }
 
     const { image } = await this.getConfig({ withCache: true });
-    const decoded = await decodeOriginal(
-      this.mediaRepository,
+    const decoded = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo },
       image,
     );
@@ -397,10 +395,9 @@ export class CropAgentTools extends BaseService {
       return null;
     }
 
-    const preview = await this.mediaRepository.decodeImage(previewPath, {
-      colorspace: Colorspace.Srgb,
-      processInvalidImages: false,
-    });
+    const preview = await this.withLocalFile(previewPath, (path) =>
+      this.mediaRepository.decodeImage(path, { colorspace: Colorspace.Srgb, processInvalidImages: false }),
+    );
     const frame = rotate
       ? getStraightenedSize(preview.info.width, preview.info.height, rotate)
       : { width: preview.info.width, height: preview.info.height };
@@ -436,7 +433,7 @@ export class CropAgentTools extends BaseService {
     }
 
     try {
-      return estimateTilt(await this.mediaRepository.getGrayscale(previewPath));
+      return estimateTilt(await this.withLocalFile(previewPath, (path) => this.mediaRepository.getGrayscale(path)));
     } catch (error) {
       this.logger.warn(`Could not measure the tilt of asset ${assetId}: ${error}`);
       return null;
@@ -471,7 +468,7 @@ export class CropAgentTools extends BaseService {
     }
 
     try {
-      return await this.mediaRepository.getAttentionPoint(previewPath);
+      return await this.withLocalFile(previewPath, (path) => this.mediaRepository.getAttentionPoint(path));
     } catch (error) {
       this.logger.warn(`Could not find the focal point of asset ${asset.id}: ${error}`);
       return null;

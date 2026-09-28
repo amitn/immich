@@ -24,6 +24,7 @@ import {
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { LocalFiles } from 'src/utils/local-files.js';
 import { isFacialRecognitionEnabled, isOcrEnabled, isSmartSearchEnabled } from 'src/utils/misc.js';
 import {
   OrientationFace,
@@ -353,13 +354,15 @@ export class OrientationService extends BaseService {
       return null;
     }
 
+    // the preview is fetched from its storage backend once, when a turned view is first needed
+    const files = new LocalFiles((path) => this.ensureLocalFile(path));
     try {
       const prompts = await this.getPrompts(machineLearning);
       const turned = new Map<Rotation, Promise<Buffer>>();
       const view = (rotation: Rotation) => {
         let image = turned.get(rotation);
         if (!image) {
-          image = this.mediaRepository.turnToJpeg(previewPath, rotation);
+          image = files.get(previewPath).then((path) => this.mediaRepository.turnToJpeg(path, rotation));
           turned.set(rotation, image);
         }
         return image;
@@ -420,6 +423,8 @@ export class OrientationService extends BaseService {
     } catch (error: any) {
       this.logger.warn(`Unable to check the orientation of asset ${asset.id}: ${error?.message ?? error}`);
       return null;
+    } finally {
+      await files.cleanup();
     }
   }
 

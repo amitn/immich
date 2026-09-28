@@ -6,7 +6,6 @@ import { BaseService } from 'src/services/base.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { getDimensions, isPanorama } from 'src/utils/asset.util.js';
 import { EnhanceCorrectionType, EnhanceStrength, planEnhancement } from 'src/utils/enhance.js';
-import { decodeOriginal } from 'src/utils/image-decode.js';
 
 const ENHANCE_QUALITY = 93;
 const COMPARISON_WIDTH = 1024;
@@ -56,8 +55,7 @@ export class EnhanceService extends BaseService {
     const exifInfo = asset.exifInfo!;
 
     const { image } = await this.getConfig({ withCache: true });
-    const decoded = await decodeOriginal(
-      this.mediaRepository,
+    const decoded = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo },
       image,
     );
@@ -123,6 +121,8 @@ export class EnhanceService extends BaseService {
       throw new BadRequestException('The preview of this photo has not been generated yet, try again later');
     }
 
-    return this.mediaRepository.decodeImage(previewPath, { colorspace: Colorspace.Srgb, processInvalidImages: false });
+    return this.withLocalFile(previewPath, (path) =>
+      this.mediaRepository.decodeImage(path, { colorspace: Colorspace.Srgb, processInvalidImages: false }),
+    );
   }
 }

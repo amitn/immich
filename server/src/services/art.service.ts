@@ -39,7 +39,6 @@ import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.s
 import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { ArtStyle, artStyles, buildArtPrompt, checkArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
-import { decodeOriginal } from 'src/utils/image-decode.js';
 import { findOrFail } from 'src/utils/misc.js';
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -375,7 +374,7 @@ export class ArtService extends BaseService {
       throw new Error('The photo has no preview yet');
     }
 
-    const buffer = await this.storageRepository.readFile(path);
+    const buffer = await this.readStoredFile(path);
     const { width, height } = await this.mediaRepository.getImageMetadata(buffer);
     await this.storageRepository.createFile(join(workdir, 'source.jpg'), buffer);
     return { buffer, width, height };
@@ -389,8 +388,7 @@ export class ArtService extends BaseService {
     }
 
     const { image } = await this.getConfig({ withCache: true });
-    const photo = await decodeOriginal(
-      this.mediaRepository,
+    const photo = await this.decodeAssetOriginal(
       { originalPath: asset.originalPath, originalFileName: asset.originalFileName, exifInfo: asset.exifInfo },
       { ...image, colorspace: Colorspace.Srgb },
       { size: ART_MAX_LONG_EDGE },

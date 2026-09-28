@@ -213,7 +213,8 @@ export class ArtAgentTools extends BaseService {
             AssetFileType.Preview,
             false,
           );
-          return toolImage(await this.mediaRepository.resizeToJpeg(originalPath, 1024), 'image/jpeg', details);
+          const image = await this.withLocalFile(originalPath, (path) => this.mediaRepository.resizeToJpeg(path, 1024));
+          return toolImage(image, 'image/jpeg', details);
         },
       }),
     ];

@@ -582,14 +582,19 @@ export class LibraryAgentTools extends BaseService {
       if (!row.previewPath) {
         return toolError(`Photo ${row.id} has no preview yet`);
       }
-      const image = await this.mediaRepository.resizeToJpeg(row.previewPath, Math.min(input.size ?? 1024, 1440));
+      const size = Math.min(input.size ?? 1024, 1440);
+      const image = await this.withLocalFile(row.previewPath, (path) => this.mediaRepository.resizeToJpeg(path, size));
       return toolImage(image, 'image/jpeg', this.withMissing(input.ids, rows, compactAsset(row)));
     }
 
     const tileSize = Math.min(input.size ?? 256, 512);
-    const image = await this.mediaRepository.createContactSheet(
-      rows.map((row, index) => ({ input: hidden.has(row.id) ? null : row.previewPath, label: String(index + 1) })),
-      { tileSize },
+    const image = await this.withLocalFiles(async (files) =>
+      this.mediaRepository.createContactSheet(
+        await files.inputs(
+          rows.map((row, index) => ({ input: hidden.has(row.id) ? null : row.previewPath, label: String(index + 1) })),
+        ),
+        { tileSize },
+      ),
     );
     const sheet = Object.fromEntries(rows.map((row, index) => [index + 1, row.id]));
     const noPreview = rows.filter((row) => !row.previewPath).map(({ id }) => id);
@@ -936,7 +941,7 @@ export class LibraryAgentTools extends BaseService {
     }
 
     try {
-      const analysis = await this.mediaRepository.analyzeImage(row.previewPath);
+      const analysis = await this.withLocalFile(row.previewPath, (path) => this.mediaRepository.analyzeImage(path));
       analysisCache.set(key, analysis);
       return analysis;
     } catch (error) {

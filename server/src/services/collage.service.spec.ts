@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { Stats } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import sharp from 'sharp';
 import { ActivityLogAction, AssetFileType, AssetType } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -14,6 +14,7 @@ import { AssetFactory } from 'test/factories/asset.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { getForAsset } from 'test/mappers.js';
 import { newDate, newUuid, newUuidV7 } from 'test/small.factory.js';
+import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, automock, newTestService } from 'test/utils.js';
 
 describe(CollageService.name, () => {
@@ -158,6 +159,59 @@ describe(CollageService.name, () => {
 
     it('should require access to a style of the user', async () => {
       await expect(sut.render(auth, { assetIds: ids, styleId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('with S3 storage', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should draw the photos from local copies, and remove them', async () => {
+      const s3 = useS3Backend();
+      const removed: string[] = [];
+      // the objects of the bucket are the test images
+      s3.downloadToTemp.mockImplementation((key) =>
+        Promise.resolve({
+          tempPath: join(dir, basename(key)),
+          cleanup: () => {
+            removed.push(key);
+            return Promise.resolve();
+          },
+        }),
+      );
+      mocks.book.getAssetsForRender.mockResolvedValue(
+        ids.map((id, index) =>
+          renderAsset(id, index, {
+            originalPath: `upload/owner/ab/cd/${index}.jpg`,
+            files: [{ type: AssetFileType.Preview, path: `thumbs/owner/ab/cd/${index}.jpg`, isEdited: false }],
+          }),
+        ),
+      );
+
+      const data = await sut.render(auth, { assetIds: ids, aspectRatio: '16:9' });
+
+      const { width } = await sharp(data).metadata();
+      expect(width).toBe(1000);
+      expect(removed.toSorted()).toEqual([
+        'thumbs/owner/ab/cd/0.jpg',
+        'thumbs/owner/ab/cd/1.jpg',
+        'thumbs/owner/ab/cd/2.jpg',
+      ]);
+    });
+
+    it('should refuse a collage whose photo is missing from the bucket', async () => {
+      const s3 = useS3Backend();
+      s3.downloadToTemp.mockRejectedValue(new Error('NoSuchKey'));
+      mocks.book.getAssetsForRender.mockResolvedValue(
+        ids.map((id, index) =>
+          renderAsset(id, index, {
+            files: [{ type: AssetFileType.Preview, path: `thumbs/owner/ab/cd/${index}.jpg`, isEdited: false }],
+          }),
+        ),
+      );
+
+      await expect(sut.render(auth, { assetIds: ids })).rejects.toThrow('could not be drawn');
     });
   });
 
