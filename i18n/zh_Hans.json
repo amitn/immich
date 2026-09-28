@@ -1316,6 +1316,7 @@
   "cmdk_unnamed_person": "未命名人物",
   "collapse": "收起",
   "collapse_all": "全部收起",
+  "collection_read_only_photos": "此次到访有 {count} 张照片属于其他人（例如 Space 的其他成员）：它们有助于识别名称，但只有其所有者才能为其命名。",
   "color": "颜色",
   "command": "命令",
   "command_palette_prompt": "快速查找页面、操作或命令",

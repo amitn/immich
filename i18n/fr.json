@@ -1322,6 +1322,7 @@
   "cmdk_unnamed_person": "Personne sans nom",
   "collapse": "Réduire",
   "collapse_all": "Tout réduire",
+  "collection_read_only_photos": "{count, plural, one {# photo de cette visite appartient} other {# photos de cette visite appartiennent}} à quelqu'un d'autre, par exemple un autre membre d'un Espace : elles aident à lire les noms, mais seul leur propriétaire peut les nommer.",
   "color": "Couleur",
   "command": "Commande",
   "command_palette_prompt": "Trouver rapidement des pages, actions ou commandes",

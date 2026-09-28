@@ -1326,6 +1326,7 @@
   "cmdk_unnamed_person": "Osoba bez nazwy",
   "collapse": "Zwiń",
   "collapse_all": "Zwiń wszystko",
+  "collection_read_only_photos": "{count, plural, one {# zdjęcie z tej wizyty należy} few {# zdjęcia z tej wizyty należą} many {# zdjęć z tej wizyty należy} other {# zdjęcia z tej wizyty należy}} do kogoś innego, np. innego członka Space: pomagają odczytać nazwy, ale nazwać je może tylko ich właściciel.",
   "color": "Kolor",
   "command": "Polecenie",
   "command_palette_prompt": "Szybko znajdź strony, działania lub polecenia",

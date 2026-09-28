@@ -1324,6 +1324,7 @@
   "cmdk_unnamed_person": "Unbenannte Person",
   "collapse": "Zusammenklappen",
   "collapse_all": "Alle zusammenklappen",
+  "collection_read_only_photos": "{count, plural, one {# Foto dieses Besuchs gehört} other {# Fotos dieses Besuchs gehören}} jemand anderem, z. B. einem anderen Mitglied eines Space: Sie helfen beim Lesen der Namen, aber nur ihr Besitzer kann sie benennen.",
   "color": "Farbe",
   "command": "Befehl",
   "command_palette_prompt": "Finde schnell Seiten, Aktionen oder Befehle",

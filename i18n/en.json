@@ -1880,6 +1880,7 @@
   "collection_matches_count": "{count, plural, one {# visit in your collections} other {# visits in your collections}}",
   "collection_notifications_setting": "New collection found notifications",
   "collection_notifications_setting_description": "Get a notification when new photos of a meal, a museum visit or a tasting are ready to name, e.g. \"Name the dishes from last night at Taormina?\"",
+  "collection_read_only_photos": "{count, plural, one {# photo of this visit belongs} other {# photos of this visit belong}} to someone else, e.g. another member of a Space: they help to read the names, but only their owner can name them.",
   "collections": {
     "concerts": {
       "all_visits": "All gigs",
