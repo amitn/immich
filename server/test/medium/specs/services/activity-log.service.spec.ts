@@ -8,12 +8,14 @@ import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
+import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { EventRepository } from 'src/repositories/event.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { SharedLinkRepository } from 'src/repositories/shared-link.repository.js';
 import { StackRepository } from 'src/repositories/stack.repository.js';
+import { SystemMetadataRepository } from 'src/repositories/system-metadata.repository.js';
 import { TagRepository } from 'src/repositories/tag.repository.js';
 import { UserRepository } from 'src/repositories/user.repository.js';
 import { DB } from 'src/schema/index.js';
@@ -40,9 +42,11 @@ const setup = (db?: Kysely<DB>) => {
       AssetJobRepository,
       AssetRepository,
       BookRepository,
+      ConfigRepository,
       PartnerRepository,
       SharedLinkRepository,
       StackRepository,
+      SystemMetadataRepository,
       TagRepository,
       UserRepository,
     ],
