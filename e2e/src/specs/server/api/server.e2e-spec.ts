@@ -112,6 +112,10 @@ describe('/server', () => {
         trash: true,
         email: false,
         peopleStatistics: false,
+        assistant: false,
+        artisticStyles: false,
+        bookStadiaMaps: false,
+        restaurantLookup: false,
         // The full list mirrors the SyncRequestType enum; pin the fork's space-album types,
         // which mobile's sync gate opens on (capability signalling).
         syncRequestTypes: expect.arrayContaining([
