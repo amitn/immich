@@ -3252,6 +3252,8 @@ export type CollectionVisitResponseDto = {
     longitude?: number;
     /** The best name for the place */
     place: CollectionPlaceCandidateDto;
+    /** Photos of the visit the user doesn't own (e.g. another member's in a shared space): read to name the place and the entries, but only their owner can name them */
+    readOnlyIds?: string[];
     /** Photos of a receipt or a ticket */
     receiptIds: string[];
     /** Tags of the pack already on the photos of the visit */
@@ -3573,6 +3575,8 @@ export type FoodMealResponseDto = {
     longitude?: number;
     /** Photos of the menu */
     menuIds: string[];
+    /** Photos of the meal the user doesn't own (e.g. another member's in a shared space): read to name the restaurant and the dishes, but only their owner can name them */
+    readOnlyIds?: string[];
     /** Photos of the receipt */
     receiptIds: string[];
     /** The best name for the restaurant */
@@ -5297,7 +5301,7 @@ export type SharedLinkCreateDto = {
     showMetadata?: boolean;
     /** Custom URL slug */
     slug?: string | null;
-    /** Shared space this link is created from. Lets the link cover assets contributed by other members, which requires the caller to be an Owner or Editor of the space. */
+    /** Shared space this link is created from. Lets the link cover assets contributed by other members, which requires the caller to be an Owner or Editor of the space. For a book, the space that holds the book's photos of others; when omitted, a space the caller edits that holds them all. */
     spaceId?: string;
     "type": SharedLinkType;
 };

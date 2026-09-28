@@ -141,6 +141,8 @@ describe(FoodService.name, () => {
         { assetId: sign, ...box('TRATTORIA DA NINO', 0.2, 0.3, 0.08) },
         ...menuBoxes.map((ocr) => ({ assetId: menu, ...ocr })),
       ] as never);
+      // the dessert is another member's photo of a shared album
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([sign, menu, pasta, friends, lunch]));
 
       const result = await sut.findMeals(auth, { albumId });
 
@@ -161,7 +163,9 @@ describe(FoodService.name, () => {
         receiptIds: [],
         restaurant: { name: 'Trattoria da Nino', source: 'sign' },
         saved: [],
+        readOnlyIds: [dessert],
       });
+      expect(result.meals[1].readOnlyIds).toBeUndefined();
       expect(result.meals[0].restaurant.assetIds).toEqual(expect.arrayContaining([sign, menu]));
       expect(result.meals[1]).toMatchObject({
         dishIds: [lunch],
@@ -586,6 +590,26 @@ describe(FoodService.name, () => {
       expect(removeAssets).not.toHaveBeenCalled();
       expect(update).not.toHaveBeenCalled();
       expect(result.results).toEqual([{ id: carbonara, success: true, tag: 'Food/Nino/Carbonara' }]);
+    });
+
+    it("should not name another member's photo for a space editor", async () => {
+      const [mine, theirs] = [newUuid(), newUuid()];
+      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([mine]));
+      mocks.access.asset.checkSpaceEditAccess.mockResolvedValue(new Set([theirs]));
+      mocks.assetJob.getForAgent.mockResolvedValue([agentRow(mine)]);
+
+      const result = await sut.setDishNames(auth, {
+        restaurant: 'Nino',
+        photos: [
+          { id: mine, menu: true },
+          { id: theirs, dish: 'Carbonara' },
+        ],
+      });
+
+      expect(addAssets).toHaveBeenCalledWith(auth, 'tag:Food/Nino/Menu', { ids: [mine] });
+      expect(addAssets).not.toHaveBeenCalledWith(auth, expect.anything(), { ids: expect.arrayContaining([theirs]) });
+      expect(update).not.toHaveBeenCalled();
+      expect(result.results).toContainEqual({ id: theirs, success: false, error: 'no_permission' });
     });
 
     it('should skip photos the user cannot change', async () => {

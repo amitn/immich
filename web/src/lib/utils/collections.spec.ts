@@ -9,6 +9,7 @@ import {
 } from '$lib/collections/packs/food';
 import {
   applyCollectionEntries,
+  countReadOnlyPhotos,
   formatVisitDay,
   formatVisitPlace,
   formatVisitTime,
@@ -16,6 +17,7 @@ import {
   getCollectionEntriesDto,
   getEntryOptions,
   getEntryRows,
+  getNameableSourceIds,
   getOtherPlaceNames,
   getVisitAssetIds,
   hasSubjectReadings,
@@ -186,6 +188,24 @@ describe('getEntryRows', () => {
 
   it('should list every dish photo while the match is missing', () => {
     expect(getEntryRows(meal()).map(({ key }) => key)).toEqual(['dish-1', 'dish-2', 'dish-3', 'dish-4']);
+  });
+
+  it('should not offer to name the photos of others', () => {
+    // dish-1 and dish-3 are another member's photos of a shared space
+    const visit = meal({ readOnlyIds: ['dish-1', 'dish-3', 'menu-2'] });
+    expect(visit.readOnlyIds).toEqual(['dish-1', 'dish-3', 'menu-2']);
+
+    const rows = getEntryRows(visit, match());
+    expect(rows.map(({ key, assetIds }) => ({ key, assetIds }))).toEqual([
+      { key: 'dish-2', assetIds: ['dish-2'] },
+      { key: 'dish-4', assetIds: ['dish-4'] },
+    ]);
+    expect(getEntryRows(visit).map(({ key }) => key)).toEqual(['dish-2', 'dish-4']);
+
+    // the menu of others is read, but only the user's own is named as the source
+    expect(getNameableSourceIds(visit)).toEqual(['menu-1']);
+    expect(countReadOnlyPhotos(visit)).toBe(3);
+    expect(countReadOnlyPhotos(meal())).toBe(0);
   });
 });
 

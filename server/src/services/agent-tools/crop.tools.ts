@@ -299,7 +299,8 @@ export class CropAgentTools extends BaseService {
       throw new BadRequestException('Pass one of aspectRatio, rect or rectNormalized, and/or rotate');
     }
 
-    await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [assetId] });
+    // the copy is stacked with the photo in its owner's library: owner-only
+    await this.requireAccess({ auth, permission: Permission.AssetCopy, ids: [assetId] });
 
     const asset = await this.getAsset(assetId);
     const original = this.getImageDimensions(asset);

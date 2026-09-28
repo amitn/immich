@@ -1238,3 +1238,25 @@ export const getMapAssetIds = (pages: MapSourcePage[], index: number): string[] 
   }
   return [...new Set(ids)];
 };
+
+/**
+ * Every photo a book shows: the photos of its pages and its cover, the photos its maps plot and their illustrations,
+ * e.g. to check that a link to the book may show them
+ */
+export const getBookPhotoIds = (book: { coverAssetId?: string | null }, pages: MapSourcePage[]): Set<string> => {
+  const ids = new Set<string>();
+  if (book.coverAssetId) {
+    ids.add(book.coverAssetId);
+  }
+  for (const page of pages) {
+    for (const { assetId } of page.assets) {
+      ids.add(assetId);
+    }
+    for (const assetId of [...(page.map?.assetIds ?? []), page.map?.illustratedAssetId]) {
+      if (assetId) {
+        ids.add(assetId);
+      }
+    }
+  }
+  return ids;
+};

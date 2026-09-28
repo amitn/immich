@@ -144,6 +144,15 @@ Everything the assistant and the related tools make is a **new photo**, stacked 
 
 Crops inside a photo book are stored in the book only; they don't create copies.
 
+### Photos you don't own
+
+Photos that are only shared with you, such as the photos other members added to a shared space, or a partner's, are read-only for these features, even when you're an **Editor** of the space:
+
+- **Use them** in photo books, collages and highlight videos, as long as you can see them.
+- **Copies are made of your own photos only.** Crop, straighten, auto-enhance, improve and artistic styles (testing a style too) work on your own photos, and the photo viewer only offers them there. When a book improves its photos or illustrates a map, the photos of others are laid out as they are.
+- **Naming is for your own photos only.** The **Name the …** dialogs and the assistant only tag and describe the photos you own. The photos of others in a visit still help to read the names, such as a menu a friend photographed, and the dialog says how many photos it leaves as they are.
+- **Sharing a book** with photos of others goes through their shared space, see [Sharing a book](#sharing-a-book).
+
 ### Picking photos on what they can become
 
 When the assistant picks the best photos for an album or a book, it doesn't only look at the photos as they are. It also considers how they would look after the fixes Gallery can make: straightening, a tighter crop and auto-enhance. These fixes are tried on small previews first, without creating anything. A slightly dark, color-cast, tilted or loosely framed photo of a great moment is no longer beaten by a clean but dull one. Blurry photos still lose, because blur can't be fixed.
@@ -239,6 +248,8 @@ Select **Share** in the book viewer to create a public link to the book, like a 
 People with the link see the title of the book and the page-turning web book, full screen and on phones too, with a **Download PDF** button when downloads are allowed and the PDF has been exported. The web book is built from the current pages, so later edits show up without a new link. Turn off **Show metadata** to leave out the file names of the photos and the dates of the book.
 
 A book link shows only that book. Its pages are drawn on your server, and the photos in it aren't shared one by one, so the link doesn't give access to them, to the album, or to any other book. Manage your links under **Sharing → Shared links**, on the **Photo books** tab, where you can edit or delete them. Deleting the book also deletes its links.
+
+A book can show photos of a shared space that other members added. A link to such a book is tied to the space those photos are in, which is found for you, and only an **Owner** or **Editor** of the space can create it. The link shows those photos only while they stay in the space and you stay an Owner or Editor of it: once a photo is taken out of the space, or you become a Viewer or leave, the pages and the web book leave it out, and the PDF is no longer offered. A book whose photos of others aren't all in one space you can edit can't be shared with a link. A link made before links were tied to a space shows only your own photos; share the book again to show the others.
 
 You can also ask the assistant to share a book. It uses `share_book`, which asks for approval, can set an expiry and a password, and replies with the link.
 

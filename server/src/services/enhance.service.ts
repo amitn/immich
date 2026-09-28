@@ -51,7 +51,8 @@ export class EnhanceService extends BaseService {
 
   /** Enhances the full-resolution original into a new asset, stacked with the original */
   async createEnhancedCopy(auth: AuthDto, assetId: string, input: EnhanceInput = {}): Promise<EnhanceResponseDto> {
-    await this.requireAccess({ auth, permission: Permission.AssetUpdate, ids: [assetId] });
+    // the copy is stacked with the photo in its owner's library: owner-only
+    await this.requireAccess({ auth, permission: Permission.AssetCopy, ids: [assetId] });
     const asset = await this.getAsset(assetId);
     const exifInfo = asset.exifInfo!;
 

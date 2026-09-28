@@ -81,6 +81,7 @@ export class FoodService extends BaseService {
           ...(entry !== undefined && { dish: entry }),
           menu: source,
         })),
+        ...(visit.readOnlyIds && { readOnlyIds: visit.readOnlyIds }),
       })),
       warnings: result.warnings,
     };

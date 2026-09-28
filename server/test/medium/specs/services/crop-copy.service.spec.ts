@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { StorageCore } from 'src/cores/storage.core.js';
-import { AssetFileType, AssetType } from 'src/enum.js';
+import { AssetFileType, AssetType, SharedSpaceRole } from 'src/enum.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
@@ -21,6 +21,9 @@ import { SystemMetadataRepository } from 'src/repositories/system-metadata.repos
 import { UserRepository } from 'src/repositories/user.repository.js';
 import { DB } from 'src/schema/index.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { EnhanceService } from 'src/services/enhance.service.js';
+import { ImproveService } from 'src/services/improve.service.js';
 import { newMediumService } from 'test/medium.factory.js';
 import { factory } from 'test/small.factory.js';
 import { getKyselyDB } from 'test/utils.js';
@@ -189,8 +192,44 @@ describe('cropped copies', () => {
     const source = await createSource(ctx, other.id);
 
     await expect(sut.createCroppedCopy(factory.auth({ user }), source.id, { aspectRatio: '1:1' })).rejects.toThrow(
-      'Not found or no asset.update access',
+      'Not found or no asset.copy access',
     );
+  });
+
+  it("should not copy another member's photo of a shared space, for an editor or a viewer, and let its owner", async () => {
+    const { sut, ctx } = setup();
+    const { user: owner } = await ctx.newUser();
+    const { user: editor } = await ctx.newUser();
+    const { user: viewer } = await ctx.newUser();
+    const { space } = await ctx.newSharedSpace({ createdById: owner.id });
+    await ctx.newSharedSpaceMember({ spaceId: space.id, userId: owner.id, role: SharedSpaceRole.Owner });
+    await ctx.newSharedSpaceMember({ spaceId: space.id, userId: editor.id, role: SharedSpaceRole.Editor });
+    await ctx.newSharedSpaceMember({ spaceId: space.id, userId: viewer.id, role: SharedSpaceRole.Viewer });
+    const source = await createSource(ctx, owner.id);
+    await ctx.newSharedSpaceAsset({ spaceId: space.id, assetId: source.id, addedById: owner.id });
+    const file = { buffer: await sharp(source.originalPath).toBuffer(), extension: 'jpg' };
+
+    for (const user of [editor, viewer]) {
+      const auth = factory.auth({ user });
+      // they can see it...
+      await expect(sut.getCropSuggestion(auth, source.id, '1:1')).resolves.toMatchObject({ feasible: true });
+      // ...but not crop, straighten, enhance or improve it, nor make any other copy of it
+      await expect(sut.createCroppedCopy(auth, source.id, { aspectRatio: '1:1' })).rejects.toThrow('asset.copy');
+      await expect(sut.createCroppedCopy(auth, source.id, { rotate: 3 })).rejects.toThrow('asset.copy');
+      await expect(ctx.getService(EnhanceService).createEnhancedCopy(auth, source.id)).rejects.toThrow('asset.copy');
+      await expect(ctx.getService(ImproveService).createImprovedCopy(auth, source.id, { rotate: 3 })).rejects.toThrow(
+        'asset.copy',
+      );
+      await expect(ctx.getService(DerivedAssetService).createDerivedAsset(auth, source.id, file)).rejects.toThrow(
+        'asset.copy',
+      );
+    }
+    const copies = await ctx.database.selectFrom('asset').select('id').where('ownerId', '=', owner.id).execute();
+    expect(copies).toEqual([{ id: source.id }]);
+
+    await expect(
+      sut.createCroppedCopy(factory.auth({ user: owner }), source.id, { aspectRatio: '1:1' }),
+    ).resolves.toMatchObject({ sourceId: source.id, duplicate: false });
   });
 
   it('should suggest a crop around the salient region without faces', async () => {

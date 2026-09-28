@@ -63,6 +63,19 @@ describe(DerivedAssetService.name, () => {
       expect(mocks.asset.create).not.toHaveBeenCalled();
     });
 
+    it('should not copy a photo the user can only edit as a space editor, or see as a partner', async () => {
+      const auth = AuthFactory.create();
+      const id = newUuid();
+      mocks.access.asset.checkSpaceEditAccess.mockResolvedValue(new Set([id]));
+      mocks.access.asset.checkPartnerAccess.mockResolvedValue(new Set([id]));
+
+      await expect(
+        sut.createDerivedAsset(auth, id, { buffer: Buffer.from('image'), extension: 'jpg' }),
+      ).rejects.toThrow('asset.copy');
+      expect(mocks.storage.createFile).not.toHaveBeenCalled();
+      expect(mocks.asset.create).not.toHaveBeenCalled();
+    });
+
     it('should fail when the source does not exist', async () => {
       const auth = AuthFactory.create();
       const id = newUuid();

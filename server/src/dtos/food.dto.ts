@@ -78,6 +78,13 @@ const FoodMealSchema = z
     restaurant: FoodRestaurantCandidateSchema.describe('The best name for the restaurant'),
     candidates: z.array(FoodRestaurantCandidateSchema).describe('Other names read on the photos'),
     saved: z.array(FoodSavedDishSchema).describe('Food tags already on the photos of the meal'),
+    readOnlyIds: z
+      .array(uuid())
+      .optional()
+      .describe(
+        "Photos of the meal the user doesn't own (e.g. another member's in a shared space): read to name the " +
+          'restaurant and the dishes, but only their owner can name them',
+      ),
   })
   .meta({ id: 'FoodMealResponseDto' });
 

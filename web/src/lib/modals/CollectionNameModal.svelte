@@ -14,11 +14,13 @@
   import { getAssetMediaUrl } from '$lib/utils';
   import {
     applyCollectionEntries,
+    countReadOnlyPhotos,
     formatVisitPlace,
     formatVisitTime,
     getCollectionAssistantPrompt,
     getCollectionEntriesDto,
     getEntryRows,
+    getNameableSourceIds,
     getOtherPlaceNames,
     getVisitAssetIds,
     hasSubjectReadings,
@@ -107,8 +109,10 @@
       draft.status === 'ready' &&
       !isSaving &&
       /[\p{L}\d]/u.test(draft.place) &&
-      (visit.sourceIds.length > 0 || draft.rows.some((row) => row.name.trim())),
+      (getNameableSourceIds(visit).length > 0 || draft.rows.some((row) => row.name.trim())),
   );
+  /** the photos of others in the visit (e.g. of a shared space): read, but only their owner names them */
+  const readOnlyCount = $derived(visit ? countReadOnlyPhotos(visit) : 0);
   /** a pack whose subjects carry their source (a bottle's label) needs no source photo while its subjects are read */
   const subjectsRead = $derived(
     !!pack.sourceOnSubjects &&
@@ -207,12 +211,13 @@
       return;
     }
     const index = visit.index;
-    const { dto } = getCollectionEntriesDto(draft.place, visit.sourceIds, draft.rows);
+    const sourceIds = getNameableSourceIds(visit);
+    const { dto } = getCollectionEntriesDto(draft.place, sourceIds, draft.rows);
     isSaving = true;
     try {
       const response = await pack.api.saveEntries(dto);
-      const summary = summarizeCollectionEntries(response, visit.sourceIds);
-      const updated = applyCollectionEntries(visit, response, visit.sourceIds);
+      const summary = summarizeCollectionEntries(response, sourceIds);
+      const updated = applyCollectionEntries(visit, response, sourceIds);
       visits = visits.map((candidate) => (candidate.index === index ? updated : candidate));
       drafts[index] = {
         ...drafts[index],
@@ -328,6 +333,12 @@
             </div>
           {/if}
         </div>
+
+        {#if readOnlyCount > 0}
+          <Alert color="info" icon={mdiInformationOutline} size="small">
+            <p class="text-sm">{$t('collection_read_only_photos', { values: { count: readOnlyCount } })}</p>
+          </Alert>
+        {/if}
 
         <section class="flex flex-col gap-2" aria-labelledby="collection-source-heading">
           <h3 id="collection-source-heading" class="text-sm font-medium">{$t(label('source'))}</h3>

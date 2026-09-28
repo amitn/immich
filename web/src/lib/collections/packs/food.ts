@@ -63,6 +63,7 @@ export const toCollectionVisit = (meal: FoodMealResponseDto): CollectionVisit =>
     ...(dish !== undefined && { entry: dish }),
     source: menu,
   })),
+  ...(meal.readOnlyIds && meal.readOnlyIds.length > 0 && { readOnlyIds: meal.readOnlyIds }),
 });
 
 /** A match of `/food/meals/match` as a match of the food collection */

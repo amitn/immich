@@ -75,6 +75,7 @@ const compactVisits = (
         tag: source ? `${place}/${pack.sourceLeaf}` : `${place}/${entry}`,
       })),
     }),
+    ...(nonEmpty(visit.readOnlyIds) && { readOnlyIds: visit.readOnlyIds }),
   })),
   ...(warnings.length > 0 && { warnings }),
 });
@@ -135,7 +136,8 @@ export class CollectionAgentTools extends BaseService {
           `an album, asset ids (up to ${COLLECTION_LIMITS.assetIds}, e.g. from search_photos) or a date range. ` +
           'Returns {pack, visits: [{index, start, end, type (e.g. Breakfast/Lunch/Dinner from the camera clock, ' +
           'which can be on the wrong time zone), city, gps, place: {name, source, confidence}, otherNames, ' +
-          'subjectIds, sourceIds, signIds, receiptIds, saved (tags of the pack already set)}]}. place.source is tag ' +
+          'subjectIds, sourceIds, signIds, receiptIds, saved (tags of the pack already set), readOnlyIds (photos ' +
+          "of others, e.g. of a shared space: read them, but don't name them)}]}. place.source is tag " +
           '(already named), sign, source or receipt (read on the photos: check it) or fallback (a made-up name such ' +
           'as "Dinner in <City>": ask the user). Next: read_source for a source photo, match_subjects for the ' +
           'subjects, view_photos to check.',
@@ -348,7 +350,8 @@ export class CollectionAgentTools extends BaseService {
           'one in the words of the pack ("<dish> · <restaurant>"). Running it again replaces the names, so it is ' +
           'safe to correct them. Use the names as printed on the source (in its language), or a short clear name ' +
           'for subjects that are not on it. Only name the subjects and the source: leave out signs, storefronts, ' +
-          'receipts and people shots, which books show as they are. Photo books and albums can then be built from ' +
+          'receipts and people shots, which books show as they are. Only the photos the user owns are named: the ' +
+          'readOnlyIds of find_visits fail with no_permission. Photo books and albums can then be built from ' +
           'the tags (for food, a book with stylePreset "food"). Returns {place, photos: [{id, tag, description, ' +
           'previousTags}], failed}.',
         input: z.object({

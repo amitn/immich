@@ -1,7 +1,25 @@
+import { AssetTypeEnum } from '@immich/sdk';
+import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
-import { getAssistantUrlContext, openAssistant, takePendingAssistantAssets } from '$lib/services/assistant.service';
+import {
+  getAssistantAssetActions,
+  getAssistantUrlContext,
+  openAssistant,
+  takePendingAssistantAssets,
+} from '$lib/services/assistant.service';
+import { assetFactory } from '@test-data/factories/asset-factory';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+
+const { user } = vi.hoisted(() => ({ user: { id: 'me' } }));
+
+vi.mock(import('$lib/managers/auth-manager.svelte'), () => ({
+  authManager: { authenticated: true, user, params: {} } as never,
+}));
+
+vi.mock(import('$lib/managers/feature-flags-manager.svelte'), () => ({
+  featureFlagsManager: { value: { assistant: true, artisticStyles: true } } as never,
+}));
 
 const ids = (count: number) => Array.from({ length: count }, (_, i) => `asset-${i}`);
 
@@ -41,6 +59,25 @@ describe('assistant service', () => {
     it('should open an empty chat', async () => {
       await openAssistant();
       expect(goto).toHaveBeenCalledWith('/assistant');
+    });
+  });
+
+  describe(getAssistantAssetActions.name, () => {
+    const $t = ((key: string) => key) as unknown as MessageFormatter;
+    const shown = (ownerId: string) => {
+      const asset = assetFactory.build({ ownerId, type: AssetTypeEnum.Image, isTrashed: false });
+      const actions = getAssistantAssetActions($t, asset);
+      return Object.entries(actions)
+        .filter(([, action]) => action.$if?.() ?? true)
+        .map(([name]) => name);
+    };
+
+    it('should offer the copies of a photo to its owner', () => {
+      expect(shown('me')).toEqual(['AskAssistant', 'ArtisticStyle', 'AutoEnhance']);
+    });
+
+    it("should not offer copies of someone else's photo, e.g. of a shared space", () => {
+      expect(shown('another-member')).toEqual(['AskAssistant']);
     });
   });
 });

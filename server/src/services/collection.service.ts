@@ -22,6 +22,7 @@ import { ActivityLogAction, AssetFileType, AssetType, Permission } from 'src/enu
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
 import {
   ActivityCollectionPhoto,
   ActivityRecorder,
@@ -472,6 +473,11 @@ export class CollectionService extends BaseService {
     );
     // the places other packs named at the same time, e.g. the restaurant of a Food meal the wines were poured at
     const linked = await this.getLinkedPlaces(auth, pack, groups);
+    // the photos of others (e.g. of a shared space) help to read the place and the entries, but only their owner names
+    // them (see `saveEntries`)
+    const groupIds = groups.flat().map(({ id }) => id);
+    const owned =
+      groupIds.length > 0 ? await checkOwnedAssets(this.accessRepository, auth, groupIds) : new Set<string>();
 
     const visits = groups.map((group, index) => {
       const summary = summarizeVisit(group, pack.visits.type);
@@ -484,7 +490,15 @@ export class CollectionService extends BaseService {
       );
       const candidates = this.redactPlaces(pack, findPlaceNames(photos, pack.place));
       const tagged = this.getTaggedPlace(visitSaved);
-      return { index, summary, saved: visitSaved, candidates, place: tagged ?? linked[index] ?? candidates[0] };
+      const readOnlyIds = [...ids.difference(owned)];
+      return {
+        index,
+        summary,
+        saved: visitSaved,
+        candidates,
+        place: tagged ?? linked[index] ?? candidates[0],
+        readOnlyIds,
+      };
     });
 
     const unnamed = visits.filter(({ place }) => !place);
@@ -498,7 +512,7 @@ export class CollectionService extends BaseService {
       count: candidates.length,
       truncated,
       photos: found.length,
-      visits: visits.map(({ index, summary, saved, candidates, place }): CollectionVisitResponse => {
+      visits: visits.map(({ index, summary, saved, candidates, place, readOnlyIds }): CollectionVisitResponse => {
         const { gps, ...rest } = summary;
         return {
           index,
@@ -515,6 +529,7 @@ export class CollectionService extends BaseService {
             (candidate) => candidate !== place && !(place && isSamePlaceName(candidate.name, place.name)),
           ),
           saved,
+          ...(readOnlyIds.length > 0 && { readOnlyIds }),
         };
       }),
       warnings,
@@ -1041,7 +1056,8 @@ export class CollectionService extends BaseService {
       throw new BadRequestException(`At most ${COLLECTION_LIMITS.photos} photos at once`);
     }
 
-    const allowed = await this.checkAccess({ auth, permission: Permission.AssetUpdate, ids });
+    // only the owner names a photo: another member's photo in a shared space is read-only, even for an editor
+    const allowed = await checkOwnedAssets(this.accessRepository, auth, ids);
     const results = new Map<string, CollectionEntryResult>();
     const targets: string[] = [];
     for (const id of ids) {

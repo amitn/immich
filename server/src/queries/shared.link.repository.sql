@@ -537,6 +537,80 @@ where
   )
   and "shared_link"."slug" = $3
 
+-- SharedLinkRepository.getServableAssetIds
+select
+  "asset"."id"
+from
+  "shared_link"
+  inner join "asset" on "asset"."id" = any ($1::uuid[])
+  and "asset"."deletedAt" is null
+where
+  "shared_link"."id" = $2
+  and (
+    "asset"."ownerId" = "shared_link"."userId"
+    or (
+      "shared_link"."spaceId" is not null
+      and exists (
+        select
+          1 as "exists"
+        from
+          "shared_space_member"
+        where
+          "shared_space_member"."spaceId" = "shared_link"."spaceId"
+          and "shared_space_member"."userId" = "shared_link"."userId"
+          and "shared_space_member"."role" in ($3, $4)
+      )
+      and "asset"."visibility" in ($5, $6)
+      and (
+        exists (
+          select
+            1 as "exists"
+          from
+            "shared_space_asset"
+          where
+            "shared_space_asset"."assetId" = "asset"."id"
+            and "shared_space_asset"."spaceId" = "shared_link"."spaceId"
+        )
+        or exists (
+          select
+            1 as "exists"
+          from
+            "shared_space_library"
+          where
+            "shared_space_library"."libraryId" = "asset"."libraryId"
+            and "shared_space_library"."spaceId" = "shared_link"."spaceId"
+        )
+        or (
+          exists (
+            select
+              1 as "exists"
+            from
+              "shared_space_album"
+              inner join "album_asset" on "album_asset"."albumId" = "shared_space_album"."albumId"
+              inner join "album" on "album"."id" = "shared_space_album"."albumId"
+              and "album"."deletedAt" is null
+            where
+              "album_asset"."assetId" = "asset"."id"
+              and "shared_space_album"."spaceId" = "shared_link"."spaceId"
+          )
+          or exists (
+            select
+              1 as "exists"
+            from
+              "shared_space_album"
+              inner join "album_space_asset" on "album_space_asset"."albumId" = "shared_space_album"."albumId"
+              and "album_space_asset"."spaceId" = "shared_space_album"."spaceId"
+              inner join "album" on "album"."id" = "shared_space_album"."albumId"
+              and "album"."deletedAt" is null
+            where
+              "album_space_asset"."assetId" = "asset"."id"
+              and "shared_space_album"."spaceId" = "shared_link"."spaceId"
+          )
+        )
+      )
+    )
+  )
+
 -- SharedLinkRepository.getSharedLinks
 select
   "shared_link".*,

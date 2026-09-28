@@ -337,6 +337,16 @@ describe(OrientationService.name, () => {
       expect(editAsset).not.toHaveBeenCalled();
     });
 
+    it("should not reject the suggestion of another member's photo for a space editor", async () => {
+      const theirs = newUuid();
+      mocks.access.asset.checkSpaceEditAccess.mockResolvedValue(new Set([theirs]));
+
+      await expect(sut.reject(auth, [theirs])).resolves.toEqual([
+        { id: theirs, success: false, error: BulkIdErrorReason.NO_PERMISSION },
+      ]);
+      expect(mocks.asset.upsertMetadata).not.toHaveBeenCalled();
+    });
+
     it('should undo a fix and suggest it again', async () => {
       mocks.asset.getMetadataByKey.mockResolvedValue({
         key: 'immich.orientation',

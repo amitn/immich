@@ -1320,6 +1320,7 @@
   "cmdk_unnamed_person": "未命名人物",
   "collapse": "折疊",
   "collapse_all": "全部折疊",
+  "collection_read_only_photos": "此次造訪有 {count} 張照片屬於其他人（例如 Space 的其他成員）：它們有助於辨識名稱，但只有其擁有者才能為其命名。",
   "color": "顏色",
   "command": "指令",
   "command_palette_prompt": "快速搜尋頁面、動作或指令",

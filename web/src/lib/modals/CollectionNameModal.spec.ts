@@ -273,6 +273,34 @@ describe('CollectionNameModal component with the food pack', () => {
     expect(photos.map(({ id }) => id)).toEqual(['menu-1', 'menu-2', 'dish-1', 'dish-2', 'dish-3']);
   });
 
+  it("should only name the user's own photos of a meal, and say why the others are left", async () => {
+    // dish-1, dish-3 and menu-2 are another member's photos of a shared space
+    const shared = foodMealFactory({ readOnlyIds: ['dish-1', 'dish-3', 'menu-2'] });
+    sdkMock.findMeals.mockResolvedValue(findResult([shared, dinner]));
+    sdkMock.matchMeal.mockResolvedValue(foodMatchFactory());
+    sdkMock.setDishNames.mockResolvedValue(
+      saved('Trattoria da Nino', [
+        { id: 'menu-1', menu: true },
+        { id: 'dish-2', dish: 'Caponata' },
+      ]),
+    );
+
+    render(CollectionNameModal, { props: { pack: foodPack, album, onClose } });
+    const dishes = await openLunch();
+
+    expect(screen.getByText('collection_read_only_photos')).toBeInTheDocument();
+    // the match still reads all of them
+    expect(sdkMock.matchMeal).toHaveBeenCalledWith({
+      foodMatchDto: { dishIds: shared.dishIds, menuIds: shared.menuIds },
+    });
+    expect(dishes).toHaveLength(2);
+    await fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+    await waitFor(() => expect(toastManager.success).toHaveBeenCalledWith('collections.food.saved'));
+    const photos = sdkMock.setDishNames.mock.calls[0][0].foodDishesDto.photos;
+    expect(photos.map(({ id }) => id)).toEqual(['menu-1', 'dish-2']);
+  });
+
   it('should not save without a restaurant name', async () => {
     sdkMock.findMeals.mockResolvedValue(findResult());
     sdkMock.matchMeal.mockResolvedValue(foodMatchFactory());

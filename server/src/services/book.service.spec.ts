@@ -225,6 +225,14 @@ describe(BookService.name, () => {
     return { book, asset };
   };
 
+  /** a photo of another member of a shared space, which the book's owner reads through the space */
+  const setupSpacePhoto = async () => {
+    const setup = await setupExport();
+    mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set());
+    mocks.access.asset.checkSpaceAccess.mockResolvedValue(new Set([setup.asset.id]));
+    return setup;
+  };
+
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookService));
     mocks.tag.getAssetTagValues.mockResolvedValue([]);
@@ -938,6 +946,55 @@ describe(BookService.name, () => {
       // no travel documents unless a test adds them
       mocks.tag.getAssetTagsByPrefix.mockResolvedValue([]);
       mocks.ocr.getByAssetIds.mockResolvedValue([]);
+      // the link may show every photo unless a test takes one away
+      mocks.sharedLink.getServableAssetIds.mockImplementation((_, ids) => Promise.resolve(new Set(ids)));
+    });
+
+    it("should draw another member's photo while the link's space tether holds", async () => {
+      const { book, asset } = await setupSpacePhoto();
+      const linkAuth = sharedLinkAuth(book.id);
+      allowLink(book.id);
+      const [page] = await mocks.book.getPages(book.id);
+
+      await sut.renderPage(linkAuth, book.id, page.id, { size: 800 });
+
+      expect(mocks.sharedLink.getServableAssetIds).toHaveBeenCalledWith(linkAuth.sharedLink!.id, [asset.id]);
+      expect(mocks.book.getAssetsForRender).toHaveBeenCalledWith([asset.id]);
+    });
+
+    it("should leave out another member's photo once the link may no longer show it", async () => {
+      const { book, asset } = await setupSpacePhoto();
+      const linkAuth = sharedLinkAuth(book.id);
+      allowLink(book.id);
+      const [page] = await mocks.book.getPages(book.id);
+      mocks.sharedLink.getServableAssetIds.mockResolvedValue(new Set());
+      mocks.book.getAssetsForRender.mockImplementation((ids) => Promise.resolve(ids.includes(asset.id) ? [asset] : []));
+
+      await sut.renderPage(linkAuth, book.id, page.id, { size: 800 });
+      expect(mocks.book.getAssetsForRender).toHaveBeenCalledWith([]);
+
+      const html = await sut.previewHtml(linkAuth, book.id);
+      expect(html).not.toContain('alt="photo.jpg"');
+      expect(mocks.book.getAssetsForRender).not.toHaveBeenCalledWith([asset.id]);
+
+      // the owner still sees it in the app
+      allowBook(book.id);
+      await sut.renderPage(auth, book.id, page.id, { size: 800 });
+      expect(mocks.book.getAssetsForRender).toHaveBeenLastCalledWith([asset.id]);
+    });
+
+    it('should not give the PDF once a photo of another member is no longer shared', async () => {
+      const { book } = await setupSpacePhoto();
+      mocks.book.get.mockResolvedValue({ ...book, exportPath: '/data/thumbs/books/book.pdf' });
+      allowLink(book.id);
+      const linkAuth = sharedLinkAuth(book.id, { allowDownload: true });
+
+      await expect(sut.downloadPdf(linkAuth, book.id)).resolves.toEqual(
+        expect.objectContaining({ contentType: 'application/pdf' }),
+      );
+
+      mocks.sharedLink.getServableAssetIds.mockResolvedValue(new Set());
+      await expect(sut.downloadPdf(linkAuth, book.id)).rejects.toThrow('no longer shared');
     });
 
     it('should show the book of the link, drawn with the photos of its owner', async () => {
@@ -1670,6 +1727,7 @@ describe(BookService.name, () => {
         const rows = trip();
         const { book } = setupAlbum(rows);
         allowBook(book.id);
+        mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) => Promise.resolve(new Set(ids)));
         mocks.systemMetadata.get.mockResolvedValue({ agent: { enabled: true, artProfile: 'codex' } });
         const derived = vi
           .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
@@ -1706,6 +1764,27 @@ describe(BookService.name, () => {
             .map((page) => page.map!.artJobId),
         ).toEqual(jobIds);
       });
+
+      it("should make an illustrated map from the user's own photos only", async () => {
+        const rows = trip();
+        const { book } = setupAlbum(rows);
+        allowBook(book.id);
+        // nothing of the trip is the user's: the photos are another member's, seen through a shared space
+        mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set());
+        mocks.systemMetadata.get.mockResolvedValue({ agent: { enabled: true, artProfile: 'codex' } });
+        const derived = vi.spyOn(DerivedAssetService.prototype, 'createDerivedAsset');
+        const createJob = vi.spyOn(ArtService.prototype, 'createJob');
+
+        const { warnings } = await sut.autoLayoutWithPlan(auth, book.id, {
+          illustratedMaps: true,
+          mapStyle: 'sketch',
+          targetPageCount: 8,
+        });
+
+        expect(derived).not.toHaveBeenCalled();
+        expect(createJob).not.toHaveBeenCalled();
+        expect(warnings).toContainEqual(expect.stringContaining('needs one of your own photos'));
+      });
     });
   });
 
@@ -1735,6 +1814,8 @@ describe(BookService.name, () => {
         checksum: Buffer.from(newUuid()),
       }));
       mocks.media.analyzeImage.mockResolvedValue(analysis);
+      // the user's own photos, unless a test says otherwise
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) => Promise.resolve(new Set(ids)));
       estimateMany = vi
         .spyOn(ImproveService.prototype, 'estimateMany')
         .mockImplementation((sources: ImproveSource[]) =>
@@ -1790,6 +1871,23 @@ describe(BookService.name, () => {
       expect(result.warnings).toEqual([expect.stringContaining('could not be improved (broken)')]);
       const placed = plannedPages().flatMap((page) => page.assets.map((asset) => asset.assetId));
       expect(placed).toContain(rows[3].id);
+    });
+
+    it('should lay out the photos of others as they are, without improving them', async () => {
+      const { albumId } = setupAlbum(rows);
+      // rows[3] is another member's photo of a shared album: readable, but not the user's
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) =>
+        Promise.resolve(new Set([...ids].filter((id) => id !== rows[3].id))),
+      );
+
+      const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true });
+
+      const pool = (estimateMany.mock.calls as Array<[ImproveSource[]]>).flatMap(([sources]) =>
+        sources.map(({ id }) => id),
+      );
+      expect(pool).not.toContain(rows[3].id);
+      expect(createImprovedCopy).not.toHaveBeenCalled();
+      expect(result.improved).toEqual([]);
     });
 
     it('should not simulate anything when considerImprovements is off', async () => {
@@ -1865,6 +1963,20 @@ describe(BookService.name, () => {
 
         expect(createImprovedCopy).not.toHaveBeenCalled();
         expect(result.skipped).toContainEqual({ assetId: rows[3].id, reason: 'no access' });
+      });
+
+      it("should not improve another member's photo of a shared space", async () => {
+        const { book } = setupBook();
+        allowAssets(rows[4].id);
+        mocks.access.asset.checkSpaceAccess.mockResolvedValue(new Set([rows[3].id]));
+
+        const result = await sut.applyImprovements(auth, book.id);
+
+        expect(createImprovedCopy).not.toHaveBeenCalled();
+        expect(result.skipped).toContainEqual({
+          assetId: rows[3].id,
+          reason: "someone else's photo: only its owner can make copies of it",
+        });
       });
     });
 

@@ -18,6 +18,7 @@ import { DB } from 'src/schema/index.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { SharedLinkTable } from 'src/schema/tables/shared-link.table.js';
+import { anyUuid } from 'src/utils/database.js';
 import {
   asBaseEb,
   sharedLinkAssetIsServable,
@@ -296,6 +297,27 @@ export class SharedLinkRepository {
 
   async remove(id: string): Promise<void> {
     await this.db.deleteFrom('shared_link').where('shared_link.id', '=', id).execute();
+  }
+
+  /**
+   * The given assets the link may show: the ones its creator owns, and the others while its space tether holds (see
+   * `shared-link-space-tether.ts`). A book link has no row per photo (its pages are rendered from the book), so the
+   * book re-derives from this on every read which photos its pages, web book and PDF may show.
+   */
+  @GenerateSql({ params: [DummyValue.UUID, [DummyValue.UUID]] })
+  async getServableAssetIds(id: string, assetIds: string[]): Promise<Set<string>> {
+    if (assetIds.length === 0) {
+      return new Set();
+    }
+
+    const rows = await this.db
+      .selectFrom('shared_link')
+      .innerJoin('asset', (join) => join.on('asset.id', '=', anyUuid(assetIds)).on('asset.deletedAt', 'is', null))
+      .select('asset.id')
+      .where('shared_link.id', '=', id)
+      .where((eb) => sharedLinkAssetIsServable(asBaseEb(eb)))
+      .execute();
+    return new Set(rows.map((row) => row.id));
   }
 
   @ChunkedArray({ paramIndex: 1 })

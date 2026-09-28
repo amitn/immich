@@ -62,6 +62,18 @@ export const getVisitAssetIds = (visit: CollectionVisit) => [
   ...new Set([...visit.sourceIds, ...visit.subjectIds, ...visit.signIds, ...visit.receiptIds]),
 ];
 
+/** The source photos of a visit the user can name: not the photos of others (e.g. of a shared space) */
+export const getNameableSourceIds = (visit: CollectionVisit) => {
+  const readOnly = new Set(visit.readOnlyIds);
+  return visit.sourceIds.filter((id) => !readOnly.has(id));
+};
+
+/** How many photos of a visit are someone else's: they help to read the names, but only their owner names them */
+export const countReadOnlyPhotos = (visit: CollectionVisit) => {
+  const readOnly = new Set(visit.readOnlyIds);
+  return getVisitAssetIds(visit).filter((id) => readOnly.has(id)).length;
+};
+
 /** The saved name of the photos: the one most of them have */
 const getSavedName = (assetIds: string[], visit: CollectionVisit) => {
   const counts = new Map<string, number>();
@@ -89,14 +101,20 @@ export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): E
   const hasSource = (match?.entries.length ?? 0) > 0;
   const grouped = new Set(match?.subjects.flatMap(({ assetIds }) => assetIds));
   const sourceIds = new Set(visit.sourceIds);
+  // the photos of others are only read: only their owner names them
+  const readOnly = new Set(visit.readOnlyIds);
 
-  const rows: EntryRow[] = (match?.subjects ?? []).map((subject) => {
-    const savedName = getSavedName(subject.assetIds, visit);
+  const rows: EntryRow[] = (match?.subjects ?? []).flatMap((subject) => {
+    const assetIds = subject.assetIds.filter((id) => !readOnly.has(id));
+    if (assetIds.length === 0) {
+      return [];
+    }
+    const savedName = getSavedName(assetIds, visit);
     const offList = isOffListSubject(subject);
     const name = savedName ?? (offList ? '' : (subject.name ?? ''));
     return {
-      key: subject.assetIds[0],
-      assetIds: subject.assetIds,
+      key: assetIds[0],
+      assetIds,
       name,
       offList: hasSource && !savedName && offList,
       unsure: !savedName && subject.name !== undefined && subject.unsure,
@@ -107,7 +125,7 @@ export const getEntryRows = (visit: CollectionVisit, match?: CollectionMatch): E
   });
 
   for (const id of visit.subjectIds) {
-    if (grouped.has(id) || sourceIds.has(id)) {
+    if (grouped.has(id) || sourceIds.has(id) || readOnly.has(id)) {
       continue;
     }
     const savedName = getSavedName([id], visit);

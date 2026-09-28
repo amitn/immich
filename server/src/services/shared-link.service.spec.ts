@@ -835,6 +835,23 @@ describe(SharedLinkService.name, () => {
 
   describe('book links', () => {
     const bookId = '6c7c7a8a-1f2b-4c3d-8e9f-0a1b2c3d4e5f';
+    const mine = '0e5a7b1c-2d3e-4f5a-8b6c-7d8e9f0a1b2c';
+    const theirs = '1f6b8c2d-3e4f-4a6b-9c7d-8e9f0a1b2c3d';
+    const spaceId = '2a7c9d3e-4f5a-4b7c-8d8e-9f0a1b2c3d4e';
+
+    beforeEach(() => {
+      // a book of one photo of the user, unless a test adds others
+      mocks.book.get.mockResolvedValue({ id: bookId, title: 'Rome', coverAssetId: null } as never);
+      mocks.book.getPages.mockResolvedValue([{ layout: 'single', assets: [{ assetId: mine }] }] as never);
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) =>
+        Promise.resolve(new Set([...ids].filter((id) => id === mine))),
+      );
+    });
+
+    const withTheirPhoto = () =>
+      mocks.book.getPages.mockResolvedValue([
+        { layout: 'two-vertical', assets: [{ assetId: mine }, { assetId: theirs }] },
+      ] as never);
 
     it('should require a bookId', async () => {
       await expect(sut.create(authStub.admin, { type: SharedLinkType.Book })).rejects.toBeInstanceOf(
@@ -903,7 +920,7 @@ describe(SharedLinkService.name, () => {
         allowDownload: true,
         showExif: false,
         key: Buffer.from('random-bytes', 'utf8'),
-        // a book is not tethered to a space
+        // a book of the user's own photos is not tethered to a space
         spaceId: null,
       });
       expect(response).toMatchObject({
@@ -912,6 +929,55 @@ describe(SharedLinkService.name, () => {
         book: { id: bookId, title: 'Summer in Rome', subtitle: null, pageCount: 12, hasPdf: true },
       });
       expect(response.album).toBeUndefined();
+    });
+
+    it("should tether a book with another member's photo to the space it is in", async () => {
+      withTheirPhoto();
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedLink.create.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.sharedSpace.getAllByUserId.mockResolvedValue([{ id: newUuid() }, { id: spaceId }] as never);
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Editor } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockImplementation((_, space, ids) =>
+        Promise.resolve(space === spaceId ? new Set(ids) : new Set()),
+      );
+
+      await sut.create(authStub.admin, { type: SharedLinkType.Book, bookId });
+
+      expect(mocks.access.asset.checkSpaceAccessForSpace).toHaveBeenCalledWith(
+        authStub.admin.user.id,
+        spaceId,
+        new Set([theirs]),
+      );
+      expect(mocks.sharedLink.create).toHaveBeenCalledWith(expect.objectContaining({ bookId, spaceId }));
+    });
+
+    it("should not share a book with another member's photo from a space the user only views", async () => {
+      withTheirPhoto();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedSpace.getAllByUserId.mockResolvedValue([{ id: spaceId }] as never);
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Viewer } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockResolvedValue(new Set([theirs]));
+
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId })).rejects.toThrow(
+        'no shared space you can edit holds them all',
+      );
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId, spaceId })).rejects.toThrow(
+        'no shared space editor access',
+      );
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should not share a book from a space that does not hold its photos of others', async () => {
+      withTheirPhoto();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Owner } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockResolvedValue(new Set());
+
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId, spaceId })).rejects.toThrow(
+        'not in this space',
+      );
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
     });
 
     it('should list the links to a book', async () => {

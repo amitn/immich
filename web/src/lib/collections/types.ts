@@ -36,6 +36,8 @@ export type CollectionVisit = {
   place: CollectionPlaceCandidate;
   candidates: CollectionPlaceCandidate[];
   saved: CollectionSavedEntry[];
+  /** the photos of others (e.g. of a shared space): read to find the names, but only their owner names them */
+  readOnlyIds?: string[];
 };
 
 export type CollectionVisits = {
