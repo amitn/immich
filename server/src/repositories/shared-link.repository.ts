@@ -18,12 +18,12 @@ import { DB } from 'src/schema/index.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { SharedLinkTable } from 'src/schema/tables/shared-link.table.js';
+import { anyUuid } from 'src/utils/database.js';
 import {
   asBaseEb,
   sharedLinkAssetIsServable,
   sharedLinkCreatorCanPublish,
 } from 'src/utils/shared-link-space-tether.js';
-import { anyUuid } from 'src/utils/database.js';
 import { spaceVisibilityGate } from 'src/utils/shared-space-album-scope.js';
 
 export type SharedLinkSearchOptions = {

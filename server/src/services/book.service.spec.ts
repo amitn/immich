@@ -225,6 +225,14 @@ describe(BookService.name, () => {
     return { book, asset };
   };
 
+  /** a photo of another member of a shared space, which the book's owner reads through the space */
+  const setupSpacePhoto = async () => {
+    const setup = await setupExport();
+    mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set());
+    mocks.access.asset.checkSpaceAccess.mockResolvedValue(new Set([setup.asset.id]));
+    return setup;
+  };
+
   beforeEach(() => {
     ({ sut, mocks } = newTestService(BookService));
     mocks.tag.getAssetTagValues.mockResolvedValue([]);
@@ -941,14 +949,6 @@ describe(BookService.name, () => {
       // the link may show every photo unless a test takes one away
       mocks.sharedLink.getServableAssetIds.mockImplementation((_, ids) => Promise.resolve(new Set(ids)));
     });
-
-    /** a photo of another member of a shared space, which the book's owner reads through the space */
-    const setupSpacePhoto = async () => {
-      const setup = await setupExport();
-      mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set());
-      mocks.access.asset.checkSpaceAccess.mockResolvedValue(new Set([setup.asset.id]));
-      return setup;
-    };
 
     it("should draw another member's photo while the link's space tether holds", async () => {
       const { book, asset } = await setupSpacePhoto();
@@ -1882,7 +1882,9 @@ describe(BookService.name, () => {
 
       const result = await sut.createFromAlbumWithPlan(auth, { albumId, improvePhotos: true });
 
-      const pool = estimateMany.mock.calls.flatMap(([sources]) => (sources as ImproveSource[]).map(({ id }) => id));
+      const pool = (estimateMany.mock.calls as Array<[ImproveSource[]]>).flatMap(([sources]) =>
+        sources.map(({ id }) => id),
+      );
       expect(pool).not.toContain(rows[3].id);
       expect(createImprovedCopy).not.toHaveBeenCalled();
       expect(result.improved).toEqual([]);

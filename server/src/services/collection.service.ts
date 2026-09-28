@@ -22,6 +22,7 @@ import { ActivityLogAction, AssetFileType, AssetType, Permission } from 'src/enu
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
 import {
   ActivityCollectionPhoto,
   ActivityRecorder,
@@ -30,7 +31,6 @@ import {
   recordActivity,
 } from 'src/utils/activity-log.js';
 import { parseEmbedding } from 'src/utils/agent/clustering.js';
-import { checkOwnedAssets } from 'src/utils/access.js';
 import { getDimensions } from 'src/utils/asset.util.js';
 import { PackFit } from 'src/utils/collections/arbitration.js';
 import {
@@ -476,7 +476,8 @@ export class CollectionService extends BaseService {
     // the photos of others (e.g. of a shared space) help to read the place and the entries, but only their owner names
     // them (see `saveEntries`)
     const groupIds = groups.flat().map(({ id }) => id);
-    const owned = groupIds.length > 0 ? await checkOwnedAssets(this.accessRepository, auth, groupIds) : new Set();
+    const owned =
+      groupIds.length > 0 ? await checkOwnedAssets(this.accessRepository, auth, groupIds) : new Set<string>();
 
     const visits = groups.map((group, index) => {
       const summary = summarizeVisit(group, pack.visits.type);
@@ -489,7 +490,7 @@ export class CollectionService extends BaseService {
       );
       const candidates = this.redactPlaces(pack, findPlaceNames(photos, pack.place));
       const tagged = this.getTaggedPlace(visitSaved);
-      const readOnlyIds = [...ids].filter((id) => !owned.has(id));
+      const readOnlyIds = [...ids.difference(owned)];
       return {
         index,
         summary,

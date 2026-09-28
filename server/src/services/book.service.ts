@@ -152,8 +152,8 @@ import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
-import { requireNotSharedLink, requireSharedLinkLogin } from 'src/utils/shared-link.js';
 import { setDifference } from 'src/utils/set.js';
+import { requireNotSharedLink, requireSharedLinkLogin } from 'src/utils/shared-link.js';
 
 type Book = NonNullable<Awaited<ReturnType<BookRepository['get']>>>;
 type BookPage = Awaited<ReturnType<BookRepository['getPages']>>[number];
@@ -936,11 +936,11 @@ export class BookService extends BaseService {
     let pages = auth.sharedLink ? await this.bookRepository.getPages(id) : undefined;
     // the photos of others a link may no longer show are left out, so they are part of what the web book is
     const withheld =
-      auth.sharedLink && pages ? await this.getWithheldAssetIds(auth.sharedLink.id, book, pages) : new Set();
+      auth.sharedLink && pages ? await this.getWithheldAssetIds(auth.sharedLink.id, book, pages) : new Set<string>();
     const version = `${book.id}/${book.contentUpdatedAt.toISOString()}/`;
     const key =
       `${version}${stripMetadata ? 'plain' : 'full'}${hidePrivate ? '-shared' : ''}` +
-      (withheld.size > 0 ? `-without:${[...withheld].toSorted().join(',')}` : '');
+      (withheld.size > 0 ? `-without:${[...withheld].toSorted((a, b) => a.localeCompare(b)).join(',')}` : '');
     const cached = previewCache.get(key);
     if (cached) {
       return cached;

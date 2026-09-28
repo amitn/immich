@@ -124,6 +124,30 @@ const setupSpace = async (ctx: Context) => {
   };
 };
 
+/** a book of Bob with Alice's photo of the space and his own, and the photos a page of it shows */
+const setupBook = async () => {
+  const { sut, ctx, lastDrawn } = setup();
+  const space = await setupSpace(ctx);
+  const { auth, theirs, mine } = space;
+  const book = await sut.create(auth.bob, { title: 'Our trip' });
+  const page = await sut.addPage(auth.bob, book.id, { layout: 'two-vertical' });
+  await sut.setSlot(auth.bob, book.id, page.id, 0, { assetId: theirs.id, crop: FULL_CROP });
+  await sut.setSlot(auth.bob, book.id, page.id, 1, { assetId: mine.id, crop: FULL_CROP });
+
+  const drawn = async (user = auth.bob) => {
+    await sut.renderPage(user, book.id, page.id, { size: 800 });
+    const spec = lastDrawn();
+    return [theirs, mine].filter(({ previewPath }) => spec.includes(previewPath)).map(({ id }) => id);
+  };
+  const linkAuth = (link: { id: string }) =>
+    factory.auth({
+      user: { id: space.bob.id },
+      sharedLink: { id: link.id, bookId: book.id, allowDownload: true, showExif: true, password: null },
+    });
+
+  return { sut, ctx, ...space, book, page, drawn, linkAuth };
+};
+
 beforeAll(async () => {
   defaultDatabase = await getKyselyDB();
 });
@@ -188,30 +212,6 @@ describe('photos of others are read-only', () => {
   });
 
   describe('book links', () => {
-    /** a book of Bob with Alice's photo of the space and his own, and the photos a page of it shows */
-    const setupBook = async () => {
-      const { sut, ctx, lastDrawn } = setup();
-      const space = await setupSpace(ctx);
-      const { auth, theirs, mine } = space;
-      const book = await sut.create(auth.bob, { title: 'Our trip' });
-      const page = await sut.addPage(auth.bob, book.id, { layout: 'two-vertical' });
-      await sut.setSlot(auth.bob, book.id, page.id, 0, { assetId: theirs.id, crop: FULL_CROP });
-      await sut.setSlot(auth.bob, book.id, page.id, 1, { assetId: mine.id, crop: FULL_CROP });
-
-      const drawn = async (user = auth.bob) => {
-        await sut.renderPage(user, book.id, page.id, { size: 800 });
-        const spec = lastDrawn();
-        return [theirs, mine].filter(({ previewPath }) => spec.includes(previewPath)).map(({ id }) => id);
-      };
-      const linkAuth = (link: { id: string }) =>
-        factory.auth({
-          user: { id: space.bob.id },
-          sharedLink: { id: link.id, bookId: book.id, allowDownload: true, showExif: true, password: null },
-        });
-
-      return { sut, ctx, ...space, book, page, drawn, linkAuth };
-    };
-
     it("should tether a link to a book with another member's photo to the space, for an editor only", async () => {
       const { ctx, space, auth, book } = await setupBook();
       const links = ctx.getService(SharedLinkService);
