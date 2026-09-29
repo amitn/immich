@@ -6,10 +6,10 @@
 
 ## AI assistant
 
-`docker-compose.assistant.yml` builds the server from this repository with the ACP agents of the AI assistant (Claude Code and Codex) inside it, and keeps their logins on a volume:
+`docker-compose.assistant.yml` runs the ACP agents of the AI assistant (Claude Code and Codex) in their own container, `gallery-agents`, built from this repository, and keeps their logins on a volume. Set `AGENT_HOST_SECRET` in `.env` (see `example.env`), then:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
 ```
 
-`docker-compose.dev.assistant.yml` does the same on top of `docker-compose.dev.yml`. See the [AI assistant setup](https://docs.immich.app/features/ai-assistant#docker) for logging in and checking the container.
+`docker-compose.dev.assistant.yml` does the same on top of `docker-compose.dev.yml`. See the [AI assistant setup](https://docs.opennoodle.de/features/ai-assistant#docker) for logging in and checking the container.

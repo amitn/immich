@@ -25,29 +25,15 @@ WORKDIR /usr/src/app
 
 ENTRYPOINT ["tini", "--", "/bin/bash", "-c"]
 
-# The dev server with the ACP agents of the AI assistant and the fonts of the photo book renderer, as the server-agents
-# target of server/Dockerfile. Used by docker-compose.dev.assistant.yml. /usr/src/app is the mounted repository, so
-# the agents and their home live outside of it.
-FROM dev AS dev-agents
+# The dev server for the AI assistant, used by docker-compose.dev.assistant.yml: the fonts of the photo book renderer,
+# as in the production image. The agents run in the gallery-agents container (the gallery-agents target of
+# server/Dockerfile).
+FROM dev AS dev-assistant
 
 RUN apt-get update && \
   apt-get install --no-install-recommends -yqq fontconfig fonts-liberation fonts-freefont-ttf && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
-
-RUN --mount=type=bind,source=docker/scripts/install-agents.sh,target=/tmp/install-agents.sh \
-  --mount=type=cache,id=npm-agents,target=/buildcache/npm-agents \
-  npm_config_cache=/buildcache/npm-agents bash /tmp/install-agents.sh /opt/immich-agents
-
-COPY --chmod=755 docker/scripts/check-assistant.sh /usr/local/bin/immich-check-assistant
-
-RUN mkdir -p /var/lib/immich-agents && \
-  chown 1000:1000 /var/lib/immich-agents && \
-  chmod 700 /var/lib/immich-agents
-
-ENV HOME=/var/lib/immich-agents \
-  PATH="${PATH}:/opt/immich-agents/bin" \
-  DISABLE_AUTOUPDATER=1
 
 FROM dev AS dev-container-server
 

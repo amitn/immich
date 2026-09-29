@@ -98,13 +98,6 @@ RUN --mount=type=cache,id=pnpm,target=/buildcache/pnpm-store \
   mise exec --no-deps --jobs=1 github:extism/js-pdk@1.6.0 -- \
     pnpm --filter @immich/plugin-sdk --filter @immich/plugin-core --filter @immich/plugin-gallery build
 
-# The ACP agents of the AI assistant, only used by the server-agents target. The versions are pinned in the script.
-FROM builder AS agents
-
-RUN --mount=type=bind,source=docker/scripts/install-agents.sh,target=/tmp/install-agents.sh \
-  --mount=type=cache,id=npm-agents,target=/buildcache/npm-agents \
-  npm_config_cache=/buildcache/npm-agents bash /tmp/install-agents.sh /opt/immich-agents
-
 FROM ghcr.io/immich-app/base-server-prod:202608300913@sha256:e809772a5ee5babfe2073563a40757818f997feff8d161d30bf7b904ca49eb6b AS prod
 
 WORKDIR /usr/src/app
@@ -161,23 +154,74 @@ CMD ["start.sh"]
 
 HEALTHCHECK CMD immich-healthcheck
 
-# The server with the ACP agents of the AI assistant (claude-agent-acp with Claude Code, codex-acp with Codex), which it
-# runs as subprocesses. Opt-in: `docker build --target server-agents`, or docker/docker-compose.assistant.yml.
-FROM prod AS server-agents
+# The agent host of the AI assistant (server/src/bin/agent-host.ts) and its MCP stdio bridge, bundled into two
+# self-contained files for the gallery-agents image: node built-ins, and the MCP SDK for the bridge.
+FROM docker.io/library/node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS agent-host
 
-COPY --from=agents /opt/immich-agents /opt/immich-agents
-COPY --chmod=755 docker/scripts/check-assistant.sh /usr/local/bin/immich-check-assistant
+WORKDIR /build
+RUN --mount=type=cache,id=npm-agents,target=/buildcache/npm-agents \
+  echo '{ "name": "agent-host-build", "private": true }' > package.json && \
+  npm_config_cache=/buildcache/npm-agents npm install --no-audit --no-fund --no-update-notifier --save-exact \
+  esbuild@0.28.2 @modelcontextprotocol/sdk@1.30.1
 
-# The home directory of the server and of `docker exec` shells, and so of the agents (they get PATH, HOME, LANG, TZ
-# and their passEnv variables only): it holds the logins and settings of the CLIs (~/.claude, ~/.claude.json,
-# ~/.codex). Mount a volume here to keep them. Owned by 1000:1000 for rootless setups; root can use it too.
-RUN mkdir -p /var/lib/immich-agents && \
-  chown 1000:1000 /var/lib/immich-agents && \
-  chmod 700 /var/lib/immich-agents
+COPY server/tsconfig.json ./
+COPY server/src/bin/agent-host.ts server/src/bin/agent-mcp-stdio.ts ./src/bin/
+COPY server/src/utils/agent/process.ts server/src/utils/agent/host.ts server/src/utils/agent/host-protocol.ts ./src/utils/agent/
+# the banner gives the CommonJS dependencies of the MCP SDK a require()
+RUN npx esbuild src/bin/agent-host.ts src/bin/agent-mcp-stdio.ts --bundle --platform=node --format=esm --target=node24 \
+  --outdir=/output/host "--banner:js=import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" && \
+  echo '{ "type": "module" }' > /output/host/package.json
 
-ENV HOME=/var/lib/immich-agents \
-  PATH="${PATH}:/opt/immich-agents/bin" \
-  DISABLE_AUTOUPDATER=1
+# The ACP agents: claude-agent-acp with Claude Code, codex-acp with Codex, at the versions pinned in the script
+FROM docker.io/library/node:24.21.0-trixie-slim@sha256:8ec5d7557396cfe32d21c3f9c13072355ceab22b584578ca4bb28af31120cffe AS agents
 
-# The default target is the server without agents
+RUN --mount=type=bind,source=docker/scripts/install-agents.sh,target=/tmp/install-agents.sh \
+  --mount=type=cache,id=npm-agents,target=/buildcache/npm-agents \
+  npm_config_cache=/buildcache/npm-agents bash /tmp/install-agents.sh /opt/gallery-agents
+
+# gallery-agents: the ACP agents of the AI assistant in their own container, away from the library, the database and
+# the server's environment. The agent host starts them for the server (docker/docker-compose.assistant.yml):
+#
+#   docker build -f server/Dockerfile --target gallery-agents -t gallery-agents .
+#
+# Run it as its user (1000), with a read-only root filesystem, a tmpfs /tmp, the agent home as its only volume, and
+# AGENT_HOST_SECRET; see docs/docs/features/ai-assistant.md.
+FROM docker.io/library/debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a AS gallery-agents
+
+# tini reaps the processes the agents leave behind. tini and node are execute-only: a process started from a file its
+# user can't read is not dumpable, so an agent (the same user) can't read the environment of the agent host or of
+# process 1 from /proc, nor trace them. (Only node itself comes from the node image: npm and yarn aren't needed.)
+RUN apt-get update && \
+  apt-get install --no-install-recommends -yqq ca-certificates tini && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
+  chmod 0711 /usr/bin/tini && \
+  groupadd --gid 1000 agent && \
+  useradd --uid 1000 --gid 1000 --home-dir /var/lib/gallery-agents --no-create-home --shell /bin/bash agent && \
+  mkdir -p /var/lib/gallery-agents && \
+  chown agent:agent /var/lib/gallery-agents && \
+  chmod 700 /var/lib/gallery-agents
+
+COPY --from=agents --chmod=0711 /usr/local/bin/node /usr/local/bin/node
+COPY --from=agents /opt/gallery-agents /opt/gallery-agents
+COPY --from=agent-host /output/host /opt/gallery-agents/host
+COPY --chmod=755 docker/scripts/check-assistant.sh /usr/local/bin/gallery-check-assistant
+
+# The agent home (HOME) is the only place besides /tmp the agents write to: the logins and settings of the CLIs
+# (~/.claude, ~/.claude.json, ~/.codex). Mount a volume there to keep them.
+ENV NODE_ENV=production \
+  HOME=/var/lib/gallery-agents \
+  PATH="/opt/gallery-agents/bin:${PATH}" \
+  DISABLE_AUTOUPDATER=1 \
+  AGENT_HOST_COMMANDS=claude-agent-acp,codex-acp
+
+USER agent
+WORKDIR /var/lib/gallery-agents
+EXPOSE 2285
+ENTRYPOINT ["tini", "--"]
+CMD ["node", "/opt/gallery-agents/host/agent-host.js"]
+
+HEALTHCHECK CMD ["node", "/opt/gallery-agents/host/agent-host.js", "--health"]
+
+# The default target is the server
 FROM prod

@@ -509,6 +509,7 @@ features:
       - server/src/queries/book.repository.sql
       - server/src/queries/collection.notice.repository.sql
       - server/src/queries/highlight.job.repository.sql
+      - server/src/repositories/acp.repository.container.spec.ts
       - server/src/repositories/acp.repository.spec.ts
       - server/src/repositories/acp.repository.ts
       - server/src/repositories/activity-log.repository.ts
