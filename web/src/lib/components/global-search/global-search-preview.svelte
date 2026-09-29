@@ -6,6 +6,7 @@
   import TagPreview from './previews/tag-preview.svelte';
   import AlbumPreview from './previews/album-preview.svelte';
   import SpacePreview from './previews/space-preview.svelte';
+  import JournalPreview from './previews/journal-preview.svelte';
   import Logo from '$lib/components/shared-components/Logo.svelte';
   import { fade } from 'svelte/transition';
   import { t } from 'svelte-i18n';
@@ -45,6 +46,8 @@
       <AlbumPreview item={activeItem.data as never} />
     {:else if activeItem.kind === 'space'}
       <SpacePreview item={activeItem.data as never} />
+    {:else if activeItem.kind === 'journal'}
+      <JournalPreview item={activeItem.data} />
     {:else if activeItem.kind === 'nav'}
       <!-- Nav items have nothing richer than the row itself to show. Render the same
            empty-state placeholder so the pane stays the same width and doesn't

@@ -13,6 +13,7 @@
   import PersonRow from './rows/person-row.svelte';
   import PlaceRow from './rows/place-row.svelte';
   import TagRow from './rows/tag-row.svelte';
+  import JournalRow from './rows/journal-row.svelte';
   import AlbumRow from './rows/album-row.svelte';
   import SpaceRow from './rows/space-row.svelte';
   import RecentRow from './rows/recent-row.svelte';
@@ -931,6 +932,16 @@
                   <TagRow item={item as never} />
                 {/snippet}
               </GlobalSearchSection>
+              <GlobalSearchSection
+                heading={$t('cmdk_section_journals')}
+                status={manager.sections.journals}
+                idPrefix="journal"
+                onActivate={(item) => void manager.activateJournal(item as never)}
+              >
+                {#snippet renderRow(item)}
+                  <JournalRow item={item as never} />
+                {/snippet}
+              </GlobalSearchSection>
               {#if !manager.topCommandMatch}
                 <GlobalSearchCommandsSection
                   status={manager.sections.commands}
@@ -1351,6 +1362,16 @@
                 >
                   {#snippet renderRow(item)}
                     <TagRow item={item as never} />
+                  {/snippet}
+                </GlobalSearchSection>
+                <GlobalSearchSection
+                  heading={$t('cmdk_section_journals')}
+                  status={manager.sections.journals}
+                  idPrefix="journal"
+                  onActivate={(item) => void manager.activateJournal(item as never)}
+                >
+                  {#snippet renderRow(item)}
+                    <JournalRow item={item as never} />
                   {/snippet}
                 </GlobalSearchSection>
                 {#if !manager.topCommandMatch}
