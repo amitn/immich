@@ -466,6 +466,7 @@ features:
       - docker/scripts/check-assistant.sh
       - docker/scripts/install-agents.sh
       - docs/docs/features/ai-assistant.md
+      - server/src/bin/agent-host.ts
       - server/src/bin/agent-mcp-stdio.ts
       - server/src/gallery/assistant-config.dto.ts
       - server/src/controllers/activity-log.controller.spec.ts
@@ -508,6 +509,7 @@ features:
       - server/src/queries/book.repository.sql
       - server/src/queries/collection.notice.repository.sql
       - server/src/queries/highlight.job.repository.sql
+      - server/src/repositories/acp.repository.spec.ts
       - server/src/repositories/acp.repository.ts
       - server/src/repositories/activity-log.repository.ts
       - server/src/repositories/agent.repository.ts

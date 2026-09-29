@@ -432,8 +432,8 @@ export class AgentService extends BaseService {
     return session;
   }
 
-  private getMcpUrl(config: AgentConfig) {
-    return config.mcpUrl || `http://127.0.0.1:${this.configRepository.getEnv().port}/api/agent/mcp`;
+  private getMcpUrl(config: AgentConfig, agent: AcpAgent) {
+    return config.mcpUrl || this.acpRepository.getDefaultMcpUrl(agent, this.configRepository.getEnv().port);
   }
 
   /** Stops the least recently used idle agent when the limit is reached; fails if every agent is busy. */
@@ -485,10 +485,9 @@ export class AgentService extends BaseService {
     }
 
     // the directory name is stable, so agents that key stored sessions by cwd can load them again
-    const cwd = await this.acpRepository.createWorkdir(session.id);
     const agent = await this.acpRepository.start({
       profile,
-      cwd,
+      workdir: session.id,
       handlers: {
         onUpdate: (notification) => {
           if (run.loading) {
@@ -509,10 +508,10 @@ export class AgentService extends BaseService {
     }
 
     const options: AcpSessionOptions = {
-      cwd,
-      mcpServers: buildMcpServers(agent.initialize, {
+      cwd: agent.cwd,
+      mcpServers: buildMcpServers(agent, {
         name: IMMICH_MCP_SERVER_NAME,
-        url: this.getMcpUrl(config),
+        url: this.getMcpUrl(config, agent),
         token: run.token,
       }),
       _meta: CLAUDE_CODE_SESSION_META,
@@ -607,7 +606,8 @@ export class AgentService extends BaseService {
     await this.addMessage(run, AgentMessageKind.Error, { text: truncateText(text, 1000) });
     await this.finishTurn(run, AgentSessionStatus.Error);
 
-    if (!run.agent?.isAlive()) {
+    // a dead agent, or one that could not be set up (no ACP session): the next message starts a new one
+    if (!run.agent?.isAlive() || !run.acpSessionId) {
       await this.stopAgent(run.sessionId, run);
     }
   }
@@ -662,11 +662,8 @@ export class AgentService extends BaseService {
     this.resolveApprovals(sessionId, AgentPermissionStatus.Denied);
 
     await run.ready?.catch(() => {});
+    // also removes the working directory, unless a new agent of the session got it
     await run.agent?.kill();
-    // a new agent for the same session reuses the directory
-    if (!this.running.has(sessionId)) {
-      await this.acpRepository.removeWorkdir(this.acpRepository.getWorkdir(sessionId));
-    }
   }
 
   private async stopAll() {

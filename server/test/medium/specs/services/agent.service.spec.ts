@@ -5,8 +5,11 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { UnauthorizedException } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { existsSync } from 'node:fs';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import z from 'zod';
 import { defaults } from 'src/dtos/config.dto.js';
@@ -21,6 +24,7 @@ import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { AgentService } from 'src/services/agent.service.js';
+import { AgentHost } from 'src/utils/agent/host.js';
 import { defineTool, toolJson } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
 import { newMediumService } from 'test/medium.factory.js';
@@ -296,6 +300,68 @@ describe(AgentService.name, () => {
     await sut.deleteSession(auth, session.id);
     expect(existsSync(acp.getWorkdir(session.id))).toBe(false);
     await expect(context.ctx.get(AgentRepository).getSession(session.id)).resolves.toBeUndefined();
+  });
+
+  it('should run a chat on the agent host, with the tools of the server over MCP', async () => {
+    const workRoot = await mkdtemp(join(tmpdir(), 'agent-host-medium-'));
+    const secret = 'medium-agent-host-'.padEnd(48, 'x');
+    // the agent host has its own environment: the server's DB_PASSWORD and FAKE_API_KEY are not there
+    const host = new AgentHost({
+      secret,
+      workRoot,
+      env: { PATH: process.env.PATH, FAKE_API_KEY: 'host-key' },
+      log: () => {},
+    });
+    const port = await host.listen(0, '127.0.0.1');
+    vi.stubEnv('AGENT_HOST_URL', `http://127.0.0.1:${port}`);
+    vi.stubEnv('AGENT_HOST_SECRET', secret);
+
+    try {
+      context = await setup();
+      const { sut, auth, waitForIdle, websocket } = context;
+      const assetId = factory.uuid();
+
+      const session = await sut.createSession(auth, {});
+      const call = JSON.stringify({ name: 'echo_assets', arguments: { assetIds: [assetId] } });
+      await sut.prompt(auth, session.id, { text: `Find photos @env\ncall:${call}` });
+      const result = await waitForIdle(session.id);
+
+      const [, text, toolCall, done] = result.messages;
+      const [greeting, envLine, bashLine] = text.content.text!.split('\n', 3);
+      expect(greeting).toBe('Hello world');
+      expect(bashLine).toBe('bash:reject');
+      expect(envLine.replace('env:', '').split(',').toSorted()).toEqual(['FAKE_API_KEY', 'FAKE_SETTING', 'PATH']);
+      expect(toolCall.content).toMatchObject({ toolName: 'echo_assets', status: 'completed', assetIds: [assetId] });
+      expect(toolCall.content.output).toContain(auth.user.id);
+      expect(done.content.text).toBe('\nDone');
+
+      // approvals work the same
+      await sut.prompt(auth, session.id, {
+        text: `call:${JSON.stringify({ name: 'make_album', arguments: { name: 'Italy' } })}`,
+      });
+      const requestId = await waitForPermission(websocket);
+      await sut.respondToPermission(auth, session.id, requestId, { approved: true });
+      const second = await waitForIdle(session.id);
+      expect(second.messages.findLast((message) => message.kind === AgentMessageKind.ToolCall)?.content).toMatchObject({
+        toolName: 'make_album',
+        status: 'completed',
+        albumIds: [albumId],
+      });
+
+      // the working directory is on the agent host, not on the server
+      expect(host.size).toBe(1);
+      expect(existsSync(join(workRoot, session.id))).toBe(true);
+      expect(existsSync(context.ctx.get(AcpRepository).getWorkdir(session.id))).toBe(false);
+
+      await sut.deleteSession(auth, session.id);
+      expect(host.size).toBe(0);
+      expect(existsSync(join(workRoot, session.id))).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+      await context?.sut.onShutdown();
+      await host.close();
+      await rm(workRoot, { recursive: true, force: true });
+    }
   });
 
   it('should reject MCP requests without a valid token', async () => {

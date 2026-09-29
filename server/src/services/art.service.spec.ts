@@ -210,7 +210,7 @@ describe(ArtService.name, () => {
       mocks.asset.getById.mockResolvedValue({ id: assetId, type: AssetType.Image } as never);
       const job = newJob({ sourceAssetId: assetId, style: row.id });
       mocks.artJob.create.mockResolvedValue(job);
-      mocks.acp.createWorkdir.mockRejectedValue(new Error('stop here'));
+      mocks.asset.getForThumbnail.mockRejectedValue(new Error('stop here'));
       mocks.artJob.update.mockResolvedValue({ ...job, status: ArtJobStatus.Failed });
 
       await sut.createJob(auth, { assetId, style: row.id });
@@ -250,7 +250,7 @@ describe(ArtService.name, () => {
       mocks.asset.getById.mockResolvedValue({ id: assetId, type: AssetType.Image } as never);
       const job = newJob({ sourceAssetId: assetId, status: ArtJobStatus.Pending });
       mocks.artJob.create.mockResolvedValue(job);
-      mocks.acp.createWorkdir.mockRejectedValue(new Error('stop here'));
+      mocks.asset.getForThumbnail.mockRejectedValue(new Error('stop here'));
       mocks.artJob.update.mockResolvedValue({ ...job, status: ArtJobStatus.Failed });
 
       await expect(
@@ -294,6 +294,10 @@ describe(ArtService.name, () => {
       agent = {
         pid: 1,
         cwd: '/tmp/immich-agent/art',
+        remote: false,
+        mcpStdioBridge: undefined,
+        listFiles: vi.fn().mockResolvedValue(['source.jpg']),
+        readFile: vi.fn().mockResolvedValue(Buffer.from('jpeg')),
         initialize: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: true } } },
         newSession: vi.fn().mockResolvedValue({ sessionId: 'acp-session' }),
         loadSession: vi.fn(),
@@ -314,8 +318,6 @@ describe(ArtService.name, () => {
         },
       });
       clearConfigCache();
-      mocks.acp.createWorkdir.mockResolvedValue('/tmp/immich-agent/art');
-      mocks.acp.removeWorkdir.mockResolvedValue();
       mocks.acp.start.mockImplementation((options) => {
         handlers = options.handlers;
         return Promise.resolve(agent);
@@ -326,8 +328,6 @@ describe(ArtService.name, () => {
         originalFileName: 'IMG.jpg',
       });
       mocks.storage.readFile.mockResolvedValue(Buffer.from('jpeg'));
-      mocks.storage.createFile.mockResolvedValue();
-      mocks.storage.readdir.mockResolvedValue([]);
       mocks.media.getImageMetadata.mockResolvedValue({ width: 1440, height: 1080, isTransparent: false });
       mocks.media.upscaleImage.mockResolvedValue(UPSCALED);
       mocks.notification.create.mockImplementation((item) => Promise.resolve({ id: factory.uuid(), ...item } as never));
@@ -414,7 +414,6 @@ describe(ArtService.name, () => {
         expect.objectContaining({ status: ArtJobStatus.Completed }),
       );
       expect(agent.kill).toHaveBeenCalled();
-      expect(mocks.acp.removeWorkdir).toHaveBeenCalledWith('/tmp/immich-agent/art');
     });
 
     it('should keep artwork that is large enough for print', async () => {
@@ -545,9 +544,8 @@ describe(ArtService.name, () => {
       await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
 
       // the preview is sent to the agent from S3, and the original decoded from a temporary copy
-      expect(mocks.storage.createFile).toHaveBeenCalledWith(
-        '/tmp/immich-agent/art/source.jpg',
-        Buffer.from('s3 preview'),
+      expect(mocks.acp.start).toHaveBeenCalledWith(
+        expect.objectContaining({ files: [{ name: 'source.jpg', data: Buffer.from('s3 preview') }] }),
       );
       expect(s3.temps).toEqual([expect.objectContaining({ key: 'upload/owner/ab/cd/original.jpg', removed: true })]);
       expect(mocks.media.decodeImage).toHaveBeenCalledWith(s3.temps[0].tempPath, expect.anything());
@@ -587,19 +585,36 @@ describe(ArtService.name, () => {
       const derive = vi
         .spyOn(DerivedAssetService.prototype, 'createDerivedAsset')
         .mockResolvedValue({ id: 'new-asset', duplicate: false });
-      mocks.storage.readdir.mockResolvedValue(['source.jpg', 'output.webp']);
-      mocks.storage.readFile.mockImplementation((path) =>
-        Promise.resolve(Buffer.from(path.endsWith('output.webp') ? 'webp' : 'jpeg')),
-      );
+      vi.mocked(agent.listFiles).mockResolvedValue(['source.jpg', 'output.webp']);
+      vi.mocked(agent.readFile).mockResolvedValue(Buffer.from('webp'));
 
       await start();
       await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+      expect(agent.readFile).toHaveBeenCalledWith('output.webp');
       expect(derive).toHaveBeenCalledWith(
         auth,
         expect.any(String),
         { buffer: UPSCALED, extension: '.webp' },
         expect.anything(),
       );
+    });
+
+    it('should give the agent the preview as source.jpg in its own working directory', async () => {
+      onPrompt = () => void handlers!.onUpdate(imageUpdate(PNG.toString('base64')));
+      vi.spyOn(DerivedAssetService.prototype, 'createDerivedAsset').mockResolvedValue({
+        id: 'new-asset',
+        duplicate: false,
+      });
+
+      const job = await start();
+      await expect(finalUpdate()).resolves.toMatchObject({ status: ArtJobStatus.Completed });
+      expect(mocks.acp.start).toHaveBeenCalledWith(
+        expect.objectContaining({
+          workdir: `art-${job.id}`,
+          files: [{ name: 'source.jpg', data: Buffer.from('jpeg') }],
+        }),
+      );
+      expect(agent.newSession).toHaveBeenCalledWith({ cwd: '/tmp/immich-agent/art', mcpServers: [] });
     });
 
     it('should fail when the agent made no image', async () => {
@@ -690,6 +705,15 @@ describe(ArtService.name, () => {
           request({ toolCallId: '1', title: 'Write', kind: 'edit', locations: [{ path: '/work/output.png' }] }),
         ),
       ).toEqual({ outcome: { outcome: 'selected', optionId: 'yes' } });
+    });
+
+    it('should reject writing before the workdir is known', () => {
+      expect(
+        decideArtPermission(
+          undefined,
+          request({ toolCallId: '1', title: 'Write', kind: 'edit', locations: [{ path: '/work/output.png' }] }),
+        ),
+      ).toEqual({ outcome: { outcome: 'selected', optionId: 'no' } });
     });
 
     it('should reject writing outside the workdir', () => {

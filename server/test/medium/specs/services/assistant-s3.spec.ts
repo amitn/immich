@@ -342,10 +342,14 @@ describe.skipIf(!endpoint)('assistant features with S3 storage (MinIO)', () => {
       .png()
       .toBuffer();
     let sourceSent: string | undefined;
-    vi.spyOn(ctx.get(AcpRepository), 'start').mockImplementation(({ handlers, cwd }) =>
+    vi.spyOn(ctx.get(AcpRepository), 'start').mockImplementation(({ handlers, workdir }) =>
       Promise.resolve({
         pid: 1,
-        cwd,
+        cwd: `/tmp/immich-agent/${workdir}`,
+        remote: false,
+        mcpStdioBridge: undefined,
+        listFiles: () => Promise.resolve([]),
+        readFile: () => Promise.reject(new Error('no file')),
         initialize: { protocolVersion: 1, agentCapabilities: { promptCapabilities: { image: true } } },
         newSession: () => Promise.resolve({ sessionId: 'fake' }),
         loadSession: () => Promise.resolve(),

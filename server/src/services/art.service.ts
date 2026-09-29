@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Selectable } from 'kysely';
-import { extname, join, relative, resolve } from 'node:path';
+import { extname, relative, resolve } from 'node:path';
 import type {
+  AcpAgent,
   AcpContentBlock,
   AcpPermissionRequest,
   AcpPermissionResponse,
@@ -237,15 +238,12 @@ export class ArtService extends BaseService {
 
   private async runJob(auth: AuthDto, job: Selectable<ArtJobTable>, { test, photoAbove }: ArtJobOptions) {
     let style: ArtStyle | undefined;
-    let workdir: string | undefined;
-    let agent: Awaited<ReturnType<typeof this.acpRepository.start>> | undefined;
+    let agent: AcpAgent | undefined;
     let timer: NodeJS.Timeout | undefined;
 
     try {
       style = await this.getJobStyle(job.style);
       await this.updateJob(job.id, { status: ArtJobStatus.Running });
-      workdir = await this.acpRepository.createWorkdir(`art-${job.id}`);
-      const cwd = workdir;
 
       const { agent: config } = await this.getConfig({ withCache: true });
       const profile = getAgentProfile(config, job.profile);
@@ -253,21 +251,24 @@ export class ArtService extends BaseService {
         throw new Error(`The art profile "${job.profile}" does not exist anymore`);
       }
 
-      const source = await this.writeSource(job.sourceAssetId, cwd);
+      const source = await this.getSource(job.sourceAssetId);
       let generated: GeneratedImage | undefined;
 
       agent = await this.acpRepository.start({
         profile,
-        cwd,
+        workdir: `art-${job.id}`,
+        // the reference photo is also sent in the prompt; the file is for agents that only take text
+        files: [{ name: 'source.jpg', data: source.buffer }],
         handlers: {
           onUpdate: (notification) => {
             generated = getGeneratedImage(notification) ?? generated;
           },
-          onPermission: (request) => Promise.resolve(decideArtPermission(cwd, request)),
+          // the working directory as the agent sees it, on this server or on the agent host
+          onPermission: (request) => Promise.resolve(decideArtPermission(agent?.cwd, request)),
         },
       });
 
-      const { sessionId } = await agent.newSession({ cwd, mcpServers: [] });
+      const { sessionId } = await agent.newSession({ cwd: agent.cwd, mcpServers: [] });
       const supportsImages = !!agent.initialize.agentCapabilities?.promptCapabilities?.image;
       const prompt: AcpContentBlock[] = [{ type: 'text', text: getArtInstructions(job.prompt, source) }];
       if (supportsImages) {
@@ -283,7 +284,7 @@ export class ArtService extends BaseService {
       });
       await Promise.race([agent.prompt(sessionId, prompt), timeout]);
 
-      const image = generated ?? (await this.readOutputFile(cwd));
+      const image = generated ?? (await readOutputFile(agent));
       if (!image) {
         throw new Error('The art agent did not produce an image. Is image generation available for this agent?');
       }
@@ -335,10 +336,8 @@ export class ArtService extends BaseService {
       });
     } finally {
       clearTimeout(timer);
+      // also removes the working directory
       await agent?.kill().catch(() => {});
-      if (workdir) {
-        await this.acpRepository.removeWorkdir(workdir).catch(() => {});
-      }
     }
   }
 
@@ -368,7 +367,7 @@ export class ArtService extends BaseService {
   }
 
   /** the preview is large enough as a reference and is always a web-friendly JPEG */
-  private async writeSource(assetId: string, workdir: string) {
+  private async getSource(assetId: string) {
     const { path } = await this.assetRepository.getForThumbnail(assetId, AssetFileType.Preview, true);
     if (!path) {
       throw new Error('The photo has no preview yet');
@@ -376,7 +375,6 @@ export class ArtService extends BaseService {
 
     const buffer = await this.readStoredFile(path);
     const { width, height } = await this.mediaRepository.getImageMetadata(buffer);
-    await this.storageRepository.createFile(join(workdir, 'source.jpg'), buffer);
     return { buffer, width, height };
   }
 
@@ -395,18 +393,17 @@ export class ArtService extends BaseService {
     );
     return this.mediaRepository.stackPhotoAboveArtwork(photo, artwork, { maxLongEdge: ART_MAX_LONG_EDGE });
   }
-
-  private async readOutputFile(workdir: string): Promise<GeneratedImage | undefined> {
-    const files = await this.storageRepository.readdir(workdir);
-    const output = files.find(
-      (file) => file.startsWith('output.') && OUTPUT_EXTENSIONS.has(extname(file).toLowerCase()),
-    );
-    if (!output) {
-      return;
-    }
-    return { buffer: await this.storageRepository.readFile(join(workdir, output)), extension: extname(output) };
-  }
 }
+
+/** the fallback for agents whose image tool doesn't return the image: output.png in the working directory */
+const readOutputFile = async (agent: AcpAgent): Promise<GeneratedImage | undefined> => {
+  const files = await agent.listFiles();
+  const output = files.find((file) => file.startsWith('output.') && OUTPUT_EXTENSIONS.has(extname(file).toLowerCase()));
+  if (!output) {
+    return;
+  }
+  return { buffer: await agent.readFile(output), extension: extname(output) };
+};
 
 const getArtworkName = ({ caption }: Pick<Selectable<ArtJobTable>, 'caption'>, style?: ArtStyle, test?: boolean) => {
   const name = test ? 'Style test' : style?.name || 'Custom style';
@@ -480,13 +477,16 @@ const isInside = (dir: string, path: string) => {
 
 /** the art agent may only generate images and write files inside its own working directory */
 export const decideArtPermission = (
-  workdir: string,
+  workdir: string | undefined,
   { toolCall, options }: AcpPermissionRequest,
 ): AcpPermissionResponse => {
   const locations = toolCall.locations ?? [];
   const isImageGeneration = /image generation/i.test(toolCall.title ?? '') && toolCall.kind !== 'execute';
   const isWorkdirEdit =
-    toolCall.kind === 'edit' && locations.length > 0 && locations.every((location) => isInside(workdir, location.path));
+    !!workdir &&
+    toolCall.kind === 'edit' &&
+    locations.length > 0 &&
+    locations.every((location) => isInside(workdir, location.path));
 
   const allowed = isImageGeneration || isWorkdirEdit;
   const option = options.find((option) => option.kind === (allowed ? 'allow_once' : 'reject_once'));
