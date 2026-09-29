@@ -807,6 +807,8 @@ The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECU
 
 The server connects to the agent host with the shared secret, one connection per agent process, each with an id of its own. The agent host stops an agent when its connection drops, when the server stops answering, or after an idle time, and only starts the commands in `AGENT_HOST_COMMANDS`. Per-chat tokens for Gallery's tools and the approvals work as before.
 
+What the container doesn't separate: the agents of all chats run as the same user in it, so one agent can see the processes of the others and their files in `/tmp`. Claude Code gets the token of its chat for Gallery's tools in its command line, which the other agents can read; with it, an agent that runs commands (Codex has a shell) could use Gallery's tools as another user while that chat's agent runs. Changes still ask that user for approval, unless auto-approve is on. Keep this in mind on a server shared by people who shouldn't see each other's photos. (The same held when the agents ran in the server container.)
+
 To check the isolation, run `docker exec gallery_agents gallery-check-assistant`. Among others, `ls /data` and `cat /proc/1/environ` must fail in the container:
 
 ```bash
