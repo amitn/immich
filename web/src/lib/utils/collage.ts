@@ -7,9 +7,13 @@ export const MAX_COLLAGE_PHOTOS = 9;
 
 export const COLLAGE_ASPECT_RATIOS = ['1:1', '4:5', '9:16', '16:9'] as const;
 
-/** where a saved collage opens: over the album it was added to, or in the timeline */
-export const getCollageRoute = (assetId: string, albumId?: string) =>
-  albumId ? Route.viewAlbumAsset({ albumId, assetId }) : Route.viewAsset({ id: assetId });
+/** where a saved collage opens: over the album it was added to (in its space, for an album of a space), or in the timeline */
+export const getCollageRoute = (assetId: string, albumId?: string, spaceId?: string) => {
+  if (albumId && spaceId) {
+    return `${Route.viewSpaceAlbum({ spaceId, albumId })}/photos/${assetId}`;
+  }
+  return albumId ? Route.viewAlbumAsset({ albumId, assetId }) : Route.viewAsset({ id: assetId });
+};
 
 const THUMBNAIL_TIMEOUT = 30_000;
 const THUMBNAIL_POLL_INTERVAL = 1000;

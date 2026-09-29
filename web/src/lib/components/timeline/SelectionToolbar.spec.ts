@@ -54,9 +54,16 @@ vi.mock('$lib/managers/auth-manager.svelte', () => ({
   },
 }));
 
+// `assistant` / `artisticStyles` / `smartSearch` gate the assistant's actions (#23): on by default, so the noodle
+// assertions above also run with those actions in the bar
+const { mockFlags } = vi.hoisted(() => ({
+  mockFlags: { trash: true, assistant: true, artisticStyles: true, smartSearch: true } as Record<string, boolean>,
+}));
+
 vi.mock('$lib/managers/feature-flags-manager.svelte', () => ({
   featureFlagsManager: {
-    value: { trash: true },
+    value: mockFlags,
+    valueOrUndefined: mockFlags,
   },
 }));
 
@@ -139,6 +146,7 @@ function renderToolbar(props: ToolbarTestProps) {
 beforeEach(() => {
   mockUser.current = { id: 'me', isAdmin: false };
   mockPreferences.current = { tags: { enabled: true } };
+  Object.assign(mockFlags, { assistant: true, artisticStyles: true, smartSearch: true });
 });
 
 describe('SelectionToolbar', () => {
@@ -301,5 +309,86 @@ describe('SelectionToolbar', () => {
 
     expect(screen.queryByLabelText('menu')).not.toBeInTheDocument();
     expect(container.querySelector('#control-bar')).not.toBeInTheDocument();
+  });
+});
+
+// #23: the assistant's actions, each once, gated like noodle's: the photos of others are read-only (#21)
+describe('SelectionToolbar — the assistant', () => {
+  const count = (name: string) => screen.queryAllByRole('menuitem', { name }).length;
+
+  it("Given a space viewer selecting another member's photo, Then it can be asked about and put into a highlight video, but not named or copied", () => {
+    renderToolbar({
+      timelineManager: fakeTimelineManager,
+      assetInteraction: makeAssetInteraction({
+        isAllUserOwned: false,
+        assets: [makeAsset({ id: 'theirs', ownerId: 'other' })],
+      }),
+      space: { id: 'space-1', canWrite: false },
+    });
+
+    expect(screen.getAllByLabelText('ask_assistant')).toHaveLength(1);
+    expect(count('highlight_video_make_action')).toBe(1);
+    expect(count('collections.food.name_action')).toBe(0);
+    expect(count('artistic_style')).toBe(0);
+    expect(count('auto_enhance')).toBe(0);
+    expect(count('collage_make_action')).toBe(0);
+  });
+
+  it('Given a space editor selecting another member photo, Then copies stay owner-only', () => {
+    renderToolbar({
+      timelineManager: fakeTimelineManager,
+      assetInteraction: makeAssetInteraction({
+        isAllUserOwned: false,
+        assets: [makeAsset({ id: 'theirs', ownerId: 'other' })],
+      }),
+      space: { id: 'space-1', canWrite: true },
+    });
+
+    expect(count('artistic_style')).toBe(0);
+    expect(count('auto_enhance')).toBe(0);
+    expect(count('collections.food.name_action')).toBe(0);
+  });
+
+  it('Given one own photo, Then every action is offered once', () => {
+    renderToolbar({
+      timelineManager: fakeTimelineManager,
+      assetInteraction: makeAssetInteraction({ assets: [makeAsset({ id: 'mine', ownerId: 'me' })] }),
+      space: { id: 'space-1', canWrite: true },
+    });
+
+    expect(screen.getAllByLabelText('ask_assistant')).toHaveLength(1);
+    expect(count('highlight_video_make_action')).toBe(1);
+    expect(count('collections.food.name_action')).toBe(1);
+    expect(count('artistic_style')).toBe(1);
+    expect(count('auto_enhance')).toBe(1);
+  });
+
+  it('Given a mixed selection of photos in an album of a space, Then it can be named and made into a collage', () => {
+    renderToolbar({
+      timelineManager: fakeTimelineManager,
+      assetInteraction: makeAssetInteraction({
+        isAllUserOwned: false,
+        assets: [makeAsset({ id: 'mine', ownerId: 'me' }), makeAsset({ id: 'theirs', ownerId: 'other' })],
+      }),
+      album: makeAlbum(),
+      space: { id: 'space-1', canWrite: false },
+    });
+
+    expect(count('collections.food.name_action')).toBe(1);
+    expect(count('collage_make_action')).toBe(1);
+    expect(count('artistic_style')).toBe(0);
+  });
+
+  it('Given the assistant and the art agent are off, Then only auto enhance, naming and the media actions remain', () => {
+    Object.assign(mockFlags, { assistant: false, artisticStyles: false });
+    renderToolbar({
+      timelineManager: fakeTimelineManager,
+      assetInteraction: makeAssetInteraction({ assets: [makeAsset({ id: 'mine', ownerId: 'me' })] }),
+    });
+
+    expect(screen.queryByLabelText('ask_assistant')).not.toBeInTheDocument();
+    expect(count('artistic_style')).toBe(0);
+    expect(count('auto_enhance')).toBe(1);
+    expect(count('highlight_video_make_action')).toBe(1);
   });
 });

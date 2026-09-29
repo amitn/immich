@@ -39,6 +39,7 @@
   import SetVisibilityAction from '$lib/components/timeline/actions/SetVisibilityAction.svelte';
   import TagAction from '$lib/components/timeline/actions/TagAction.svelte';
   import AssetSelectControlBar from '$lib/components/timeline/AssetSelectControlBar.svelte';
+  import AssistantSelectionMenuItems from '$lib/components/timeline/actions/AssistantSelectionMenuItems.svelte';
   import Timeline from '$lib/components/timeline/Timeline.svelte';
   import { AlbumPageViewMode } from '$lib/constants';
   import { activityManager } from '$lib/managers/activity-manager.svelte';
@@ -62,9 +63,12 @@
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { getAlbumBookActions } from '$lib/services/book.service';
-  import { getAlbumCollectionActions, getCollectionBulkActions } from '$lib/services/collections.service';
-  import { getCollageBulkAction } from '$lib/services/collage.service';
-  import { getAlbumHighlightAction, getHighlightBulkAction } from '$lib/services/highlight.service';
+  import {
+    getAssistantSelectionActions,
+    getMultiSelectAssistantCapabilities,
+  } from '$lib/services/assistant-selection.service';
+  import { getAlbumCollectionActions } from '$lib/services/collections.service';
+  import { getAlbumHighlightAction } from '$lib/services/highlight.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
   import { handlePromiseError, isEnabled } from '$lib/utils';
   import { buildAlbumAssetPickerFilterConfig, buildAlbumDetailFilterConfig } from '$lib/utils/album-filter-config';
@@ -1050,7 +1054,10 @@
     {#if assetMultiSelectManager.selectionActive}
       <AssetSelectControlBar>
         {@const Actions = getAssetBulkActions($t)}
-        {@const CollectionBulkActions = getCollectionBulkActions($t)}
+        {@const AssistantActions = getAssistantSelectionActions(
+          $t,
+          getMultiSelectAssistantCapabilities({ album: { id: album.id, isOwner: isOwned, isEditor } }),
+        )}
         <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
         <CreateSharedLink />
         <SelectAllAssets
@@ -1061,6 +1068,7 @@
             : undefined}
         />
         <ActionButton action={Actions.AddToAlbum} />
+        <ActionButton action={AssistantActions.AskAssistant} />
         {#if assetMultiSelectManager.isAllUserOwned}
           <FavoriteAction removeFavorite={assetMultiSelectManager.isAllFavorite} onFavorite={handleBulkFavorite}
           ></FavoriteAction>
@@ -1086,11 +1094,7 @@
           {#if authManager.preferences.tags.enabled && assetMultiSelectManager.isAllUserOwned}
             <TagAction menuItem />
           {/if}
-          {#each CollectionBulkActions as action (action.title)}
-            <ActionMenuItem {action} />
-          {/each}
-          <ActionMenuItem action={getHighlightBulkAction($t)} />
-          <ActionMenuItem action={getCollageBulkAction($t, isEditor ? album.id : undefined)} />
+          <AssistantSelectionMenuItems actions={AssistantActions} />
 
           {#if isOwned || assetMultiSelectManager.isAllUserOwned}
             <RemoveFromAlbum menuItem bind:album onRemove={handleRemoveAssets} />

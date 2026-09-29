@@ -48,10 +48,12 @@
     assetIds: string[];
     /** the album the photos were picked in: the collage is added to it and opens over it */
     albumId?: string;
+    /** the space of that album, when it is an album of a space: the collage opens there */
+    spaceId?: string;
     onClose: () => void;
   };
 
-  const { assetIds, albumId, onClose }: Props = $props();
+  const { assetIds, albumId, spaceId, onClose }: Props = $props();
 
   /** how long the preview waits for the title to be typed */
   const PREVIEW_DELAY = 300;
@@ -186,7 +188,7 @@
       await waitForThumbnail(result.assetId);
       toastManager.success($t('collage_saved'));
       onClose();
-      await goto(getCollageRoute(result.assetId, albumId));
+      await goto(getCollageRoute(result.assetId, albumId, spaceId));
     } catch (error) {
       errorMessage = getMessage(error, $t('errors.unable_to_save_collage'));
       handleError(error, $t('errors.unable_to_save_collage'), { notify: false });

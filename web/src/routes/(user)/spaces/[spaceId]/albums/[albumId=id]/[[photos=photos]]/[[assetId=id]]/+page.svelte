@@ -25,6 +25,8 @@
   import TimelineGroupingControl from '$lib/components/timeline/TimelineGroupingControl.svelte';
   import { assetMultiSelectManager, AssetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
+  import { registerAssistantAlbumContext } from '$lib/managers/assistant-command-context.svelte';
+  import { registerSelectionContext } from '$lib/managers/command-context-manager.svelte';
   import { getTimelineTopVisibleAnchor } from '$lib/managers/timeline-manager/timeline-anchor';
   import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
   import type { TimelineAsset, TimelineGrouping, TimelineTemporalAnchor } from '$lib/managers/timeline-manager/types';
@@ -77,9 +79,15 @@
     type SmartSearchFacetsResponseDto,
   } from '@immich/sdk';
   import HeaderActionButton from '$lib/components/HeaderActionButton.svelte';
+  import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
+  import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
+  import { getAlbumBookActions } from '$lib/services/book.service';
+  import { getAlbumCollectionActions } from '$lib/services/collections.service';
+  import { getAlbumHighlightAction } from '$lib/services/highlight.service';
+  import { isEnabled } from '$lib/utils';
   import { Icon, IconButton, modalManager, toastManager } from '@immich/ui';
   import { handleError } from '$lib/utils/handle-error';
-  import { mdiArrowLeft, mdiImageOutline, mdiImagePlusOutline, mdiLink } from '@mdi/js';
+  import { mdiArrowLeft, mdiDotsVertical, mdiImageOutline, mdiImagePlusOutline, mdiLink } from '@mdi/js';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
 
@@ -577,6 +585,28 @@
   }
 
   const { AddAssets, Upload } = $derived(getAlbumAssetsActions($t, album, pickerMultiSelectManager.assets));
+
+  // the assistant's actions of the whole album, as in the ⋮ menu of a regular album: the photos of other members go
+  // into the book and the video as they are, and the naming dialogs name the user's own (#21)
+  const { ExportAsBook } = $derived(getAlbumBookActions($t, album));
+  const MakeHighlight = $derived(getAlbumHighlightAction($t, album));
+  const CollectionActions = $derived(getAlbumCollectionActions($t, album));
+  const hasAlbumMenu = $derived(
+    [ExportAsBook, MakeHighlight, ...CollectionActions].some((action) => isEnabled(action)),
+  );
+
+  // the same actions, and those of the selection, as Search Palette commands. The selection registers no capability
+  // of noodle's own commands (add to album, favorite, delete), whose rules for an album of a space live in the toolbar.
+  registerAssistantAlbumContext(() => ({
+    album,
+    isOwner: isOwned,
+    isEditor: isAlbumEditor,
+    space: { id: space.id, canWrite: isSpaceEditor },
+  }));
+  registerSelectionContext({
+    getAssets: () => (mode === 'browse' ? assetMultiSelectManager.assets : []),
+    clearSelection: () => assetMultiSelectManager.clear(),
+  });
 </script>
 
 <!-- Header shows the space (context/breadcrumb); the album name lives in the editable AlbumTitle in the
@@ -621,6 +651,21 @@
         onclick={() => void modalManager.show(SharedLinkCreateModal, { albumId: album.id, spaceId: space.id })}
         icon={mdiLink}
       />
+    {/if}
+    {#if hasAlbumMenu && mode === 'browse'}
+      <ButtonContextMenu
+        icon={mdiDotsVertical}
+        title={$t('album_options')}
+        color="secondary"
+        offset={{ x: 175, y: 25 }}
+        data-testid="space-album-options-menu"
+      >
+        <ActionMenuItem action={ExportAsBook} />
+        <ActionMenuItem action={MakeHighlight} />
+        {#each CollectionActions as action (action.title)}
+          <ActionMenuItem {action} />
+        {/each}
+      </ButtonContextMenu>
     {/if}
   {/snippet}
 

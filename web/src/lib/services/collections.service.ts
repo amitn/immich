@@ -3,7 +3,6 @@ import { modalManager, type ActionItem } from '@immich/ui';
 import type { MessageFormatter } from 'svelte-i18n';
 import { getCollectionLabel, type WebCollectionPack } from '$lib/collections/pack';
 import { collectionPacks, getCollectionPack } from '$lib/collections/registry';
-import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 
 /**
@@ -30,17 +29,6 @@ export const getAlbumCollectionActions = (
   getActions($t, packs, (pack) => ({
     $if: () => pack.isAvailable() && album.assetCount > 0,
     onAction: () => modalManager.show(CollectionNameModal, { pack, album }),
-  }));
-
-/** Name the selected photos with each pack */
-export const getCollectionBulkActions = ($t: MessageFormatter, packs: readonly WebCollectionPack[] = collectionPacks) =>
-  getActions($t, packs, (pack) => ({
-    $if: () => pack.isAvailable() && assetMultiSelectManager.isAllUserOwned,
-    onAction: () => {
-      const assetIds = assetMultiSelectManager.assets.map(({ id }) => id);
-      assetMultiSelectManager.clear();
-      return modalManager.show(CollectionNameModal, { pack, assetIds });
-    },
   }));
 
 /**
