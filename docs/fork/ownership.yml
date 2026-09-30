@@ -663,8 +663,6 @@ features:
       - web/src/lib/services/assistant.service.spec.ts
       - web/src/lib/services/assistant.service.ts
       - web/src/lib/services/book.service.ts
-      - web/src/lib/services/collage.service.spec.ts
-      - web/src/lib/services/collage.service.ts
       - web/src/lib/services/collections.service.spec.ts
       - web/src/lib/services/collections.service.ts
       - web/src/lib/services/highlight.service.ts

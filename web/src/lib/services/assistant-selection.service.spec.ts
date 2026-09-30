@@ -51,10 +51,7 @@ const NONE: AssistantSelectionCapabilities = {
   canAutoEnhance: false,
 };
 
-const makeSelection = (
-  assets: TimelineAsset[],
-  owned = assets,
-): AssistantSelection & { clear: Mock<() => void> } => ({
+const makeSelection = (assets: TimelineAsset[], owned = assets): AssistantSelection & { clear: Mock<() => void> } => ({
   assets,
   ownedAssets: owned,
   clear: vi.fn(),
