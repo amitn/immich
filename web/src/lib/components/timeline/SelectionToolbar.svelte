@@ -2,6 +2,7 @@
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
   import ArchiveAction from '$lib/components/timeline/actions/ArchiveAction.svelte';
+  import AssistantSelectionMenuItems from '$lib/components/timeline/actions/AssistantSelectionMenuItems.svelte';
   import ChangeDate from '$lib/components/timeline/actions/ChangeDateAction.svelte';
   import ChangeDescription from '$lib/components/timeline/actions/ChangeDescriptionAction.svelte';
   import ChangeLocation from '$lib/components/timeline/actions/ChangeLocationAction.svelte';
@@ -24,9 +25,11 @@
     SelectionCommandContext,
     SpaceContext,
   } from '$lib/managers/command-context-manager.svelte';
+  import { getAssistantSelectionCapabilities } from '$lib/managers/assistant-selection-capabilities';
   import { getSelectionCapabilities } from '$lib/managers/selection-capabilities';
   import { TimelineManager } from '$lib/managers/timeline-manager/timeline-manager.svelte';
   import { getAssetBulkActions } from '$lib/services/asset.service';
+  import { getAssistantFeatures, getAssistantSelectionActions } from '$lib/services/assistant-selection.service';
   import type { OnArchive, OnDelete, OnFavorite, OnSetVisibility, OnUndoDelete } from '$lib/utils/actions';
   import { AlbumUserRole, type AlbumResponseDto, type SharedSpaceResponseDto } from '@immich/sdk';
   import { ActionButton, CommandPaletteDefaultProvider } from '@immich/ui';
@@ -173,6 +176,8 @@
 
   const tagsEnabled = $derived(authManager.authenticated ? authManager.preferences.tags.enabled : false);
   const caps = $derived(getSelectionCapabilities(ctx, tagsEnabled));
+  // the assistant's actions follow the same context: the photos of others are read-only for them (#21)
+  const assistantCaps = $derived(getAssistantSelectionCapabilities(ctx, getAssistantFeatures()));
 
   // Non-owned assets in the selection can only land as #764 contributions into an album linked
   // to THIS space, so the picker is narrowed to those. `caps` already encodes the space-editor
@@ -188,6 +193,10 @@
 {#if assetInteraction.selectionActive}
   <AssetSelectControlBar>
     {@const Actions = getAssetBulkActions($t, { restrictToSpaceId })}
+    {@const AssistantActions = getAssistantSelectionActions($t, assistantCaps, {
+      selection: assetInteraction,
+      spaceId: space?.id,
+    })}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
     {#if caps.canShare}
       <CreateSharedLink spaceId={shareSpaceId} />
@@ -198,6 +207,7 @@
     {#if caps.canAddToAlbum}
       <ActionButton action={Actions.AddToAlbum} />
     {/if}
+    <ActionButton action={AssistantActions.AskAssistant} />
     {#if caps.canFavorite}
       <FavoriteAction removeFavorite={assetInteraction.isAllFavorite} {onFavorite} />
     {/if}
@@ -231,6 +241,7 @@
       {#if caps.canTag}
         <TagAction menuItem />
       {/if}
+      <AssistantSelectionMenuItems actions={AssistantActions} />
       {#if caps.canRemoveFromAlbum && album}
         <RemoveFromAlbum menuItem bind:album={localAlbum} {onRemove} />
       {/if}

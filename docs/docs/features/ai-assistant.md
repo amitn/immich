@@ -33,7 +33,8 @@ With its tools, the assistant can:
 
 - The **Assistant** page in the sidebar. It lists your **Chats**; start one with **New chat**. Deleting a chat keeps the albums, photos and books the assistant created.
 - **Albums → Create with assistant** opens a new chat with a ready-to-send request for an album of your best photos, in which the assistant asks which dates, places or people you'd like. The **Photo books** page has a **Create with assistant** button that does the same for a photo book.
-- **Ask assistant**: select photos in the timeline, or open a photo and use the menu. The photos are attached to your next message.
+- **Ask assistant**: select photos in the timeline, an album or a space and select **Ask assistant** in the selection bar, or open a photo and use the menu. The photos are attached to your next message.
+- The **Search Palette** (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd>): see [The Search Palette](#the-search-palette).
 
 While it works, the chat shows the assistant's plan and each tool it calls. Results link to the albums, photos and books it made (**Open album**, **Open photo book**).
 
@@ -120,9 +121,13 @@ Keep in mind:
 
 The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
 
-### Asking from the search bar
+### Asking from the Search Palette
 
-You can also type a question straight into the search bar, such as _"what did we eat at noma"_ or _"which museums did we visit in 2025?"_. A search counts as a question when it has a question mark or starts with a question word (what, which, when, where, who, how, did…); no AI decides that. The usual results show at once, as for any search, and never wait for the assistant. Beside them:
+Type a question or a few words into the Search Palette (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd>), such as _"what did we eat at noma"_ or _"which museums did we visit in 2025?"_. After the photos, albums, people, places and tags, **From your journals** lists up to four visits whose names match (the restaurant, the dishes, the museum), found without AI as described below. Select one to open the timeline filtered by the tag of its place. The last row, **Ask assistant**, opens a new chat with what you typed, ready to send.
+
+### Asking from the search page
+
+The search page (`/search`), which older links still open, also answers a question. A search counts as a question when it has a question mark or starts with a question word (what, which, when, where, who, how, did…); no AI decides that. The usual results show at once, as for any search, and never wait for the assistant. Beside them:
 
 - **From your collections** lists the visits whose names match the question (the restaurant, the dishes, the museum), found without AI from its words: _eat_ points to food, _museums_ to museum visits, a year to that year, and the words left are looked for in the names. Each visit links to its tag.
 - **Answer from the assistant** streams in when the assistant is enabled: a short answer with the dates and places, followed by the photos and the tags it used, as thumbnails and tag chips. **Stop** cancels it, and **Continue in chat** opens it as a chat, where you can ask a follow-up. Each answer is a chat of its own, titled with the question, in the **Assistant** page.
@@ -150,10 +155,12 @@ With [S3 storage](/features/s3-storage), the copies, collages, highlight videos,
 
 Photos that are only shared with you, such as the photos other members added to a shared space, or a partner's, are read-only for these features, even when you're an **Editor** of the space:
 
-- **Use them** in photo books, collages and highlight videos, as long as you can see them.
+- **Use them** in photo books, collages and highlight videos, as long as you can see them, and ask the assistant about them.
 - **Copies are made of your own photos only.** Crop, straighten, auto-enhance, improve and artistic styles (testing a style too) work on your own photos, and the photo viewer only offers them there. When a book improves its photos or illustrates a map, the photos of others are laid out as they are.
 - **Naming is for your own photos only.** The **Name the …** dialogs and the assistant only tag and describe the photos you own. The photos of others in a visit still help to read the names, such as a menu a friend photographed, and the dialog says how many photos it leaves as they are.
 - **Sharing a book** with photos of others goes through their shared space, see [Sharing a book](#sharing-a-book).
+
+The selection bars follow the same rules: when you select photos of others in a space, **Ask assistant**, **Make a highlight video…** and **Make a collage…** are offered, **Name the …** only when some of the selection is yours, and **Artistic style…** and **Auto enhance** only for one photo of your own.
 
 ### Picking photos on what they can become
 
@@ -167,7 +174,7 @@ Photo books are listed on the **Photo books** page in the sidebar. You can creat
 
 ### Export an album as a book
 
-Open an album and choose **Export as book…**. The pages are laid out automatically, and you can review and change the book afterwards. The dialog has these options:
+Open an album (or an album of a space) and choose **Export as book…** from its **⋮** menu, or from the Search Palette. The pages are laid out automatically, and you can review and change the book afterwards. The dialog has these options:
 
 - **Title** and **Subtitle**, shown on the cover. The title defaults to the album name.
 - **Page size**: **Square 21 × 21 cm** (default), **A4 portrait**, **A4 landscape** or **Square 30 × 30 cm**.
@@ -305,7 +312,7 @@ When the map is turned off in **Administration > Settings > Map**, or its data c
 
 ## Highlight videos
 
-A highlight video is a short film of a trip, a dinner or a museum visit: a book laid out in time. Select **Make a highlight video…** in the **⋮** menu of an album, in the **Export** menu of the book viewer, or in the menu of a selection of photos and videos. Choose:
+A highlight video is a short film of a trip, a dinner or a museum visit: a book laid out in time. Select **Make a highlight video…** in the **⋮** menu of an album (also of an album of a space), in the **Export** menu of the book viewer, or in the menu of a selection of photos and videos in the timeline, an album or a space. Choose:
 
 - **Title**: shown on the title card; the name of the album or book by default.
 - **Length**: 30, 60, 90 or 120 seconds. The film is exactly that long, unless there are too few photos to fill it.
@@ -337,14 +344,14 @@ The file is named `<title>-vertical.mp4`, and the video is described as a vertic
 
 ## Collages
 
-A collage puts 2 to 9 photos on one page. Select the photos in the timeline or in an album, then **Make a collage…** in the **⋮** menu. The dialog shows a live preview drawn by the server, and lets you choose:
+A collage puts 2 to 9 photos on one page. Select the photos in the timeline, an album or a space, then **Make a collage…** in the **⋮** menu. Photos that other members shared with you can go into it. The dialog shows a live preview drawn by the server, and lets you choose:
 
 - **Aspect ratio**: 1:1 (square), 4:5 (portrait, e.g. for a feed), 9:16 (a phone screen or a story) or 16:9 (a screen).
 - **Layout**: the layouts for that number of photos, from the [photo book](#photo-books) catalogue plus denser ones made for collages. The one that fits your photos best comes first: portrait photos go into tall slots and landscapes into wide ones, and faces are kept whole. **Shuffle layout** goes through the others.
 - **Style**: a book style preset, or one of [your own styles](#designing-your-own-styles), with its margins, gaps, page colour and font.
 - **Title**: optional, drawn in a band at the foot of the collage.
 
-**Download** saves the collage (3000 pixels on the long side) to your computer. **Save collage** adds it to your timeline as a new photo, dated like its last photo and tagged `Collages/<title>` (or `Collages/<dates>` without a title), then opens it. A collage made in an album you can add to is added to that album. The photos themselves are never changed.
+**Download** saves the collage (3000 pixels on the long side) to your computer. **Save collage** adds it to your timeline as a new photo, dated like its last photo and tagged `Collages/<title>` (or `Collages/<dates>` without a title), then opens it. A collage made in an album you can add to (one you own or edit, or an album of a space you're an **Editor** of) is added to that album. The photos themselves are never changed.
 
 You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 photos of each day"_. It picks the photos, previews the collages with `preview_collage`, and saves the ones you agree to with `make_collage`, which asks for approval.
 
@@ -352,7 +359,7 @@ You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 
 
 Artistic styles are made by the **art agent**: an ACP agent whose model can generate images, such as Codex. An administrator chooses it as the **Art profile**. The art agent receives the preview of the photo and a prompt, and returns one image. It gets no Gallery tools.
 
-Open a photo you own and choose **Artistic style…** from the menu, or ask the assistant. Pick a style:
+Open a photo you own and choose **Artistic style…** from the menu, select one photo you own and choose it from the **⋮** menu of the selection, or ask the assistant. Pick a style:
 
 - Editorial watercolor split
 - Watercolor
@@ -428,7 +435,7 @@ Enhancing and straightening use local image processing on your server. No AI is 
 
 ### Auto enhance
 
-Open a photo you own and choose **Auto enhance** from the menu. It works even when the assistant is disabled. It analyzes the photo and applies only the corrections it needs:
+Open a photo you own and choose **Auto enhance** from the menu, or select one photo you own and choose it from the **⋮** menu of the selection. It works even when the assistant is disabled. It analyzes the photo and applies only the corrections it needs:
 
 - noise reduction, for photos taken at a high ISO;
 - white balance, to neutralize a color cast;
@@ -469,7 +476,7 @@ It uses the smart search (CLIP) and OCR models of your server: nothing is sent a
 
 ### Name the dishes
 
-Open an album and choose **Name the dishes…** from its menu, or select photos you own and choose **Name the dishes…** from the menu of the selection.
+Open an album (or an album of a space) and choose **Name the dishes…** from its menu, or select photos and choose **Name the dishes…** from the menu of the selection. It's offered when some of the selected photos are yours; see [Photos you don't own](#photos-you-dont-own).
 
 1. **Finding the meals.** Gallery recognizes the photos of dishes and drinks, menus, restaurant signs and receipts, and groups them into meals by time and place. The dialog lists each meal with its **Breakfast**, **Lunch** or **Dinner** time, its place, the name of the restaurant and where the name comes from, and the other names read on the photos. Select a meal to name its dishes. When nothing is found, the dialog says _No food photos found in this album_.
 2. **Reading the menu.** The **Menu** photos of the meal are shown first; tap one to see it large. They're read again at full resolution, in overlapping tiles, so that small or thin print isn't missed; tilted menus and menus photographed in several parts are read too. The text read this way is only used for matching, it isn't stored.
@@ -583,7 +590,7 @@ Photograph the cover, the spine or the title page of the books you read, and cho
 
 ## Kids' art
 
-An archive of your children's drawings, paintings, crafts and illustrated letters. Choose **Name the artworks…** or ask the assistant.
+An archive of your children's drawings, paintings, crafts and illustrated letters. Choose **Name the kids' art…** or ask the assistant.
 
 - **What is read.** A greeting (_Buon Natale_), an age or a year written on an artwork names it, such as _Buon Natale (1947)_. Children's writing is read in fragments, and Cyrillic or Japanese not at all, so most artworks are named by the assistant from what they show, and nothing is marked sure unless it was read letter for letter. The pages of a letter, whose text runs on from one page to the next, are one artwork.
 - **Years.** The artworks of a calendar year are one visit; a year with the artworks of two children is split by the assistant with you. A scan has the date it was imported: the assistant takes the year written on the artwork, or asks.
@@ -643,11 +650,22 @@ The notifications are on by default. Administrators turn them off for everyone i
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:
 
-- **Explore** has a **Tags** row, with the newest photo of each tag as its cover. Select a tag to search for its photos, or **View all** to open the Tags page.
-- The sidebar shows **Tags** with a tree of your tags, such as `Edits` → `Cropped`.
+- **Explore** has a **Tags** row, with the newest photo of each tag as its cover: these tags, the places of your collections and the `Auto/…` tags of [auto-classification](/features/auto-classification). Select a tag to open the timeline filtered by it (with its sub-tags), or **View all** to open the Tags page.
+- The sidebar shows **Tags** with a tree of your tags, such as `Edits` → `Cropped`. Select one to open the timeline filtered by it.
 - The **Tags** filter in search lets you filter by tag.
 
 See [Tags](/features/tags) for more.
+
+## The Search Palette
+
+The assistant's actions are also commands of the Search Palette (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd>, or type `>` to list the commands). A command works on the selection when there is one, otherwise on the photo open in the viewer, or on the album you're in (an album of a space too):
+
+- **Ask assistant**: a new chat about the selected or open photos, or an empty one.
+- **Make a highlight video…**, **Make a collage…**, **Name the …** (one per collection), **Artistic style…** and **Auto enhance**.
+- **Export as book…** of the album you're in.
+- **Create an album with the assistant** and **Create a photo book with the assistant**, like the buttons of the **Albums** and **Photo books** pages.
+
+The palette only lists the commands that the selection or the page allows, under the rules of [Photos you don't own](#photos-you-dont-own).
 
 ## Setup
 

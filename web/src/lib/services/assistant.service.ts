@@ -3,7 +3,6 @@ import { modalManager, type ActionItem } from '@immich/ui';
 import { mdiAutoFix, mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
-import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
@@ -50,21 +49,6 @@ export const takePendingAssistantAssets = (): string[] => {
   const assetIds = pendingContext?.assetIds ?? [];
   pendingContext = undefined;
   return assetIds;
-};
-
-export const getAssistantBulkActions = ($t: MessageFormatter) => {
-  const AskAssistant: ActionItem = {
-    title: $t('ask_assistant'),
-    icon: mdiCreationOutline,
-    $if: () => featureFlagsManager.value.assistant,
-    onAction: async () => {
-      const assetIds = assetMultiSelectManager.assets.map(({ id }) => id);
-      assetMultiSelectManager.clear();
-      await openAssistant({ assetIds });
-    },
-  };
-
-  return { AskAssistant };
 };
 
 export const getAssistantAssetActions = ($t: MessageFormatter, asset: AssetResponseDto) => {

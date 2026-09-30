@@ -8,16 +8,17 @@ The search field in the top navigation opens the same palette. On searchable pag
 
 Each query runs against the configured providers in parallel and groups the results into named sections:
 
-| Section           | What it returns                                                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **Photos**        | Top smart-search matches with thumbnails. Activate to open the asset viewer.                                                  |
-| **People**        | Named faces from your library and any shared spaces you can access. Activate to filter the timeline you're on by that person. |
-| **Places**        | Cities, regions, and countries from your reverse-geocoded photos. Activate to filter the timeline you're on by that city.     |
-| **Tags**          | Tags assigned to your assets, plus inherited tags from parent tags.                                                           |
-| **Albums**        | Your albums, matched on album name.                                                                                           |
-| **Shared spaces** | Spaces you own or belong to, matched on space name.                                                                           |
-| **Commands**      | Verbs: upload files, create things, sign out, toggle theme, manage pages.                                                     |
-| **Navigation**    | Admin and settings pages, fuzzy-matched against the live page catalog.                                                        |
+| Section                | What it returns                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Photos**             | Top smart-search matches with thumbnails. Activate to open the asset viewer.                                                                                                                            |
+| **People**             | Named faces from your library and any shared spaces you can access. Activate to filter the timeline you're on by that person.                                                                           |
+| **Places**             | Cities, regions, and countries from your reverse-geocoded photos. Activate to filter the timeline you're on by that city.                                                                               |
+| **Tags**               | Tags assigned to your assets, plus inherited tags from parent tags.                                                                                                                                     |
+| **Albums**             | Your albums, matched on album name.                                                                                                                                                                     |
+| **Shared spaces**      | Spaces you own or belong to, matched on space name.                                                                                                                                                     |
+| **From your journals** | With the [AI assistant](/features/ai-assistant#asking-from-the-search-palette): the visits of your collections (meals, museum visits, gigs…) whose names match, and a last row that asks the assistant. |
+| **Commands**           | Verbs: upload files, create things, sign out, toggle theme, manage pages.                                                                                                                               |
+| **Navigation**         | Admin and settings pages, fuzzy-matched against the live page catalog.                                                                                                                                  |
 
 Empty sections are hidden, so the result list stays tight. If smart search is unhealthy (the ML server is unreachable), a banner appears at the top of the palette and offers a one-tap switch to filename mode.
 
@@ -93,6 +94,8 @@ Select one or more assets on a supported timeline page and the palette also show
 | **Add selected to favorites**  | Selected assets are owned by you and are not all already favorites                                        | Marks the selected assets as favorites                                      |
 | **Archive selected**           | Selected assets are owned by you and are not all already archived                                         | Moves the selected assets to archive                                        |
 | **Delete selected**            | Selected assets are owned by you                                                                          | Moves selected assets to trash, or permanently deletes assets already there |
+
+The [AI assistant](/features/ai-assistant#the-search-palette) adds its own commands: **Ask assistant**, **Make a highlight video…**, **Make a collage…**, **Name the …**, **Artistic style…**, **Auto enhance** and **Export as book…**. They work on the selection, the photo open in the viewer or the album you're in, and photos you don't own are read-only for them.
 
 These commands only appear when the current page can safely run them. Favorite, archive, and delete require assets you own. **Add selected to this space** is shown only inside a writable shared space, only while choosing assets to add, and only when the selected count is within the per-request shared-space limit. Readers and other non-writers do not see commands that would modify the space.
 

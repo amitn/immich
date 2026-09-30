@@ -153,8 +153,17 @@ export const Route = {
   // `city` with no `country` has nowhere to nest — it renders flat beside the country list as an
   // orphaned selection. The params are rebuilt here in a fixed order rather than forwarded, so the
   // emitted URL does not depend on the caller's object-literal key order.
-  photos: (params?: { at?: string; city?: string; country?: string }) =>
-    '/photos' + asQueryString({ at: params?.at, city: params?.city, country: params?.country }),
+  //
+  // `tagIds` is the `tags` filter param: a tag link (Explore's Tags row, the sidebar's tag tree) lands on the timeline
+  // filtered by it, rather than on the deprecated /search page.
+  photos: (params?: { at?: string; city?: string; country?: string; tagIds?: string[] }) =>
+    '/photos' +
+    asQueryString({
+      at: params?.at,
+      city: params?.city,
+      country: params?.country,
+      tags: params?.tagIds?.length ? params.tagIds.join(',') : undefined,
+    }),
   viewAsset: ({ id }: { id: string }) => `/photos/${id}`,
   archive: () => '/archive',
   favorites: () => '/favorites',

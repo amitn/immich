@@ -127,6 +127,7 @@ vi.mock('@immich/sdk', async () => ({
   searchAssets: vi.fn(),
   searchPerson: vi.fn(),
   searchPlaces: vi.fn(),
+  searchCollections: vi.fn(),
   getAllTags: vi.fn(),
   getMlHealth: vi.fn(),
   getAlbumNames: vi.fn(),
@@ -394,6 +395,7 @@ describe('GlobalSearchManager (skeleton)', () => {
     expect(Object.keys(providers).sort()).toEqual([
       'albums',
       'commands',
+      'journals',
       'navigation',
       'people',
       'photos',
@@ -470,6 +472,7 @@ describe('setQuery', () => {
       tags: makeStub('tags', 2),
       albums: makeStub('albums', 2),
       spaces: makeStub('spaces', 2),
+      journals: makeStub('journals', 3),
       navigation: makeStub('navigation', 2),
       commands: makeStub('commands', 2),
     };
@@ -3144,6 +3147,7 @@ describe('announcementText', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'empty' },
       commands: { status: 'empty' },
     };
@@ -3159,6 +3163,7 @@ describe('announcementText', () => {
       tags: { status: 'ok', items: [{ id: 't1' }], total: 3 },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'empty' },
       commands: { status: 'empty' },
     };
@@ -3174,6 +3179,7 @@ describe('announcementText', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'empty' },
       commands: { status: 'empty' },
     };
@@ -3200,6 +3206,7 @@ describe('reconcileCursor fallback + getActiveItem edge cases', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'empty' },
       commands: { status: 'empty' },
     };
@@ -3217,6 +3224,7 @@ describe('reconcileCursor fallback + getActiveItem edge cases', () => {
       tags: { status: 'idle' },
       albums: { status: 'idle' },
       spaces: { status: 'idle' },
+      journals: { status: 'idle' },
       navigation: { status: 'idle' },
       commands: { status: 'idle' },
     };
@@ -3464,6 +3472,7 @@ describe('navigation section scaffolding', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'ok', items: [{ id: 'nav:userPages:photos' }] as never[], total: 5 },
       commands: { status: 'empty' },
     };
@@ -3479,6 +3488,7 @@ describe('navigation section scaffolding', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'ok', items: [{ id: 'nav:userPages:photos' }] as never[], total: 1 },
       commands: { status: 'empty' },
     };
@@ -3555,6 +3565,7 @@ describe('getActiveItem nav branch', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: {
         status: 'ok',
         items: [
@@ -3590,6 +3601,7 @@ describe('getActiveItem nav branch', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: {
         status: 'ok',
         items: [{ id: 'nav:userPages:photos' } as never],
@@ -5079,6 +5091,7 @@ describe('getActiveItem recent-entry preview lookup (cold open)', () => {
       tags: { status: 'empty' },
       albums: { status: 'empty' },
       spaces: { status: 'empty' },
+      journals: { status: 'empty' },
       navigation: { status: 'empty' },
       commands: { status: 'empty' },
     };

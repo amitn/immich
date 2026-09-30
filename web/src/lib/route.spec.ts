@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createFilterState } from '$lib/components/filter-panel/filter-panel';
 import { OpenQueryParam } from '$lib/constants';
 import { Route } from '$lib/route';
+import { decodeFilterParams } from '$lib/utils/filter-url';
 
 describe('Route', () => {
   describe(Route.login.name, () => {
@@ -141,6 +142,18 @@ describe('Route', () => {
       expect(Route.photos({ country: 'South Africa', city: 'Cape Town' })).toBe(
         '/photos?city=Cape%20Town&country=South%20Africa',
       );
+    });
+
+    // #23: a tag link (Explore's Tags row, the sidebar's tag tree) lands on the timeline filtered by the tag
+    it('should support a tags filter', () => {
+      expect(Route.photos({ tagIds: ['tag-1'] })).toBe('/photos?tags=tag-1');
+      expect(Route.photos({ tagIds: ['tag-1', 'tag-2'] })).toBe('/photos?tags=tag-1%2Ctag-2');
+      expect(Route.photos({ tagIds: [] })).toBe('/photos');
+    });
+
+    it('should hand the tags to the filter panel', () => {
+      const url = new URL(Route.photos({ tagIds: ['tag-1', 'tag-2'] }), 'http://localhost');
+      expect(decodeFilterParams(url).tagIds).toEqual(['tag-1', 'tag-2']);
     });
   });
 

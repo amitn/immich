@@ -24,7 +24,7 @@
   import type { PageData } from './$types';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
   import { getAltText } from '$lib/utils/thumbnail-util';
-  import { isCollectionPhotoTag } from '$lib/utils/collections';
+  import { getExploreTags, getTagLink } from '$lib/utils/tag-links';
   import Portal from '$lib/elements/Portal.svelte';
 
   interface Props {
@@ -33,11 +33,8 @@
 
   let { data }: Props = $props();
 
-  // the tags of single entries of the collections (dishes, menus) would crowd the row: their place (Food/<Restaurant>)
-  // stands for them
-  const tags = $derived(
-    data.tags.filter(({ value }) => !isCollectionPhotoTag(value)).sort((a, b) => a.value.localeCompare(b.value)),
-  );
+  // ours and noodle's Auto/ classification tags, without the single entries of the collections (see getExploreTags)
+  const tags = $derived(getExploreTags(data.tags));
   /** the newest photo of each tag, as its cover; '' while loading or for empty tags */
   let tagCovers = $state<Record<string, string>>({});
   // not reactive on purpose: it only prevents loading a cover twice
@@ -195,7 +192,7 @@
         {#snippet children({ itemCount })}
           {#each tags.slice(0, itemCount) as tag (tag.id)}
             {@const parts = tag.value.split('/')}
-            <a class="relative" href={Route.search({ tagIds: [tag.id] })} draggable="false" title={tag.value}>
+            <a class="relative" href={getTagLink(tag)} draggable="false" title={tag.value}>
               <div
                 class="flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl bg-gray-200 brightness-75 filter dark:bg-gray-700"
               >

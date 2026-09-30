@@ -10,6 +10,8 @@ const allowedPages = [
   'src/routes/(user)/archive/[[photos=photos]]/[[assetId=id]]/+page.svelte',
   'src/routes/(user)/search/[[photos=photos]]/[[assetId=id]]/+page.svelte',
   'src/routes/(user)/spaces/[spaceId]/[[photos=photos]]/[[assetId=id]]/+page.svelte',
+  // #23: for the assistant's palette commands only; it registers none of the v1.5A capabilities
+  'src/routes/(user)/spaces/[spaceId]/albums/[albumId=id]/[[photos=photos]]/[[assetId=id]]/+page.svelte',
 ];
 
 const deniedPages = [
