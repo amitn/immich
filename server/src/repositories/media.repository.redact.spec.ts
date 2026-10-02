@@ -52,6 +52,7 @@ describe('MediaRepository redaction', () => {
   let sut: MediaRepository;
 
   beforeEach(() => {
+    // eslint-disable-next-line no-sparse-arrays
     sut = new MediaRepository(automock(LoggingRepository, { args: [, { getEnv: () => ({}) }], strict: false }));
   });
 
@@ -85,7 +86,8 @@ describe('MediaRepository redaction', () => {
 
     const data = await sut.redactImage(file, [{ x: 0.25, y: 1 / 3, width: 0.25, height: 1 / 3 }]);
     const { data: pixels, info } = await sharp(data).raw().toBuffer({ resolveWithObject: true });
-    expect((await sharp(data).metadata()).format).toBe('jpeg');
+    const metadata = await sharp(data).metadata();
+    expect(metadata.format).toBe('jpeg');
     const decoded = { data: pixels, info: info as RawImageInfo };
     expect(info).toMatchObject({ width: WIDTH, height: HEIGHT });
     expect(contrast(decoded, 105, 105, 90, 90)).toBeLessThan(25);

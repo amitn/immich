@@ -360,8 +360,8 @@ export class MediaRepository {
       }
 
       const short = Math.min(w, h);
-      // pixelated: blocks of about an eighth of the region; blurred: about six samples across, smoothed
-      const cell = style === 'pixelate' ? Math.max(4, Math.round(short / 8)) : Math.max(1, short / 6);
+      // about six samples across: as blocks when pixelated, smoothed when blurred
+      const cell = Math.max(style === 'pixelate' ? 4 : 1, short / 6);
       const small = await this.raw(image)
         .extract({ left, top, width: w, height: h })
         .resize(Math.max(1, Math.round(w / cell)), Math.max(1, Math.round(h / cell)), { fit: 'fill' })
