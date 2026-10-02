@@ -2,11 +2,37 @@
   "name": "gallery-core",
   "version": "1.0.0",
   "title": "Gallery",
-  "description": "Gallery workflow actions for shared spaces",
+  "description": "Gallery workflow filters, and actions for shared spaces",
   "author": "Gallery",
   "wasmPath": "dist/plugin.wasm",
   "templates": [],
   "methods": [
+    {
+      "name": "assetTagPathFilter",
+      "title": "Filter by tag, with its sub-tags",
+      "description": "Continue for assets that have the tag or a tag under it, e.g. Food matches Food/Noma/Tartare",
+      "types": ["AssetV1"],
+      "schema": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "title": "Tag",
+            "description": "The tag, e.g. Food or Food/Noma (not case-sensitive)",
+            "uiHint": { "order": 1 }
+          },
+          "inverse": {
+            "type": "boolean",
+            "title": "Inverse",
+            "description": "Continue for assets without the tag and without any tag under it instead",
+            "default": false,
+            "uiHint": { "order": 2 }
+          }
+        },
+        "required": ["tag"]
+      },
+      "uiHints": ["Filter"]
+    },
     {
       "name": "addToSpace",
       "title": "Add to space",
