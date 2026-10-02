@@ -91,7 +91,7 @@ const SYSTEM_SETTINGS_SOURCE: ReadonlyArray<[key: string, baseKey: string, icon:
   ['video-transcoding', 'transcoding_settings', mdiVideoOutline],
   // the AI assistant and the features built on it
   ['assistant', 'agent_settings', mdiCreationOutline],
-  ['collections', 'collection_settings', mdiBellBadgeOutline],
+  ['journals', 'journal_settings', mdiBellBadgeOutline],
   ['food', 'food_settings', mdiSilverwareForkKnife],
   ['photo-books', 'book_settings', mdiBookOpenPageVariantOutline],
 ];

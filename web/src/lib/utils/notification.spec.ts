@@ -48,7 +48,7 @@ describe('getNotificationRoute', () => {
 });
 
 describe('getCollectionNotice', () => {
-  it('should read the pack and the photos of a new collection', () => {
+  it('should read the pack and the photos of a new journal visit', () => {
     expect(
       getCollectionNotice({ data: '{"collectionPack":"food","assetIds":["a","b"],"visitKey":"2026-09-26|Dinner|"}' }),
     ).toEqual({ pack: 'food', assetIds: ['a', 'b'] });
@@ -65,7 +65,7 @@ describe('getCollectionNotice', () => {
     expect(getCollectionNotice({})).toBeUndefined();
   });
 
-  it('should not open a page for a new collection, which opens its naming dialog instead', () => {
+  it('should not open a page for a new journal visit, which opens its naming dialog instead', () => {
     expect(
       getNotificationRoute({ type: NotificationType.Custom, data: '{"collectionPack":"food","assetIds":["a"]}' }),
     ).toBeUndefined();

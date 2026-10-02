@@ -84,7 +84,7 @@ function isOptionalParam(name: string): boolean {
 }
 
 describe('NAVIGATION_ITEMS schema', () => {
-  // 38 of noodle's, and the 4 settings of the AI assistant, books, collections and food
+  // 38 of noodle's, and the 4 settings of the AI assistant, books, journals and food
   it('has exactly 42 items', () => {
     expect(NAVIGATION_ITEMS).toHaveLength(42);
   });

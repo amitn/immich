@@ -8,7 +8,7 @@ import {
   type BookUserStyleResponseDto,
 } from '@immich/sdk';
 import type { Translations } from 'svelte-i18n';
-import { collectionPacks } from '$lib/collections/registry';
+import { collectionPacks } from '$lib/journals/registry';
 
 /** the presets in the order of the picker: the built-in ones, then the preset of each collection pack (e.g. food) */
 export const BOOK_STYLE_PRESETS: readonly BookStylePreset[] = [

@@ -16,7 +16,7 @@ Each query runs against the configured providers in parallel and groups the resu
 | **Tags**               | Tags assigned to your assets, plus inherited tags from parent tags.                                                                                                                                     |
 | **Albums**             | Your albums, matched on album name.                                                                                                                                                                     |
 | **Shared spaces**      | Spaces you own or belong to, matched on space name.                                                                                                                                                     |
-| **From your journals** | With the [AI assistant](/features/ai-assistant#asking-from-the-search-palette): the visits of your collections (meals, museum visits, gigs…) whose names match, and a last row that asks the assistant. |
+| **From your journals** | With the [AI assistant](/features/ai-assistant#asking-from-the-search-palette): the visits of your journals (meals, museum visits, gigs…) whose names match, and a last row that asks the assistant. |
 | **Commands**           | Verbs: upload files, create things, sign out, toggle theme, manage pages.                                                                                                                               |
 | **Navigation**         | Admin and settings pages, fuzzy-matched against the live page catalog.                                                                                                                                  |
 

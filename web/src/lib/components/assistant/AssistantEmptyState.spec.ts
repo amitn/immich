@@ -41,7 +41,7 @@ describe('AssistantEmptyState component', () => {
     render(AssistantEmptyState, { props: { onPick } });
 
     const question = await screen.findByRole('button', { name: 'assistant_question_food' });
-    expect(screen.getByRole('button', { name: 'assistant_question_generic_collections' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'assistant_question_generic_journals' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'assistant_question_generic_museums' })).not.toBeInTheDocument();
 
     await fireEvent.click(question);
