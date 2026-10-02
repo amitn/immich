@@ -161,8 +161,9 @@ export class SharedLinkService extends BaseService {
         allowDownload: dto.showMetadata === false && !isBook ? false : (dto.allowDownload ?? true),
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
-        redactFaces: dto.redactFaces ?? false,
-        redactText: dto.redactText ?? false,
+        // (#14) off unless asked for
+        ...(dto.redactFaces && { redactFaces: true }),
+        ...(dto.redactText && { redactText: true }),
         // a book's photos of others are shown through the space they are in (see `getBookLinkSpaceId`)
         spaceId: isBook ? bookSpaceId : dto.spaceId || null,
       });

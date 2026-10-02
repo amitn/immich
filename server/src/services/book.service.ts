@@ -62,6 +62,7 @@ import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { LinkRedaction, RedactionService } from 'src/services/redaction.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
 import { ActivityRecorder, beginBookChange, quote } from 'src/utils/activity-log.js';
@@ -827,6 +828,7 @@ export class BookService extends BaseService {
       dpi: getDpiForLongEdge(book, longEdge),
       pages,
       hidePrivate: hidePrivate || !!auth.sharedLink,
+      redaction: await BaseService.create(RedactionService, this).getLinkRedaction(auth.sharedLink),
     });
   }
 
@@ -918,6 +920,14 @@ export class BookService extends BaseService {
       if (withheld.size > 0) {
         throw new BadRequestException('Some photos of this book are no longer shared, so its PDF is not shared');
       }
+      // (#14) the PDF prints the photos as they are: a link that blurs faces or text on them does not share it
+      const redactionService = BaseService.create(RedactionService, this);
+      const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
+      if (redaction && (await redactionService.getLinkRegions(redaction, [...getBookPhotoIds(book, pages)])).size > 0) {
+        throw new BadRequestException(
+          'This link blurs faces or text in the photos of this book, so its PDF is not shared',
+        );
+      }
     }
 
     await this.requireExportFile(book, book.exportPath, BookExportFormat.Pdf);
@@ -947,10 +957,16 @@ export class BookService extends BaseService {
     // the photos of others a link may no longer show are left out, so they are part of what the web book is
     const withheld =
       auth.sharedLink && pages ? await this.getWithheldAssetIds(auth.sharedLink.id, book, pages) : new Set<string>();
+    // (#14) what the link blurs is part of what the web book is
+    const redactionService = BaseService.create(RedactionService, this);
+    const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
+    const blurred =
+      redaction && pages ? await redactionService.getLinkFingerprint(redaction, [...getBookPhotoIds(book, pages)]) : '';
     const version = `${book.id}/${book.contentUpdatedAt.toISOString()}/`;
     const key =
       `${version}${stripMetadata ? 'plain' : 'full'}${hidePrivate ? '-shared' : ''}` +
-      (withheld.size > 0 ? `-without:${[...withheld].toSorted((a, b) => a.localeCompare(b)).join(',')}` : '');
+      (withheld.size > 0 ? `-without:${[...withheld].toSorted((a, b) => a.localeCompare(b)).join(',')}` : '') +
+      (blurred ? `-blurred:${blurred}` : '');
     const cached = previewCache.get(key);
     if (cached) {
       return cached;
@@ -962,7 +978,7 @@ export class BookService extends BaseService {
       book,
       pages,
       HTML_PREVIEW_QUALITY,
-      { stripMetadata, hidePrivate },
+      { stripMetadata, hidePrivate, redaction },
     );
     for (const cachedKey of previewCache.keys()) {
       const isOutdated = cachedKey.startsWith(`${book.id}/`) && !cachedKey.startsWith(version);
@@ -1132,7 +1148,11 @@ export class BookService extends BaseService {
     book: Book,
     pages: BookPage[],
     quality: HtmlImageQuality = HTML_EXPORT_QUALITY,
-    { stripMetadata = false, hidePrivate = false }: { stripMetadata?: boolean; hidePrivate?: boolean } = {},
+    {
+      stripMetadata = false,
+      hidePrivate = false,
+      redaction = null,
+    }: { stripMetadata?: boolean; hidePrivate?: boolean; redaction?: LinkRedaction | null } = {},
   ) {
     const hidden = hidePrivate ? await this.getPrivateSourceIds(book, pages) : new Set<string>();
     const assetIds = new Set<string>();
@@ -1176,6 +1196,10 @@ export class BookService extends BaseService {
       }
     }
 
+    // (#14) the regions a link blurs, drawn blurred into the images it embeds
+    const redactionService = BaseService.create(RedactionService, this);
+    const blurred = redaction ? await redactionService.getLinkRegions(redaction, [...sources.keys()]) : new Map();
+
     const sizes = new Map([...sources].map(([id, source]) => [id, source.size]));
     const images = new Map<string, HtmlImage>();
     for (const [assetId, request] of planHtmlImages(book, pages, sizes, quality)) {
@@ -1184,8 +1208,12 @@ export class BookService extends BaseService {
       const previewScale = Math.min(1, image.preview.size / Math.max(source.size.width, source.size.height));
       const useFull =
         !source.preview || (quality !== HTML_PREVIEW_QUALITY && !!source.full && request.scale > previewScale * 1.1);
-      const input = (useFull ? source.full : source.preview)!;
+      let input = (useFull ? source.full : source.preview)!;
       const scale = useFull ? request.scale : Math.min(request.scale, previewScale);
+      const regions = blurred.get(assetId);
+      if (regions && typeof input === 'string' && !hidden.has(assetId)) {
+        input = await redactionService.renderAssetFile(assetId, input, regions, { quality: 92 });
+      }
 
       let { width, height } = getRegionSize(request.region, source.size, scale);
       if (hidden.has(assetId)) {
@@ -1227,6 +1255,7 @@ export class BookService extends BaseService {
         mode: 'review',
         dpi: getDpiForLongEdge(book, quality.maxImagePx),
         hidePrivate,
+        redaction,
       });
       pageImages.set(index, data);
     }
@@ -1250,7 +1279,14 @@ export class BookService extends BaseService {
     book: Book,
     page: BookPage,
     number: number,
-    options: { mode: BookRenderMode; dpi: number; pages?: BookPage[]; hidePrivate?: boolean },
+    options: {
+      mode: BookRenderMode;
+      dpi: number;
+      pages?: BookPage[];
+      hidePrivate?: boolean;
+      /** (#14) what a shared link blurs on the photos */
+      redaction?: LinkRedaction | null;
+    },
   ): Promise<BookRenderResult> {
     const assetIds = page.assets.map((asset) => asset.assetId);
     if (page.layout === 'cover' && book.coverAssetId) {
@@ -1258,6 +1294,19 @@ export class BookService extends BaseService {
     }
 
     const sources = await this.getRenderSources(auth, assetIds, options.mode);
+    if (options.redaction) {
+      const redactionService = BaseService.create(RedactionService, this);
+      const blurred = await redactionService.getLinkRegions(options.redaction, [...sources.keys()]);
+      for (const [assetId, regions] of blurred) {
+        const source = sources.get(assetId);
+        if (source && typeof source.input === 'string') {
+          sources.set(assetId, {
+            ...source,
+            input: await redactionService.renderAssetFile(assetId, source.input, regions, { quality: 92 }),
+          });
+        }
+      }
+    }
     // private sources (travel documents) shown to the assistant are shrunk to a few pixels: their text can't be read
     const hidden = options.hidePrivate
       ? await BaseService.create(CollectionService, this).getPrivateSourceIds(assetIds)

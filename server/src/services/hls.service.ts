@@ -10,6 +10,7 @@ import { AuthDto } from 'src/dtos/auth.dto.js';
 import { ConfigFFmpegDto } from 'src/dtos/config.dto.js';
 import { CacheControl, ImmichWorker, Permission } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
 import { PendingEvents } from 'src/utils/event.js';
 import { ImmichFileResponse } from 'src/utils/file.js';
 import { getCodecString, getOutputSize } from 'src/utils/media.js';
@@ -44,8 +45,18 @@ export class HlsService extends BaseService {
     this.pendingSegments.complete(this.getSegmentKey(event), event);
   }
 
+  /** (#14) the frames of a video can't be blurred: a link that blurs faces or text withholds one with any */
+  private async requireStreamable(auth: AuthDto, assetId: string) {
+    const redactionService = BaseService.create(RedactionService, this);
+    const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
+    if (redaction) {
+      await redactionService.requireVideoShown(redaction, assetId);
+    }
+  }
+
   async getMainPlaylist(auth: AuthDto, assetId: string) {
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
+    await this.requireStreamable(auth, assetId);
     const { ffmpeg } = await this.getConfig({ withCache: true });
     if (!ffmpeg.realtime.enabled) {
       throw new BadRequestException('Real-time transcoding is not enabled');
@@ -68,6 +79,7 @@ export class HlsService extends BaseService {
 
   async getMediaPlaylist(auth: AuthDto, assetId: string, sessionId: string, variantIndex: number, position?: number) {
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
+    await this.requireStreamable(auth, assetId);
 
     const asset = await this.videoStreamRepository.getForMediaPlaylist(assetId, sessionId);
     if (!asset) {
@@ -90,6 +102,7 @@ export class HlsService extends BaseService {
     initSegment?: number,
   ) {
     await this.requireAccess({ auth, permission: Permission.AssetView, ids: [assetId] });
+    await this.requireStreamable(auth, assetId);
 
     const session = await this.videoStreamRepository.getSession(sessionId);
     if (!session) {
