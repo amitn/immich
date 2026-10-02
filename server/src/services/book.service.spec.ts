@@ -23,6 +23,7 @@ import { ArtService } from 'src/services/art.service.js';
 import { BookService, getBookExportKey, getBookHtmlPath, getBookPdfPath } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { RedactionService } from 'src/services/redaction.service.js';
 import { StorageService } from 'src/services/storage.service.js';
 import { ImproveEstimate } from 'src/utils/agent/improve.js';
@@ -156,6 +157,25 @@ const s3Asset = (id: string) =>
       { type: AssetFileType.Thumbnail, path: 'thumbs/owner/ab/cd/thumbnail.webp', isEdited: false },
     ],
   });
+
+const memorySource = (assets: Array<{ id: string; type: AssetType; time: number }>, source = {}) => ({
+  source: {
+    memoryId: 'memory-1',
+    ruleId: 'recent_trip',
+    kind: 'trip' as const,
+    title: 'Recent trip to Rome, Italy',
+    subtitle: '1–3 June 2024',
+    personIds: [],
+    favoritesOnly: false,
+    videosOnly: false,
+    assetIds: [],
+    includeMaps: true,
+    stylePreset: 'classic',
+    ...source,
+  },
+  memory: { memoryAt: new Date(), isSaved: false },
+  assets,
+});
 
 describe(BookService.name, () => {
   let sut: BookService;
@@ -1627,6 +1647,58 @@ describe(BookService.name, () => {
           sut.createDraft(auth, { title: 'Empty', stylePreset: 'classic', assetIds: [newUuid()], includeMaps: true }),
         ).rejects.toBeInstanceOf(BadRequestException);
         expect(mocks.book.delete).toHaveBeenCalledWith(book.id);
+      });
+    });
+
+    describe('createFromMemory', () => {
+      it('should lay out every photo of the memory’s window, titled like the memory, with maps for a trip', async () => {
+        const rows = trip();
+        const video = agentAsset({ type: AssetType.Video });
+        const { book } = setupAlbum([...rows, video]);
+        const resolve = vi
+          .spyOn(MemorySourceService.prototype, 'resolve')
+          .mockResolvedValue(
+            memorySource([
+              ...rows.map((row) => ({ id: row.id, type: AssetType.Image, time: row.localDateTime.getTime() })),
+              { id: video.id, type: AssetType.Video, time: video.localDateTime.getTime() },
+            ]),
+          );
+
+        const result = await sut.createFromMemory(auth, { memoryId: 'memory-1' });
+
+        expect(resolve).toHaveBeenCalledWith(auth, 'memory-1');
+        expect(result.id).toBe(book.id);
+        expect(mocks.book.create).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Recent trip to Rome, Italy', subtitle: '1–3 June 2024', albumId: null }),
+        );
+        expect(mocks.assetJob.getForAgent).toHaveBeenCalledWith(expect.not.arrayContaining([video.id]), auth.user.id);
+        expect(mocks.assetJob.getForAgent.mock.calls[0][0]).toEqual(rows.map((row) => row.id));
+        expect(plannedPages().some((page) => page.map)).toBe(true);
+      });
+
+      it('should use the title and style asked for, and the memory’s soft style for a birthday', async () => {
+        const rows = trip();
+        setupAlbum(rows);
+        const assets = rows.map((row) => ({ id: row.id, type: AssetType.Image, time: row.localDateTime.getTime() }));
+        vi.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue(
+          memorySource(assets, { kind: 'birthday', stylePreset: 'soft', includeMaps: false }),
+        );
+
+        await sut.createFromMemory(auth, { memoryId: 'memory-1', title: 'Mia turns 7', subtitle: null });
+
+        expect(mocks.book.create).toHaveBeenCalledWith(
+          expect.objectContaining({ title: 'Mia turns 7', subtitle: null }),
+        );
+        expect(plannedPages().some((page) => page.map)).toBe(false);
+      });
+
+      it('should not create a book of a memory without photos', async () => {
+        vi.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue(
+          memorySource([{ id: 'clip', type: AssetType.Video, time: 1 }]),
+        );
+
+        await expect(sut.createFromMemory(auth, { memoryId: 'memory-1' })).rejects.toBeInstanceOf(BadRequestException);
+        expect(mocks.book.create).not.toHaveBeenCalled();
       });
     });
 

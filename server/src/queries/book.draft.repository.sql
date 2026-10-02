@@ -128,3 +128,47 @@ where
   and "asset"."localDateTime" < $4
 order by
   "asset"."localDateTime" asc
+
+-- BookDraftRepository.getRuleMemories
+select
+  "memory"."id",
+  "memory"."type",
+  "memory"."data",
+  "memory"."memoryAt"
+from
+  "memory"
+where
+  "memory"."ownerId" = $1
+  and "memory"."type" = 'rule'
+  and "memory"."deletedAt" is null
+  and "memory"."data" ->> 'ruleId' in ($2, $3)
+order by
+  "memory"."memoryAt" desc
+
+-- BookDraftRepository.getWindowAssets
+select
+  "asset"."id",
+  "asset"."type",
+  "asset"."localDateTime"
+from
+  "asset"
+where
+  "asset"."ownerId" = $1
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+  and "asset"."localDateTime" >= $2
+  and "asset"."localDateTime" <= $3
+  and "asset"."type" in ($4, $5)
+  and exists (
+    select
+    from
+      "asset_face"
+    where
+      "asset_face"."assetId" = "asset"."id"
+      and "asset_face"."personGroupId" = $6::uuid
+      and "asset_face"."deletedAt" is null
+      and "asset_face"."isVisible" is true
+  )
+order by
+  "asset"."localDateTime" asc,
+  "asset"."id" asc

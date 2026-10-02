@@ -8,6 +8,7 @@ import {
   BookStatus,
   JobName,
   JobStatus,
+  MemoryType,
   NotificationLevel,
   NotificationType,
   UserMetadataKey,
@@ -73,6 +74,7 @@ describe(BookDraftService.name, () => {
     mocks.bookDraft.getTimeline.mockResolvedValue([]);
     mocks.bookDraft.getPeopleWithBirthdays.mockResolvedValue([]);
     mocks.bookDraft.getPersonPhotos.mockResolvedValue([]);
+    mocks.bookDraft.getRuleMemories.mockResolvedValue([]);
     mocks.bookDraft.claim.mockImplementation((values) =>
       Promise.resolve({ id: newUuid(), state: BookDraftState.Drafted, bookId: null, ...values } as never),
     );
@@ -102,6 +104,7 @@ describe(BookDraftService.name, () => {
         kind: BookDraftKind.Yearly,
         title: '2025 in food',
         reason: 'You visited 3 restaurants in 2025 and photographed 15 dishes',
+        memoryId: null,
       });
       expect(createDraft).toHaveBeenCalledWith(
         auth,
@@ -190,6 +193,100 @@ describe(BookDraftService.name, () => {
         includeMaps: true,
         targetPageCount: undefined,
       });
+    });
+
+    it('should base a trip on the memory of it, under the key of the trip the timeline found', async () => {
+      const timeline: Array<Record<string, unknown>> = romeTrip();
+      // a photo of the last evening, taken without a location
+      timeline.push({ ...timeline[0], id: newUuid(), time: Date.UTC(2025, 5, 3, 23), latitude: null, longitude: null });
+      mocks.bookDraft.getTimeline.mockResolvedValue(timeline as never);
+      const memoryId = newUuid();
+      mocks.bookDraft.getRuleMemories.mockResolvedValue([
+        {
+          id: memoryId,
+          type: MemoryType.Rule,
+          memoryAt: new Date('2025-06-20T00:00:00.000Z'),
+          data: {
+            ruleId: 'recent_trip',
+            dedupeKey: 'recent_trip:it|rome:2025-06-20',
+            context: {
+              city: 'Rome',
+              country: 'Italy',
+              placeLabel: 'Rome, Italy',
+              tripWindowStart: '2025-06-01T08:00:00.000Z',
+              tripWindowEnd: '2025-06-03T22:00:00.000Z',
+            },
+          },
+        },
+        {
+          id: newUuid(),
+          type: MemoryType.Rule,
+          memoryAt: new Date('2025-06-01T00:00:00.000Z'),
+          data: {
+            ruleId: 'trip_anniversary',
+            context: { city: 'Rome', tripStart: '2025-06-01T08:00:00.000Z', tripEnd: '2025-06-03T22:00:00.000Z' },
+          },
+        },
+      ] as never);
+
+      await expect(sut.draftBooks(auth, drafts, NOW)).resolves.toEqual(['trip:2025-06-01']);
+
+      expect(mocks.bookDraft.getRuleMemories).toHaveBeenCalledWith(auth.user.id, [
+        'recent_trip',
+        'trip_anniversary',
+        'birthday',
+      ]);
+      expect(mocks.bookDraft.claim).toHaveBeenCalledTimes(1);
+      expect(mocks.bookDraft.claim).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'trip:2025-06-01', kind: BookDraftKind.Trip, memoryId }),
+      );
+      expect(createDraft).toHaveBeenCalledWith(
+        auth,
+        expect.objectContaining({ title: 'Our trip to Rome', subtitle: '1–3 June 2025', includeMaps: true }),
+      );
+      // every photo of the memory's window, the one without a location too
+      expect(createDraft.mock.calls[0][1].assetIds).toHaveLength(46);
+    });
+
+    it('should not suggest again a trip suggested before its memory was made', async () => {
+      mocks.bookDraft.getTimeline.mockResolvedValue(romeTrip());
+      mocks.bookDraft.getKeys.mockResolvedValue(new Set(['trip:2025-06-01']));
+      mocks.bookDraft.getRuleMemories.mockResolvedValue([
+        {
+          id: newUuid(),
+          type: MemoryType.Rule,
+          memoryAt: new Date('2025-06-20T00:00:00.000Z'),
+          data: {
+            ruleId: 'recent_trip',
+            context: { tripWindowStart: '2025-06-02T08:00:00.000Z', tripWindowEnd: '2025-06-03T22:00:00.000Z' },
+          },
+        },
+      ] as never);
+
+      await expect(sut.draftBooks(auth, drafts, NOW)).resolves.toEqual([]);
+      expect(createDraft).not.toHaveBeenCalled();
+    });
+
+    it('should link a birthday book to the birthday memory of the same day', async () => {
+      const personId = newUuid();
+      const memoryId = newUuid();
+      mocks.bookDraft.getPeopleWithBirthdays.mockResolvedValue([
+        { id: personId, name: 'Maya', birthDate: '2019-03-10' },
+      ]);
+      mocks.bookDraft.getPersonPhotos.mockResolvedValue(
+        Array.from({ length: 30 }, (_, i) => ({ id: newUuid(), time: Date.UTC(2025, 5, 1) + i * 24 * HOUR })),
+      );
+      mocks.bookDraft.getRuleMemories.mockResolvedValue([
+        {
+          id: memoryId,
+          type: MemoryType.Rule,
+          memoryAt: new Date('2026-03-10T00:00:00.000Z'),
+          data: { ruleId: 'birthday', context: { personId, personName: 'Maya' } },
+        },
+      ] as never);
+
+      await expect(sut.draftBooks(auth, drafts, NOW)).resolves.toEqual([`birthday:${personId}:7`]);
+      expect(mocks.bookDraft.claim).toHaveBeenCalledWith(expect.objectContaining({ memoryId }));
     });
 
     it('should draft a birthday book from the photos of the person', async () => {

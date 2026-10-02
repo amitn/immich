@@ -11,6 +11,7 @@ import {
   BookDetailResponseDto,
   BookExportDto,
   BookFromAlbumDto,
+  BookFromMemoryDto,
   BookLayoutResponseDto,
   BookMap,
   BookMapPreviewQueryDto,
@@ -63,13 +64,14 @@ import { BaseService } from 'src/services/base.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { LinkRedaction, RedactionService } from 'src/services/redaction.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
 import { ActivityRecorder, beginBookChange, quote } from 'src/utils/activity-log.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
 import { clusterSimilar, getClusterDefaults, parseEmbedding, toClusterIndex } from 'src/utils/agent/clustering.js';
 import { isArtEnabled } from 'src/utils/agent/config.js';
-import { getAdaptiveEventOptions, splitEvents } from 'src/utils/agent/events.js';
+import { getAdaptiveEventOptions, pickSpread, splitEvents } from 'src/utils/agent/events.js';
 import {
   IMPROVE_MAX_POOL,
   ImproveEstimate,
@@ -461,6 +463,49 @@ export class BookService extends BaseService {
         assetIds,
         targetPageCount: dto.targetPageCount,
         includeMaps: dto.includeMaps,
+        mapStyle: dto.mapStyle,
+        mapLook: dto.mapLook,
+        illustratedMaps: dto.illustratedMaps,
+        captions: dto.captions,
+        maxArtworkShare: dto.maxArtworkShare,
+        maxStackPairs: dto.maxStackPairs,
+        considerImprovements: dto.considerImprovements,
+        improvePhotos: dto.improvePhotos,
+      });
+    } catch (error) {
+      await this.bookRepository.delete(created.id);
+      throw error;
+    }
+  }
+
+  /** Creates a book from the whole window of a memory and lays out its photos automatically (#5) */
+  async createFromMemory(auth: AuthDto, dto: BookFromMemoryDto): Promise<BookAutoLayoutResponseDto> {
+    const { book, warnings } = await this.createFromMemoryWithPlan(auth, dto);
+    return { ...book, warnings };
+  }
+
+  async createFromMemoryWithPlan(auth: AuthDto, dto: BookFromMemoryDto): Promise<BookAutoLayoutResult> {
+    const { source, assets } = await BaseService.create(MemorySourceService, this).resolve(auth, dto.memoryId);
+    const photos = assets.filter(({ type }) => type === AssetType.Image);
+    if (photos.length === 0) {
+      throw new BadRequestException('The memory has no photos');
+    }
+
+    const created = await this.create(auth, {
+      title: dto.title ?? source.title,
+      subtitle: dto.subtitle === undefined ? source.subtitle : dto.subtitle,
+      pageWidthMm: dto.pageWidthMm,
+      pageHeightMm: dto.pageHeightMm,
+      stylePreset: dto.stylePreset ?? (dto.style ? undefined : source.stylePreset),
+      style: dto.style,
+    });
+
+    try {
+      return await this.layOut(auth, created.id, {
+        // the whole window, spread over its time when it holds more photos than a book is laid out from
+        assetIds: pickSpread(photos, MAX_ALBUM_PHOTOS).map(({ id }) => id),
+        targetPageCount: dto.targetPageCount,
+        includeMaps: dto.includeMaps ?? source.includeMaps,
         mapStyle: dto.mapStyle,
         mapLook: dto.mapLook,
         illustratedMaps: dto.illustratedMaps,

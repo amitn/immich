@@ -47,7 +47,17 @@ export type DraftCandidate = {
   assetIds: string[];
   /** the local time of the end of what it covers, e.g. the last day of a trip: newer suggestions are drafted first */
   endsAt: number;
+  /** the local time of the start of a trip, to tell which trips are the same */
+  startsAt?: number;
+  /** the memory of the rule engine it is based on (see `getMemoryTripDrafts`) */
+  memoryId?: string;
 };
+
+/**
+ * A trip found by the memory engine (a `recent_trip` or `trip_anniversary` memory): the whole days of its window, and
+ * its city or country (see `getMemorySource`)
+ */
+export type DraftTripMemory = { memoryId: string; from: number; to: number; place?: string };
 
 export type DraftKinds = { yearly: boolean; trips: boolean; birthdays: boolean };
 
@@ -259,6 +269,7 @@ export const getTaggedTripDrafts = (tags: DraftTaggedPhoto[], timeline: DraftPho
       includeMaps: true,
       assetIds: toAssetIds(trip.photos),
       endsAt: end,
+      startsAt: start,
     });
   }
   return candidates;
@@ -390,14 +401,90 @@ export const getTimelineTripDrafts = (timeline: DraftPhoto[], now: Date): DraftC
         includeMaps: true,
         assetIds: toAssetIds(photos),
         endsAt: end,
+        startsAt: start,
       };
     });
 
-/** the trip drafts: the travel pack's trips when the user has travel tags, otherwise the trips in the timeline */
-export const getTripDrafts = (tags: DraftTaggedPhoto[], timeline: DraftPhoto[], now: Date) =>
-  tags.some((tag) => parseBookCollectionTag(tag.value)?.pack === TRAVEL_PACK)
+/** whether two trips share a day */
+const sharesADay = (a: Pick<DraftCandidate, 'startsAt' | 'endsAt'>, b: Pick<DraftCandidate, 'startsAt' | 'endsAt'>) =>
+  toLocalDay(a.startsAt ?? a.endsAt) <= toLocalDay(b.endsAt) &&
+  toLocalDay(b.startsAt ?? b.endsAt) <= toLocalDay(a.endsAt);
+
+/**
+ * A book per trip the memory engine found (#5), so that a trip has one definition: the photos of the timeline from the
+ * first day of its window to the last, when it is over, spans at least `tripDays` days and has at least `tripPhotos`
+ * photos. It takes the place of the trips found in the timeline that share a day with it (and their key, so that a
+ * trip suggested before is not suggested again; otherwise `trip:<first day>`, like them), and gives way to the trips of
+ * the travel pack, which the user named. A trip of two memories (e.g. a recent trip and, a year later, its anniversary)
+ * is suggested once.
+ */
+export const getMemoryTripDrafts = (
+  memories: DraftTripMemory[],
+  timeline: DraftPhoto[],
+  now: Date,
+  others: DraftCandidate[] = [],
+): { drafts: DraftCandidate[]; replaced: Set<string> } => {
+  const tagged = others.filter((candidate) =>
+    candidate.key.startsWith(`trip:${getCollectionPack(TRAVEL_PACK)?.tagRoot}/`),
+  );
+  const found = others.filter((candidate) => !tagged.includes(candidate));
+  const drafts: DraftCandidate[] = [];
+  const replaced = new Set<string>();
+
+  for (const memory of memories) {
+    const photos = timeline.filter((photo) => photo.time >= memory.from && photo.time <= memory.to).toSorted(byTime);
+    if (photos.length === 0) {
+      continue;
+    }
+    const trip = { start: photos[0].time, end: photos.at(-1)!.time, photos };
+    const window = { startsAt: trip.start, endsAt: trip.end };
+    if (
+      !isDraftableTrip(trip, now) ||
+      tagged.some((candidate) => sharesADay(candidate, window)) ||
+      drafts.some((candidate) => sharesADay(candidate, window))
+    ) {
+      continue;
+    }
+
+    const same = found.filter((candidate) => sharesADay(candidate, window));
+    for (const candidate of same) {
+      replaced.add(candidate.key);
+    }
+    const place = memory.place ?? getTripPlace(photos);
+    const days = getDaySpan(trip.start, trip.end);
+    drafts.push({
+      key: same[0]?.key ?? `trip:${toLocalDay(trip.start)}`,
+      kind: BookDraftKind.Trip,
+      title: place ? `Our trip to ${place}` : 'Our trip',
+      subtitle: formatDateRange(trip.start, trip.end),
+      reason: `You spent ${count(days, 'day')}${place ? ` in ${place}` : ' away'} and took ${count(photos.length, 'photo')}`,
+      stylePreset: 'classic',
+      includeMaps: true,
+      assetIds: toAssetIds(photos),
+      endsAt: trip.end,
+      startsAt: trip.start,
+      memoryId: memory.memoryId,
+    });
+  }
+  return { drafts, replaced };
+};
+
+/**
+ * the trip drafts: the travel pack's trips when the user has travel tags, otherwise the trips in the timeline; the
+ * trips of the memory engine take the place of the timeline's (see `getMemoryTripDrafts`)
+ */
+export const getTripDrafts = (
+  tags: DraftTaggedPhoto[],
+  timeline: DraftPhoto[],
+  now: Date,
+  memories: DraftTripMemory[] = [],
+) => {
+  const base = tags.some((tag) => parseBookCollectionTag(tag.value)?.pack === TRAVEL_PACK)
     ? getTaggedTripDrafts(tags, timeline, now)
     : getTimelineTripDrafts(timeline, now);
+  const { drafts, replaced } = getMemoryTripDrafts(memories, timeline, now, base);
+  return [...base.filter((candidate) => !replaced.has(candidate.key)), ...drafts];
+};
 
 const isLeapYear = (year: number) => (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
 

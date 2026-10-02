@@ -1,7 +1,8 @@
-import { MemoryType, type MemoryResponseDto } from '@immich/sdk';
+import { AssetTypeEnum, MemoryType, type MemoryResponseDto } from '@immich/sdk';
 import '@testing-library/jest-dom';
-import { render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import type { Component } from 'svelte';
+import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
 import { assetFactory } from '@test-data/factories/asset-factory';
 import MemoriesPage from './+page.svelte';
@@ -64,6 +65,10 @@ function renderPage(memories: MemoryResponseDto[]) {
 }
 
 describe('Memories page', () => {
+  beforeEach(() => {
+    Element.prototype.animate = getAnimateMock();
+  });
+
   it('renders the rule-aware subtitle the server sends with a memory', () => {
     renderPage([memory({ type: MemoryType.Rule, subtitle: 'Coastal weekend', title: 'Recent trip to Lisbon' })]);
 
@@ -90,5 +95,22 @@ describe('Memories page', () => {
 
     expect(screen.getByText('Years ago')).toBeInTheDocument();
     expect(container.querySelectorAll(':scope .item-card p')).toHaveLength(1);
+  });
+
+  // #5: every card offers a video, a book and a collage of its whole moment, outside the card's link
+  it('offers to make a video, a book or a collage of each memory', async () => {
+    const assets = [assetFactory.build({ id: 'photo', type: AssetTypeEnum.Image })];
+    const { container } = renderPage([memory({ id: 'memory-1', assets }), memory({ id: 'memory-2', assets })]);
+
+    const menus = screen.getAllByRole('button', { name: 'memory_make_menu' });
+    expect(menus).toHaveLength(2);
+    for (const menu of menus) {
+      expect(menu.closest('a')).toBeNull();
+    }
+    expect(container.querySelectorAll('a.item-card')).toHaveLength(2);
+
+    await fireEvent.click(menus[0]);
+    expect(screen.getAllByText('memory_make_video')).toHaveLength(2);
+    expect(screen.getAllByText('memory_make_collage')).toHaveLength(2);
   });
 });

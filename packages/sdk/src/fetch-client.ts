@@ -2736,6 +2736,8 @@ export type BookDraftResponseDto = {
     /** Stable key of the suggestion, e.g. food:2026, trip:Travel/<Trip>, trip:<first day> or birthday:<personId>:<age> */
     key: string;
     kind: BookDraftKind;
+    /** The memory the suggestion is based on, e.g. a recent trip */
+    memoryId: string | null;
     /** Why the book is suggested, e.g. "You visited 6 restaurants in 2026" */
     reason: string;
 };
@@ -2813,6 +2815,38 @@ export type BookAutoLayoutResponseDto = {
     updatedAt: string;
     /** Problems met while laying out the book, e.g. a map style that is not available */
     warnings: string[];
+};
+export type BookFromMemoryDto = {
+    captions?: BookCaptionMode;
+    /** Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true) */
+    considerImprovements?: boolean;
+    /** Also redraw every map as an illustration with the art agent (default false) */
+    illustratedMaps?: boolean;
+    /** Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false) */
+    improvePhotos?: boolean;
+    /** Open the sections with GPS locations with a map (default: true for a trip, otherwise false) */
+    includeMaps?: boolean;
+    mapLook?: BookMapLookOption;
+    mapStyle?: BookMapStyleOption;
+    /** Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row */
+    maxArtworkShare?: number;
+    /** Artworks shown next to their original on the same page (default 2) */
+    maxStackPairs?: number;
+    /** Memory whose moment is laid out: the photos of the whole window it stands for (e.g. every day of a trip, the year before a birthday), not only the photos the memory shows */
+    memoryId: string;
+    /** Page height in millimeters (default 210) */
+    pageHeightMm?: number;
+    /** Page width in millimeters (default 210) */
+    pageWidthMm?: number;
+    style?: BookStyleUpdate;
+    /** Style preset (default: classic, soft for a birthday) */
+    stylePreset?: BookStylePreset;
+    /** Book subtitle (default: the dates the memory covers) */
+    subtitle?: string | null;
+    /** Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages) */
+    targetPageCount?: number;
+    /** Book title (default: the title of the memory) */
+    title?: string;
 };
 export type BookLayoutRect = {
     /** Height, as a fraction of the layout area */
@@ -3133,19 +3167,25 @@ export type CollageCreateDto = {
     /** Aspect ratio, width:height (default 1:1) */
     aspectRatio?: CollageAspectRatio;
     /** Photos of the collage, 2 to 9 */
-    assetIds: string[];
+    assetIds?: string[];
+    /** With memoryId: how many photos to pick (default 6) */
+    count?: number;
     /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
     layout?: string;
+    /** Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time */
+    memoryId?: string;
     /** One of the user's own book styles (see GET /book-styles) */
     styleId?: string;
     /** A book style preset (default classic) */
     stylePreset?: BookStylePreset;
-    /** Title, drawn in a band at the foot of the collage */
+    /** Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory) */
     title?: string;
 };
 export type CollageResponseDto = {
     /** The new image asset */
     assetId: string;
+    /** The photos of the collage, e.g. those picked from a memory */
+    assetIds: string[];
     /** An identical collage had already been saved, and is returned instead */
     duplicate: boolean;
     /** Layout the collage was drawn with */
@@ -3157,14 +3197,18 @@ export type CollageDto = {
     /** Aspect ratio, width:height (default 1:1) */
     aspectRatio?: CollageAspectRatio;
     /** Photos of the collage, 2 to 9 */
-    assetIds: string[];
+    assetIds?: string[];
+    /** With memoryId: how many photos to pick (default 6) */
+    count?: number;
     /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
     layout?: string;
+    /** Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time */
+    memoryId?: string;
     /** One of the user's own book styles (see GET /book-styles) */
     styleId?: string;
     /** A book style preset (default classic) */
     stylePreset?: BookStylePreset;
-    /** Title, drawn in a band at the foot of the collage */
+    /** Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory) */
     title?: string;
 };
 export type CollageLayoutResponseDto = {
@@ -3176,6 +3220,8 @@ export type CollageLayoutResponseDto = {
     name: string;
 };
 export type CollageLayoutsResponseDto = {
+    /** The photos of the collage, e.g. those picked from a memory */
+    assetIds: string[];
     /** The layouts for the number of photos, the one that fits them best first */
     layouts: CollageLayoutResponseDto[];
 };
@@ -3183,16 +3229,20 @@ export type CollageRenderDto = {
     /** Aspect ratio, width:height (default 1:1) */
     aspectRatio?: CollageAspectRatio;
     /** Photos of the collage, 2 to 9 */
-    assetIds: string[];
+    assetIds?: string[];
+    /** With memoryId: how many photos to pick (default 6) */
+    count?: number;
     /** Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview */
     full?: boolean;
     /** Layout (see POST /collages/layouts); default: the one that fits the photos best */
     layout?: string;
+    /** Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time */
+    memoryId?: string;
     /** One of the user's own book styles (see GET /book-styles) */
     styleId?: string;
     /** A book style preset (default classic) */
     stylePreset?: BookStylePreset;
-    /** Title, drawn in a band at the foot of the collage */
+    /** Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory) */
     title?: string;
 };
 export type CollectionNamesDto = {
@@ -3900,6 +3950,8 @@ export type HighlightJobResponseDto = {
     format: HighlightFormat;
     /** Highlight video ID */
     id: string;
+    /** Memory the video is made from */
+    memoryId: string | null;
     /** Share of the rendering done, 0 to 1 */
     progress: number;
     /** The video, once it is ready */
@@ -3929,10 +3981,12 @@ export type HighlightCreateDto = {
     format?: HighlightFormat;
     /** Open the chapters with GPS locations with a map (default true) */
     includeMaps?: boolean;
+    /** Memory to make the video from: the photos and videos of the whole moment it stands for, e.g. every day of a trip, not only the photos the memory shows */
+    memoryId?: string;
     /** An audio file of the user (see the music endpoints) played under the video */
     music?: string;
     style?: HighlightStyle;
-    /** Title; default: the name of the album or book */
+    /** Title; default: the name of the album or book, or the title of the memory */
     title?: string;
 };
 export type HighlightMusicResponseDto = {
@@ -9085,6 +9139,21 @@ export function createBookFromAlbum({ bookFromAlbumDto }: {
         ...opts,
         method: "POST",
         body: bookFromAlbumDto
+    })));
+}
+/**
+ * Create a book from a memory
+ */
+export function createBookFromMemory({ bookFromMemoryDto }: {
+    bookFromMemoryDto: BookFromMemoryDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookAutoLayoutResponseDto;
+    }>("/books/from-memory", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: bookFromMemoryDto
     })));
 }
 /**

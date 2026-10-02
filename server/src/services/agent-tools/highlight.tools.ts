@@ -34,8 +34,9 @@ export class HighlightAgentTools extends BaseService {
           'title card) for every chapter (a day, a stop, a restaurant visit, a leg of a trip) and lower thirds naming ' +
           'the dishes, artworks, wines, recipe steps and places. It picks the photos like auto_layout_book (one per ' +
           'stack and per burst). It renders in the background for a minute or a few, and is saved as a new video in ' +
-          'the timeline (tagged Highlights/<title>, and added to the album). Pass exactly one of albumId, bookId or ' +
-          'assetIds. Use format vertical when the user wants it for a phone, a story, a reel, TikTok, Instagram or ' +
+          'the timeline (tagged Highlights/<title>, and added to the album). Pass exactly one of albumId, bookId, ' +
+          'assetIds or memoryId (from list_memories: every photo and video of the moment it stands for, e.g. the ' +
+          'whole trip). Use format vertical when the user wants it for a phone, a story, a reel, TikTok, Instagram or ' +
           'WhatsApp status: it crops the photos around their subject and keeps the text clear of the apps’ buttons. ' +
           'Music: only an audio file the user uploaded (musicId from list_highlight_music); none by ' +
           'default. Returns a highlightId; call get_highlight_video to follow it.',
@@ -43,7 +44,15 @@ export class HighlightAgentTools extends BaseService {
           albumId: z.string().optional().describe('Album to make the video of'),
           bookId: z.string().optional().describe('Book to make the video of (its photos and style)'),
           assetIds: z.array(z.string()).optional().describe('Photos and videos to make the video of'),
-          title: z.string().max(200).optional().describe('Title card; default: the name of the album or book'),
+          memoryId: z
+            .string()
+            .optional()
+            .describe('A memory from list_memories: the photos and videos of its whole window'),
+          title: z
+            .string()
+            .max(200)
+            .optional()
+            .describe('Title card; default: the name of the album or book, or the title of the memory'),
           durationSeconds: z
             .int()
             .min(MIN_HIGHLIGHT_DURATION)
@@ -65,9 +74,11 @@ export class HighlightAgentTools extends BaseService {
         mutating: true,
         handler: ({ auth, activity }, { musicId, ...input }) =>
           this.run(async () => {
-            const sources = [input.albumId, input.bookId, input.assetIds].filter((value) => value !== undefined);
+            const sources = [input.albumId, input.bookId, input.assetIds, input.memoryId].filter(
+              (value) => value !== undefined,
+            );
             if (sources.length !== 1) {
-              return toolError('Pass exactly one of albumId, bookId or assetIds');
+              return toolError('Pass exactly one of albumId, bookId, assetIds or memoryId');
             }
             const job = await highlights.create(auth, { ...input, music: musicId }, activity);
             return toolJson({
