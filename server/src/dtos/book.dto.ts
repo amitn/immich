@@ -357,6 +357,31 @@ const BookFromAlbumSchema = z
   })
   .meta({ id: 'BookFromAlbumDto' });
 
+const BookFromMemorySchema = z
+  .object({
+    memoryId: z
+      .uuidv4()
+      .describe(
+        'Memory whose moment is laid out: the photos of the whole window it stands for (e.g. every day of a trip, ' +
+          'the year before a birthday), not only the photos the memory shows',
+      ),
+    title: z.string().trim().min(1).max(200).optional().describe('Book title (default: the title of the memory)'),
+    subtitle: optionalText(200).describe('Book subtitle (default: the dates the memory covers)'),
+    pageWidthMm: pageSizeMm.optional().describe('Page width in millimeters (default 210)'),
+    pageHeightMm: pageSizeMm.optional().describe('Page height in millimeters (default 210)'),
+    stylePreset: BookStylePresetSchema.optional().describe('Style preset (default: classic, soft for a birthday)'),
+    style: BookStyleUpdateSchema.optional(),
+    targetPageCount,
+    includeMaps: includeMaps.describe(
+      'Open the sections with GPS locations with a map (default: true for a trip, otherwise false)',
+    ),
+    mapStyle: BookMapStyleOptionSchema.optional(),
+    mapLook: BookMapLookOptionSchema.optional(),
+    illustratedMaps,
+    ...layoutTuning,
+  })
+  .meta({ id: 'BookFromMemoryDto' });
+
 const BookAutoLayoutSchema = z
   .object({
     assetIds: z
@@ -677,6 +702,7 @@ export class BookPageCreateDto extends createZodDto(BookPageCreateSchema) {}
 export class BookPageUpdateDto extends createZodDto(BookPageUpdateSchema) {}
 export class BookPageMoveDto extends createZodDto(BookPageMoveSchema) {}
 export class BookFromAlbumDto extends createZodDto(BookFromAlbumSchema) {}
+export class BookFromMemoryDto extends createZodDto(BookFromMemorySchema) {}
 export class BookAutoLayoutDto extends createZodDto(BookAutoLayoutSchema) {}
 export class BookSlotUpdateDto extends createZodDto(BookSlotUpdateSchema) {}
 export class BookPageParamDto extends createZodDto(BookPageParamSchema) {}

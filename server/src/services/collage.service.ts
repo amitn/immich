@@ -12,15 +12,22 @@ import { ActivityLogAction, AssetType, Permission } from 'src/enum.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
-import { getAssetDimensions, getRenderInput } from 'src/services/book.service.js';
+
+import { BookService, getAssetDimensions, getRenderInput } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
+import { pickSpread } from 'src/utils/agent/events.js';
+import { selectBest } from 'src/utils/agent/selection.js';
 import { formatDateRange } from 'src/utils/book/auto-layout.js';
 import {
   COLLAGE_FULL_PX,
   COLLAGE_PREVIEW_PX,
   CollageChoice,
   CollagePhoto,
+  DEFAULT_MEMORY_COLLAGE_PHOTOS,
+  MAX_COLLAGE_PHOTOS,
+  MIN_COLLAGE_PHOTOS,
   chooseCollageLayout,
   getBaseLayoutId,
   getCollageLayoutsFor,
@@ -44,6 +51,9 @@ type CollagePlan = {
 
 export const getCollageTag = (name: string) => `Collages/${name}`;
 
+/** the photos of a memory a collage is picked from, spread over its window */
+const MAX_MEMORY_COLLAGE_CANDIDATES = 300;
+
 const getFileName = (name: string) => `Collage ${name.replaceAll(/[\\/:*?"<>|]/g, '_')}.jpg`;
 
 /**
@@ -54,8 +64,9 @@ const getFileName = (name: string) => `Collage ${name.replaceAll(/[\\/:*?"<>|]/g
 export class CollageService extends BaseService {
   /** the layouts for the photos, the one that fits them best first */
   async getLayouts(auth: AuthDto, dto: CollageDto): Promise<CollageLayoutsResponseDto> {
-    const { choices } = await this.plan(auth, dto);
+    const { plan, choices } = await this.plan(auth, dto);
     return {
+      assetIds: plan.assets.map(({ id }) => id),
       layouts: choices.map(({ layout }) => ({
         id: getBaseLayoutId(layout),
         name: layout.name,
@@ -111,12 +122,63 @@ export class CollageService extends BaseService {
       });
     }
 
-    return { assetId: id, duplicate, layout: getBaseLayoutId(plan.chosen.layout), tag };
+    return {
+      assetId: id,
+      duplicate,
+      layout: getBaseLayoutId(plan.chosen.layout),
+      tag,
+      assetIds: plan.assets.map((asset) => asset.id),
+    };
+  }
+
+  /**
+   * The best photos of a memory for a collage (#5): picked from the whole moment it stands for (see
+   * `MemorySourceService`), one per burst, spread over its events and in time order, the same ones every time
+   */
+  async pickMemoryPhotos(auth: AuthDto, memoryId: string, count = DEFAULT_MEMORY_COLLAGE_PHOTOS) {
+    const { source, assets } = await BaseService.create(MemorySourceService, this).resolve(auth, memoryId);
+    const images = assets.filter(({ type }) => type === AssetType.Image);
+    if (images.length < MIN_COLLAGE_PHOTOS) {
+      throw new BadRequestException(`The memory has fewer than ${MIN_COLLAGE_PHOTOS} photos`);
+    }
+
+    const photos = await BaseService.create(BookService, this).getLayoutPhotos(
+      auth,
+      pickSpread(images, MAX_MEMORY_COLLAGE_CANDIDATES).map(({ id }) => id),
+      new Set(),
+      [],
+      undefined,
+      { sourcePages: false },
+    );
+    const { ids } = selectBest(
+      photos.map((photo) => ({
+        id: photo.id,
+        time: photo.takenAt,
+        score: photo.score,
+        cluster: photo.clusterId ?? null,
+        event: photo.eventIndex ?? null,
+        personIds: photo.people?.map(({ id }) => id) ?? [],
+      })),
+      { count: Math.min(count, photos.length), maxPerCluster: 1, minPerEvent: 1, chronological: true },
+    );
+    if (ids.length < MIN_COLLAGE_PHOTOS) {
+      throw new BadRequestException(`The memory has fewer than ${MIN_COLLAGE_PHOTOS} photos that can be drawn`);
+    }
+    return { assetIds: ids, title: source.title };
   }
 
   private async plan(auth: AuthDto, dto: CollageDto) {
     requireNotSharedLink(auth);
-    const assetIds = dto.assetIds;
+    let assetIds = dto.assetIds ?? [];
+    let defaultTitle = '';
+    if (dto.memoryId) {
+      const picked = await this.pickMemoryPhotos(auth, dto.memoryId, dto.count);
+      assetIds = picked.assetIds;
+      defaultTitle = picked.title;
+    }
+    if (assetIds.length < MIN_COLLAGE_PHOTOS || assetIds.length > MAX_COLLAGE_PHOTOS) {
+      throw new BadRequestException(`A collage has ${MIN_COLLAGE_PHOTOS} to ${MAX_COLLAGE_PHOTOS} photos`);
+    }
     if (new Set(assetIds).size !== assetIds.length) {
       throw new BadRequestException('The photos of a collage must be different');
     }
@@ -155,7 +217,7 @@ export class CollageService extends BaseService {
       );
     }
 
-    const title = dto.title?.trim() ?? '';
+    const title = (dto.title ?? defaultTitle).trim().slice(0, 100);
     const { chosen, choices } = chooseCollageLayout(photos, size, style, { title: !!title, layout: dto.layout });
     const plan: CollagePlan = { size, style, title, assets, chosen };
     return { plan, choices };

@@ -47,6 +47,7 @@ describe(CollageAgentTools.name, () => {
 
   it('should preview a collage with its layouts', async () => {
     vi.spyOn(CollageService.prototype, 'getLayouts').mockResolvedValue({
+      assetIds,
       layouts: [
         { id: 'four-grid', name: 'Four grid', description: '' },
         { id: 'hero-three', name: 'Hero + three', description: '' },
@@ -74,6 +75,7 @@ describe(CollageAgentTools.name, () => {
 
   it('should make a collage', async () => {
     const create = vi.spyOn(CollageService.prototype, 'create').mockResolvedValue({
+      assetIds,
       assetId: 'collage-id',
       duplicate: false,
       layout: 'four-grid',
@@ -83,12 +85,36 @@ describe(CollageAgentTools.name, () => {
     const result = await call('make_collage', { assetIds, title: 'Day 1', stylePreset: 'bold' });
 
     expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({
+      assetIds,
       assetId: 'collage-id',
       duplicate: false,
       layout: 'four-grid',
       tag: 'Collages/Day 1',
     });
     expect(create).toHaveBeenCalledWith(auth, { assetIds, title: 'Day 1', stylePreset: 'bold' }, undefined);
+  });
+
+  it('should make a collage of a memory, and say which photos it picked', async () => {
+    vi.spyOn(CollageService.prototype, 'getLayouts').mockResolvedValue({
+      assetIds,
+      layouts: [{ id: 'four-grid', name: 'Four grid', description: '' }],
+    });
+    vi.spyOn(CollageService.prototype, 'render').mockResolvedValue(Buffer.from('jpeg'));
+    const create = vi.spyOn(CollageService.prototype, 'create').mockResolvedValue({
+      assetIds,
+      assetId: 'collage-id',
+      duplicate: false,
+      layout: 'four-grid',
+      tag: 'Collages/Recent trip to Athens',
+    });
+
+    const preview = await call('preview_collage', { memoryId: 'memory-1', count: 4 });
+    expect(JSON.parse((preview.content[0] as { text: string }).text)).toMatchObject({ assetIds });
+    await call('make_collage', { memoryId: 'memory-1', count: 4 });
+    expect(create).toHaveBeenCalledWith(auth, { memoryId: 'memory-1', count: 4 }, undefined);
+
+    await expect(call('make_collage', {})).resolves.toMatchObject({ isError: true });
+    await expect(call('preview_collage', { memoryId: 'memory-1', assetIds })).resolves.toMatchObject({ isError: true });
   });
 
   it('should return the error of the service', async () => {

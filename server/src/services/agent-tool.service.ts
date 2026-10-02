@@ -14,6 +14,7 @@ import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
 import { EnhanceAgentTools } from 'src/services/agent-tools/enhance.tools.js';
 import { HighlightAgentTools } from 'src/services/agent-tools/highlight.tools.js';
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
+import { MemoryAgentTools } from 'src/services/agent-tools/memory.tools.js';
 import { OrientationAgentTools } from 'src/services/agent-tools/orientation.tools.js';
 import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -74,6 +75,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(QuestionAgentTools, this),
         BaseService.create(HighlightAgentTools, this),
         BaseService.create(CollageAgentTools, this),
+        BaseService.create(MemoryAgentTools, this),
         BaseService.create(OrientationAgentTools, this),
         BaseService.create(ActivityAgentTools, this),
       ];

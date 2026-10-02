@@ -19,6 +19,8 @@ import { UserTable } from 'src/schema/tables/user.table.js';
 export type HighlightJobOptions = {
   /** the photos and videos of a selection; an album or a book gives its own */
   assetIds?: string[];
+  /** the memory the selection was made from: the photos and videos of its whole window (#5) */
+  memoryId?: string;
   durationSeconds: number;
   /** a book style preset, or auto: the book's style, or the preset of the collection of the photos */
   style: string;

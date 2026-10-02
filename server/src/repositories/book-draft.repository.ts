@@ -152,4 +152,48 @@ export class BookDraftRepository {
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime() }));
   }
+
+  /**
+   * The photos and videos of a user's timeline taken in a window of local time (both ends included), e.g. the trip
+   * of a memory (see `src/utils/memory-source.ts`): those showing every one of `personIds`, only favorites or only
+   * videos when asked. In time order.
+   */
+  @GenerateSql({
+    params: [DummyValue.UUID, { from: DummyValue.DATE, to: DummyValue.DATE, personIds: [DummyValue.UUID] }],
+  })
+  async getWindowAssets(
+    ownerId: string,
+    {
+      from,
+      to,
+      personIds = [],
+      favoritesOnly = false,
+      videosOnly = false,
+    }: { from: Date; to: Date; personIds?: string[]; favoritesOnly?: boolean; videosOnly?: boolean },
+  ) {
+    let query = this.db
+      .selectFrom('asset')
+      .select(['asset.id', 'asset.type', 'asset.localDateTime'])
+      .where('asset.ownerId', '=', ownerId)
+      .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+      .where('asset.deletedAt', 'is', null)
+      .where('asset.localDateTime', '>=', from)
+      .where('asset.localDateTime', '<=', to)
+      .where('asset.type', 'in', videosOnly ? [AssetType.Video] : [AssetType.Image, AssetType.Video])
+      .$if(favoritesOnly, (qb) => qb.where('asset.isFavorite', '=', true));
+    for (const personId of new Set(personIds)) {
+      query = query.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('asset_face')
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.personGroupId', '=', asUuid(personId))
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ),
+      );
+    }
+    const rows = await query.orderBy('asset.localDateTime', 'asc').orderBy('asset.id', 'asc').execute();
+    return rows.map(({ localDateTime, ...row }) => ({ ...row, time: localDateTime.getTime() }));
+  }
 }

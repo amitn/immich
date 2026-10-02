@@ -4,14 +4,33 @@ import { bookStylePresetIds } from 'src/dtos/book.dto.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollageService } from 'src/services/collage.service.js';
 import { AgentTool, AgentToolResult, defineTool, toolError, toolImage, toolJson } from 'src/utils/agent/tools.js';
-import { MAX_COLLAGE_PHOTOS, MIN_COLLAGE_PHOTOS, collageAspectRatios } from 'src/utils/book/collage.js';
+import {
+  DEFAULT_MEMORY_COLLAGE_PHOTOS,
+  MAX_COLLAGE_PHOTOS,
+  MIN_COLLAGE_PHOTOS,
+  collageAspectRatios,
+} from 'src/utils/book/collage.js';
 
 const collageInput = {
   assetIds: z
     .array(z.string())
     .min(MIN_COLLAGE_PHOTOS)
     .max(MAX_COLLAGE_PHOTOS)
+    .optional()
     .describe(`${MIN_COLLAGE_PHOTOS} to ${MAX_COLLAGE_PHOTOS} different photos`),
+  memoryId: z
+    .string()
+    .optional()
+    .describe(
+      'Instead of assetIds: a memory from list_memories; its best photos are picked from its whole window (the ' +
+        'same ones every time), and its title is the default title',
+    ),
+  count: z
+    .int()
+    .min(MIN_COLLAGE_PHOTOS)
+    .max(MAX_COLLAGE_PHOTOS)
+    .optional()
+    .describe(`With memoryId: how many photos to pick, default ${DEFAULT_MEMORY_COLLAGE_PHOTOS}`),
   aspectRatio: z
     .enum(collageAspectRatios)
     .optional()
@@ -43,13 +62,17 @@ export class CollageAgentTools extends BaseService {
         mutating: false,
         handler: ({ auth }, input) =>
           this.run(async () => {
-            const [{ layouts }, image] = await Promise.all([
+            if ((input.assetIds === undefined) === (input.memoryId === undefined)) {
+              return toolError('Pass either assetIds or memoryId');
+            }
+            const [{ layouts, assetIds }, image] = await Promise.all([
               collages.getLayouts(auth, input),
               collages.render(auth, input),
             ]);
             return toolImage(image, 'image/jpeg', {
               layout: input.layout ?? layouts[0]?.id,
               layouts: layouts.map(({ id, name }) => ({ id, name })),
+              ...(input.memoryId && { assetIds }),
             });
           }),
       }),
@@ -68,6 +91,9 @@ export class CollageAgentTools extends BaseService {
         mutating: true,
         handler: ({ auth, activity }, input) =>
           this.run(async () => {
+            if ((input.assetIds === undefined) === (input.memoryId === undefined)) {
+              return toolError('Pass either assetIds or memoryId');
+            }
             const result = await collages.create(auth, input, activity);
             return toolJson(result);
           }),

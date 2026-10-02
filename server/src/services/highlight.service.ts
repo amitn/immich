@@ -10,6 +10,7 @@ import {
   HighlightCreateDto,
   HighlightJobResponseDto,
   HighlightMusicResponseDto,
+  MAX_HIGHLIGHT_ASSETS,
   mapHighlightJob,
   mapHighlightMusic,
 } from 'src/dtos/highlight.dto.js';
@@ -35,7 +36,9 @@ import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService, getRenderInput } from 'src/services/book.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
+import { pickSpread } from 'src/utils/agent/events.js';
 import { scorePhoto } from 'src/utils/agent/scoring.js';
 import { getStyledMapSource } from 'src/utils/book/map-source.js';
 import { resolveMapStyle } from 'src/utils/book/map-styles.js';
@@ -129,6 +132,7 @@ export class HighlightService extends BaseService {
   /** Starts a highlight video; with a recorder it goes into the activity log (undo cancels it, or trashes the video) */
   async create(auth: AuthDto, dto: HighlightCreateDto, activity?: ActivityRecorder): Promise<HighlightJobResponseDto> {
     let title = dto.title;
+    let assetIds: string[] | undefined;
     if (dto.albumId) {
       await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: [dto.albumId] });
       const album = await this.albumRepository.getById(dto.albumId, { withAssets: false });
@@ -145,8 +149,17 @@ export class HighlightService extends BaseService {
       title ??= book.title;
     } else if (dto.assetIds) {
       await this.requireAccess({ auth, permission: Permission.AssetRead, ids: dto.assetIds });
+      assetIds = [...new Set(dto.assetIds)];
+    } else if (dto.memoryId) {
+      const { source, assets } = await BaseService.create(MemorySourceService, this).resolve(auth, dto.memoryId);
+      if (assets.length === 0) {
+        throw new BadRequestException('The memory has no photos or videos');
+      }
+      // the whole window, spread over its time when it is longer than a selection can be
+      assetIds = pickSpread(assets, MAX_HIGHLIGHT_ASSETS).map(({ id }) => id);
+      title ??= source.title;
     } else {
-      throw new BadRequestException('Pass an albumId, a bookId or assetIds');
+      throw new BadRequestException('Pass an albumId, a bookId, assetIds or a memoryId');
     }
 
     if (dto.music) {
@@ -163,7 +176,8 @@ export class HighlightService extends BaseService {
       musicAssetId: dto.music ?? null,
       title: title || 'Highlights',
       options: {
-        ...(dto.assetIds && { assetIds: [...new Set(dto.assetIds)] }),
+        ...(assetIds && { assetIds }),
+        ...(dto.memoryId && { memoryId: dto.memoryId }),
         durationSeconds: dto.durationSeconds ?? DEFAULT_HIGHLIGHT_DURATION,
         style: dto.style ?? 'auto',
         includeMaps: dto.includeMaps ?? true,
