@@ -461,6 +461,7 @@ features:
       - journal-notifications
       - ask-your-library
       - burst-cleanup
+      - memory-creations
       - smart-albums
     risk: high
     domains: [server, web, database]
@@ -577,6 +578,8 @@ features:
       - server/src/services/highlight.service.ts
       - server/src/services/improve.service.sharp.spec.ts
       - server/src/services/improve.service.ts
+      - server/src/services/memory-source.service.spec.ts
+      - server/src/services/memory-source.service.ts
       - server/src/services/orientation.service.spec.ts
       - server/src/services/orientation.service.ts
       - server/src/utils/access-book.spec.ts
@@ -589,6 +592,8 @@ features:
       - server/src/utils/enhance.ts
       - server/src/utils/highlight/**
       - server/src/utils/image-decode.ts
+      - server/src/utils/memory-source.spec.ts
+      - server/src/utils/memory-source.ts
       - server/src/utils/orientation.benchmark.spec.ts
       - server/src/utils/orientation.spec.ts
       - server/src/utils/orientation.ts
@@ -616,6 +621,7 @@ features:
       - server/test/medium/specs/services/agent.service.spec.ts
       - server/test/medium/specs/services/burst.service.spec.ts
       - server/test/medium/specs/services/crop-copy.service.spec.ts
+      - server/test/medium/specs/services/memory-creations.service.spec.ts
       - server/test/medium/specs/workflow/workflow-smart-album.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
@@ -625,6 +631,7 @@ features:
       - web/src/lib/components/bursts/**
       - web/src/lib/components/journals/JournalEntryEditor.svelte
       - web/src/lib/components/layouts/UserPageLayout.spec.ts
+      - web/src/lib/components/memory-creations/**
       - web/src/lib/components/orientation/**
       - web/src/lib/components/pages/SharedLinkPage.spec.ts
       - web/src/lib/components/search/AskLibraryPanel.spec.ts
@@ -682,6 +689,8 @@ features:
       - web/src/lib/services/highlight.service.ts
       - web/src/lib/services/journals.service.spec.ts
       - web/src/lib/services/journals.service.ts
+      - web/src/lib/services/memory-creations.service.spec.ts
+      - web/src/lib/services/memory-creations.service.ts
       - web/src/lib/services/workflow-assistant.service.spec.ts
       - web/src/lib/services/workflow-assistant.service.ts
       - web/src/lib/utils/activity-log.ts
@@ -872,6 +881,7 @@ features:
         - server/src/schema/migrations-gallery/1794800000000-HighlightJob.ts
         - server/src/schema/migrations-gallery/1794900000000-ActivityLog.ts
         - server/src/schema/migrations-gallery/1795000000000-CollectionNotices.ts
+        - server/src/schema/migrations-gallery/1795100000000-BookDraftMemory.ts
     required_checks: [e2e-rebase-smoke]
 
 checks:

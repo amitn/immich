@@ -21,12 +21,14 @@
     albumId?: string;
     bookId?: string;
     assetIds?: string[];
+    /** a memory: the video is made of every photo and video of the moment it stands for, e.g. the whole trip (#5) */
+    memoryId?: string;
     /** the title the dialog starts with, e.g. the name of the album */
     title?: string;
     onClose: () => void;
   };
 
-  const { albumId, bookId, assetIds, title: initialTitle = '', onClose }: Props = $props();
+  const { albumId, bookId, assetIds, memoryId, title: initialTitle = '', onClose }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let title = $state(initialTitle);
@@ -99,6 +101,7 @@
       ...(albumId && { albumId }),
       ...(bookId && { bookId }),
       ...(assetIds && { assetIds }),
+      ...(memoryId && { memoryId }),
       title: title.trim() || undefined,
       durationSeconds,
       format,

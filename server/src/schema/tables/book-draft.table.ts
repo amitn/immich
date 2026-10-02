@@ -12,6 +12,7 @@ import {
 import { UpdateIdColumn, UpdatedAtTrigger } from 'src/decorators.js';
 import { BookDraftKind, BookDraftState } from 'src/enum.js';
 import { BookTable } from 'src/schema/tables/book.table.js';
+import { MemoryTable } from 'src/schema/tables/memory.table.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
 
 /**
@@ -41,6 +42,13 @@ export class BookDraftTable {
   /** the book laid out for the suggestion; null once it is deleted */
   @ForeignKeyColumn(() => BookTable, { onDelete: 'SET NULL', onUpdate: 'CASCADE', nullable: true })
   bookId!: string | null;
+
+  /**
+   * the memory of the rule engine the suggestion is based on, e.g. the `recent_trip` or `birthday` memory whose window
+   * it covers (#5); null for the other suggestions, and once the memory is deleted
+   */
+  @ForeignKeyColumn(() => MemoryTable, { onDelete: 'SET NULL', onUpdate: 'CASCADE', nullable: true })
+  memoryId!: string | null;
 
   @Column()
   title!: string;

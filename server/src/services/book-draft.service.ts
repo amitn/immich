@@ -21,6 +21,7 @@ import { BookService } from 'src/services/book.service.js';
 import { ActivityRecorder, quote, recordActivity, toBookSnapshot } from 'src/utils/activity-log.js';
 import {
   DraftCandidate,
+  DraftTripMemory,
   YEARLY_BOOKS,
   getBirthdayDraft,
   getBirthdayYear,
@@ -30,6 +31,7 @@ import {
   selectDrafts,
 } from 'src/utils/book/drafts.js';
 import { getCollectionPack } from 'src/utils/collections/registry.js';
+import { getMemorySource } from 'src/utils/memory-source.js';
 import { findOrFail } from 'src/utils/misc.js';
 import { getPreferences } from 'src/utils/preferences.js';
 
@@ -37,6 +39,9 @@ type DraftsConfig = SystemConfig['books']['drafts'];
 
 /** drafts waiting for the user to keep or discard them; no more are drafted until there are fewer */
 export const MAX_PENDING_DRAFTS = 6;
+
+/** the rules of the memory engine whose memories are trips */
+const TRIP_MEMORY_RULES = ['recent_trip', 'trip_anniversary'];
 
 /**
  * Photo books drafted for the users in the background (like memories): every night, and when asked, the books their
@@ -124,6 +129,8 @@ export class BookDraftService extends BaseService {
   /** every book the user's photos are enough for, of the kinds that are enabled */
   async findDrafts(ownerId: string, kinds: DraftsConfig, now: Date): Promise<DraftCandidate[]> {
     const candidates: DraftCandidate[] = [];
+    // the trips and birthdays the memory engine found, so that a trip or a birthday has one definition (#5)
+    const memories = await this.getMemorySources(ownerId, kinds, now);
 
     if (kinds.yearly || kinds.trips) {
       const packs = [...(kinds.yearly ? Object.keys(YEARLY_BOOKS) : []), ...(kinds.trips ? ['travel'] : [])];
@@ -137,7 +144,15 @@ export class BookDraftService extends BaseService {
       }
       if (kinds.trips) {
         const timeline = await this.bookDraftRepository.getTimeline(ownerId);
-        candidates.push(...getTripDrafts(tags, timeline, now));
+        const trips: DraftTripMemory[] = memories
+          .filter((source) => source.kind === 'trip' && source.from && source.to)
+          .map((source) => ({
+            memoryId: source.memoryId,
+            from: source.from!.getTime(),
+            to: source.to!.getTime(),
+            place: source.place,
+          }));
+        candidates.push(...getTripDrafts(tags, timeline, now, trips));
       }
     }
 
@@ -155,12 +170,34 @@ export class BookDraftService extends BaseService {
         );
         const draft = getBirthdayDraft(person, photos, now);
         if (draft) {
-          candidates.push(draft);
+          // the birthday memory of the same day, whose window is the same year (see `getMemorySource`)
+          const memory = memories.find(
+            (source) =>
+              source.kind === 'birthday' &&
+              source.personIds[0] === person.id &&
+              source.to?.toISOString().slice(0, 10) === new Date(draft.endsAt).toISOString().slice(0, 10),
+          );
+          candidates.push(memory ? { ...draft, memoryId: memory.memoryId } : draft);
         }
       }
     }
 
     return candidates;
+  }
+
+  /** the trip and birthday memories of the user, with their windows and places */
+  private async getMemorySources(ownerId: string, kinds: DraftsConfig, now: Date) {
+    const ruleIds = [...(kinds.trips ? TRIP_MEMORY_RULES : []), ...(kinds.birthdays ? ['birthday'] : [])];
+    const rows = await this.bookDraftRepository.getRuleMemories(ownerId, ruleIds);
+    return rows.map((row) => {
+      const source = getMemorySource({ ...row, assetIds: [] }, now);
+      const context = ((row.data as { context?: Record<string, unknown> } | null)?.context ?? {}) as Record<
+        string,
+        unknown
+      >;
+      const place = [context.city, context.country].find((value) => typeof value === 'string' && value.trim());
+      return { ...source, place: place as string | undefined };
+    });
   }
 
   /** claims the key, lays out the book and notifies the user; false when the key was taken or the layout failed */
@@ -171,6 +208,7 @@ export class BookDraftService extends BaseService {
       kind: candidate.kind,
       title: candidate.title,
       reason: candidate.reason,
+      memoryId: candidate.memoryId ?? null,
     });
     if (!claimed) {
       return false;
@@ -228,6 +266,7 @@ export class BookDraftService extends BaseService {
         key: draft.key,
         kind: draft.kind,
         reason: draft.reason,
+        memoryId: draft.memoryId,
         createdAt: draft.createdAt,
         book: mapBook(book),
       });

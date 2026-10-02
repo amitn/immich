@@ -45,7 +45,12 @@
   import { t } from 'svelte-i18n';
 
   type Props = {
-    assetIds: string[];
+    /** the photos of the collage; with a memoryId instead, the server picks them */
+    assetIds?: string[];
+    /** a memory to make the collage of: its best photos, picked from the whole moment it stands for (#5) */
+    memoryId?: string;
+    /** the title the collage starts with, e.g. the title of the memory */
+    title?: string;
     /** the album the photos were picked in: the collage is added to it and opens over it */
     albumId?: string;
     /** the space of that album, when it is an album of a space: the collage opens there */
@@ -53,7 +58,7 @@
     onClose: () => void;
   };
 
-  const { assetIds, albumId, spaceId, onClose }: Props = $props();
+  const { assetIds, memoryId, title: initialTitle = '', albumId, spaceId, onClose }: Props = $props();
 
   /** how long the preview waits for the title to be typed */
   const PREVIEW_DELAY = 300;
@@ -66,7 +71,11 @@
   ] as const;
 
   let aspectRatio = $state<CollageAspectRatio>(CollageAspectRatio.$11);
-  let title = $state('');
+  // svelte-ignore state_referenced_locally
+  let title = $state(initialTitle);
+  /** the photos: those given, or those the server picked from the memory, once it has */
+  // svelte-ignore state_referenced_locally
+  let photoIds = $state<string[] | undefined>(assetIds);
   let style = $state<BookStyleChoice>(BookStylePreset.Classic);
   let userStyles = $state<BookUserStyleResponseDto[]>([]);
   let layouts = $state<CollageLayoutResponseDto[]>([]);
@@ -92,7 +101,7 @@
   const layoutOptions = $derived(layouts.map((item) => ({ value: item.id, label: item.name })));
 
   const collageDto = $derived<CollageDto>({
-    assetIds,
+    assetIds: photoIds,
     aspectRatio,
     layout: chosenLayout,
     title: title.trim() || undefined,
@@ -142,12 +151,17 @@
 
   // the layouts are ranked for the shape of the page, which the aspect ratio and the title band change
   $effect(() => {
-    void loadLayouts({ assetIds, aspectRatio, title: hasTitle ? 'title' : undefined });
+    if (photoIds) {
+      void loadLayouts({ assetIds: photoIds, aspectRatio, title: hasTitle ? 'title' : undefined });
+    }
   });
 
   // a new preview for every change, once the typing stops
   $effect(() => {
     const dto = collageDto;
+    if (!dto.assetIds) {
+      return;
+    }
     const timer = setTimeout(() => void loadPreview(dto), PREVIEW_DELAY);
     return () => clearTimeout(timer);
   });
@@ -197,7 +211,22 @@
     }
   };
 
+  /** the photos of a memory, picked once by the server, so that every preview draws the same ones */
+  const pickMemoryPhotos = async (id: string) => {
+    try {
+      const result = await getCollageLayouts({ collageDto: { memoryId: id } });
+      photoIds = result.assetIds;
+    } catch (error) {
+      isLoading = false;
+      errorMessage = getMessage(error, $t('errors.unable_to_render_collage'));
+      handleError(error, $t('errors.unable_to_render_collage'), { notify: false });
+    }
+  };
+
   onMount(async () => {
+    if (memoryId && !photoIds) {
+      void pickMemoryPhotos(memoryId);
+    }
     try {
       userStyles = await loadBookUserStyles();
     } catch (error) {
@@ -239,7 +268,11 @@
       </div>
 
       <div class="flex flex-col gap-4 md:w-72">
-        <Text size="small" color="muted">{$t('collage_description', { values: { count: assetIds.length } })}</Text>
+        {#if photoIds}
+          <Text size="small" color="muted">{$t('collage_description', { values: { count: photoIds.length } })}</Text>
+        {:else if memoryId}
+          <Text size="small" color="muted">{$t('collage_memory_picking')}</Text>
+        {/if}
 
         <fieldset disabled={isSaving}>
           <legend class="mb-2 text-sm font-medium">{$t('collage_aspect_ratio')}</legend>

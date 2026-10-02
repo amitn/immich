@@ -21,6 +21,7 @@ import {
   getHighlightTag,
   resolveHighlightStyle,
 } from 'src/services/highlight.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AutoLayoutPhoto } from 'src/utils/book/auto-layout.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
@@ -161,6 +162,48 @@ describe(HighlightService.name, () => {
         durationSeconds: 90,
         format: 'landscape',
       });
+    });
+
+    it('should start a video of the whole window of a memory, titled like it', async () => {
+      const memoryId = newUuid();
+      const resolve = vitest.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue({
+        source: { title: 'Recent trip to Athens, Greece' } as any,
+        memory: { memoryAt: new Date(), isSaved: false },
+        assets: [
+          { id: 'first-day', type: AssetType.Image, time: 1 },
+          { id: 'clip', type: AssetType.Video, time: 2 },
+          { id: 'last-day', type: AssetType.Image, time: 3 },
+        ],
+      });
+      mocks.highlightJob.create.mockImplementation((job) => Promise.resolve(jobRow(job as any)) as any);
+
+      const result = await sut.create(auth, { memoryId, format: 'vertical' });
+
+      expect(resolve).toHaveBeenCalledWith(auth, memoryId);
+      expect(mocks.highlightJob.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          albumId: null,
+          bookId: null,
+          title: 'Recent trip to Athens, Greece',
+          options: expect.objectContaining({
+            assetIds: ['first-day', 'clip', 'last-day'],
+            memoryId,
+            format: 'vertical',
+          }),
+        }),
+      );
+      expect(result).toMatchObject({ memoryId, format: 'vertical' });
+    });
+
+    it('should not start a video of a memory without photos', async () => {
+      vitest.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue({
+        source: { title: 'Memories' } as any,
+        memory: { memoryAt: new Date(), isSaved: false },
+        assets: [],
+      });
+
+      await expect(sut.create(auth, { memoryId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
+      expect(mocks.highlightJob.create).not.toHaveBeenCalled();
     });
 
     it('should start a vertical video', async () => {

@@ -16,6 +16,7 @@ const job = (overrides: Partial<HighlightJobResponseDto> = {}): HighlightJobResp
   progress: 0.4,
   albumId: null,
   bookId: null,
+  memoryId: null,
   durationSeconds: 60,
   format: HighlightFormat.Landscape,
   resultAssetId: null,

@@ -11,6 +11,7 @@ import {
   getDaySpan,
   getDraftPageCount,
   getHome,
+  getMemoryTripDrafts,
   getTaggedTripDrafts,
   getTimelineTripDrafts,
   getTripDrafts,
@@ -84,6 +85,14 @@ const trip = (from: string, days: number, perDay: number) => {
 /** photos a day apart */
 const photosFrom = (count: number, from = '2025-04-01T10:00:00.000Z') =>
   Array.from({ length: count }, (_, i) => ({ id: id(), time: at(from) + i * DAY }));
+
+/** a trip memory of whole days */
+const tripMemory = (from: string, to: string, place?: string) => ({
+  memoryId: id(),
+  from: at(`${from}T00:00:00.000Z`),
+  to: at(`${to}T23:59:59.999Z`),
+  place,
+});
 
 describe('book drafts', () => {
   describe('getYearlyDrafts', () => {
@@ -297,6 +306,58 @@ describe('book drafts', () => {
       const tags = [{ id: id(), time: at('2024-01-01T10:00:00.000Z'), value: 'Travel/Short/Bus A → B, 1 Jan 2024' }];
       expect(getTripDrafts(tags, timeline, NOW)).toEqual([]);
       expect(getTripDrafts([], timeline, NOW)).toEqual([expect.objectContaining({ key: 'trip:2025-06-01' })]);
+    });
+  });
+
+  describe('getMemoryTripDrafts', () => {
+    it('should take the place of the trip the timeline found, under its key', () => {
+      // the memory engine saw the trip from a day later than the timeline (e.g. a first day spent travelling)
+      const timeline = [...home(2025), ...photosAt(ROME, '2025-06-01T08:00:00.000Z', 4, 15)];
+      const rome = tripMemory('2025-06-02', '2025-06-04', 'Rome');
+
+      const drafts = getTripDrafts([], timeline, NOW, [rome]);
+
+      expect(drafts).toEqual([
+        expect.objectContaining({
+          key: 'trip:2025-06-01',
+          title: 'Our trip to Rome',
+          subtitle: '2–4 June 2025',
+          memoryId: rome.memoryId,
+          reason: 'You spent 3 days in Rome and took 45 photos',
+        }),
+      ]);
+      expect(drafts[0].assetIds).toHaveLength(45);
+    });
+
+    it('should suggest a trip only the memory engine found, keyed by its first day', () => {
+      // no locations: the timeline finds no trip
+      const timeline = photosAt({ latitude: 0, longitude: 0 }, '2025-06-01T08:00:00.000Z', 3, 15);
+      const [draft, ...rest] = getTripDrafts([], timeline, NOW, [tripMemory('2025-06-01', '2025-06-03', 'Rome')]);
+      expect(rest).toEqual([]);
+      expect(draft).toEqual(expect.objectContaining({ key: 'trip:2025-06-01', title: 'Our trip to Rome' }));
+    });
+
+    it('should suggest the trip of two memories once', () => {
+      const timeline = photosAt({ latitude: 0, longitude: 0 }, '2025-06-01T08:00:00.000Z', 3, 15);
+      const recent = tripMemory('2025-06-01', '2025-06-03', 'Rome');
+      const anniversary = tripMemory('2025-06-01', '2025-06-03', 'Rome');
+      expect(getTripDrafts([], timeline, NOW, [recent, anniversary])).toEqual([
+        expect.objectContaining({ memoryId: recent.memoryId }),
+      ]);
+    });
+
+    it('should give way to a trip of the travel pack, which the user named', () => {
+      const { timeline, tags } = trip('2025-06-01T08:00:00.000Z', 3, 14);
+      const drafts = getTripDrafts(tags, [...home(2025), ...timeline], NOW, [tripMemory('2025-06-01', '2025-06-03')]);
+      expect(drafts).toEqual([expect.objectContaining({ key: 'trip:Travel/Rome, June 2025' })]);
+      expect(drafts[0].memoryId).toBeUndefined();
+    });
+
+    it('should wait for the trip to be over, and need enough photos', () => {
+      const ongoing = photosAt(ROME, '2026-09-25T08:00:00.000Z', 3, 15);
+      expect(getMemoryTripDrafts([tripMemory('2026-09-25', '2026-09-27')], ongoing, NOW).drafts).toEqual([]);
+      const few = photosAt(ROME, '2025-06-01T08:00:00.000Z', 3, 5);
+      expect(getMemoryTripDrafts([tripMemory('2025-06-01', '2025-06-03')], few, NOW).drafts).toEqual([]);
     });
   });
 

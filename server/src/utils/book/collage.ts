@@ -13,6 +13,8 @@ export type CollageAspectRatio = (typeof collageAspectRatios)[number];
 
 export const MIN_COLLAGE_PHOTOS = 2;
 export const MAX_COLLAGE_PHOTOS = 9;
+/** the photos a collage of a memory has, unless asked for more or fewer */
+export const DEFAULT_MEMORY_COLLAGE_PHOTOS = 6;
 
 /** the long side of a collage page: the book styles (margins, gutters and fonts in mm and pt) read as on a book page */
 export const COLLAGE_LONG_SIDE_MM = 200;

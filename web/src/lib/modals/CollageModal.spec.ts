@@ -27,7 +27,7 @@ describe('CollageModal component', () => {
     URL.createObjectURL = vi.fn(() => 'blob:collage');
     URL.revokeObjectURL = vi.fn();
     sdkMock.getBookUserStyles.mockResolvedValue([]);
-    sdkMock.getCollageLayouts.mockResolvedValue({ layouts });
+    sdkMock.getCollageLayouts.mockResolvedValue({ assetIds, layouts });
     sdkMock.renderCollage.mockResolvedValue(new Blob(['jpeg'], { type: 'image/jpeg' }));
   });
 
@@ -106,6 +106,7 @@ describe('CollageModal component', () => {
 
   it('should save the collage into the album and open it there', async () => {
     sdkMock.createCollage.mockResolvedValue({
+      assetIds,
       assetId: 'collage-id',
       duplicate: false,
       layout: 'hero-left-two',
@@ -123,6 +124,29 @@ describe('CollageModal component', () => {
       collageCreateDto: expect.objectContaining({ assetIds, albumId: 'album-id', layout: 'hero-left-two' }),
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('should make a collage of a memory: the photos the server picks once, and the memory’s title', async () => {
+    const picked = ['p1', 'p2', 'p3', 'p4'];
+    sdkMock.getCollageLayouts.mockResolvedValue({ assetIds: picked, layouts });
+
+    render(CollageModal, { props: { memoryId: 'memory-id', title: 'Recent trip to Athens', onClose } });
+
+    await waitFor(() => expect(lastRender()).toEqual(expect.objectContaining({ assetIds: picked })));
+    expect(sdkMock.getCollageLayouts).toHaveBeenNthCalledWith(1, { collageDto: { memoryId: 'memory-id' } });
+    // every later call draws the picked photos rather than picking again
+    expect(sdkMock.getCollageLayouts.mock.calls.slice(1).every(([{ collageDto }]) => !collageDto.memoryId)).toBe(true);
+    expect(lastRender()).toEqual(expect.objectContaining({ title: 'Recent trip to Athens' }));
+    expect(screen.getByPlaceholderText('collage_title_placeholder')).toHaveValue('Recent trip to Athens');
+  });
+
+  it('should say when the photos of a memory could not be picked', async () => {
+    sdkMock.getCollageLayouts.mockRejectedValue(new Error('The memory has fewer than 2 photos'));
+
+    render(CollageModal, { props: { memoryId: 'memory-id', onClose } });
+
+    await waitFor(() => expect(screen.getByText('errors.unable_to_render_collage')).toBeInTheDocument());
+    expect(sdkMock.renderCollage).not.toHaveBeenCalled();
   });
 
   it('should download the collage at full size', async () => {

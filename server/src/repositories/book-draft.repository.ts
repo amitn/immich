@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type Insertable, type Kysely, type Updateable, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { AssetType, AssetVisibility, BookDraftState } from 'src/enum.js';
+import { AssetType, AssetVisibility, BookDraftState, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { asUuid } from 'src/utils/database.js';
@@ -151,5 +151,66 @@ export class BookDraftRepository {
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime() }));
+  }
+
+  /** a user's memories made by the rules given (e.g. `recent_trip`), the newest first, to base suggestions on (#5) */
+  @GenerateSql({ params: [DummyValue.UUID, ['recent_trip', 'birthday']] })
+  getRuleMemories(ownerId: string, ruleIds: string[]) {
+    if (ruleIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('memory')
+      .select(['memory.id', 'memory.type', 'memory.data', 'memory.memoryAt'])
+      .where('memory.ownerId', '=', ownerId)
+      .where('memory.type', '=', sql.lit(MemoryType.Rule))
+      .where('memory.deletedAt', 'is', null)
+      .where(sql<string>`"memory"."data"->>'ruleId'`, 'in', ruleIds)
+      .orderBy('memory.memoryAt', 'desc')
+      .execute();
+  }
+
+  /**
+   * The photos and videos of a user's timeline taken in a window of local time (both ends included), e.g. the trip
+   * of a memory (see `src/utils/memory-source.ts`): those showing every one of `personIds`, only favorites or only
+   * videos when asked. In time order.
+   */
+  @GenerateSql({
+    params: [DummyValue.UUID, { from: DummyValue.DATE, to: DummyValue.DATE, personIds: [DummyValue.UUID] }],
+  })
+  async getWindowAssets(
+    ownerId: string,
+    {
+      from,
+      to,
+      personIds = [],
+      favoritesOnly = false,
+      videosOnly = false,
+    }: { from: Date; to: Date; personIds?: string[]; favoritesOnly?: boolean; videosOnly?: boolean },
+  ) {
+    let query = this.db
+      .selectFrom('asset')
+      .select(['asset.id', 'asset.type', 'asset.localDateTime'])
+      .where('asset.ownerId', '=', ownerId)
+      .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+      .where('asset.deletedAt', 'is', null)
+      .where('asset.localDateTime', '>=', from)
+      .where('asset.localDateTime', '<=', to)
+      .where('asset.type', 'in', videosOnly ? [AssetType.Video] : [AssetType.Image, AssetType.Video])
+      .$if(favoritesOnly, (qb) => qb.where('asset.isFavorite', '=', true));
+    for (const personId of new Set(personIds)) {
+      query = query.where((eb) =>
+        eb.exists(
+          eb
+            .selectFrom('asset_face')
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.personGroupId', '=', asUuid(personId))
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ),
+      );
+    }
+    const rows = await query.orderBy('asset.localDateTime', 'asc').orderBy('asset.id', 'asc').execute();
+    return rows.map(({ localDateTime, ...row }) => ({ ...row, time: localDateTime.getTime() }));
   }
 }

@@ -9039,6 +9039,62 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/books/from-memory": {
+      "post": {
+        "description": "Create a photo book from a memory and lay it out automatically, like a book from an album: the photos of the whole moment the memory stands for (every day of a trip, the year before a birthday, a month or a season), not only the photos the memory shows. Only the owner of the memory can make a book of it.",
+        "operationId": "createBookFromMemory",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookFromMemoryDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookAutoLayoutResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Create a book from a memory",
+        "tags": [
+          "Books"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.create",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/books/layouts": {
       "get": {
         "description": "Retrieve the page layouts that can be used in photo books.",
@@ -36068,6 +36124,13 @@
           "kind": {
             "$ref": "#/components/schemas/BookDraftKind"
           },
+          "memoryId": {
+            "description": "The memory the suggestion is based on, e.g. a recent trip",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
           "reason": {
             "description": "Why the book is suggested, e.g. \"You visited 6 restaurants in 2026\"",
             "type": "string"
@@ -36079,6 +36142,7 @@
           "id",
           "key",
           "kind",
+          "memoryId",
           "reason"
         ],
         "type": "object"
@@ -36217,6 +36281,95 @@
         },
         "required": [
           "albumId"
+        ],
+        "type": "object"
+      },
+      "BookFromMemoryDto": {
+        "properties": {
+          "captions": {
+            "$ref": "#/components/schemas/BookCaptionMode"
+          },
+          "considerImprovements": {
+            "description": "Pick the photos on what they can become after the fixes the app can make (straightening, auto-enhance), simulated on their previews (default true)",
+            "type": "boolean"
+          },
+          "illustratedMaps": {
+            "description": "Also redraw every map as an illustration with the art agent (default false)",
+            "type": "boolean"
+          },
+          "improvePhotos": {
+            "description": "Create improved copies (straightened, auto-enhanced) of the placed photos that a fix measurably helps, stacked with the originals, and place the copies instead (default false)",
+            "type": "boolean"
+          },
+          "includeMaps": {
+            "description": "Open the sections with GPS locations with a map (default: true for a trip, otherwise false)",
+            "type": "boolean"
+          },
+          "mapLook": {
+            "$ref": "#/components/schemas/BookMapLookOption"
+          },
+          "mapStyle": {
+            "$ref": "#/components/schemas/BookMapStyleOption"
+          },
+          "maxArtworkShare": {
+            "description": "Most pages with artwork, as a share of the pages (default 0.2); artwork is never on two pages in a row",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxStackPairs": {
+            "description": "Artworks shown next to their original on the same page (default 2)",
+            "maximum": 20,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memoryId": {
+            "description": "Memory whose moment is laid out: the photos of the whole window it stands for (e.g. every day of a trip, the year before a birthday), not only the photos the memory shows",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "pageHeightMm": {
+            "description": "Page height in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "pageWidthMm": {
+            "description": "Page width in millimeters (default 210)",
+            "maximum": 600,
+            "minimum": 50,
+            "type": "integer"
+          },
+          "style": {
+            "$ref": "#/components/schemas/BookStyleUpdate"
+          },
+          "stylePreset": {
+            "$ref": "#/components/schemas/BookStylePreset",
+            "description": "Style preset (default: classic, soft for a birthday)"
+          },
+          "subtitle": {
+            "description": "Book subtitle (default: the dates the memory covers)",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "targetPageCount": {
+            "description": "Approximate number of pages (default: about one page per 2.5 photos, 4 to 80 pages)",
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "description": "Book title (default: the title of the memory)",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memoryId"
         ],
         "type": "object"
       },
@@ -38059,9 +38212,21 @@
             "minItems": 2,
             "type": "array"
           },
+          "count": {
+            "description": "With memoryId: how many photos to pick (default 6)",
+            "maximum": 9,
+            "minimum": 2,
+            "type": "integer"
+          },
           "layout": {
             "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
             "maxLength": 100,
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
           },
           "styleId": {
@@ -38075,14 +38240,11 @@
             "description": "A book style preset (default classic)"
           },
           "title": {
-            "description": "Title, drawn in a band at the foot of the collage",
+            "description": "Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory)",
             "maxLength": 100,
             "type": "string"
           }
         },
-        "required": [
-          "assetIds"
-        ],
         "type": "object"
       },
       "CollageDto": {
@@ -38102,9 +38264,21 @@
             "minItems": 2,
             "type": "array"
           },
+          "count": {
+            "description": "With memoryId: how many photos to pick (default 6)",
+            "maximum": 9,
+            "minimum": 2,
+            "type": "integer"
+          },
           "layout": {
             "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
             "maxLength": 100,
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
           },
           "styleId": {
@@ -38118,14 +38292,11 @@
             "description": "A book style preset (default classic)"
           },
           "title": {
-            "description": "Title, drawn in a band at the foot of the collage",
+            "description": "Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory)",
             "maxLength": 100,
             "type": "string"
           }
         },
-        "required": [
-          "assetIds"
-        ],
         "type": "object"
       },
       "CollageLayoutResponseDto": {
@@ -38152,6 +38323,15 @@
       },
       "CollageLayoutsResponseDto": {
         "properties": {
+          "assetIds": {
+            "description": "The photos of the collage, e.g. those picked from a memory",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "layouts": {
             "description": "The layouts for the number of photos, the one that fits them best first",
             "items": {
@@ -38161,6 +38341,7 @@
           }
         },
         "required": [
+          "assetIds",
           "layouts"
         ],
         "type": "object"
@@ -38182,6 +38363,12 @@
             "minItems": 2,
             "type": "array"
           },
+          "count": {
+            "description": "With memoryId: how many photos to pick (default 6)",
+            "maximum": 9,
+            "minimum": 2,
+            "type": "integer"
+          },
           "full": {
             "description": "Render at full size (3000 px on the long edge) from the originals, e.g. to download; default preview",
             "type": "boolean"
@@ -38189,6 +38376,12 @@
           "layout": {
             "description": "Layout (see POST /collages/layouts); default: the one that fits the photos best",
             "maxLength": 100,
+            "type": "string"
+          },
+          "memoryId": {
+            "description": "Memory to make the collage of instead of assetIds: its best photos are picked from the whole moment it stands for (e.g. one or two of every day of a trip), the same ones every time",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
           },
           "styleId": {
@@ -38202,14 +38395,11 @@
             "description": "A book style preset (default classic)"
           },
           "title": {
-            "description": "Title, drawn in a band at the foot of the collage",
+            "description": "Title, drawn in a band at the foot of the collage (default with memoryId: the title of the memory)",
             "maxLength": 100,
             "type": "string"
           }
         },
-        "required": [
-          "assetIds"
-        ],
         "type": "object"
       },
       "CollageResponseDto": {
@@ -38219,6 +38409,15 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
+          },
+          "assetIds": {
+            "description": "The photos of the collage, e.g. those picked from a memory",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
           },
           "duplicate": {
             "description": "An identical collage had already been saved, and is returned instead",
@@ -38235,6 +38434,7 @@
         },
         "required": [
           "assetId",
+          "assetIds",
           "duplicate",
           "layout",
           "tag"
@@ -42384,6 +42584,12 @@
             "description": "Open the chapters with GPS locations with a map (default true)",
             "type": "boolean"
           },
+          "memoryId": {
+            "description": "Memory to make the video from: the photos and videos of the whole moment it stands for, e.g. every day of a trip, not only the photos the memory shows",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
           "music": {
             "description": "An audio file of the user (see the music endpoints) played under the video",
             "format": "uuid",
@@ -42394,7 +42600,7 @@
             "$ref": "#/components/schemas/HighlightStyle"
           },
           "title": {
-            "description": "Title; default: the name of the album or book",
+            "description": "Title; default: the name of the album or book, or the title of the memory",
             "maxLength": 200,
             "minLength": 1,
             "type": "string"
@@ -42453,6 +42659,13 @@
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
             "type": "string"
           },
+          "memoryId": {
+            "description": "Memory the video is made from",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
           "progress": {
             "description": "Share of the rendering done, 0 to 1",
             "format": "double",
@@ -42497,6 +42710,7 @@
           "error",
           "format",
           "id",
+          "memoryId",
           "progress",
           "resultAssetId",
           "status",

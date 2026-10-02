@@ -44,7 +44,20 @@ const HighlightCreateSchema = z
       .max(MAX_HIGHLIGHT_ASSETS)
       .optional()
       .describe('Photos and videos to make the video from'),
-    title: z.string().trim().min(1).max(200).optional().describe('Title; default: the name of the album or book'),
+    memoryId: z
+      .uuidv4()
+      .optional()
+      .describe(
+        'Memory to make the video from: the photos and videos of the whole moment it stands for, e.g. every day of ' +
+          'a trip, not only the photos the memory shows',
+      ),
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe('Title; default: the name of the album or book, or the title of the memory'),
     durationSeconds: z
       .int()
       .min(MIN_HIGHLIGHT_DURATION)
@@ -61,9 +74,10 @@ const HighlightCreateSchema = z
       .describe('Name the dishes, artworks, wines and recipe steps, and the places, in lower thirds (default true)'),
     addToAlbum: z.boolean().optional().describe('Add the video to the album it is made from (default true)'),
   })
-  .refine((dto) => [dto.albumId, dto.bookId, dto.assetIds].filter((value) => value !== undefined).length === 1, {
-    error: 'Pass exactly one of albumId, bookId or assetIds',
-  })
+  .refine(
+    (dto) => [dto.albumId, dto.bookId, dto.assetIds, dto.memoryId].filter((value) => value !== undefined).length === 1,
+    { error: 'Pass exactly one of albumId, bookId, assetIds or memoryId' },
+  )
   .meta({ id: 'HighlightCreateDto' });
 
 const HighlightJobResponseSchema = z
@@ -74,6 +88,7 @@ const HighlightJobResponseSchema = z
     progress: z.number().min(0).max(1).describe('Share of the rendering done, 0 to 1').meta({ format: 'double' }),
     albumId: z.uuidv4().nullable().describe('Album the video is made from'),
     bookId: z.uuidv4().nullable().describe('Book the video is made from'),
+    memoryId: z.uuidv4().nullable().describe('Memory the video is made from'),
     durationSeconds: z.int().describe('Length of the video in seconds, as asked for'),
     format: HighlightFormatSchema,
     resultAssetId: z.uuidv4().nullable().describe('The video, once it is ready'),
@@ -111,6 +126,7 @@ export const mapHighlightJob = (job: Selectable<HighlightJobTable>): HighlightJo
   progress: Math.round(job.progress * 1000) / 1000,
   albumId: job.albumId,
   bookId: job.bookId,
+  memoryId: job.options.memoryId ?? null,
   durationSeconds: job.options.durationSeconds,
   format: job.options.format ?? 'landscape',
   resultAssetId: job.resultAssetId,

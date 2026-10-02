@@ -44,6 +44,7 @@ export const bookDraftFactory = Sync.makeFactory<BookDraftResponseDto>({
   key: Sync.each((index) => `food:${2000 + index}`),
   kind: BookDraftKind.Yearly,
   reason: 'You visited 6 restaurants in 2025 and photographed 54 dishes',
+  memoryId: null,
   createdAt: Sync.each(() => faker.date.past().toISOString()),
   book: Sync.each(() =>
     bookFactory.build({ status: BookStatus.Draft, pageCount: 24, firstPageId: faker.string.uuid() }),

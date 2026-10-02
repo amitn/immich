@@ -347,7 +347,9 @@ export class BookAgentTools extends BaseService {
         title: 'Lay out a photo book automatically',
         description:
           'Lay out a whole book in one call. Pass albumId (and optionally title/subtitle/page size) to create a new ' +
-          'book from an album, or bookId to lay out an existing book again from its album or from assetIds. It ' +
+          'book from an album, memoryId (from list_memories) to create one from every photo of the moment a memory ' +
+          'stands for (e.g. the whole trip, titled like the memory, with maps for a trip), or bookId to lay out an ' +
+          'existing book again from its album or from assetIds. It ' +
           'picks the best photo of each near-duplicate burst, splits the photos into sections by event, opens ' +
           'every section with a map (when the photos have GPS) or a section title, gives the most important photos ' +
           '(heroAssetIds, favorites, sharp photos with faces) whole pages or hero slots, fits portrait photos in ' +
@@ -374,8 +376,14 @@ export class BookAgentTools extends BaseService {
           WORKFLOW,
         input: z.object({
           albumId: z.uuidv4().optional().describe('Create a new book from this album'),
+          memoryId: z.uuidv4().optional().describe('Create a new book from this memory (list_memories)'),
           bookId: bookId.optional().describe('Lay out this book again'),
-          title: z.string().min(1).max(200).optional().describe('Title of a new book (default: the album name)'),
+          title: z
+            .string()
+            .min(1)
+            .max(200)
+            .optional()
+            .describe('Title of a new book (default: the album name, or the title of the memory)'),
           subtitle: z.string().max(200).optional(),
           pageWidthMm: z.int().min(50).max(600).optional(),
           pageHeightMm: z.int().min(50).max(600).optional(),
@@ -412,17 +420,29 @@ export class BookAgentTools extends BaseService {
         mutating: false,
         handler: (
           ctx,
-          { albumId, bookId, title, subtitle, pageWidthMm, pageHeightMm, stylePreset, illustratedMaps, ...options },
+          {
+            albumId,
+            memoryId,
+            bookId,
+            title,
+            subtitle,
+            pageWidthMm,
+            pageHeightMm,
+            stylePreset,
+            illustratedMaps,
+            ...options
+          },
         ) => {
-          if (!!albumId === !!bookId) {
-            return Promise.resolve(toolError('Pass either albumId (to create a book) or bookId (to lay out a book)'));
+          if ([albumId, memoryId, bookId].filter(Boolean).length !== 1) {
+            return Promise.resolve(
+              toolError('Pass one of albumId or memoryId (to create a book), or bookId (to lay out a book)'),
+            );
           }
 
-          if (albumId) {
+          if (albumId || memoryId) {
             return this.run(async () => {
               const change = await this.activityLog.beginBookChange(ctx.activity);
-              const result = await this.books.createFromAlbumWithPlan(ctx.auth, {
-                albumId,
+              const shared = {
                 title,
                 subtitle,
                 pageWidthMm,
@@ -437,7 +457,10 @@ export class BookAgentTools extends BaseService {
                 maxStackPairs: options.maxStackPairs,
                 considerImprovements: options.considerImprovements,
                 improvePhotos: false,
-              });
+              };
+              const result = memoryId
+                ? await this.books.createFromMemoryWithPlan(ctx.auth, { memoryId, ...shared })
+                : await this.books.createFromAlbumWithPlan(ctx.auth, { albumId: albumId!, ...shared });
               await change?.finish(ctx.auth, {
                 bookId: result.book.id,
                 summary: (title) => `Made the book ${quote(title)} (${result.book.pages.length} pages)`,

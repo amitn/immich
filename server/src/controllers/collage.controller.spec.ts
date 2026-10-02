@@ -27,7 +27,10 @@ describe(CollageController.name, () => {
     });
 
     it('should list the layouts', async () => {
-      service.getLayouts.mockResolvedValue({ layouts: [{ id: 'four-grid', name: 'Four grid', description: '' }] });
+      service.getLayouts.mockResolvedValue({
+        assetIds,
+        layouts: [{ id: 'four-grid', name: 'Four grid', description: '' }],
+      });
       const { status, body } = await request(ctx.getHttpServer())
         .post('/collages/layouts')
         .send({ assetIds, aspectRatio: '9:16' });
@@ -73,6 +76,7 @@ describe(CollageController.name, () => {
     it('should save a collage', async () => {
       const albumId = factory.uuid();
       service.create.mockResolvedValue({
+        assetIds,
         assetId: factory.uuid(),
         duplicate: false,
         layout: 'hero-left-two',

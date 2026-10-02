@@ -28,6 +28,7 @@ import {
   BookDraftResponseDto,
   BookExportDto,
   BookFromAlbumDto,
+  BookFromMemoryDto,
   BookLayoutResponseDto,
   BookMapPreviewQueryDto,
   BookPageCreateDto,
@@ -91,6 +92,20 @@ export class BookController {
   })
   createBookFromAlbum(@Auth() auth: AuthDto, @Body() dto: BookFromAlbumDto): Promise<BookAutoLayoutResponseDto> {
     return this.service.createFromAlbum(auth, dto);
+  }
+
+  @Post('from-memory')
+  @Authenticated({ permission: Permission.BookCreate })
+  @Endpoint({
+    summary: 'Create a book from a memory',
+    description:
+      'Create a photo book from a memory and lay it out automatically, like a book from an album: the photos of the ' +
+      'whole moment the memory stands for (every day of a trip, the year before a birthday, a month or a season), ' +
+      'not only the photos the memory shows. Only the owner of the memory can make a book of it.',
+    history: new HistoryBuilder().added('v3.3.0').alpha('v3.3.0'),
+  })
+  createBookFromMemory(@Auth() auth: AuthDto, @Body() dto: BookFromMemoryDto): Promise<BookAutoLayoutResponseDto> {
+    return this.service.createFromMemory(auth, dto);
   }
 
   @Get('layouts')
