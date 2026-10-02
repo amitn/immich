@@ -13742,7 +13742,10 @@ export enum ActivityLogAction {
     BurstCleanup = "burst.cleanup",
     CollectionEntries = "collection.entries",
     HighlightCreate = "highlight.create",
-    SharedLinkCreate = "sharedLink.create"
+    SharedLinkCreate = "sharedLink.create",
+    SpaceAddAssets = "space.addAssets",
+    WorkflowCreate = "workflow.create",
+    WorkflowUpdate = "workflow.update"
 }
 export enum ActivityLogSource {
     Assistant = "assistant",

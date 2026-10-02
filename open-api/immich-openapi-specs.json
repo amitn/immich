@@ -30965,7 +30965,10 @@
           "burst.cleanup",
           "collection.entries",
           "highlight.create",
-          "sharedLink.create"
+          "sharedLink.create",
+          "space.addAssets",
+          "workflow.create",
+          "workflow.update"
         ],
         "type": "string"
       },
