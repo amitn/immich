@@ -1,3 +1,4 @@
+import { WorkflowTrigger } from '@immich/plugin-sdk';
 import { BadRequestException } from '@nestjs/common';
 import { defaultBookStyle } from 'src/dtos/book.dto.js';
 import {
@@ -19,8 +20,17 @@ import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { SharedSpaceService } from 'src/services/shared-space.service.js';
 import { TagService } from 'src/services/tag.service.js';
-import { ActivityUndoMap, BookSnapshot, fingerprintBook, toBookSnapshot } from 'src/utils/activity-log.js';
+import { WorkflowService } from 'src/services/workflow.service.js';
+import {
+  ActivityUndoMap,
+  BookSnapshot,
+  WorkflowSnapshot,
+  fingerprintBook,
+  fingerprintWorkflow,
+  toBookSnapshot,
+} from 'src/utils/activity-log.js';
 import { factory, newUuid } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
@@ -98,6 +108,15 @@ const setBookOf = (
   mocks.book.getPages.mockResolvedValue(pages as never);
   return book ? toBookSnapshot(book as never, pages as never) : undefined;
 };
+
+/** a workflow that archives every new photo, as the activity log snapshots it */
+const workflowSnapshot = (name: string, enabled = true): WorkflowSnapshot => ({
+  name,
+  description: null,
+  trigger: WorkflowTrigger.AssetCreate,
+  enabled,
+  steps: [{ method: 'immich-plugin-core#assetArchive', config: { inverse: false }, enabled: true }],
+});
 
 describe(ActivityLogService.name, () => {
   let sut: ActivityLogService;
@@ -818,6 +837,130 @@ describe(ActivityLogService.name, () => {
 
       expect(removeAssets).toHaveBeenCalledWith(auth, 'album', { ids: ['video'] });
       expect(deleteAll).toHaveBeenCalledWith(auth, { ids: ['video'], force: false });
+    });
+  });
+
+  describe('workflows and spaces (#11)', () => {
+    const workflowId = newUuid();
+    const stored = (name: string, enabled = true) =>
+      ({
+        id: workflowId,
+        name,
+        description: null,
+        trigger: WorkflowTrigger.AssetCreate,
+        enabled,
+        logging: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        steps: [
+          { pluginName: 'immich-plugin-core', methodName: 'assetArchive', config: { inverse: false }, enabled: true },
+        ],
+      }) as never;
+
+    it('should delete a workflow the assistant saved', async () => {
+      mocks.workflow.get.mockResolvedValue(stored('Screenshots'));
+      const remove = vi.spyOn(WorkflowService.prototype, 'delete').mockResolvedValue();
+
+      await expect(
+        undoOne(
+          row(ActivityLogAction.WorkflowCreate, {
+            workflowId,
+            fingerprint: fingerprintWorkflow(workflowSnapshot('Screenshots')),
+          }),
+        ),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Undone });
+      expect(remove).toHaveBeenCalledWith(auth, workflowId);
+    });
+
+    it('should keep a saved workflow that was changed since', async () => {
+      mocks.workflow.get.mockResolvedValue(stored('Screenshots', false));
+      const remove = vi.spyOn(WorkflowService.prototype, 'delete').mockResolvedValue();
+
+      await expect(
+        undoOne(
+          row(ActivityLogAction.WorkflowCreate, {
+            workflowId,
+            fingerprint: fingerprintWorkflow(workflowSnapshot('Screenshots')),
+          }),
+        ),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Refused, message: expect.stringMatching(/changed since/) });
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it('should be done when the workflow was deleted already', async () => {
+      mocks.workflow.get.mockResolvedValue(undefined);
+
+      await expect(
+        undoOne(row(ActivityLogAction.WorkflowCreate, { workflowId, fingerprint: 'x' })),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Undone, warnings: ['The workflow was already deleted'] });
+    });
+
+    it('should give a changed workflow its previous rule back', async () => {
+      mocks.workflow.get.mockResolvedValue(stored('Screenshots 2025'));
+      const update = vi.spyOn(WorkflowService.prototype, 'update').mockResolvedValue({} as never);
+      const previous = {
+        ...workflowSnapshot('Screenshots'),
+        trigger: WorkflowTrigger.AssetMetadataExtraction,
+        steps: [],
+      };
+
+      await expect(
+        undoOne(
+          row(ActivityLogAction.WorkflowUpdate, {
+            workflowId,
+            previous,
+            fingerprint: fingerprintWorkflow(workflowSnapshot('Screenshots 2025')),
+          }),
+        ),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Undone });
+      expect(update).toHaveBeenCalledWith(auth, workflowId, {
+        name: 'Screenshots',
+        description: null,
+        trigger: WorkflowTrigger.AssetMetadataExtraction,
+        enabled: true,
+        steps: [],
+      });
+    });
+
+    it('should keep a workflow that was changed again since', async () => {
+      mocks.workflow.get.mockResolvedValue(stored('Renamed by hand'));
+      const update = vi.spyOn(WorkflowService.prototype, 'update').mockResolvedValue({} as never);
+
+      await expect(
+        undoOne(
+          row(ActivityLogAction.WorkflowUpdate, {
+            workflowId,
+            previous: workflowSnapshot('Screenshots'),
+            fingerprint: fingerprintWorkflow(workflowSnapshot('Screenshots 2025')),
+          }),
+        ),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Refused });
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('should take the photos it added out of the space again', async () => {
+      const spaceId = newUuid();
+      mocks.sharedSpace.getById.mockResolvedValue({ id: spaceId, name: 'Family' } as never);
+      const remove = vi.spyOn(SharedSpaceService.prototype, 'removeAssets').mockResolvedValue(['a']);
+
+      await expect(
+        undoOne(row(ActivityLogAction.SpaceAddAssets, { spaceId, assetIds: ['a', 'b'] })),
+      ).resolves.toMatchObject({ status: ActivityUndoStatus.Undone, warnings: ['1 photo was no longer in the space'] });
+      expect(remove).toHaveBeenCalledWith(auth, spaceId, { assetIds: ['a', 'b'] });
+    });
+
+    it('should add the photos to the space again', async () => {
+      const spaceId = newUuid();
+      const change = row(
+        ActivityLogAction.SpaceAddAssets,
+        { spaceId, assetIds: ['a'] },
+        { undoneAt: new Date(), undoneBy: ActivityLogSource.Web },
+      );
+      withRows(change);
+      const add = vi.spyOn(SharedSpaceService.prototype, 'addAssets').mockResolvedValue();
+
+      await sut.redo(auth, change.id);
+      expect(add).toHaveBeenCalledWith(auth, spaceId, { assetIds: ['a'] });
     });
   });
 

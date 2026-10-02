@@ -945,7 +945,7 @@ export class ActivityLogService extends BaseService {
     }
     const removed = await BaseService.create(SharedSpaceService, this).removeAssets(auth, spaceId, { assetIds });
     const gone = assetIds.length - removed.length;
-    return undone(gone > 0 ? [`${countPhotos(gone)} were no longer in the space`] : []);
+    return undone(gone > 0 ? [`${countPhotos(gone)} ${gone === 1 ? 'was' : 'were'} no longer in the space`] : []);
   }
 
   private workflows() {

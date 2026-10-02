@@ -190,9 +190,6 @@ export const validateRule = (filters: RuleFilters, actions: RuleActions): string
   if (filters.tags && new Set(filters.tags.map((tag) => normalizeTag(tag).toLowerCase())).has('')) {
     errors.push('a tag is empty');
   }
-  if (actions.space && actions.spaceAlbum) {
-    errors.push('pass either space or spaceAlbum, not both');
-  }
   if (isEmptyObject(actions)) {
     errors.push('a workflow needs an action, e.g. album');
   }
@@ -503,7 +500,7 @@ const parseStep = (method: string, config: Record<string, unknown>, filters: Rul
     }
     case RuleMethod.AddToSpace: {
       const spaceIds = asStrings(config.spaceIds);
-      if (actions.spaceIds || actions.spaceAlbum || spaceIds?.length !== 1) {
+      if (actions.spaceIds || spaceIds?.length !== 1) {
         return false;
       }
       actions.spaceIds = spaceIds;
@@ -512,7 +509,7 @@ const parseStep = (method: string, config: Record<string, unknown>, filters: Rul
     case RuleMethod.AddToSpaceAlbum: {
       const spaceId = asString(config.spaceId);
       const albumName = asString(config.albumName);
-      if (actions.spaceAlbum || actions.spaceIds || !spaceId || !albumName) {
+      if (actions.spaceAlbum || !spaceId || !albumName) {
         return false;
       }
       actions.spaceAlbum = { spaceId, albumName };
@@ -608,7 +605,7 @@ const MATCH_WORDS: Record<string, string> = {
 
 const nameOf = (names: Map<string, string> | undefined, id: unknown, kind: string) => {
   const value = typeof id === 'string' ? names?.get(id) : undefined;
-  return value ? quoted(value) : `an ${kind} that no longer exists`;
+  return value ? quoted(value) : `${kind === 'album' ? 'an' : 'a'} ${kind} that no longer exists`;
 };
 
 const explainDate = (config: Record<string, unknown>) => {
