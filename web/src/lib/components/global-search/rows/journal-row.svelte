@@ -2,7 +2,7 @@
   import { Icon } from '@immich/ui';
   import { mdiCreationOutline, mdiTagOutline } from '@mdi/js';
   import { t } from 'svelte-i18n';
-  import { getCollectionPack } from '$lib/collections/registry';
+  import { getCollectionPack } from '$lib/journals/registry';
   import { formatJournalVisit, type JournalItem } from '$lib/managers/global-search-journals';
 
   interface Props {

@@ -38,18 +38,18 @@ describe('getLibraryQuestions', () => {
       'assistant_question_generic_last_time',
       'assistant_question_generic_museums',
       'assistant_question_generic_day',
-      'assistant_question_generic_collections',
+      'assistant_question_generic_journals',
     ];
     expect(getLibraryQuestions($t)).toEqual(generic);
     expect(getLibraryQuestions($t, { packs: [pack({ pack: 'museum' })], truncated: false })).toEqual(generic);
   });
 
-  it('should ask about the places of the food collection', () => {
+  it('should ask about the places of the food journal', () => {
     expect(getLibraryQuestions($t, { packs: [food, pack({ pack: 'museum' })], truncated: false })).toEqual([
       'assistant_question_food {"place":"Noma Australia"}',
       'assistant_question_food {"place":"The French Laundry"}',
       'assistant_question_food {"place":"Katz\'s Delicatessen"}',
-      'assistant_question_generic_collections',
+      'assistant_question_generic_journals',
     ]);
   });
 
@@ -69,7 +69,7 @@ describe('getLibraryQuestions', () => {
       'assistant_question_food {"place":"Noma Australia"}',
       'assistant_question_museum {"year":"2025"}',
       'assistant_question_cookbook {"place":"Quiche Lorraine"}',
-      'assistant_question_generic_collections',
+      'assistant_question_generic_journals',
     ]);
     expect(getLibraryQuestions($t, { packs: packs.slice(3), truncated: false })[0]).toBe(
       'assistant_question_place {"place":"Noma Australia"}',
@@ -84,7 +84,7 @@ describe('getLibraryQuestions', () => {
     });
     expect(getLibraryQuestions($t, { packs: [travel], truncated: false })).toEqual([
       'assistant_question_travel {"place":"Crete, October 2016"}',
-      'assistant_question_generic_collections',
+      'assistant_question_generic_journals',
     ]);
   });
 });

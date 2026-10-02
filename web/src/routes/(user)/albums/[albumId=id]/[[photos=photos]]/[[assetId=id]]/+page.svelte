@@ -67,7 +67,7 @@
     getAssistantSelectionActions,
     getMultiSelectAssistantCapabilities,
   } from '$lib/services/assistant-selection.service';
-  import { getAlbumCollectionActions } from '$lib/services/collections.service';
+  import { getAlbumCollectionActions } from '$lib/services/journals.service';
   import { getAlbumHighlightAction } from '$lib/services/highlight.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
   import { handlePromiseError, isEnabled } from '$lib/utils';

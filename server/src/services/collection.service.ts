@@ -261,7 +261,7 @@ export class CollectionService extends BaseService {
     const pack = getCollectionPack(id);
     if (!pack) {
       throw new BadRequestException(
-        `Unknown collection pack "${id}". Packs: ${getCollectionPacks()
+        `Unknown journal "${id}". Journals: ${getCollectionPacks()
           .map((item) => item.id)
           .join(', ')}`,
       );
@@ -1166,7 +1166,7 @@ export class CollectionService extends BaseService {
     if (logged.length > 0) {
       await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
         action: ActivityLogAction.CollectionEntries,
-        summary: `Named ${countPhotos(logged.length)} of ${quote(place)} (${pack.title})`,
+        summary: `Named ${countPhotos(logged.length)} of ${quote(place)} (${pack.title} journal)`,
         assetIds: logged.map(({ id }) => id),
         undo: { pack: pack.id, photos: logged },
       });

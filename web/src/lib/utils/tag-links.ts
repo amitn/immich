@@ -1,7 +1,7 @@
 import type { TagResponseDto } from '@immich/sdk';
 import { QueryParameter } from '$lib/constants';
 import { Route } from '$lib/route';
-import { isCollectionPhotoTag } from '$lib/utils/collections';
+import { isCollectionPhotoTag } from '$lib/utils/journals';
 
 type Tag = Pick<TagResponseDto, 'id' | 'value'>;
 

@@ -39,7 +39,7 @@ export const getLibraryQuestions = ($t: MessageFormatter, summary?: CollectionSu
       $t('assistant_question_generic_last_time'),
       $t('assistant_question_generic_museums'),
       $t('assistant_question_generic_day'),
-      $t('assistant_question_generic_collections'),
+      $t('assistant_question_generic_journals'),
     ];
   }
 
@@ -53,6 +53,6 @@ export const getLibraryQuestions = ($t: MessageFormatter, summary?: CollectionSu
       }
     }
   }
-  questions.push($t('assistant_question_generic_collections'));
+  questions.push($t('assistant_question_generic_journals'));
   return questions;
 };

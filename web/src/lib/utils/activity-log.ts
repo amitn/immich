@@ -49,7 +49,7 @@ const actionKeys: Record<ActivityLogAction, Translations> = {
   [ActivityLogAction.BookDraftKeep]: 'activity_log_action_book_draft_keep',
   [ActivityLogAction.BookDraftDiscard]: 'activity_log_action_book_draft_discard',
   [ActivityLogAction.BookStyleCreate]: 'activity_log_action_book_style_create',
-  [ActivityLogAction.CollectionEntries]: 'activity_log_action_collection_entries',
+  [ActivityLogAction.CollectionEntries]: 'activity_log_action_journal_entries',
   [ActivityLogAction.HighlightCreate]: 'activity_log_action_highlight_create',
   [ActivityLogAction.SharedLinkCreate]: 'activity_log_action_shared_link_create',
 };

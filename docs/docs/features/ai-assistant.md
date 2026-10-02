@@ -56,7 +56,7 @@ Select **Stop** next to the message box to cancel the current run. Any pending a
 
 ### Undoing the assistant's changes
 
-Every change the assistant makes is recorded in the **activity log**, with what's needed to undo it. So are the changes you make with the assistant's features in the web app: naming the photos of a visit (**Name the dishes** and the other collection dialogs), keeping or discarding a suggested book, saving a book or art style, changing the style of a book, sharing a book with a link, and making a highlight video.
+Every change the assistant makes is recorded in the **activity log**, with what's needed to undo it. So are the changes you make with the assistant's features in the web app: naming the photos of a visit (**Name the dishes** and the other journal dialogs), keeping or discarding a suggested book, saving a book or art style, changing the style of a book, sharing a book with a link, and making a highlight video.
 
 You can undo from three places:
 
@@ -73,7 +73,7 @@ What undo does:
 | Photos added to or removed from an album                                           | Removes or puts back exactly those photos.                                                                                                                               |
 | A new album                                                                        | Deletes the album, but only if it's unchanged since it was created: same name, description and photos, and not shared. Albums have no trash, so a changed album is kept. |
 | A copy (crop, straighten, enhance, improve), an artwork or a style test, a collage | Moves the copy to the trash and takes it out of its stack, as the stack was before. You can restore it from the trash.                                                   |
-| Names of a collection (tags and descriptions)                                      | Gives the photos back the tags of the pack and the descriptions they had.                                                                                                |
+| Names of a journal (tags and descriptions)                                         | Gives the photos back the tags of the pack and the descriptions they had.                                                                                                |
 | A book edit (layout, photos, captions, maps, style, improved photos)               | Restores the book from a copy taken before the change. Improved copies the change placed in the book go to the trash.                                                    |
 | A new book                                                                         | Deletes the book, but only if it's unchanged since it was made and not shared.                                                                                           |
 | Keeping or discarding a suggested book                                             | Makes it a suggestion again. A discarded book is laid out again from its copy.                                                                                           |
@@ -101,7 +101,7 @@ When part of a change can't be undone, for example a photo that was deleted sinc
 
 ### Asking about your library
 
-Ask the assistant about your own life, and it answers in the chat from the names your collections hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits), the legs of your [trips](#travel-documents), the acts of your [gigs](#concerts) and the species of your [garden walks](#nature-field-guide), with the dates, places (the city and country of the photos) and people of their photos. For example:
+Ask the assistant about your own life, and it answers in the chat from the names your journals hold: the dishes of your [restaurant meals](#food), your [recipes](#cookbook), the artworks of your [museum visits](#museum--gallery-visits), the legs of your [trips](#travel-documents), the acts of your [gigs](#concerts) and the species of your [garden walks](#nature-field-guide), with the dates, places (the city and country of the photos) and people of their photos. For example:
 
 - _"What did I eat at The French Laundry?"_
 - _"When did we last make the quiche?"_
@@ -110,16 +110,16 @@ Ask the assistant about your own life, and it answers in the chat from the names
 - _"Which wine did we have at Noma?"_
 - _"Where were we on 4 October 2016?"_
 
-The assistant answers briefly with the dates and places, and shows the photos. Names are matched loosely: _noma_ finds _Noma Australia_, and accents, case and plurals don't matter. A person counts as there when they appear on any photo taken during the visit, not only on the photos of the dishes. When you open the assistant, it suggests questions about your own collections, such as the last restaurants you named.
+The assistant answers briefly with the dates and places, and shows the photos. Names are matched loosely: _noma_ finds _Noma Australia_, and accents, case and plurals don't matter. A person counts as there when they appear on any photo taken during the visit, not only on the photos of the dishes. When you open the assistant, it suggests questions about your own journals, such as the last restaurants you named.
 
 Keep in mind:
 
-- **Only named photos count.** The answers come from the tags of the collections, so a meal whose dishes were never named isn't in them. The assistant then searches your other photos by meaning, date and place, and says when the answer may be incomplete, such as _"only named dishes are counted"_.
+- **Only named photos count.** The answers come from the tags of the journals, so a meal whose dishes were never named isn't in them. The assistant then searches your other photos by meaning, date and place, and says when the answer may be incomplete, such as _"only named dishes are counted"_.
 - **Names, not meanings.** _Dessert_ finds _Citrus Pre-Dessert_, but not _Rum lamington_. The assistant asks with synonyms, and can search the photos by what they show.
 - **Only your own photos**, in the timeline and the archive, are read; locked, hidden and trashed photos, and the photos of partners and shared albums, are not.
 - **Travel stays private.** The names of legs are redacted as everywhere else, and travel documents are never shown.
 
-The assistant uses the `query_collections` and `summarize_collections` tools for this, and the web app the `GET /collections/summary` endpoint.
+The assistant uses the `query_journals` and `summarize_journals` tools for this (`query_collections` and `summarize_collections` before the rename, which still work for one release), and the web app the `GET /collections/summary` endpoint: the API still calls journals collections.
 
 ### Asking from the Search Palette
 
@@ -129,10 +129,10 @@ Type a question or a few words into the Search Palette (<kbd>Ctrl</kbd>/<kbd>⌘
 
 The search page (`/search`), which older links still open, also answers a question. A search counts as a question when it has a question mark or starts with a question word (what, which, when, where, who, how, did…); no AI decides that. The usual results show at once, as for any search, and never wait for the assistant. Beside them:
 
-- **From your collections** lists the visits whose names match the question (the restaurant, the dishes, the museum), found without AI from its words: _eat_ points to food, _museums_ to museum visits, a year to that year, and the words left are looked for in the names. Each visit links to its tag.
+- **From your journals** lists the visits whose names match the question (the restaurant, the dishes, the museum), found without AI from its words: _eat_ points to food, _museums_ to museum visits, a year to that year, and the words left are looked for in the names. Each visit links to its tag.
 - **Answer from the assistant** streams in when the assistant is enabled: a short answer with the dates and places, followed by the photos and the tags it used, as thumbnails and tag chips. **Stop** cancels it, and **Continue in chat** opens it as a chat, where you can ask a follow-up. Each answer is a chat of its own, titled with the question, in the **Assistant** page.
 
-To turn the answers off, select **×** on the panel, or turn off **Answers in search** under **Account Settings → Features**. The results and the collection matches stay.
+To turn the answers off, select **×** on the panel, or turn off **Answers in search** under **Account Settings → Features**. The results and the journal matches stay.
 
 ## Photos are never changed
 
@@ -270,11 +270,11 @@ Anyone with the link can read the book, so check what the pages show before you 
 
 Every night, Gallery looks for books your photos are enough for, and drafts them in the background for you to review. The drafts are laid out by the server's own automatic layout, like **Export as book**: no assistant is involved, nothing leaves your server, and it costs no AI credits.
 
-| Kind              | Example                                                                                  | Drafted when                                                                                                                                                                                              | Style                        |
-| ----------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Yearly collection | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [collection](#tags).                          | The collection's book style  |
-| Trip              | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, or, without travel tags, the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
-| Birthday          | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                          | Soft                         |
+| Kind           | Example                                                                                  | Drafted when                                                                                                                                                                                              | Style                        |
+| -------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Yearly journal | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [journal](#journals).                         | The journal's book style     |
+| Trip           | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, or, without travel tags, the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
+| Birthday       | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                          | Soft                         |
 
 When a draft is ready you get a notification, "A new photo book is ready to review: 2026 in food", which opens it. On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
 
@@ -317,7 +317,7 @@ A highlight video is a short film of a trip, a dinner or a museum visit: a book 
 - **Title**: shown on the title card; the name of the album or book by default.
 - **Length**: 30, 60, 90 or 120 seconds. The film is exactly that long, unless there are too few photos to fill it.
 - **Shape**: **Landscape 16:9** (1920×1080) for a TV or a computer, or **Vertical 9:16** (1080×1920) for phones, stories, reels and messages (see [Vertical videos](#vertical-videos)).
-- **Style**: the look of the title cards and captions, from the [book styles](#photo-books). **Automatic** uses the style of the book, or the style of the collection the photos belong to, so a food video looks like a food book and a museum video like an exhibition catalogue.
+- **Style**: the look of the title cards and captions, from the [book styles](#photo-books). **Automatic** uses the style of the book, or the style of the journal the photos belong to, so a food video looks like a food book and a museum video like an exhibition catalogue.
 - **Maps**: open each chapter that has GPS locations with a map.
 - **Captions**: name the dishes, artworks, wines and recipe steps, and the places, in a label at the bottom of the photos.
 - **Music**: an audio file you uploaded (MP3, M4A, AAC, WAV, FLAC, OGG or Opus), or none. Gallery includes no music, so videos are silent unless you upload your own.
@@ -412,7 +412,7 @@ Designed styles use the same options as the presets, and they are checked strict
 - **Fonts**: only the fonts that render on your server and in the exports, such as the serif, sans-serif and typewriter families and FreeSerif, DejaVu and Noto.
 - **Colours**: opaque colours only. The text must be readable on the page, with a contrast of at least 3:1 (4.5:1 reads well), and the accent must stay visible.
 - **Sizes**: margins, gutters and text sizes that print well, with captions smaller than titles.
-- **Theme**: plain, or the look of one of the collection books. The printed look adds a thin frame, rules, ornaments and small caps in the accent colour. The gallery look shows every photo whole, with museum-label captions.
+- **Theme**: plain, or the look of one of the journal books. The printed look adds a thin frame, rules, ornaments and small caps in the accent colour. The gallery look shows every photo whole, with museum-label captions.
 
 Applying one of your styles copies it into the book. If you change or delete the style later, the book keeps its look.
 
@@ -467,6 +467,12 @@ On the page, each photo is shown turned as suggested. **Turn upright** fixes one
 You can also ask the assistant: _"find the sideways photos of our trip and fix them"_. It uses `find_rotated_photos`, which lists the suggestions or checks an album, a date range or chosen photos on the spot, and `fix_rotation`, which asks for approval.
 
 On a benchmark of 37 upright photos from the demo library (a trip to Sicily and three restaurant meals) turned every way, it fixes 96 of the 111 turned cases, never turns a photo the wrong way, and leaves all 37 upright photos alone. Photos that look the same every way, such as a dish seen from above, are often left unflagged; that is on purpose.
+
+## Journals
+
+Gallery keeps **journals** of the themed things you photograph: a [Food journal](#food) of restaurant meals, a [Cookbook](#cookbook), a [Wine & drinks journal](#wine--drinks-journal), a Travel journal of your [travel documents](#travel-documents), a [Museum journal](#museum--gallery-visits), a [Reading log](#reading-log), a [Kids' art](#kids-art) journal, a [Garden journal](#garden-journal), a [Concerts](#concerts) journal and a [Nature field guide](#nature-field-guide). Each journal finds its visits among your photos (a meal, a museum visit, a gig…), reads the printed source photographed with them (a menu, a wall label, a setlist) and suggests a name for every photo, which you check in its naming dialog (**Name the dishes…**, **Name the artworks…** and so on). The names are saved as [tags](#tags), such as `Food/<Restaurant>/<Dish>`, which photo books, highlight videos and the assistant's answers read back.
+
+Journals used to be called collections. In Gallery a collection is an album or a space, so they were renamed, but the server API and the configuration still say collections: the endpoints are `/collections/*` (such as `GET /collections/summary`), the settings are `collections.*` and the tag roots (`Food/…`, `Museum/…`) did not change. The assistant's `query_collections` and `summarize_collections` tools are now `query_journals` and `summarize_journals`; the old names still work for one release.
 
 ## Food
 
@@ -628,9 +634,9 @@ Name the plants and animals you photograph in botanical gardens, arboretums and 
 - **Tags.** `Nature/<Garden or zoo>/<Common name (Scientific name, Family)>`, such as `Nature/Kahanu/Moreton Bay Chestnut (Castanospermum australe, Fabaceae)` or `Nature/Copped Hall/Rose 'Proper Job' (Rosa)`, with `…/Label` on the labels. The garden is read on a sign or the accession tags, or looked up on OpenStreetMap (gardens, parks, zoos and protected areas).
 - **Field guide books.** The **Field guide** style uses cream paper and fine ink, with a chapter per walk. Every plant or animal is shown whole as a numbered plate, captioned with its scientific name in italics, then its common name and its family. The label photos stay out of the book. The review reports plates without a scientific name.
 
-## New collection found
+## Journal notifications
 
-Every night Gallery looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the collections: a meal, a museum visit, a tasting, a cooking session, a trip, a gig, a garden walk, a garden over the years, a reading period or a year of a child's artworks. A visit that nobody named yet (none of its photos has tags of that collection) gets a notification in the words of its collection, which you click to open the naming dialog on exactly those photos:
+Every night Gallery looks at the photos you uploaded since the last check (at most 14 days back) for new visits of the journals: a meal, a museum visit, a tasting, a cooking session, a trip, a gig, a garden walk, a garden over the years, a reading period or a year of a child's artworks. A visit that nobody named yet (none of its photos has tags of that journal) gets a notification in the words of its journal, which you click to open the naming dialog on exactly those photos:
 
 - _Name the dishes from last night at Taormina?_
 - _Name the artworks from your visit to the Museu de Évora?_
@@ -638,19 +644,19 @@ Every night Gallery looks at the photos you uploaded since the last check (at mo
 - _Name the recipe you cooked yesterday?_
 - _Name the legs of your trip to Crete?_
 
-The day is said from today where you take photos (_today_, _last night_, _on Saturday_, _on 12 June_); the place is the one read clearly on the photos, or the town. Text read on travel documents is [redacted](#travel-documents) in the notification, as everywhere else. Like the rest of the collections, it runs on the server's own models and needs smart search.
+The day is said from today where you take photos (_today_, _last night_, _on Saturday_, _on 12 June_); the place is the one read clearly on the photos, or the town. Text read on travel documents is [redacted](#travel-documents) in the notification, as everywhere else. Like the rest of the journals, it runs on the server's own models and needs smart search.
 
 A visit is notified when it has enough photos of its subjects: 3 dishes or cooking photos, 2 bottles, 5 artworks, or a trip with a travel document (every photo of a trip counts as a trip photo), away from home (at least 50 km from where you take photos on the most days) and with a place or a town to name it after.
 
-Several collections often find the same photos: the stage shots of a gig look like a trip, and the trees of a garden like a garden walk or a breakfast. The collections compete for them: smart search tells how well each collection's descriptions fit each photo (a peach tree fits _fruit on a tree_ better than _a plate of food_), and a visit is notified only when its collection fits most of its photos better than the others do. Photos that two collections both find all go, with the photos taken meanwhile, to the one whose descriptions fit them better, so that one occasion is offered once, in one collection; the other collection's visit is offered with the photos it kept, if it still has enough. Photos that surely belong to another collection (a dish among the photos of a garden) are left out of a collection's visits, and photos of a visit named in one collection, or taken during it and fitting it better, are never offered to another. At most 3 visits are notified per night, the newest first, and the others wait for the next night. Each visit is notified once: dismissing or deleting the notification never brings it back.
+Several journals often find the same photos: the stage shots of a gig look like a trip, and the trees of a garden like a garden walk or a breakfast. The journals compete for them: smart search tells how well each journal's descriptions fit each photo (a peach tree fits _fruit on a tree_ better than _a plate of food_), and a visit is notified only when its journal fits most of its photos better than the others do. Photos that two journals both find all go, with the photos taken meanwhile, to the one whose descriptions fit them better, so that one occasion is offered once, in one journal; the other journal's visit is offered with the photos it kept, if it still has enough. Photos that surely belong to another journal (a dish among the photos of a garden) are left out of a journal's visits, and photos of a visit named in one journal, or taken during it and fitting it better, are never offered to another. At most 3 visits are notified per night, the newest first, and the others wait for the next night. Each visit is notified once: dismissing or deleting the notification never brings it back.
 
-The notifications are on by default. Administrators turn them off for everyone in **Administration > Settings > Collections**, where they can also change the number per night and the days of uploads looked at, and look for new visits now with **Look for new collections to name** under **Administration > Jobs > Create job**. Turn them off for yourself under **Account Settings > Features > New collection found notifications**.
+The notifications are on by default. Administrators turn them off for everyone in **Administration > Settings > Journals**, where they can also change the number per night and the days of uploads looked at, and look for new visits now with **Look for new journal visits to name** under **Administration > Jobs > Create job**. Turn them off for yourself under **Account Settings > Features > Journal notifications**.
 
 ## Tags
 
 The tags added to copies make them easy to find, even if you haven't turned on the tags feature:
 
-- **Explore** has a **Tags** row, with the newest photo of each tag as its cover: these tags, the places of your collections and the `Auto/…` tags of [auto-classification](/features/auto-classification). Select a tag to open the timeline filtered by it (with its sub-tags), or **View all** to open the Tags page.
+- **Explore** has a **Tags** row, with the newest photo of each tag as its cover: these tags, the places of your journals and the `Auto/…` tags of [auto-classification](/features/auto-classification). Select a tag to open the timeline filtered by it (with its sub-tags), or **View all** to open the Tags page.
 - The sidebar shows **Tags** with a tree of your tags, such as `Edits` → `Cropped`. Select one to open the timeline filtered by it.
 - The **Tags** filter in search lets you filter by tag.
 
@@ -661,7 +667,7 @@ See [Tags](/features/tags) for more.
 The assistant's actions are also commands of the Search Palette (<kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd>, or type `>` to list the commands). A command works on the selection when there is one, otherwise on the photo open in the viewer, or on the album you're in (an album of a space too):
 
 - **Ask assistant**: a new chat about the selected or open photos, or an empty one.
-- **Make a highlight video…**, **Make a collage…**, **Name the …** (one per collection), **Artistic style…** and **Auto enhance**.
+- **Make a highlight video…**, **Make a collage…**, **Name the …** (one per journal), **Artistic style…** and **Auto enhance**.
 - **Export as book…** of the album you're in.
 - **Create an album with the assistant** and **Create a photo book with the assistant**, like the buttons of the **Albums** and **Photo books** pages.
 
@@ -789,10 +795,10 @@ Environment variables of the agent container (`gallery-agents`):
 | `books.maps.defaultStyle`              | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                                                                                                                                                                                                                                   |
 | `books.drafts.enabled`                 | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                                                                                                                                                                                                                                    |
 | `books.drafts.maxPerRun`               | `3`                                                  | **Books per night**: the most books drafted for a user per run.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `books.drafts.yearly`                  | `true`                                               | **Yearly collection books**, e.g. "2026 in food".                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `books.drafts.yearly`                  | `true`                                               | **Yearly journal books**, e.g. "2026 in food".                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `books.drafts.trips`                   | `true`                                               | **Trip books**.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `books.drafts.birthdays`               | `true`                                               | **Birthday books**.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `collections.notifications.enabled`    | `false`                                              | **New collection found notifications**: notify the users of new visits of the collections to name, with the nightly tasks (see [New collection found](#new-collection-found)). Off by default for now. Users can turn it off in their settings.                                                                                                                                                                                                                           |
+| `collections.notifications.enabled`    | `false`                                              | **Journal notifications**: notify the users of new visits of the journals to name, with the nightly tasks (see [Journal notifications](#journal-notifications)). Off by default for now. Users can turn it off in their settings.                                                                                                                                                                                                                                         |
 | `collections.notifications.maxPerRun`  | `3`                                                  | **Notifications per night**: the most notifications sent to a user per run.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `collections.notifications.windowDays` | `14`                                                 | **Days of uploads**: only photos uploaded in this many days are looked at.                                                                                                                                                                                                                                                                                                                                                                                                |
 | `food.openStreetMap.enabled`           | `false`                                              | **Look up restaurants on OpenStreetMap**: lets the assistant look up the restaurants near a meal when their name can't be read on the photos. It sends the location of the meal to the Overpass API, only when the assistant asks and the user approves.                                                                                                                                                                                                                  |

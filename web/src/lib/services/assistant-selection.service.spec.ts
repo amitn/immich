@@ -3,14 +3,14 @@ import { modalManager } from '@immich/ui';
 import type { MessageFormatter } from 'svelte-i18n';
 import type { Mock } from 'vitest';
 import { goto } from '$app/navigation';
-import { foodPack } from '$lib/collections/packs/food';
+import { foodPack } from '$lib/journals/packs/food';
 import type { AssistantSelectionCapabilities } from '$lib/managers/assistant-selection-capabilities';
 import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
 import CollageModal from '$lib/modals/CollageModal.svelte';
-import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 import HighlightVideoModal from '$lib/modals/HighlightVideoModal.svelte';
+import JournalNameModal from '$lib/modals/JournalNameModal.svelte';
 import {
   getAssistantSelectionActions,
   getMultiSelectAssistantCapabilities,
@@ -93,7 +93,7 @@ describe('assistant selection service', () => {
     it('should give every pack its own title, the one the menus key their items by', () => {
       const { NameActions } = getAssistantSelectionActions($t, ALL);
       const titles = NameActions.map(({ title }) => title);
-      expect(titles).toContain('collections.food.name_action');
+      expect(titles).toContain('journals.food.name_action');
       expect(new Set(titles).size).toBe(titles.length);
     });
 
@@ -123,7 +123,7 @@ describe('assistant selection service', () => {
 
       await NameDishes.onAction(NameDishes);
 
-      expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, {
+      expect(modalManager.show).toHaveBeenCalledWith(JournalNameModal, {
         pack: foodPack,
         assetIds: [mine.id, theirs.id],
       });

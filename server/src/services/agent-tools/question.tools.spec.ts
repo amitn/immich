@@ -1,4 +1,5 @@
 import { AuthDto } from 'src/dtos/auth.dto.js';
+import { AgentToolService } from 'src/services/agent-tool.service.js';
 import { QUESTION_NOTES, QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { ASSISTANT_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
 import { extractToolCallRefs } from 'src/utils/agent/session-updates.js';
@@ -38,8 +39,8 @@ describe(QuestionAgentTools.name, () => {
   it('should expose read-only tools that know every pack', () => {
     const tools = sut.getTools();
     expect(tools.map(({ name, mutating }) => ({ name, mutating }))).toEqual([
-      { name: 'query_collections', mutating: false },
-      { name: 'summarize_collections', mutating: false },
+      { name: 'query_journals', mutating: false },
+      { name: 'summarize_journals', mutating: false },
     ]);
     const query = tools[0];
     for (const pack of getCollectionPacks()) {
@@ -51,12 +52,12 @@ describe(QuestionAgentTools.name, () => {
 
   it('should be in the instructions of the assistant', () => {
     expect(ASSISTANT_INSTRUCTIONS).toContain('Questions about the library:');
-    expect(ASSISTANT_INSTRUCTIONS).toMatch(/call query_collections first/);
+    expect(ASSISTANT_INSTRUCTIONS).toMatch(/call query_journals first/);
     expect(ASSISTANT_INSTRUCTIONS).toMatch(/Never invent/);
   });
 
   it('should answer "what did I eat at The French Laundry?"', async () => {
-    const result = parse(await call('query_collections', { place: 'french laundry' }));
+    const result = parse(await call('query_journals', { place: 'french laundry' }));
     expect(result.total).toEqual({ visits: 1, places: 1, entries: 12, photos: 12 });
     expect(result.visits).toHaveLength(1);
     expect(result.visits[0]).toMatchObject({
@@ -75,7 +76,7 @@ describe(QuestionAgentTools.name, () => {
 
   it('should take alternatives for the entry, and say that names are matched by their words', async () => {
     const result = parse(
-      await call('query_collections', { entry: ['desserts', 'petits fours'], order: 'asc', includeSources: true }),
+      await call('query_journals', { entry: ['desserts', 'petits fours'], order: 'asc', includeSources: true }),
     );
     expect(result.visits.map(({ place }: { place: string }) => place)).toEqual([
       'The French Laundry',
@@ -89,7 +90,7 @@ describe(QuestionAgentTools.name, () => {
   });
 
   it('should list the places of a pack', async () => {
-    const result = parse(await call('query_collections', { pack: 'food', from: '2014', detail: 'places' }));
+    const result = parse(await call('query_journals', { pack: 'food', from: '2014', detail: 'places' }));
     // the dates are filtered by the repository
     expect(mocks.tag.getCollectionTags).toHaveBeenCalledWith(
       expect.objectContaining({ tagRoots: ['Food'], takenAfter: new Date('2014-01-01T00:00:00Z') }),
@@ -103,14 +104,14 @@ describe(QuestionAgentTools.name, () => {
   });
 
   it('should return a tool error for an invalid date', async () => {
-    const result = await call('query_collections', { from: 'last summer' });
+    const result = await call('query_journals', { from: 'last summer' });
     expect(result.isError).toBe(true);
     expect(result.content[0]).toMatchObject({ text: expect.stringMatching(/Invalid date/) });
   });
 
   it('should let the chat show the photos of the answer', async () => {
-    const output = parse(await call('query_collections', { place: 'katz', includeSources: true }));
-    const refs = extractToolCallRefs('query_collections', { input: { place: 'katz' }, output: [output] });
+    const output = parse(await call('query_journals', { place: 'katz', includeSources: true }));
+    const refs = extractToolCallRefs('query_journals', { input: { place: 'katz' }, output: [output] });
     expect(refs.assetIds).toEqual(
       expect.arrayContaining([
         'e95ba90a-30e0-4e29-a993-083420913d53',
@@ -123,7 +124,7 @@ describe(QuestionAgentTools.name, () => {
   });
 
   it('should summarize the collections, leaving the empty packs aside', async () => {
-    const result = parse(await call('summarize_collections', {}));
+    const result = parse(await call('summarize_journals', {}));
     expect(result.packs).toEqual([
       {
         pack: 'food',
@@ -151,5 +152,33 @@ describe(QuestionAgentTools.name, () => {
         .map(({ id }) => id)
         .filter((id) => id !== 'food'),
     );
+  });
+
+  describe('the old names, from before the journals rename', () => {
+    it.each([
+      ['query_collections', 'query_journals'],
+      ['summarize_collections', 'summarize_journals'],
+    ])('should still run %s, as a deprecated alias of %s', async (alias, name) => {
+      const { sut: tools, mocks } = newTestService(AgentToolService);
+      mocks.tag.getCollectionTags.mockResolvedValue(tagRows() as never);
+
+      const current = tools.getTool(name)!;
+      const old = tools.getTool(alias)!;
+      expect(old).toMatchObject({ name: alias, title: current.title, mutating: false, input: current.input });
+      expect(old.description).toBe(`Deprecated: the old name of ${name}, which does the same. Call ${name} instead.`);
+      expect(old.aliases).toBeUndefined();
+
+      // listed after every current tool, so the agent sees the new name first
+      const names = tools.getTools().map((tool) => tool.name);
+      expect(names.indexOf(alias)).toBeGreaterThan(names.lastIndexOf(name));
+
+      const input = name === 'query_journals' ? { place: 'french laundry' } : {};
+      const run = (tool: typeof current) => tool.handler({ auth, sessionId: null }, tool.input.parse(input));
+      expect(parse(await run(old))).toEqual(parse(await run(current)));
+    });
+
+    it('should not be named in the instructions', () => {
+      expect(ASSISTANT_INSTRUCTIONS).not.toMatch(/query_collections|summarize_collections/);
+    });
   });
 });

@@ -29,7 +29,7 @@
         ],
   );
 
-  // questions about the library, from what the collections hold once the summary loads
+  // questions about the library, from what the journals hold once the summary loads
   let summary = $state<CollectionSummaryResponseDto>();
   const questions = $derived(hasContext ? [] : getLibraryQuestions($t, summary));
 

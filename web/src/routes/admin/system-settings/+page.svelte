@@ -4,11 +4,11 @@
   import AuthSettings from './AuthSettings.svelte';
   import BackupSettings from './BackupSettings.svelte';
   import BookSettings from './BookSettings.svelte';
-  import CollectionSettings from './CollectionSettings.svelte';
   import FFmpegSettings from './FFmpegSettings.svelte';
   import FoodSettings from './FoodSettings.svelte';
   import ImageSettings from './ImageSettings.svelte';
   import JobSettings from './JobSettings.svelte';
+  import JournalSettings from './JournalSettings.svelte';
   import LibrarySettings from './LibrarySettings.svelte';
   import LoggingSettings from './LoggingSettings.svelte';
   import MachineLearningSettings from './MachineLearningSettings.svelte';
@@ -99,13 +99,6 @@
       icon: mdiBackupRestore,
     },
     {
-      component: CollectionSettings,
-      title: $t('admin.collection_settings'),
-      subtitle: $t('admin.collection_settings_description'),
-      key: 'collections',
-      icon: mdiBellBadgeOutline,
-    },
-    {
       component: FoodSettings,
       title: $t('admin.food_settings'),
       subtitle: $t('admin.food_settings_description'),
@@ -132,6 +125,13 @@
       subtitle: $t('admin.job_settings_description'),
       key: 'job',
       icon: mdiSync,
+    },
+    {
+      component: JournalSettings,
+      title: $t('admin.journal_settings'),
+      subtitle: $t('admin.journal_settings_description'),
+      key: 'journals',
+      icon: mdiBellBadgeOutline,
     },
     {
       component: LibrarySettings,
