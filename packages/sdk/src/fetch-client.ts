@@ -1211,6 +1211,10 @@ export type MemoriesResponse = {
         [key: string]: boolean;
     };
 };
+export type MemoryExclusionsResponse = {
+    /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
+    documents: boolean;
+};
 export type PeopleResponse = {
     /** Whether people are enabled */
     enabled: boolean;
@@ -1255,6 +1259,7 @@ export type UserPreferencesResponseDto = {
     emailNotifications: EmailNotificationsResponse;
     folders: FoldersResponse;
     memories: MemoriesResponse;
+    memoryExclusions: MemoryExclusionsResponse;
     people: PeopleResponse;
     purchase: PurchaseResponse;
     ratings: RatingsResponse;
@@ -1316,6 +1321,10 @@ export type MemoriesUpdate = {
         [key: string]: boolean;
     };
 };
+export type MemoryExclusionsUpdate = {
+    /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
+    documents?: boolean;
+};
 export type PeopleUpdate = {
     /** Whether people are enabled */
     enabled?: boolean;
@@ -1361,6 +1370,7 @@ export type UserPreferencesUpdateDto = {
     emailNotifications?: EmailNotificationsUpdate;
     folders?: FoldersUpdate;
     memories?: MemoriesUpdate;
+    memoryExclusions?: MemoryExclusionsUpdate;
     people?: PeopleUpdate;
     purchase?: PurchaseUpdate;
     ratings?: RatingsUpdate;
@@ -4089,6 +4099,52 @@ export type MemoryUpdateDto = {
     /** Date when memory was seen */
     seenAt?: string;
 };
+export type MemoryExclusionAlbum = {
+    /** Album name */
+    albumName: string;
+    /** Album ID */
+    id: string;
+};
+export type MemoryExclusionPerson = {
+    /** Person ID */
+    id: string;
+    /** Whether it is a pet */
+    isPet: boolean;
+    /** Name of the person or pet */
+    name: string;
+};
+export type MemoryExclusionResponseDto = {
+    /** The album left out */
+    album?: MemoryExclusionAlbum;
+    /** When it was added */
+    createdAt: string;
+    /** The last day left out, included (YYYY-MM-DD) */
+    endDate?: string;
+    /** Exclusion ID */
+    id: string;
+    /** The person or pet left out */
+    person?: MemoryExclusionPerson;
+    /** The first day left out (YYYY-MM-DD) */
+    startDate?: string;
+    "type": MemoryExclusionType;
+};
+export type MemoryExclusionsResponseDto = {
+    /** Whether screenshots, receipts and documents are left out (the memoryExclusions.documents preference) */
+    documents: boolean;
+    /** The people, albums and days left out */
+    exclusions: MemoryExclusionResponseDto[];
+};
+export type MemoryExclusionCreateDto = {
+    /** With type album: an album whose photos are left out */
+    albumId?: string;
+    /** With type date_range: the last day left out, included (YYYY-MM-DD) */
+    endDate?: string;
+    /** With type person: one of your people or pets to leave out */
+    personId?: string;
+    /** With type date_range: the first day left out (YYYY-MM-DD, the local time of the photos) */
+    startDate?: string;
+    "type": MemoryExclusionType;
+};
 export type NotificationDeleteAllDto = {
     /** Notification IDs to delete */
     ids: string[];
@@ -6163,6 +6219,95 @@ export type WorkflowShareResponseDto = {
     steps: WorkflowShareStepDto[];
     /** Workflow trigger type */
     trigger: WorkflowTrigger;
+};
+export type YearRecapJournalStats = {
+    /** Its entries, e.g. dishes or artworks */
+    entries: number;
+    /** The places of the journal, e.g. restaurants or museums */
+    places: number;
+    /** The places with the most photos */
+    topPlaces: string[];
+};
+export type YearRecapPerson = {
+    id: string;
+    name: string;
+};
+export type YearRecapStats = {
+    /** Photos and videos */
+    count: number;
+    /** Distinct countries */
+    countries: number;
+    /** What each journal saw, by journal pack id (food, museum, wine, concerts…) */
+    journals: {
+        [key: string]: YearRecapJournalStats;
+    };
+    /** Named people in the photos */
+    people: number;
+    /** Named pets in the photos */
+    pets: number;
+    /** Photos */
+    photoCount: number;
+    /** Distinct cities */
+    places: number;
+    /** The most photographed people */
+    topPeople: YearRecapPerson[];
+    /** The most photographed pets */
+    topPets: YearRecapPerson[];
+    /** The most photographed cities */
+    topPlaces: string[];
+    /** Where the biggest trips went */
+    topTrips: string[];
+    /** Trips, from the travel journal or the days away from home */
+    trips: number;
+    /** Videos */
+    videoCount: number;
+    /** The year */
+    year: number;
+};
+export type YearRecapResponseDto = {
+    /** The book of the year waiting to be kept or discarded */
+    draft?: BookDraftResponseDto;
+    /** The year_recap memory of the year, when there is one */
+    memoryId?: string;
+    stats: YearRecapStats;
+    /** The year */
+    year: number;
+};
+export type YearRecapDateRange = {
+    /** Last day left out, included (YYYY-MM-DD) */
+    endDate: string;
+    /** First day left out (YYYY-MM-DD) */
+    startDate: string;
+};
+export type YearRecapBookDto = {
+    /** Albums to leave out of this recap */
+    excludeAlbumIds?: string[];
+    /** Days to leave out of this recap */
+    excludeDateRanges?: YearRecapDateRange[];
+    /** Leave screenshots, receipts and documents out of this recap, even when the memories keep them */
+    excludeDocuments?: boolean;
+    /** People or pets to leave out of this recap, besides the memory exclusions */
+    excludePersonIds?: string[];
+    /** Title of the book (default "<year> in review") */
+    title?: string;
+};
+export type YearRecapVideoDto = {
+    /** Length of the video in seconds */
+    durationSeconds?: number;
+    /** Albums to leave out of this recap */
+    excludeAlbumIds?: string[];
+    /** Days to leave out of this recap */
+    excludeDateRanges?: YearRecapDateRange[];
+    /** Leave screenshots, receipts and documents out of this recap, even when the memories keep them */
+    excludeDocuments?: boolean;
+    /** People or pets to leave out of this recap, besides the memory exclusions */
+    excludePersonIds?: string[];
+    /** Landscape (default) or vertical */
+    format?: HighlightFormat;
+    /** An audio file of the user played under the video */
+    music?: string;
+    /** Title of the video (default "<year> in review") */
+    title?: string;
 };
 export type AgentUpdateDto = {
     /** Created or updated message (replace by ID) */
@@ -10211,6 +10356,43 @@ export function addMemoryAssets({ id, bulkIdsDto }: {
     })));
 }
 /**
+ * List the memory exclusions
+ */
+export function getMemoryExclusions(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: MemoryExclusionsResponseDto;
+    }>("/memory-exclusions", {
+        ...opts
+    }));
+}
+/**
+ * Add a memory exclusion
+ */
+export function createMemoryExclusion({ memoryExclusionCreateDto }: {
+    memoryExclusionCreateDto: MemoryExclusionCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: MemoryExclusionResponseDto;
+    }>("/memory-exclusions", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: memoryExclusionCreateDto
+    })));
+}
+/**
+ * Remove a memory exclusion
+ */
+export function deleteMemoryExclusion({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/memory-exclusions/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
  * Delete notifications
  */
 export function deleteNotifications({ notificationDeleteAllDto }: {
@@ -13775,6 +13957,51 @@ export function getWorkflowForShare({ id }: {
         ...opts
     }));
 }
+/**
+ * Get the recap of a year
+ */
+export function getYearRecap({ year }: {
+    year: number;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: YearRecapResponseDto;
+    }>(`/year-recaps/${encodeURIComponent(year)}`, {
+        ...opts
+    }));
+}
+/**
+ * Draft the book of a year
+ */
+export function createYearRecapBook({ year, yearRecapBookDto }: {
+    year: number;
+    yearRecapBookDto: YearRecapBookDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: BookDraftResponseDto;
+    }>(`/year-recaps/${encodeURIComponent(year)}/book`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: yearRecapBookDto
+    })));
+}
+/**
+ * Make the highlight video of a year
+ */
+export function createYearRecapVideo({ year, yearRecapVideoDto }: {
+    year: number;
+    yearRecapVideoDto: YearRecapVideoDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: HighlightJobResponseDto;
+    }>(`/year-recaps/${encodeURIComponent(year)}/video`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: yearRecapVideoDto
+    })));
+}
 export enum ReactionLevel {
     Album = "album",
     Asset = "asset"
@@ -13811,6 +14038,7 @@ export enum ActivityLogAction {
     BurstCleanup = "burst.cleanup",
     CollectionEntries = "collection.entries",
     HighlightCreate = "highlight.create",
+    MemoryExclusionChange = "memoryExclusion.change",
     SharedLinkCreate = "sharedLink.create"
 }
 export enum ActivityLogSource {
@@ -14364,7 +14592,8 @@ export enum BookMapStyle {
 export enum BookDraftKind {
     Yearly = "yearly",
     Trip = "trip",
-    Birthday = "birthday"
+    Birthday = "birthday",
+    Recap = "recap"
 }
 export enum BookCaptionMode {
     None = "none",
@@ -14569,6 +14798,11 @@ export enum MemoryType {
     OnThisDay = "on_this_day",
     Rule = "rule"
 }
+export enum MemoryExclusionType {
+    Person = "person",
+    Album = "album",
+    DateRange = "date_range"
+}
 export enum OrientationStatus {
     Suggested = "suggested",
     Fixed = "fixed",
@@ -14615,6 +14849,7 @@ export enum JobName {
     BookExport = "BookExport",
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
+    YearRecapPrepare = "YearRecapPrepare",
     OrientationCheckQueueAll = "OrientationCheckQueueAll",
     OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",

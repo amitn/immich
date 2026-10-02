@@ -6,7 +6,7 @@ import { MemoryExclusionType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { MemoryExclusionTable } from 'src/schema/tables/memory-exclusion.table.js';
 import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
-import { keepNotExcluded } from 'src/utils/memory-exclusions.js';
+import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 
 const EXCLUSIONS_EXAMPLE: MemoryExclusions = {
   personIds: [DummyValue.UUID],
@@ -110,7 +110,7 @@ export class MemoryExclusionRepository {
       .selectFrom('asset')
       .select('asset.id')
       .where('asset.id', 'in', assetIds)
-      .where((eb) => keepNotExcluded(eb, exclusions))
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .execute();
     return new Set(rows.map(({ id }) => id));
   }

@@ -7,7 +7,7 @@ import { DB } from 'src/schema/index.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { asUuid } from 'src/utils/database.js';
 import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
-import { keepNotExcluded } from 'src/utils/memory-exclusions.js';
+import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 
 /** Books suggested to users (`book_draft`), and what the suggestions are made from */
 @Injectable()
@@ -84,7 +84,7 @@ export class BookDraftRepository {
       .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
       .where('asset.deletedAt', 'is', null)
       // the photos the user keeps out of their memories (#12)
-      .where((eb) => keepNotExcluded(eb, exclusions))
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime(), value: row.value }));
@@ -109,7 +109,7 @@ export class BookDraftRepository {
       .where('asset.type', '=', sql.lit(AssetType.Image))
       .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
       .where('asset.deletedAt', 'is', null)
-      .where((eb) => keepNotExcluded(eb, exclusions))
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map(({ localDateTime, ...row }) => ({ ...row, time: localDateTime.getTime() }));
@@ -159,7 +159,7 @@ export class BookDraftRepository {
       .where('asset.deletedAt', 'is', null)
       .where('asset.localDateTime', '>=', takenAfter)
       .where('asset.localDateTime', '<', takenBefore)
-      .where((eb) => keepNotExcluded(eb, exclusions))
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime() }));
@@ -219,7 +219,7 @@ export class BookDraftRepository {
       .where('asset.localDateTime', '<=', to)
       .where('asset.type', 'in', videosOnly ? [AssetType.Video] : [AssetType.Image, AssetType.Video])
       .$if(favoritesOnly, (qb) => qb.where('asset.isFavorite', '=', true))
-      .where((eb) => keepNotExcluded(eb, exclusions));
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!));
     for (const personId of new Set(personIds)) {
       query = query.where((eb) =>
         eb.exists(

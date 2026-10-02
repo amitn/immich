@@ -6,7 +6,7 @@ import { AssetFileType, AssetType, AssetVisibility } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { getCollectionTagPrefixes } from 'src/utils/book/collections.js';
 import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
-import { keepNotExcluded } from 'src/utils/memory-exclusions.js';
+import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 import type { YearRecapAsset, YearRecapPerson, YearRecapTag } from 'src/utils/year-recap.js';
 
 const EXCLUSIONS_EXAMPLE: MemoryExclusions = {
@@ -40,7 +40,7 @@ export class YearRecapRepository {
       .where('asset.type', 'in', [AssetType.Image, AssetType.Video])
       .where('asset.localDateTime', '>=', start)
       .where('asset.localDateTime', '<', end)
-      .where((eb) => keepNotExcluded(eb, exclusions));
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!));
   }
 
   /** the photos and videos of the year (with a preview, like the memories), in time order */

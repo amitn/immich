@@ -1,4 +1,4 @@
-import { Expression, ExpressionBuilder, SqlBool, sql } from 'kysely';
+import { Expression, ExpressionBuilder, SqlBool } from 'kysely';
 import { DB } from 'src/schema/index.js';
 import { getCollectionTagRules } from 'src/utils/collections/pack.js';
 import { getCollectionPacks } from 'src/utils/collections/registry.js';
@@ -186,10 +186,6 @@ export const notExcludedFromMemories = (
 
   return eb.and(terms);
 };
-
-/** `notExcludedFromMemories` for a `.where`, which keeps every asset when nothing is excluded */
-export const keepNotExcluded = (eb: ExpressionBuilder<DB, keyof DB>, exclusions?: MemoryExclusions | null) =>
-  notExcludedFromMemories(eb, exclusions) ?? sql<boolean>`true`;
 
 /** the context keys of the rules that are about people (`birthday`, `person_throwback`, `people_together`) */
 const CONTEXT_PERSON_KEYS = ['personId', 'personAId', 'personBId'];
