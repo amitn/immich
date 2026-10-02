@@ -19,6 +19,7 @@ With its tools, the assistant can:
 - understand your library: search by meaning and filters, find people, split a date range or album into events and trips, read metadata, and look at photos on a contact sheet;
 - choose photos: group bursts and near-duplicates, score sharpness, exposure and faces, and pick a balanced selection (for example _"the 30 best photos of last year, no more than 2 per event"_);
 - crop photos around faces, straighten tilted photos, enhance dull ones and [turn sideways ones upright](#sideways-and-upside-down-photos);
+- [clean up bursts](#burst-cleanup): keep the best photo of each group of near-identical photos and archive the others;
 - create albums, and add or remove photos;
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
@@ -80,6 +81,7 @@ What undo does:
 | A saved book or art style                                                          | Deletes the style, unless it was edited since. Books keep their copy of the style.                                                                                       |
 | A book link                                                                        | Deletes the link.                                                                                                                                                        |
 | A highlight video                                                                  | Stops it if it's still rendering; otherwise takes the video out of its album and moves it to the trash.                                                                  |
+| A burst cleanup                                                                    | Puts the photos it archived back on the timeline, and gives a stack its head back.                                                                                       |
 
 Undo never deletes photos or videos for good: new ones go to the trash.
 
@@ -93,7 +95,7 @@ Undo never deletes photos or videos for good: new ones go to the trash.
 
 When part of a change can't be undone, for example a photo that was deleted since, the rest is undone and the result says what was left as it was.
 
-**Redo.** A toast after undoing offers **Redo** for the changes that are simple to repeat: adding photos to an album, removing them, and keeping a suggested book. Other changes can't be redone; ask the assistant to do them again.
+**Redo.** A toast after undoing offers **Redo** for the changes that are simple to repeat: adding photos to an album, removing them, keeping a suggested book, and a burst cleanup. Other changes can't be redone; ask the assistant to do them again.
 
 **Notifications.** When an auto-approved reply makes several changes, you get a notification, "The assistant made 12 changes", which opens those changes in the activity log.
 
@@ -467,6 +469,36 @@ On the page, each photo is shown turned as suggested. **Turn upright** fixes one
 You can also ask the assistant: _"find the sideways photos of our trip and fix them"_. It uses `find_rotated_photos`, which lists the suggestions or checks an album, a date range or chosen photos on the spot, and `fix_rotation`, which asks for approval.
 
 On a benchmark of 37 upright photos from the demo library (a trip to Sicily and three restaurant meals) turned every way, it fixes 96 of the 111 turned cases, never turns a photo the wrong way, and leaves all 37 upright photos alone. Photos that look the same every way, such as a dish seen from above, are often left unflagged; that is on purpose.
+
+## Burst cleanup
+
+**Utilities → Burst cleanup** finds the groups of near-identical photos in your library and keeps the best of each. The groups come from:
+
+- the **duplicate groups** of the duplicate detection (also shown under **Utilities → Review duplicates**);
+- your **stacks**, except the stacks of a photo and its copies (crops, straightened, enhanced and improved photos, artworks), which keep versions on purpose;
+- **bursts**: photos taken within 3 seconds of each other (chained, so a long burst counts) that look the same to CLIP, among the photos that are in neither. It needs smart search (CLIP) to be enabled.
+
+Only photos on the timeline are looked at (not the archive, the trash or the locked folder), all of yours or those of an album or taken between two dates, up to the newest 50,000.
+
+**The photo to keep.** In each group, the photo to keep is highlighted with why it was picked: _Sharpest_, _Best exposed_, _Most faces_, _Clearest faces_ (the largest faces, when the photos show as many), _Favorite_, _Highest rated_, or _Best overall_ when it only wins on the overall quality score, the same score the assistant uses to pick photos (sharpness, exposure, colour and composition, faces; favorites and ratings count too). Before the score, the rules you turn on decide, in this order:
+
+- **Prefer RAW** keeps a RAW file over a JPEG or HEIC of the same moment;
+- **Prefer edited** (on by default) keeps a photo you edited in Gallery;
+- **Prefer largest** keeps the photo with the most pixels, then the biggest file.
+
+The rules are remembered in your browser. Click another photo of a group to keep it instead.
+
+**Cleaning up.** **Keep best, archive the rest** cleans up one group, and **Keep the best of all** every group on the page, after showing how many photos will be archived. **Skip** hides a group until you search again. The other photos of a group are **archived, never deleted**: they leave the timeline and stay in the archive, their albums and their shared spaces. When the photo that heads a stack is archived, the kept photo becomes the head of the stack, so the stack stays on the timeline; the head of a stack the kept photo is not in is never archived.
+
+A duplicate group stays as it is: the duplicates page still lists it, with the archived photos. Resolving a group there moves the photos you don't keep to the trash; burst cleanup never does.
+
+**Undo.** Every cleanup is one change in the [activity log](#undoing-the-assistants-changes), and the toast after it has an **Undo** button. Undoing it puts exactly the photos it archived back on the timeline (a photo you moved or deleted since stays where it is) and gives a stack its head back. A cleanup can be redone.
+
+**Photos of others.** Only your own photos are archived. A group with photos of someone else, for example in a shared album, is shown read-only, and a group of only their photos is left out: it's theirs to clean up.
+
+**Ask the assistant.** _"Clean up the bursts from my trip to Sicily, keep the RAW ones"_: the assistant finds the dates of the trip with `find_events`, lists the groups with `find_bursts` (which changes nothing, so it is the dry run) and tells you what it would archive, then `clean_up_bursts` archives them after you approve. You can name the rules, or another photo to keep.
+
+The assistant can't tell open from closed eyes: _Most faces_ and _Clearest faces_ count the faces the face detection found, and a turned-away or blinking face is sometimes still found. Check the groups with people before cleaning them all up.
 
 ## Food
 
