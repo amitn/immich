@@ -2312,6 +2312,113 @@ export type AssetOcrResponseDto = {
     /** Normalized y coordinate of box corner 4 (0-1) */
     y4: number;
 };
+export type RedactionRectDto = {
+    /** Height, as a fraction of the photo height */
+    height: number;
+    /** What the region covers (default manual) */
+    kind?: RedactionKind;
+    /** Width, as a fraction of the photo width */
+    width: number;
+    /** Left edge, as a fraction of the photo width */
+    x: number;
+    /** Top edge, as a fraction of the photo height */
+    y: number;
+};
+export type RedactionCreateDto = {
+    /** Suggest the faces (default true); pets are never suggested */
+    faces?: boolean;
+    /** People whose faces are not blurred; the faces of everyone else are */
+    keepPersonIds?: string[];
+    /** Blur only the faces of these people (the other faces are suggested, not selected) */
+    onlyPersonIds?: string[];
+    /** Suggest number plates (default true) */
+    plates?: boolean;
+    /** The regions to blur; without them, the selected suggestions for the options are blurred */
+    regions?: RedactionRectDto[];
+    /** Suggest the text of screens (default true) */
+    screens?: boolean;
+    /** Blur (default) or pixelate */
+    style?: RedactionStyle;
+    /** Suggest the text (default true): text that looks personal, and the text of documents, is selected; other text, such as signs, is suggested only */
+    text?: boolean;
+};
+export type RedactionResponseDto = {
+    /** What was blurred, e.g. "3 faces, 1 number plate" */
+    description: string;
+    /** An identical copy existed and was returned */
+    duplicate: boolean;
+    /** ID of the redacted copy */
+    id: string;
+    /** Number of regions blurred */
+    regionCount: number;
+    /** ID of the original photo, which is not changed */
+    sourceId: string;
+};
+export type RedactionPreviewDto = {
+    /** The regions to blur */
+    regions: RedactionRectDto[];
+    /** Blur (default) or pixelate */
+    style?: RedactionStyle;
+};
+export type RedactionSuggestDto = {
+    /** Suggest the faces (default true); pets are never suggested */
+    faces?: boolean;
+    /** People whose faces are not blurred; the faces of everyone else are */
+    keepPersonIds?: string[];
+    /** Blur only the faces of these people (the other faces are suggested, not selected) */
+    onlyPersonIds?: string[];
+    /** Suggest number plates (default true) */
+    plates?: boolean;
+    /** Suggest the text of screens (default true) */
+    screens?: boolean;
+    /** Suggest the text (default true): text that looks personal, and the text of documents, is selected; other text, such as signs, is suggested only */
+    text?: boolean;
+};
+export type RedactionRegionDto = {
+    /** Height, as a fraction of the photo height */
+    height: number;
+    /** Region ID within the photo, e.g. face:<face id>, text:<OCR box id> or screen */
+    id: string;
+    kind: RedactionKind;
+    /** The person of a face */
+    personId?: string | null;
+    /** The name of the person of a face */
+    personName?: string | null;
+    reason: RedactionReason;
+    /** Whether the region is blurred unless deselected */
+    selected: boolean;
+    /** The text OCR read */
+    text?: string;
+    /** Width, as a fraction of the photo width */
+    width: number;
+    /** Left edge, as a fraction of the photo width */
+    x: number;
+    /** Top edge, as a fraction of the photo height */
+    y: number;
+};
+export type RedactionSuggestionResponseDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Whether face detection has run on the photo and found faces */
+    hasFaces: boolean;
+    /** Whether OCR has run on the photo and found text */
+    hasText: boolean;
+    /** Height of the photo as it is shown, in pixels (0 when unknown) */
+    height: number;
+    /** The suggested regions */
+    regions: RedactionRegionDto[];
+    /** What the photo shows, from its CLIP embedding; null without one */
+    scene: {
+        /** How likely the photo shows a document, 0 to 1 */
+        document: number;
+        /** How likely the photo shows a screen, 0 to 1 */
+        screen: number;
+        /** How likely the photo shows a vehicle, 0 to 1 */
+        vehicle: number;
+    } | null;
+    /** Width of the photo as it is shown, in pixels (0 when unknown) */
+    width: number;
+};
 export type SignUpDto = {
     /** User email */
     email: string;
@@ -5438,6 +5545,10 @@ export type SharedLinkResponseDto = {
     key: string;
     /** Has password */
     password: string | null;
+    /** Blur the faces of people who are not in what the link shares */
+    redactFaces: boolean;
+    /** Blur the text and number plates of the photos */
+    redactText: boolean;
     /** Show metadata */
     showMetadata: boolean;
     /** Custom URL slug */
@@ -5463,6 +5574,10 @@ export type SharedLinkCreateDto = {
     expiresAt?: string | null;
     /** Link password */
     password?: string | null;
+    /** Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed */
+    redactFaces?: boolean;
+    /** Blur the text and number plates found in the photos when serving through the link */
+    redactText?: boolean;
     /** Show metadata */
     showMetadata?: boolean;
     /** Custom URL slug */
@@ -5486,6 +5601,10 @@ export type SharedLinkEditDto = {
     expiresAt?: string | null;
     /** Link password */
     password?: string | null;
+    /** Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed */
+    redactFaces?: boolean;
+    /** Blur the text and number plates found in the photos when serving through the link */
+    redactText?: boolean;
     /** Show metadata */
     showMetadata?: boolean;
     /** Custom URL slug */
@@ -8585,6 +8704,54 @@ export function downloadAsset({ download, edited, id, key, slug }: {
     }))}`, {
         ...opts
     }));
+}
+/**
+ * Redact a photo
+ */
+export function redactAsset({ id, redactionCreateDto }: {
+    id: string;
+    redactionCreateDto: RedactionCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RedactionResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/redact`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: redactionCreateDto
+    })));
+}
+/**
+ * Preview a redaction
+ */
+export function renderRedactionPreview({ id, redactionPreviewDto }: {
+    id: string;
+    redactionPreviewDto: RedactionPreviewDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchBlob<{
+        status: 200;
+        data: Blob;
+    }>(`/assets/${encodeURIComponent(id)}/redact/preview`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: redactionPreviewDto
+    })));
+}
+/**
+ * Suggest regions to redact
+ */
+export function suggestRedactions({ id, redactionSuggestDto }: {
+    id: string;
+    redactionSuggestDto: RedactionSuggestDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RedactionSuggestionResponseDto;
+    }>(`/assets/${encodeURIComponent(id)}/redact/suggest`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: redactionSuggestDto
+    })));
 }
 /**
  * View asset thumbnail
@@ -14303,6 +14470,29 @@ export enum EnhanceStrength {
     Subtle = "subtle",
     Normal = "normal",
     Strong = "strong"
+}
+export enum RedactionKind {
+    Face = "face",
+    Text = "text",
+    Plate = "plate",
+    Screen = "screen",
+    Manual = "manual"
+}
+export enum RedactionStyle {
+    Blur = "blur",
+    Pixelate = "pixelate"
+}
+export enum RedactionReason {
+    Unknown = "unknown",
+    Person = "person",
+    Kept = "kept",
+    NotChosen = "notChosen",
+    Personal = "personal",
+    Plate = "plate",
+    Screen = "screen",
+    Document = "document",
+    Other = "other",
+    Manual = "manual"
 }
 export enum AssetMediaSize {
     Original = "original",

@@ -161,6 +161,9 @@ export class SharedLinkService extends BaseService {
         allowDownload: dto.showMetadata === false && !isBook ? false : (dto.allowDownload ?? true),
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
+        // (#14) off unless asked for
+        ...(dto.redactFaces && { redactFaces: true }),
+        ...(dto.redactText && { redactText: true }),
         // a book's photos of others are shown through the space they are in (see `getBookLinkSpaceId`)
         spaceId: isBook ? bookSpaceId : dto.spaceId || null,
       });
@@ -258,6 +261,8 @@ export class SharedLinkService extends BaseService {
         allowDownload: dto.allowDownload,
         showExif: dto.showMetadata,
         slug: dto.slug || null,
+        redactFaces: dto.redactFaces,
+        redactText: dto.redactText,
       });
       return mapSharedLink(sharedLink, { stripAssetMetadata: false });
     } catch (error) {

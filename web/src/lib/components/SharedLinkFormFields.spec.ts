@@ -19,7 +19,8 @@ describe('SharedLinkFormFields component', () => {
     const user = userEvent.setup();
 
     const switches = Array.from(container.querySelectorAll('[role="switch"], input[type="checkbox"]'));
-    expect(switches).toHaveLength(3);
+    // and the two redaction options (#14)
+    expect(switches).toHaveLength(5);
 
     const [showMetadataSwitch, allowDownloadSwitch] = switches;
     expect(isChecked(allowDownloadSwitch)).toBe(true);
@@ -44,7 +45,8 @@ describe('SharedLinkFormFields component', () => {
     const user = userEvent.setup();
 
     const switches = Array.from(container.querySelectorAll('[role="switch"], input[type="checkbox"]'));
-    expect(switches).toHaveLength(2);
+    // and the two redaction options (#14)
+    expect(switches).toHaveLength(4);
     expect(container.textContent).toContain('book_share_allow_pdf_download');
     expect(container.textContent).toContain('book_share_show_photo_details');
     expect(container.textContent).not.toContain('show_metadata');

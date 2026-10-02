@@ -33,6 +33,7 @@ import {
 import { StorageBackend } from 'src/interfaces/storage-backend.interface.js';
 import { AuthRequest } from 'src/middleware/auth.guard.js';
 import { BaseService } from 'src/services/base.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
 import { StorageService } from 'src/services/storage.service.js';
 import { requireUploadAccess } from 'src/utils/access.js';
 import { asUploadRequest, onBeforeLink } from 'src/utils/asset.util.js';
@@ -184,6 +185,18 @@ export class AssetMediaService extends BaseService {
       dto.edited = true;
     }
 
+    // (#14) a link that blurs faces or text serves a blurred JPEG of the photo instead of its original
+    const redaction = await BaseService.create(RedactionService, this).getLinkRedaction(auth.sharedLink);
+    if (redaction) {
+      const redacted = await BaseService.create(RedactionService, this).getLinkOriginal(redaction, id, {
+        download: dto.download,
+        edited: true,
+      });
+      if (redacted) {
+        return redacted;
+      }
+    }
+
     const { originalPath, originalFileName, editedPath } = await this.assetRepository.getForOriginal(
       id,
       dto.edited ?? false,
@@ -242,6 +255,16 @@ export class AssetMediaService extends BaseService {
       auth.sharedLink && !auth.sharedLink.showExif ? id : getFileNameWithoutExtension(originalFileName);
     const fileName = `${fileNameBase}_${size}${getFilenameExtension(path)}`;
 
+    // (#14) a link that blurs faces or text serves the file with them blurred
+    const redactionService = BaseService.create(RedactionService, this);
+    const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
+    if (redaction) {
+      const redacted = await redactionService.getLinkThumbnail(redaction, id, path, `${fileNameBase}_${size}.jpg`);
+      if (redacted) {
+        return redacted;
+      }
+    }
+
     return this.serveFromBackend(path, mimeTypes.lookup(path), CacheControl.PrivateWithCache, fileName);
   }
 
@@ -252,6 +275,12 @@ export class AssetMediaService extends BaseService {
 
     if (!asset) {
       throw new NotFoundException('Asset not found or asset is not a video');
+    }
+
+    // (#14) the frames of a video can't be blurred: a link that blurs faces or text withholds one with any
+    const redaction = await BaseService.create(RedactionService, this).getLinkRedaction(auth.sharedLink);
+    if (redaction) {
+      await BaseService.create(RedactionService, this).requireVideoShown(redaction, id);
     }
 
     const filepath = asset.encodedVideoPath || asset.originalPath;

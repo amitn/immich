@@ -64,4 +64,12 @@ export class SharedLinkTable {
 
   @ForeignKeyColumn(() => BookTable, { nullable: true, onDelete: 'CASCADE', onUpdate: 'CASCADE' })
   bookId!: string | null;
+
+  // (#14) blur, when serving through the link, the faces of people who are not in what it shares
+  @Column({ type: 'boolean', default: false })
+  redactFaces!: Generated<boolean>;
+
+  // (#14) blur, when serving through the link, the text and number plates that OCR found
+  @Column({ type: 'boolean', default: false })
+  redactText!: Generated<boolean>;
 }

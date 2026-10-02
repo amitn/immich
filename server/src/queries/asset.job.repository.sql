@@ -1179,3 +1179,183 @@ order by
   "person"."name" asc
 limit
   $6
+
+-- AssetJobRepository.getForRedaction
+select
+  "asset"."id",
+  "asset"."ownerId",
+  "asset"."type",
+  "asset"."isEdited",
+  "asset"."deletedAt",
+  "asset"."visibility",
+  "asset"."originalPath",
+  "asset"."originalFileName",
+  "asset"."livePhotoVideoId",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."orientation",
+  "asset_exif"."colorspace",
+  "asset_exif"."profileDescription",
+  "asset_exif"."bitsPerSample",
+  "asset_exif"."projectionType",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_edit"."action",
+          "asset_edit"."parameters"
+        from
+          "asset_edit"
+        where
+          "asset_edit"."assetId" = "asset"."id"
+      ) as agg
+  ) as "edits",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_file"."type",
+          "asset_file"."path",
+          "asset_file"."isEdited"
+        from
+          "asset_file"
+        where
+          "asset_file"."assetId" = "asset"."id"
+      ) as agg
+  ) as "files"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "asset"."id" = any ($1::uuid[])
+
+-- AssetJobRepository.getLivePhotoStillIds
+select
+  "asset"."id",
+  "asset"."livePhotoVideoId"
+from
+  "asset"
+where
+  "asset"."livePhotoVideoId" = any ($1::uuid[])
+  and "asset"."deletedAt" is null
+
+-- AssetJobRepository.getRedactionFaces
+select
+  "asset_face"."id",
+  "asset_face"."assetId",
+  "asset_face"."imageWidth",
+  "asset_face"."imageHeight",
+  "asset_face"."boundingBoxX1",
+  "asset_face"."boundingBoxY1",
+  "asset_face"."boundingBoxX2",
+  "asset_face"."boundingBoxY2",
+  "person"."personGroupId" as "personId",
+  "person"."name" as "personName",
+  "person"."identityId" as "personIdentityId",
+  (
+    exists (
+      select
+        1 as "one"
+      from
+        "pet_search"
+      where
+        "pet_search"."faceId" = "asset_face"."id"
+    )
+    or exists (
+      select
+        1 as "one"
+      from
+        "person"
+      where
+        "person"."personGroupId" = "asset_face"."personGroupId"
+        and "person"."type" = $1
+    )
+  ) as "isPet",
+  (
+    select
+      array_agg("face_identity_face"."identityId") as "ids"
+    from
+      "face_identity_face"
+    where
+      "face_identity_face"."assetFaceId" = "asset_face"."id"
+  ) as "faceIdentityIds"
+from
+  "asset_face"
+  left join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+where
+  "asset_face"."assetId" = any ($2::uuid[])
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+order by
+  "asset_face"."boundingBoxX1" asc
+
+-- AssetJobRepository.getRedactionOcr
+select
+  "asset_ocr"."id",
+  "asset_ocr"."assetId",
+  "asset_ocr"."x1",
+  "asset_ocr"."y1",
+  "asset_ocr"."x2",
+  "asset_ocr"."y2",
+  "asset_ocr"."x3",
+  "asset_ocr"."y3",
+  "asset_ocr"."x4",
+  "asset_ocr"."y4",
+  "asset_ocr"."text"
+from
+  "asset_ocr"
+where
+  "asset_ocr"."assetId" = any ($1::uuid[])
+  and "asset_ocr"."isVisible" is true
+order by
+  "asset_ocr"."y1" asc,
+  "asset_ocr"."x1" asc
+
+-- AssetJobRepository.getRedactionPeople
+select
+  "person"."personGroupId" as "id",
+  "person"."ownerId",
+  "person"."name",
+  "person"."type",
+  "person"."identityId"
+from
+  "person"
+where
+  "person"."personGroupId" = any ($1::uuid[])
+
+-- AssetJobRepository.getRedactionPeopleCounts
+select
+  coalesce("person"."identityId", "person"."personGroupId") as "key",
+  array_agg(distinct "person"."personGroupId") as "personIds",
+  array_agg(distinct "person"."identityId") as "identityIds",
+  count(distinct "asset_face"."assetId") as "photos"
+from
+  "asset_face"
+  inner join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+where
+  "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+  and "person"."type" != $1
+  and "person"."name" != $2
+  and exists (
+    select
+    from
+      "album_asset"
+    where
+      "album_asset"."assetId" = "asset_face"."assetId"
+      and "album_asset"."albumId" = $3::uuid
+  )
+group by
+  coalesce("person"."identityId", "person"."personGroupId")
+
+-- AssetJobRepository.countRedactionAssets
+select
+  count(*) as "count"
+from
+  "album_asset"
+where
+  "album_asset"."albumId" = $1::uuid
