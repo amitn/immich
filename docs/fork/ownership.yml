@@ -460,6 +460,7 @@ features:
       - collection-notices
       - journal-notifications
       - ask-your-library
+      - burst-cleanup
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -482,6 +483,8 @@ features:
       - server/src/controllers/book-style.controller.ts
       - server/src/controllers/book.controller.spec.ts
       - server/src/controllers/book.controller.ts
+      - server/src/controllers/burst.controller.spec.ts
+      - server/src/controllers/burst.controller.ts
       - server/src/controllers/collage.controller.spec.ts
       - server/src/controllers/collage.controller.ts
       - server/src/controllers/collection.controller.spec.ts
@@ -498,6 +501,7 @@ features:
       - server/src/dtos/agent.dto.ts
       - server/src/dtos/art.dto.ts
       - server/src/dtos/book.dto.ts
+      - server/src/dtos/burst.dto.ts
       - server/src/dtos/collage.dto.ts
       - server/src/dtos/collection.dto.ts
       - server/src/dtos/enhance.dto.ts
@@ -553,6 +557,7 @@ features:
       - server/src/services/book-style.service.ts
       - server/src/services/book.service.spec.ts
       - server/src/services/book.service.ts
+      - server/src/services/burst.service.ts
       - server/src/services/collage.service.spec.ts
       - server/src/services/collage.service.ts
       - server/src/services/collection-notice.dry-run.spec.ts
@@ -608,12 +613,14 @@ features:
       - server/test/medium/specs/repositories/book.repository.spec.ts
       - server/test/medium/specs/services/activity-log.service.spec.ts
       - server/test/medium/specs/services/agent.service.spec.ts
+      - server/test/medium/specs/services/burst.service.spec.ts
       - server/test/medium/specs/services/crop-copy.service.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
       - web/src/lib/components/activity-log/**
       - web/src/lib/components/assistant/**
       - web/src/lib/components/books/**
+      - web/src/lib/components/bursts/**
       - web/src/lib/components/journals/JournalEntryEditor.svelte
       - web/src/lib/components/layouts/UserPageLayout.spec.ts
       - web/src/lib/components/orientation/**
@@ -686,6 +693,8 @@ features:
       - web/src/lib/utils/book-style.ts
       - web/src/lib/utils/book.spec.ts
       - web/src/lib/utils/book.ts
+      - web/src/lib/utils/bursts.spec.ts
+      - web/src/lib/utils/bursts.ts
       - web/src/lib/utils/collage.ts
       - web/src/lib/utils/highlight.spec.ts
       - web/src/lib/utils/highlight.ts
@@ -704,6 +713,7 @@ features:
       - web/src/routes/(user)/books/**
       - web/src/routes/(user)/shared-links/(list)/SharedLinkCard.spec.ts
       - web/src/routes/(user)/user-settings/FeatureSettings.ai-answers.spec.ts
+      - web/src/routes/(user)/utilities/bursts/**
       - web/src/routes/(user)/utilities/orientation/**
       - web/src/routes/admin/system-settings/AgentSettings.spec.ts
       - web/src/routes/admin/system-settings/AgentSettings.svelte

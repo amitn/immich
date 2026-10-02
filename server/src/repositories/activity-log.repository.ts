@@ -228,6 +228,7 @@ export class ActivityLogRepository {
         'asset.stackId',
         'asset.deletedAt',
         'asset.status',
+        'asset.visibility',
         'asset.originalFileName',
         'asset_exif.description',
       ])

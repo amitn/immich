@@ -8,6 +8,7 @@ import { ArtAgentTools } from 'src/services/agent-tools/art.tools.js';
 import { BookDraftAgentTools } from 'src/services/agent-tools/book-draft.tools.js';
 import { BookStyleAgentTools } from 'src/services/agent-tools/book-style.tools.js';
 import { BookAgentTools } from 'src/services/agent-tools/book.tools.js';
+import { BurstAgentTools } from 'src/services/agent-tools/burst.tools.js';
 import { CollageAgentTools } from 'src/services/agent-tools/collage.tools.js';
 import { CollectionAgentTools } from 'src/services/agent-tools/collection.tools.js';
 import { CropAgentTools } from 'src/services/agent-tools/crop.tools.js';
@@ -87,6 +88,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(HighlightAgentTools, this),
         BaseService.create(CollageAgentTools, this),
         BaseService.create(OrientationAgentTools, this),
+        BaseService.create(BurstAgentTools, this),
         BaseService.create(ActivityAgentTools, this),
       ];
 

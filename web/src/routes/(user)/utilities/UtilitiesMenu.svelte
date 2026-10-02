@@ -4,6 +4,7 @@
   import { Route } from '$lib/route';
   import { Icon, modalManager, Text } from '@immich/ui';
   import {
+    mdiCameraBurst,
     mdiCellphoneArrowDownVariant,
     mdiContentDuplicate,
     mdiCrosshairsGps,
@@ -19,6 +20,7 @@
     { href: Route.largeFileUtility(), icon: mdiImageSizeSelectLarge, label: $t('review_large_files') },
     { href: Route.geolocationUtility(), icon: mdiCrosshairsGps, label: $t('manage_geolocation') },
     { href: Route.orientationUtility(), icon: mdiPhoneRotateLandscape, label: $t('review_orientation') },
+    { href: Route.burstsUtility(), icon: mdiCameraBurst, label: $t('burst_cleanup') },
     { href: Route.workflows(), icon: mdiStateMachine, label: $t('workflows') },
   ];
 </script>

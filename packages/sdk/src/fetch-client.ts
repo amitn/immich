@@ -2910,6 +2910,116 @@ export type BookReviewResponseDto = {
     /** The lowest scoring photos in the book */
     weakestPlaced: BookReviewPlacementDto[];
 };
+export type BurstCleanGroupDto = {
+    /** The photos of the group */
+    assetIds: string[];
+    /** The photo to keep; the others are archived */
+    keepAssetId: string;
+};
+export type BurstCleanDto = {
+    /** Only count what would be archived */
+    dryRun?: boolean;
+    /** The groups to clean up */
+    groups: BurstCleanGroupDto[];
+};
+export type BurstCleanGroupResultDto = {
+    /** The photos archived (or that would be, in a dry run) */
+    archivedAssetIds: string[];
+    /** Why the group was skipped */
+    error?: string;
+    /** The photo kept */
+    keepAssetId: string;
+};
+export type BurstCleanResponseDto = {
+    /** The change in the activity log, to undo it */
+    activityId: string | null;
+    /** Number of photos archived (or that would be) */
+    archived: number;
+    /** Whether nothing was changed */
+    dryRun: boolean;
+    /** The outcome of each group */
+    groups: BurstCleanGroupResultDto[];
+};
+export type BurstRulesDto = {
+    /** Keep a photo edited in the app over the others (default true) */
+    preferEdited?: boolean;
+    /** Keep the photo with the most pixels, then the biggest file (default false) */
+    preferLargest?: boolean;
+    /** Keep a RAW photo over the others (default false) */
+    preferRaw?: boolean;
+};
+export type BurstSearchDto = {
+    /** Only the photos of this album */
+    albumId?: string;
+    /** Page of groups, newest first (default 1) */
+    page?: number;
+    rules?: BurstRulesDto;
+    /** Groups per page (default 20) */
+    size?: number;
+    /** Only the photos taken at or after this date */
+    takenAfter?: string;
+    /** Only the photos taken before this date */
+    takenBefore?: string;
+};
+export type BurstPhotoDto = {
+    /** Asset ID */
+    assetId: string;
+    /** Exposure score, 0 to 1 */
+    exposure: number;
+    /** Number of faces */
+    faces: number;
+    /** File size in bytes */
+    fileSize: number | null;
+    /** Height in pixels */
+    height: number | null;
+    /** Whether the photo was edited in the app */
+    isEdited: boolean;
+    /** Whether the photo is the user’s own: only those can be archived */
+    isOwned: boolean;
+    /** Whether the photo is a RAW file */
+    isRaw: boolean;
+    /** Overall quality score, 0 to 1 */
+    score: number;
+    /** Sharpness score, 0 to 1 */
+    sharpness: number;
+    /** Width in pixels */
+    width: number | null;
+};
+export type BurstGroupResponseDto = {
+    /** The photos that cleaning up the group archives */
+    archiveAssetIds: string[];
+    /** The photos, best first */
+    assets: BurstPhotoDto[];
+    /** Duplicate group ID */
+    duplicateId: string | null;
+    /** The suggested photo to keep */
+    keepAssetId: string;
+    /** Group key, e.g. duplicate:<id>, stack:<id> or burst:<first asset id> */
+    key: string;
+    /** Whether the group has photos of other users, so it can not be cleaned up */
+    readOnly: boolean;
+    /** Why that photo is the one to keep */
+    reasons: BurstKeepReason[];
+    source: BurstGroupSource;
+    /** Stack ID */
+    stackId: string | null;
+    /** When the newest photo of the group was taken */
+    takenAt: string;
+};
+export type BurstSearchResponseDto = {
+    /** The groups of the page, newest first */
+    groups: BurstGroupResponseDto[];
+    /** Whether there are more groups */
+    hasNextPage: boolean;
+    /** Number of photos looked at */
+    scanned: number;
+    /** Number of groups found */
+    total: number;
+    /** Number of photos that cleaning up every group found would archive */
+    totalToArchive: number;
+    /** Whether only the newest photos of the scope were looked at */
+    truncated: boolean;
+};
 export type CollageCreateDto = {
     /** Album to add the collage to, e.g. the album the photos were picked in */
     albumId?: string;
@@ -9166,6 +9276,36 @@ export function getBookReview({ id }: {
     }));
 }
 /**
+ * Clean up bursts
+ */
+export function cleanBursts({ burstCleanDto }: {
+    burstCleanDto: BurstCleanDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BurstCleanResponseDto;
+    }>("/bursts/clean", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: burstCleanDto
+    })));
+}
+/**
+ * Find bursts
+ */
+export function searchBursts({ burstSearchDto }: {
+    burstSearchDto: BurstSearchDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: BurstSearchResponseDto;
+    }>("/bursts/search", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: burstSearchDto
+    })));
+}
+/**
  * Scan all libraries for classification
  */
 export function scanClassification(opts?: Oazapfts.RequestOpts) {
@@ -13599,6 +13739,7 @@ export enum ActivityLogAction {
     BookDraftKeep = "bookDraft.keep",
     BookDraftDiscard = "bookDraft.discard",
     BookStyleCreate = "bookStyle.create",
+    BurstCleanup = "burst.cleanup",
     CollectionEntries = "collection.entries",
     HighlightCreate = "highlight.create",
     SharedLinkCreate = "sharedLink.create"
@@ -14216,6 +14357,23 @@ export enum BookReviewIssueType {
     MissingDishName = "missing-dish-name",
     MissingMenuPage = "missing-menu-page",
     Privacy = "privacy"
+}
+export enum BurstKeepReason {
+    Raw = "raw",
+    Edited = "edited",
+    Largest = "largest",
+    Sharpest = "sharpest",
+    BestExposed = "bestExposed",
+    MostFaces = "mostFaces",
+    LargestFaces = "largestFaces",
+    Favorite = "favorite",
+    HighestRated = "highestRated",
+    BestOverall = "bestOverall"
+}
+export enum BurstGroupSource {
+    Duplicate = "duplicate",
+    Stack = "stack",
+    Burst = "burst"
 }
 export enum CollageAspectRatio {
     $11 = "1:1",

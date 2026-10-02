@@ -174,6 +174,8 @@ export const endpointTags: Record<ApiTag, string> = {
     'The assistant is an AI agent, connected over the Agent Client Protocol (ACP), that can search, select, crop and organize assets on behalf of a user.',
   [ApiTag.Authentication]: 'Endpoints related to user authentication, including OAuth.',
   [ApiTag.AuthenticationAdmin]: 'Administrative endpoints related to authentication.',
+  [ApiTag.Bursts]:
+    'Burst cleanup finds groups of near-identical photos (duplicate groups, stacks and bursts taken seconds apart), suggests the best photo of each and archives the others. Nothing is deleted, and every cleanup can be undone from the activity log.',
   [ApiTag.Books]:
     'A book is a paginated photo book layout built from assets, which can be rendered and exported as a PDF.',
   [ApiTag.ClusterGroups]:

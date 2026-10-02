@@ -615,6 +615,69 @@ export class AssetJobRepository {
     }));
   }
 
+  /**
+   * The photos and videos on the timeline that burst cleanup (#9) looks at, newest taken first: the user's own, or
+   * every photo of an album (access to it was checked), with what groups them (duplicate group, stack) and what its
+   * rules need. `isCopy` marks the assistant's copies (crops, improved photos, artworks), which are tagged.
+   */
+  @GenerateSql({
+    params: [{ userId: DummyValue.UUID, albumId: DummyValue.UUID, takenAfter: DummyValue.DATE, limit: 50_000 }],
+  })
+  getForBurstScan(options: { userId: string; albumId?: string; takenAfter?: Date; takenBefore?: Date; limit: number }) {
+    const { userId, albumId, takenAfter, takenBefore, limit } = options;
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.ownerId',
+        'asset.type',
+        'asset.fileCreatedAt',
+        'asset.duplicateId',
+        'asset.stackId',
+        'asset.originalFileName',
+        'asset.isEdited',
+        'asset.width',
+        'asset.height',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.fileSizeInByte',
+      ])
+      .select((eb) =>
+        eb
+          .exists(
+            eb
+              .selectFrom('tag_asset')
+              .innerJoin('tag', 'tag.id', 'tag_asset.tagId')
+              .whereRef('tag_asset.assetId', '=', 'asset.id')
+              .where((where) =>
+                where.or([where('tag.value', 'like', 'Edits/%'), where('tag.value', 'like', 'AI Artwork/%')]),
+              ),
+          )
+          .as('isCopy'),
+      )
+      .$if(!albumId, (qb) => qb.where('asset.ownerId', '=', asUuid(userId)))
+      .$if(!!albumId, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset.id')
+              .where('album_asset.albumId', '=', asUuid(albumId!)),
+          ),
+        ),
+      )
+      .$if(!!takenAfter, (qb) => qb.where('asset.fileCreatedAt', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.fileCreatedAt', '<', takenBefore!))
+      .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+      .where('asset.deletedAt', 'is', null)
+      .where('asset.status', '=', sql.lit(AssetStatus.Active))
+      .orderBy('asset.fileCreatedAt', 'desc')
+      .orderBy('asset.id', 'asc')
+      .limit(limit)
+      .execute();
+  }
+
   /** albums of the given assets that the user owns or is a member of */
   @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
   getAlbumsForAgent(ids: string[], userId: string) {

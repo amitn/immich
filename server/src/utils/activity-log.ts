@@ -67,6 +67,17 @@ export type ActivityUndoMap = {
     snapshot: BookSnapshot;
   };
   [ActivityLogAction.BookStyleCreate]: { styleId: string; updatedAt: string };
+  /**
+   * the photos each group of a burst cleanup archived (undoing un-archives exactly those), and the stack whose head
+   * became the kept photo
+   */
+  [ActivityLogAction.BurstCleanup]: {
+    groups: Array<{
+      keepAssetId: string;
+      archivedAssetIds: string[];
+      stack?: { stackId: string; previousPrimaryAssetId: string };
+    }>;
+  };
   [ActivityLogAction.CollectionEntries]: { pack: string; photos: ActivityCollectionPhoto[] };
   [ActivityLogAction.HighlightCreate]: { highlightId: string };
   [ActivityLogAction.SharedLinkCreate]: { sharedLinkId: string };
