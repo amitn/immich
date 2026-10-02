@@ -62,7 +62,7 @@ describe(`${CollectionService.name} questions`, () => {
     });
 
     it('should reject an unknown pack, an invalid date and an empty range', async () => {
-      await expect(sut.queryCollections(auth, { pack: 'nope' })).rejects.toThrow(/Unknown collection pack/);
+      await expect(sut.queryCollections(auth, { pack: 'nope' })).rejects.toThrow(/Unknown journal/);
       await expect(sut.queryCollections(auth, { from: 'last summer' })).rejects.toThrow(/Invalid date/);
       await expect(sut.queryCollections(auth, { from: '2025', to: '2024' })).rejects.toBeInstanceOf(
         BadRequestException,

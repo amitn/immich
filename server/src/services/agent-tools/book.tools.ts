@@ -362,7 +362,7 @@ export class BookAgentTools extends BaseService {
           'photos). A food book (stylePreset food, or photos tagged Food/<Restaurant>/<Dish> and ' +
           'Food/<Restaurant>/Menu) gets one chapter per restaurant visit titled "<Restaurant> · <place>, <date>", ' +
           'opened by a menu page with the photo of the menu, and every dish captioned with its name on layouts ' +
-          'that leave room for it (captions default to dish there); so does a book of any collection pack (photos ' +
+          'that leave room for it (captions default to dish there); so does a book of any journal (photos ' +
           'tagged by save_entries, or its stylePreset): a chapter per visit of a place, its source page, and the ' +
           'entries captioned. It picks photos on what they can become (considerImprovements, default true): straightening ' +
           'and auto-enhance are simulated on the previews, and it returns improvements [{assetId, recipe, gain}] ' +

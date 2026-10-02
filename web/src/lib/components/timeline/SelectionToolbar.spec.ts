@@ -328,7 +328,7 @@ describe('SelectionToolbar — the assistant', () => {
 
     expect(screen.getAllByLabelText('ask_assistant')).toHaveLength(1);
     expect(count('highlight_video_make_action')).toBe(1);
-    expect(count('collections.food.name_action')).toBe(0);
+    expect(count('journals.food.name_action')).toBe(0);
     expect(count('artistic_style')).toBe(0);
     expect(count('auto_enhance')).toBe(0);
     expect(count('collage_make_action')).toBe(0);
@@ -346,7 +346,7 @@ describe('SelectionToolbar — the assistant', () => {
 
     expect(count('artistic_style')).toBe(0);
     expect(count('auto_enhance')).toBe(0);
-    expect(count('collections.food.name_action')).toBe(0);
+    expect(count('journals.food.name_action')).toBe(0);
   });
 
   it('Given one own photo, Then every action is offered once', () => {
@@ -358,7 +358,7 @@ describe('SelectionToolbar — the assistant', () => {
 
     expect(screen.getAllByLabelText('ask_assistant')).toHaveLength(1);
     expect(count('highlight_video_make_action')).toBe(1);
-    expect(count('collections.food.name_action')).toBe(1);
+    expect(count('journals.food.name_action')).toBe(1);
     expect(count('artistic_style')).toBe(1);
     expect(count('auto_enhance')).toBe(1);
   });
@@ -374,7 +374,7 @@ describe('SelectionToolbar — the assistant', () => {
       space: { id: 'space-1', canWrite: false },
     });
 
-    expect(count('collections.food.name_action')).toBe(1);
+    expect(count('journals.food.name_action')).toBe(1);
     expect(count('collage_make_action')).toBe(1);
     expect(count('artistic_style')).toBe(0);
   });

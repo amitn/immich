@@ -29,10 +29,10 @@ describe('FeatureSettings component', () => {
     );
   });
 
-  it('should turn off the new collection found notifications', async () => {
+  it('should turn off the journal notifications', async () => {
     renderWithTooltips(FeatureSettings, {});
 
-    await fireEvent.click(screen.getByText('collection_notifications_setting'));
+    await fireEvent.click(screen.getByText('journal_notifications_setting'));
     const toggle = await screen.findByRole('switch', { name: 'enable' });
     expect(toggle).toBeChecked();
     await fireEvent.click(toggle);

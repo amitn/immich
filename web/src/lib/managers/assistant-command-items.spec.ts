@@ -2,8 +2,8 @@ import { AssetTypeEnum, getAssetInfo, type AlbumResponseDto, type AssetResponseD
 import { modalManager } from '@immich/ui';
 import { goto } from '$app/navigation';
 import en from '$i18n/en.json';
-import { foodPack } from '$lib/collections/packs/food';
-import { collectionPacks } from '$lib/collections/registry';
+import { foodPack } from '$lib/journals/packs/food';
+import { collectionPacks } from '$lib/journals/registry';
 import { assistantCommandContext } from '$lib/managers/assistant-command-context.svelte';
 import type { CommandContext, SelectionCommandContext } from '$lib/managers/command-context-manager.svelte';
 import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
@@ -11,8 +11,8 @@ import AlbumBookExportModal from '$lib/modals/AlbumBookExportModal.svelte';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
 import CollageModal from '$lib/modals/CollageModal.svelte';
-import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 import HighlightVideoModal from '$lib/modals/HighlightVideoModal.svelte';
+import JournalNameModal from '$lib/modals/JournalNameModal.svelte';
 import { albumFactory } from '@test-data/factories/album-factory';
 import { assetFactory, timelineAssetFactory } from '@test-data/factories/asset-factory';
 import { ASSISTANT_COMMAND_ITEMS } from './assistant-command-items';
@@ -138,7 +138,7 @@ describe('ASSISTANT_COMMAND_ITEMS', () => {
   it('should have a command per collection pack', () => {
     for (const pack of collectionPacks) {
       expect(command(`cmd:assistant_name_${pack.id.replaceAll('-', '_')}`).labelKey).toBe(
-        `collections.${pack.id}.name_action`,
+        `journals.${pack.id}.name_action`,
       );
     }
   });
@@ -250,7 +250,7 @@ describe('ASSISTANT_COMMAND_ITEMS', () => {
       const ctx = makeCtx({ selection });
       expect(nameCommand.isAvailable?.(ctx)).toBe(true);
       await nameCommand.handler(ctx);
-      expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, {
+      expect(modalManager.show).toHaveBeenCalledWith(JournalNameModal, {
         pack: foodPack,
         assetIds: ['mine', 'theirs'],
       });
@@ -263,7 +263,7 @@ describe('ASSISTANT_COMMAND_ITEMS', () => {
 
       expect(nameCommand.isAvailable?.(makeCtx())).toBe(true);
       await nameCommand.handler(makeCtx());
-      expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, { pack: foodPack, album });
+      expect(modalManager.show).toHaveBeenCalledWith(JournalNameModal, { pack: foodPack, album });
       unregister();
     });
 

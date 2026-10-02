@@ -139,7 +139,7 @@ describe(CollectionService.name, () => {
 
     it('should reject an unknown pack', async () => {
       await expect(sut.findVisits(auth, 'unknown', { albumId: newUuid() })).rejects.toBeInstanceOf(BadRequestException);
-      expect(() => sut.requirePack('unknown')).toThrow(/^Unknown collection pack "unknown"\. Packs: food, .*labels$/);
+      expect(() => sut.requirePack('unknown')).toThrow(/^Unknown journal "unknown"\. Journals: food, .*labels$/);
     });
   });
 

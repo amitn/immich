@@ -82,7 +82,7 @@
   import ActionMenuItem from '$lib/components/ActionMenuItem.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import { getAlbumBookActions } from '$lib/services/book.service';
-  import { getAlbumCollectionActions } from '$lib/services/collections.service';
+  import { getAlbumCollectionActions } from '$lib/services/journals.service';
   import { getAlbumHighlightAction } from '$lib/services/highlight.service';
   import { isEnabled } from '$lib/utils';
   import { Icon, IconButton, modalManager, toastManager } from '@immich/ui';

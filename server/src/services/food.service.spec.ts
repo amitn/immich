@@ -545,7 +545,7 @@ describe(FoodService.name, () => {
         expect.objectContaining({
           source: ActivityLogSource.Web,
           action: ActivityLogAction.CollectionEntries,
-          summary: 'Named 2 photos of “Nino” (Food)',
+          summary: 'Named 2 photos of “Nino” (Food journal)',
           assetIds: [carbonara, renamed],
           undo: {
             pack: 'food',

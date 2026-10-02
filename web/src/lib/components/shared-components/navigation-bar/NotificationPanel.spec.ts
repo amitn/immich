@@ -2,8 +2,8 @@ import { NotificationLevel, NotificationType, type NotificationDto } from '@immi
 import { modalManager } from '@immich/ui';
 import { fireEvent, screen, waitFor } from '@testing-library/svelte';
 import { goto } from '$app/navigation';
-import { foodPack } from '$lib/collections/packs/food';
-import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
+import { foodPack } from '$lib/journals/packs/food';
+import JournalNameModal from '$lib/modals/JournalNameModal.svelte';
 import { renderWithTooltips } from '$tests/helpers';
 import NotificationPanel from './NotificationPanel.svelte';
 
@@ -38,7 +38,7 @@ describe('NotificationPanel component', () => {
     flags.smartSearch = true;
   });
 
-  it('should open the naming dialog of a new collection on the photos of its visit', async () => {
+  it('should open the naming dialog of a new journal visit on the photos of its visit', async () => {
     store.notifications = [
       notification({
         data: { collectionPack: 'food', assetIds: ['a', 'b', 'c'], visitKey: '2026-09-26|Dinner|Taormina' },
@@ -49,7 +49,7 @@ describe('NotificationPanel component', () => {
     await fireEvent.click(screen.getByText('Name the dishes from last night at Taormina?'));
 
     await waitFor(() =>
-      expect(modalManager.show).toHaveBeenCalledWith(CollectionNameModal, {
+      expect(modalManager.show).toHaveBeenCalledWith(JournalNameModal, {
         pack: foodPack,
         assetIds: ['a', 'b', 'c'],
       }),
