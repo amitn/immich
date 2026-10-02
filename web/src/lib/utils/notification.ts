@@ -1,0 +1,61 @@
+import { NotificationType, type NotificationDto } from '@immich/sdk';
+import { OpenQueryParam } from '$lib/constants';
+import { Route } from '$lib/route';
+
+const parseData = (data: unknown): Record<string, unknown> | undefined => {
+  if (typeof data === 'string') {
+    try {
+      return parseData(JSON.parse(data));
+    } catch {
+      return undefined;
+    }
+  }
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : undefined;
+};
+
+const getId = (data: Record<string, unknown> | undefined, key: string) => {
+  const value = data?.[key];
+  return typeof value === 'string' && value ? value : undefined;
+};
+
+/** where clicking a notification leads, based on the ids in its data (an object or a JSON string) */
+export const getNotificationRoute = ({ type, data }: { type: NotificationDto['type']; data?: unknown }) => {
+  if (type === NotificationType.ClusterGroupRequest) {
+    return Route.userSettings({ isOpen: OpenQueryParam.SHARING });
+  }
+
+  const values = parseData(data);
+  // "The assistant made 12 changes": the changes of that chat turn
+  const activityGroupId = getId(values, 'activityGroupId');
+  if (activityGroupId) {
+    return Route.activityLog({ groupId: activityGroupId });
+  }
+
+  const albumId = getId(values, 'albumId');
+  const bookId = getId(values, 'bookId');
+  const assetId = getId(values, 'assetId') ?? getId(values, 'sourceAssetId');
+  if (albumId) {
+    return Route.viewAlbum({ id: albumId });
+  }
+  if (bookId) {
+    return Route.viewBook({ id: bookId });
+  }
+  if (assetId) {
+    return Route.viewAsset({ id: assetId });
+  }
+};
+
+/**
+ * The new visit of a collection a "new collection found" notification is about: its pack (e.g. food) and its photos,
+ * which the pack's naming dialog opens on
+ */
+export const getCollectionNotice = ({ data }: { data?: unknown }) => {
+  const values = parseData(data);
+  const pack = getId(values, 'collectionPack');
+  const assetIds = values?.assetIds;
+  if (!pack || !Array.isArray(assetIds)) {
+    return;
+  }
+  const ids = assetIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+  return ids.length > 0 ? { pack, assetIds: ids } : undefined;
+};

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createFilterState } from '$lib/components/filter-panel/filter-panel';
 import { OpenQueryParam } from '$lib/constants';
 import { Route } from '$lib/route';
+import { decodeFilterParams } from '$lib/utils/filter-url';
 
 describe('Route', () => {
   describe(Route.login.name, () => {
@@ -142,6 +143,18 @@ describe('Route', () => {
         '/photos?city=Cape%20Town&country=South%20Africa',
       );
     });
+
+    // #23: a tag link (Explore's Tags row, the sidebar's tag tree) lands on the timeline filtered by the tag
+    it('should support a tags filter', () => {
+      expect(Route.photos({ tagIds: ['tag-1'] })).toBe('/photos?tags=tag-1');
+      expect(Route.photos({ tagIds: ['tag-1', 'tag-2'] })).toBe('/photos?tags=tag-1%2Ctag-2');
+      expect(Route.photos({ tagIds: [] })).toBe('/photos');
+    });
+
+    it('should hand the tags to the filter panel', () => {
+      const url = new URL(Route.photos({ tagIds: ['tag-1', 'tag-2'] }), 'http://localhost');
+      expect(decodeFilterParams(url).tagIds).toEqual(['tag-1', 'tag-2']);
+    });
   });
 
   describe('viewSpace', () => {
@@ -218,6 +231,45 @@ describe('Route', () => {
       expect(Route.map({ spaceId: 'space-1', query: ' '.repeat(3), filters: createFilterState() })).toBe(
         '/map?spaceId=space-1',
       );
+    });
+  });
+
+  describe(Route.assistant.name, () => {
+    it('should work', () => {
+      expect(Route.assistant()).toBe('/assistant');
+    });
+
+    it('should select a session', () => {
+      expect(Route.assistant({ sessionId: 'session-1' })).toBe('/assistant?session=session-1');
+    });
+
+    it('should join asset ids with commas', () => {
+      expect(Route.assistant({ assetIds: ['a', 'b', 'c'] })).toBe('/assistant?assetIds=a%2Cb%2Cc');
+    });
+
+    it('should ignore an empty asset id list', () => {
+      expect(Route.assistant({ assetIds: [] })).toBe('/assistant');
+    });
+
+    it('should encode a prefilled prompt', () => {
+      expect(Route.assistant({ prompt: 'Edit book 1 & more' })).toBe('/assistant?prompt=Edit%20book%201%20%26%20more');
+    });
+
+    it('should round trip asset ids through URLSearchParams', () => {
+      const url = new URL(Route.assistant({ assetIds: ['id-1', 'id-2'] }), 'https://example.com');
+      expect(url.searchParams.get('assetIds')?.split(',')).toEqual(['id-1', 'id-2']);
+    });
+  });
+
+  describe(Route.books.name, () => {
+    it('should work', () => {
+      expect(Route.books()).toBe('/books');
+    });
+  });
+
+  describe(Route.viewBook.name, () => {
+    it('should work', () => {
+      expect(Route.viewBook({ id: 'book-1' })).toBe('/books/book-1');
     });
   });
 });

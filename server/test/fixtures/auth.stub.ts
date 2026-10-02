@@ -44,6 +44,7 @@ export const authStub = {
       allowUpload: true,
       albumId: null,
       spaceId: null,
+      bookId: null,
       expiresAt: null,
       password: null,
       userId: '42',

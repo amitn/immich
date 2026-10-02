@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to run against'
-        required: true
-        default: 'main'
+        description: 'Branch to run against (default: the branch the workflow runs on)'
+        required: false
+        default: ''
         type: string
 
 permissions: {}
@@ -25,7 +25,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.branch || 'main' }}
+          ref: ${{ inputs.branch || github.ref }}
           persist-credentials: false
           submodules: 'recursive'
       - name: Free disk space

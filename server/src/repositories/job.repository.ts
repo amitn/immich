@@ -719,6 +719,11 @@ export class JobRepository {
         // partial unique index). removeOnComplete/Fail frees the id once the scan finishes so the next can run.
         return { jobId: JobName.FaceRepairScan, removeOnComplete: true, removeOnFail: true };
       }
+      case JobName.BookExport:
+      case JobName.BookExportHtml:
+      case JobName.HighlightRender: {
+        return { deduplication: { id: `${item.name}/${item.data.id}` } };
+      }
       default: {
         return null;
       }

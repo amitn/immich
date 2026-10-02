@@ -372,6 +372,27 @@ offset
   $19
 commit
 
+-- SearchRepository.getEmbeddings
+select
+  "assetId",
+  "embedding"
+from
+  "smart_search"
+where
+  "assetId" = any ($1::uuid[])
+
+-- SearchRepository.getEmbeddingSimilarities
+select
+  "assetId",
+  array[
+    1 - (smart_search.embedding <=> $1),
+    1 - (smart_search.embedding <=> $2)
+  ]::float8[] as "similarities"
+from
+  "smart_search"
+where
+  "assetId" = any ($3::uuid[])
+
 -- SearchRepository.getSmartSearchFacets
 begin
 set

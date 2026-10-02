@@ -1,0 +1,77 @@
+#
+# The AI assistant: its ACP agents (Claude Code and Codex) run in their own container, gallery-agents, built from this
+# repository, and the server starts them there. Use it on top of docker-compose.yml (or docker-compose.rootless.yml, or
+# docker-compose.prod.yml):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
+#
+# Set AGENT_HOST_SECRET in .env first (see example.env). Then log in to an agent, or set its API key in .env:
+#
+#   docker exec -it gallery_agents claude                # Claude Code: type /login, open the link, paste the code
+#   docker exec -it gallery_agents codex login --device-auth
+#   docker exec gallery_agents gallery-check-assistant   # checks the agents, the logins and the isolation
+#
+# and turn on Administration > Settings > AI Assistant. See docs/docs/features/ai-assistant.md.
+#
+# gallery-agents gets no library or database volume and no .env file (so no database password): only the agent home
+# volume, its secret and the API keys of the agents. It is on a network of its own with the server, so it can't reach
+# the database or Redis. It runs as a user, with a read-only root filesystem and limits.
+#
+
+services:
+  immich-server:
+    # the server of this repository, which has the assistant; the agents are not in it
+    image: immich-server:assistant
+    build:
+      context: ../
+      dockerfile: server/Dockerfile
+    environment:
+      # the agents run on the agent host; the server authenticates to it with the shared secret
+      AGENT_HOST_URL: http://gallery-agents:2285
+      AGENT_HOST_SECRET: ${AGENT_HOST_SECRET:?set AGENT_HOST_SECRET in .env (see example.env)}
+      # where the agents reach the Gallery tools, when the MCP URL setting is empty
+      AGENT_MCP_URL: http://immich-server:2283/api/agent/mcp
+    networks:
+      - default
+      - agents
+    depends_on:
+      gallery-agents:
+        condition: service_healthy
+
+  gallery-agents:
+    container_name: gallery_agents
+    image: gallery-agents:local
+    build:
+      context: ../
+      dockerfile: server/Dockerfile
+      target: gallery-agents
+    environment:
+      AGENT_HOST_SECRET: ${AGENT_HOST_SECRET:?set AGENT_HOST_SECRET in .env (see example.env)}
+      # the API keys of the agents, when you use them instead of a login; nothing else from .env
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      TZ: ${TZ:-}
+    volumes:
+      # the agent home: the logins and settings of the agents (~/.claude, ~/.claude.json, ~/.codex). Nothing else.
+      - agent-home:/var/lib/gallery-agents
+    networks:
+      - agents
+    read_only: true
+    tmpfs:
+      # the working directories of the agents, and their temporary files
+      - /tmp:rw,nosuid,nodev,size=2g
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 4g
+    cpus: 2
+    restart: always
+
+networks:
+  # the server and the agent host only; not internal, the agents reach their providers on the internet
+  agents:
+
+volumes:
+  agent-home:

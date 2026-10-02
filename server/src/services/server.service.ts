@@ -20,6 +20,7 @@ import { isActiveDistanceThreshold } from 'src/repositories/search.repository.js
 import { UserStatsQueryResponse } from 'src/repositories/user.repository.js';
 import { BaseService } from 'src/services/base.service.js';
 import { MEMORY_TYPE_KEYS, getAdminAvailableMemoryTypeKeys } from 'src/services/memory-rules/memory-type.metadata.js';
+import { isArtEnabled, isAssistantEnabled } from 'src/utils/agent/config.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import {
@@ -120,8 +121,20 @@ export class ServerService extends BaseService {
     // Cached read — see search.service.ts for rationale. This endpoint is hit on
     // every web-app page load; the uncached buildConfig dominates latency on
     // slower CPUs. Cache invalidates on ConfigUpdate.
-    const { reverseGeocoding, metadata, map, machineLearning, trash, oauth, passwordLogin, notifications, ffmpeg } =
-      await this.getConfig({ withCache: true });
+    const {
+      agent,
+      books,
+      food,
+      reverseGeocoding,
+      metadata,
+      map,
+      machineLearning,
+      trash,
+      oauth,
+      passwordLogin,
+      notifications,
+      ffmpeg,
+    } = await this.getConfig({ withCache: true });
     const { configFile, peopleStatistics } = this.configRepository.getEnv();
 
     return {
@@ -148,6 +161,10 @@ export class ServerService extends BaseService {
       // type outside this enum, so clients must know the accepted set before asking. Version
       // numbers can't carry this (RC builds report the bare base version).
       syncRequestTypes: Object.values(SyncRequestType),
+      assistant: isAssistantEnabled(agent),
+      artisticStyles: isArtEnabled(agent),
+      bookStadiaMaps: books.maps.stadiaApiKey.trim().length > 0,
+      restaurantLookup: isAssistantEnabled(agent) && food.openStreetMap.enabled,
     };
   }
 

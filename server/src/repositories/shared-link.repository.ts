@@ -11,13 +11,14 @@ import {
 import { jsonArrayFrom, jsonObjectFrom } from 'kysely/helpers/postgres';
 import { omit } from 'lodash-es';
 import { InjectKysely } from 'nestjs-kysely';
-import { Album, columns } from 'src/database.js';
+import { Album, SharedLinkBook, columns } from 'src/database.js';
 import { ChunkedArray, DummyValue, GenerateSql } from 'src/decorators.js';
 import { AlbumUserRole, SharedLinkType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
 import { SharedLinkTable } from 'src/schema/tables/shared-link.table.js';
+import { anyUuid } from 'src/utils/database.js';
 import {
   asBaseEb,
   sharedLinkAssetIsServable,
@@ -29,6 +30,7 @@ export type SharedLinkSearchOptions = {
   userId: string;
   id?: string;
   albumId?: string;
+  bookId?: string;
 };
 
 const withSharedAssets = (eb: ExpressionBuilder<DB, 'shared_link'>) => {
@@ -79,6 +81,35 @@ const withSharedLinkAlbum = (eb: ExpressionBuilder<DB, 'shared_link'>) => {
     .whereRef('album.id', '=', 'shared_link.albumId')
     .where('album.deletedAt', 'is', null);
 };
+
+const withSharedLinkBook = (eb: ExpressionBuilder<DB, 'shared_link'>) => {
+  return jsonObjectFrom(
+    eb
+      .selectFrom('book')
+      .whereRef('book.id', '=', 'shared_link.bookId')
+      .select((eb) => [
+        'book.id',
+        'book.title',
+        'book.subtitle',
+        eb
+          .selectFrom('book_page')
+          .select((eb) => eb.fn.countAll<number>().as('count'))
+          .whereRef('book_page.bookId', '=', 'book.id')
+          .as('pageCount'),
+        eb('book.exportPath', 'is not', null).as('hasPdf'),
+      ]),
+  )
+    .$castTo<SharedLinkBook | null>()
+    .as('book');
+};
+
+/** a link to an album that was deleted is gone; a link to a book is deleted with the book */
+const isValidLink = (eb: ExpressionBuilder<DB, 'shared_link' | 'album'>) =>
+  eb.or([
+    eb('shared_link.type', '=', SharedLinkType.Individual),
+    eb('album.id', 'is not', null),
+    eb.and([eb('shared_link.type', '=', SharedLinkType.Book), eb('shared_link.bookId', 'is not', null)]),
+  ]);
 
 @Injectable()
 export class SharedLinkRepository {
@@ -165,13 +196,14 @@ export class SharedLinkRepository {
       .select((eb) => eb.fn.toJson(eb.table('album')).$castTo<ShallowDehydrateObject<Album> | null>().as('album'))
       .where('shared_link.id', '=', id)
       .where('shared_link.userId', '=', userId)
-      .where((eb) => eb.or([eb('shared_link.type', '=', SharedLinkType.Individual), eb('album.id', 'is not', null)]))
+      .select(withSharedLinkBook)
+      .where(isValidLink)
       .orderBy('shared_link.createdAt', 'desc')
       .executeTakeFirst();
   }
 
   @GenerateSql({ params: [{ userId: DummyValue.UUID, albumId: DummyValue.UUID }] })
-  getAll({ userId, id, albumId }: SharedLinkSearchOptions) {
+  getAll({ userId, id, albumId, bookId }: SharedLinkSearchOptions) {
     return this.db
       .selectFrom('shared_link')
       .selectAll('shared_link')
@@ -186,8 +218,10 @@ export class SharedLinkRepository {
         (join) => join.onTrue(),
       )
       .select((eb) => eb.fn.toJson('album').$castTo<ShallowDehydrateObject<Album> | null>().as('album'))
-      .where((eb) => eb.or([eb('shared_link.type', '=', SharedLinkType.Individual), eb('album.id', 'is not', null)]))
+      .select(withSharedLinkBook)
+      .where(isValidLink)
       .$if(!!albumId, (eb) => eb.where('shared_link.albumId', '=', albumId!))
+      .$if(!!bookId, (eb) => eb.where('shared_link.bookId', '=', bookId!))
       .$if(!!id, (eb) => eb.where('shared_link.id', '=', id!))
       .orderBy('shared_link.createdAt', 'desc')
       .execute();
@@ -213,6 +247,7 @@ export class SharedLinkRepository {
         'shared_link.userId',
         'shared_link.albumId',
         'shared_link.spaceId',
+        'shared_link.bookId',
         'shared_link.expiresAt',
         'shared_link.showExif',
         'shared_link.allowUpload',
@@ -222,7 +257,7 @@ export class SharedLinkRepository {
           eb.selectFrom('user').select(columns.authUser).whereRef('user.id', '=', 'shared_link.userId'),
         ).as('user'),
       ])
-      .where((eb) => eb.or([eb('shared_link.type', '=', SharedLinkType.Individual), eb('album.id', 'is not', null)]));
+      .where(isValidLink);
   }
 
   async create(entity: Insertable<SharedLinkTable> & { assetIds?: string[] }) {
@@ -245,7 +280,7 @@ export class SharedLinkRepository {
   async update(entity: Updateable<SharedLinkTable> & { id: string; assetIds?: string[] }) {
     const { id } = await this.db
       .updateTable('shared_link')
-      .set(omit(entity, 'assets', 'album', 'assetIds'))
+      .set(omit(entity, 'assets', 'album', 'book', 'assetIds'))
       .where('shared_link.id', '=', entity.id)
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -262,6 +297,27 @@ export class SharedLinkRepository {
 
   async remove(id: string): Promise<void> {
     await this.db.deleteFrom('shared_link').where('shared_link.id', '=', id).execute();
+  }
+
+  /**
+   * The given assets the link may show: the ones its creator owns, and the others while its space tether holds (see
+   * `shared-link-space-tether.ts`). A book link has no row per photo (its pages are rendered from the book), so the
+   * book re-derives from this on every read which photos its pages, web book and PDF may show.
+   */
+  @GenerateSql({ params: [DummyValue.UUID, [DummyValue.UUID]] })
+  async getServableAssetIds(id: string, assetIds: string[]): Promise<Set<string>> {
+    if (assetIds.length === 0) {
+      return new Set();
+    }
+
+    const rows = await this.db
+      .selectFrom('shared_link')
+      .innerJoin('asset', (join) => join.on('asset.id', '=', anyUuid(assetIds)).on('asset.deletedAt', 'is', null))
+      .select('asset.id')
+      .where('shared_link.id', '=', id)
+      .where((eb) => sharedLinkAssetIsServable(asBaseEb(eb)))
+      .execute();
+    return new Set(rows.map((row) => row.id));
   }
 
   @ChunkedArray({ paramIndex: 1 })
@@ -305,6 +361,7 @@ export class SharedLinkRepository {
           >()
           .as('assets'),
       )
+      .select(withSharedLinkBook)
       .groupBy('shared_link.id')
       .executeTakeFirstOrThrow();
   }

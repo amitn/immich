@@ -362,7 +362,7 @@ String _toNestedClassName(String prefix, String key) {
 
   final result = StringBuffer('_');
   for (final part in parts) {
-    final words = part.split('_');
+    final words = part.split(RegExp('[_-]'));
     for (final word in words) {
       if (word.isNotEmpty) {
         result.write(word[0].toUpperCase());
@@ -377,7 +377,9 @@ String _toNestedClassName(String prefix, String key) {
   return result.toString();
 }
 
-String _escapeName(String name) {
+String _escapeName(String key) {
+  // a key may hold a hyphen (`collections.kids-art`, named after the pack's id), which no Dart identifier can
+  final name = key.replaceAll('-', '_');
   if (_kReservedWords.contains(name)) {
     return '$name\$';
   }

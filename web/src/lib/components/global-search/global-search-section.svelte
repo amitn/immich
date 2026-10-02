@@ -9,7 +9,7 @@
     heading: string;
     status: ProviderStatus<T>;
     renderRow: Snippet<[T]>;
-    idPrefix: 'photo' | 'person' | 'place' | 'tag' | 'album' | 'space';
+    idPrefix: 'photo' | 'person' | 'place' | 'tag' | 'album' | 'space' | 'journal';
     onActivate: (item: T) => void;
     onSeeAll?: () => void;
     /** Show the "See all" button whenever there is ≥1 result, even without a known total. */

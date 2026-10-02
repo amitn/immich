@@ -33,6 +33,7 @@
   import SetVisibilityAction from '$lib/components/timeline/actions/SetVisibilityAction.svelte';
   import StackAction from '$lib/components/timeline/actions/StackAction.svelte';
   import TagAction from '$lib/components/timeline/actions/TagAction.svelte';
+  import AssistantSelectionMenuItems from '$lib/components/timeline/actions/AssistantSelectionMenuItems.svelte';
   import OnEvents from '$lib/components/OnEvents.svelte';
   import AssetSelectControlBar from '$lib/components/timeline/AssetSelectControlBar.svelte';
   import Timeline from '$lib/components/timeline/Timeline.svelte';
@@ -49,6 +50,11 @@
   import { Route } from '$lib/route';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { lang } from '$lib/stores/preferences.store';
+  import {
+    getAssistantSelectionActions,
+    getMultiSelectAssistantCapabilities,
+    hasAssistantMenuActions,
+  } from '$lib/services/assistant-selection.service';
   import { getAssetMediaUrl, memoryLaneTitle } from '$lib/utils';
   import {
     buildSearchablePageUrl,
@@ -722,6 +728,7 @@
 {#if assetMultiSelectManager.selectionActive}
   <AssetSelectControlBar>
     {@const Actions = getAssetBulkActions($t)}
+    {@const AssistantActions = getAssistantSelectionActions($t, getMultiSelectAssistantCapabilities())}
     <CommandPaletteDefaultProvider name={$t('assets')} actions={Object.values(Actions)} />
 
     <CreateSharedLink />
@@ -734,6 +741,7 @@
       <SelectAllAssets {timelineManager} assetInteraction={assetMultiSelectManager} />
     {/if}
     <ActionButton action={Actions.AddToAlbum} />
+    <ActionButton action={AssistantActions.AskAssistant} />
 
     {#if assetMultiSelectManager.isAllUserOwned}
       <FavoriteAction removeFavorite={assetMultiSelectManager.isAllFavorite} onFavorite={handleFavorite} />
@@ -763,6 +771,7 @@
         {#if authManager.preferences.tags.enabled}
           <TagAction menuItem />
         {/if}
+        <AssistantSelectionMenuItems actions={AssistantActions} />
         <DeleteAssets menuItem onAssetDelete={handleAssetDelete} onUndoDelete={handleUndoDelete} />
         <SetVisibilityAction menuItem onVisibilitySet={handleSetVisibility} />
         <hr />
@@ -772,6 +781,12 @@
       </ButtonContextMenu>
     {:else}
       <DownloadAction />
+      <!-- the photos of others are read-only: they go into a chat, a highlight video or a collage (#21) -->
+      {#if hasAssistantMenuActions(AssistantActions)}
+        <ButtonContextMenu icon={mdiDotsVertical} title={$t('menu')}>
+          <AssistantSelectionMenuItems actions={AssistantActions} />
+        </ButtonContextMenu>
+      {/if}
     {/if}
   </AssetSelectControlBar>
 {/if}

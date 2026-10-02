@@ -23,7 +23,7 @@
   let showMetadata = $state(sharedLink.showMetadata);
   let password = $state(sharedLink.password ?? '');
   let slug = $state(sharedLink.slug ?? '');
-  let shareType = sharedLink.album ? SharedLinkType.Album : SharedLinkType.Individual;
+  let shareType = sharedLink.type;
   let expiresAt = $state(sharedLink.expiresAt);
 
   const onClose = async () => {
@@ -35,7 +35,7 @@
       description,
       password: password ?? null,
       expiresAt,
-      allowUpload,
+      allowUpload: shareType === SharedLinkType.Book ? false : allowUpload,
       allowDownload,
       showMetadata,
       slug: slug.trim() ?? null,
@@ -51,6 +51,13 @@
     <div class="text-sm">
       {$t('public_album')} |
       <span class="text-primary">{sharedLink.album?.albumName}</span>
+    </div>
+  {/if}
+
+  {#if shareType === SharedLinkType.Book}
+    <div class="text-sm">
+      {$t('photo_book')} |
+      <span class="text-primary">{sharedLink.book?.title}</span>
     </div>
   {/if}
 
@@ -71,5 +78,6 @@
     bind:allowUpload
     bind:showMetadata
     bind:expiresAt
+    isBook={shareType === SharedLinkType.Book}
   />
 </FormModal>

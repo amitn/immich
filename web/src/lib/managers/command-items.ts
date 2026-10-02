@@ -42,6 +42,7 @@ import { t } from 'svelte-i18n';
 import { get } from 'svelte/store';
 import { goto } from '$app/navigation';
 import { ADMIN_VISIBLE_QUEUES } from '$lib/constants';
+import { ASSISTANT_COMMAND_ITEMS } from '$lib/managers/assistant-command-items';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { isAlmostExactWordMatch } from '$lib/managers/cmdk-match';
 import type { CommandContext } from '$lib/managers/command-context-manager.svelte';
@@ -493,6 +494,8 @@ export const COMMAND_ITEMS: readonly CommandItem[] = [
       }
     },
   },
+  // the assistant's actions (assistant-command-items.ts)
+  ...ASSISTANT_COMMAND_ITEMS,
 ];
 
 export function isAlmostExactCommandMatch(query: string, label: string): boolean {

@@ -3,16 +3,18 @@
   import { Route } from '$lib/route';
   import { getSharedLinkActions } from '$lib/services/shared-link.service';
   import { locale } from '$lib/stores/preferences.store';
-  import { SharedLinkType, type SharedLinkResponseDto } from '@immich/sdk';
+  import { SharedLinkType, type BookResponseDto, type SharedLinkResponseDto } from '@immich/sdk';
   import { ActionButton, ContextMenuButton, MenuItemType, Text } from '@immich/ui';
   import { DateTime, type ToRelativeUnit } from 'luxon';
   import { t } from 'svelte-i18n';
 
   interface Props {
     sharedLink: SharedLinkResponseDto;
+    /** the book of a link to a book, for its cover */
+    book?: BookResponseDto;
   }
 
-  let { sharedLink }: Props = $props();
+  let { sharedLink, book }: Props = $props();
 
   let now = DateTime.now();
   let expiresAt = $derived(sharedLink.expiresAt ? DateTime.fromISO(sharedLink.expiresAt) : undefined);
@@ -34,6 +36,20 @@
 
   const capabilities = $derived.by(() => {
     const items = [];
+
+    // nobody uploads to a book, its download is the PDF, and its metadata the dates and file names of its photos
+    if (sharedLink.type === SharedLinkType.Book) {
+      if (sharedLink.allowDownload) {
+        items.push($t('book_share_pdf_download'));
+      }
+      if (sharedLink.showMetadata) {
+        items.push($t('book_share_photo_details'));
+      }
+      if (sharedLink.password) {
+        items.push($t('password'));
+      }
+      return items;
+    }
 
     if (sharedLink.allowUpload) {
       items.push($t('upload'));
@@ -63,7 +79,7 @@
     href={isExpired ? undefined : Route.viewSharedLink(sharedLink)}
     class="flex w-full gap-4 py-4"
   >
-    <ShareCover class="transition-all duration-300 hover:shadow-lg" {sharedLink} />
+    <ShareCover class="transition-all duration-300 hover:shadow-lg" {sharedLink} {book} />
 
     <div class="flex flex-col justify-between gap-4">
       <div class="flex flex-col">
@@ -82,6 +98,8 @@
             {sharedLink.album?.albumName}
           {:else if sharedLink.type === SharedLinkType.Individual}
             {$t('individual_share')}
+          {:else if sharedLink.type === SharedLinkType.Book}
+            {sharedLink.book?.title ?? $t('photo_book')}
           {/if}
         </Text>
 

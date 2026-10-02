@@ -11,6 +11,8 @@
     allowUpload: boolean;
     showMetadata: boolean;
     expiresAt: string | null;
+    /** a link to a photo book: visitors can't upload, and download the PDF, which carries no photo metadata */
+    isBook?: boolean;
   };
 
   let {
@@ -21,10 +23,11 @@
     allowUpload = $bindable(),
     showMetadata = $bindable(),
     expiresAt = $bindable(),
+    isBook = false,
   }: Props = $props();
 
   $effect(() => {
-    if (!showMetadata && allowDownload) {
+    if (!isBook && !showMetadata && allowDownload) {
       allowDownload = false;
     }
   });
@@ -52,15 +55,28 @@
   </Field>
 
   <SharedLinkExpiration bind:expiresAt />
-  <Field label={$t('show_metadata')}>
-    <Switch bind:checked={showMetadata} />
-  </Field>
+  {#if isBook}
+    <!-- what a book's web book tells of its photos: their file names (as the images' text) and the dates -->
+    <Field label={$t('book_share_show_photo_details')} description={$t('book_share_show_photo_details_description')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {:else}
+    <Field label={$t('show_metadata')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {/if}
 
-  <Field label={$t('allow_public_user_to_download')} disabled={!showMetadata}>
-    <Switch bind:checked={allowDownload} />
-  </Field>
+  {#if isBook}
+    <Field label={$t('book_share_allow_pdf_download')}>
+      <Switch bind:checked={allowDownload} />
+    </Field>
+  {:else}
+    <Field label={$t('allow_public_user_to_download')} disabled={!showMetadata}>
+      <Switch bind:checked={allowDownload} />
+    </Field>
 
-  <Field label={$t('allow_public_user_to_upload')}>
-    <Switch bind:checked={allowUpload} />
-  </Field>
+    <Field label={$t('allow_public_user_to_upload')}>
+      <Switch bind:checked={allowUpload} />
+    </Field>
+  {/if}
 </div>

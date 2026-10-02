@@ -4,12 +4,15 @@ import {
   mdiAccountOutline,
   mdiArchive,
   mdiBackupRestore,
+  mdiBellBadgeOutline,
   mdiBellOutline,
   mdiBookOpenOutline,
+  mdiBookOpenPageVariantOutline,
   mdiBookshelf,
   mdiChartPie,
   mdiClockOutline,
   mdiCog,
+  mdiCreationOutline,
   mdiDatabaseOutline,
   mdiFileCheckOutline,
   mdiFileDocumentOutline,
@@ -27,6 +30,7 @@ import {
   mdiServer,
   mdiServerOutline,
   mdiShareVariantOutline,
+  mdiSilverwareForkKnife,
   mdiSync,
   mdiTagMultipleOutline,
   mdiTrashCanOutline,
@@ -85,6 +89,11 @@ const SYSTEM_SETTINGS_SOURCE: ReadonlyArray<[key: string, baseKey: string, icon:
   ['user-settings', 'user_settings', mdiAccountOutline],
   ['version-check', 'version_check_settings', mdiUpdate],
   ['video-transcoding', 'transcoding_settings', mdiVideoOutline],
+  // the AI assistant and the features built on it
+  ['assistant', 'agent_settings', mdiCreationOutline],
+  ['journals', 'journal_settings', mdiBellBadgeOutline],
+  ['food', 'food_settings', mdiSilverwareForkKnife],
+  ['photo-books', 'book_settings', mdiBookOpenPageVariantOutline],
 ];
 
 const SYSTEM_SETTINGS: readonly NavigationItem[] = SYSTEM_SETTINGS_SOURCE.map(([key, base, icon]) => ({

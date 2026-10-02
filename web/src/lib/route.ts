@@ -49,11 +49,28 @@ export const Route = {
   onboarding: (params?: { step?: string }) => '/auth/onboarding' + asQueryString(params),
   pinPrompt: (params?: { continue?: string }) => '/auth/pin-prompt' + asQueryString({ continue: params?.continue }),
 
+  // activity log (the changes of the assistant, and undoing them)
+  activityLog: (params?: { groupId?: string; sessionId?: string }) =>
+    '/activity' + asQueryString({ group: params?.groupId, session: params?.sessionId }),
+
   // albums
   albums: () => '/albums',
   viewAlbum: ({ id }: { id: string }) => `/albums/${id}`,
   viewAlbumAsset: ({ albumId, assetId }: { albumId: string; assetId: string }) =>
     `/albums/${albumId}/photos/${assetId}`,
+
+  // assistant
+  assistant: (params?: { sessionId?: string; assetIds?: string[]; prompt?: string }) =>
+    '/assistant' +
+    asQueryString({
+      session: params?.sessionId,
+      assetIds: params?.assetIds?.length ? params.assetIds.join(',') : undefined,
+      prompt: params?.prompt,
+    }),
+
+  // books
+  books: () => '/books',
+  viewBook: ({ id }: { id: string }) => `/books/${id}`,
 
   // buy
   buy: () => '/buy',
@@ -136,8 +153,17 @@ export const Route = {
   // `city` with no `country` has nowhere to nest — it renders flat beside the country list as an
   // orphaned selection. The params are rebuilt here in a fixed order rather than forwarded, so the
   // emitted URL does not depend on the caller's object-literal key order.
-  photos: (params?: { at?: string; city?: string; country?: string }) =>
-    '/photos' + asQueryString({ at: params?.at, city: params?.city, country: params?.country }),
+  //
+  // `tagIds` is the `tags` filter param: a tag link (Explore's Tags row, the sidebar's tag tree) lands on the timeline
+  // filtered by it, rather than on the deprecated /search page.
+  photos: (params?: { at?: string; city?: string; country?: string; tagIds?: string[] }) =>
+    '/photos' +
+    asQueryString({
+      at: params?.at,
+      city: params?.city,
+      country: params?.country,
+      tags: params?.tagIds?.length ? params.tagIds.join(',') : undefined,
+    }),
   viewAsset: ({ id }: { id: string }) => `/photos/${id}`,
   archive: () => '/archive',
   favorites: () => '/favorites',
@@ -197,6 +223,8 @@ export const Route = {
   duplicatesUtility: (params?: { index?: number }) => '/utilities/duplicates' + asQueryString(params),
   largeFileUtility: () => '/utilities/large-files',
   geolocationUtility: () => '/utilities/geolocation',
+  orientationUtility: () => '/utilities/orientation',
+  burstsUtility: (params?: { albumId?: string }) => '/utilities/bursts' + asQueryString(params),
 
   // workflows
   workflows: () => '/workflows',

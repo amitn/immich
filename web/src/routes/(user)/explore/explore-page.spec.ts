@@ -1,4 +1,4 @@
-import { Type, type PersonResponseDto, type SearchExploreResponseDto } from '@immich/sdk';
+import { Type, type PersonResponseDto, type SearchExploreResponseDto, type TagResponseDto } from '@immich/sdk';
 import '@testing-library/jest-dom';
 import { render, screen } from '@testing-library/svelte';
 import type { Component } from 'svelte';
@@ -6,6 +6,12 @@ import TestWrapper from '$lib/components/TestWrapper.svelte';
 import { assetFactory } from '@test-data/factories/asset-factory';
 import { personFactory } from '@test-data/factories/person-factory';
 import ExplorePage from './+page.svelte';
+
+vi.mock('@immich/sdk', async (original) => ({
+  ...(await original<typeof import('@immich/sdk')>()),
+  // the covers of the Tags row
+  searchAssets: vi.fn().mockResolvedValue({ assets: { items: [] } }),
+}));
 
 vi.mock('$lib/components/layouts/UserPageLayout.svelte', async () => {
   const { default: MockComponent } = await import('$lib/components/spaces/mock-user-page-layout.test-wrapper.svelte');
@@ -23,7 +29,11 @@ function makePerson(overrides: Partial<PersonResponseDto> = {}): PersonResponseD
   });
 }
 
-function renderPage(people: PersonResponseDto[] = [makePerson()], items: SearchExploreResponseDto[] = []) {
+function renderPage(
+  people: PersonResponseDto[] = [makePerson()],
+  items: SearchExploreResponseDto[] = [],
+  tags: TagResponseDto[] = [],
+) {
   const props = {
     data: {
       explore: items,
@@ -34,6 +44,7 @@ function renderPage(people: PersonResponseDto[] = [makePerson()], items: SearchE
         hasNextPage: false,
       },
       memories: [],
+      tags,
       meta: { title: 'Explore' },
     },
   };
@@ -142,5 +153,22 @@ describe('Explore page', () => {
     );
 
     expect(screen.getByRole('link', { name: /Cape Town/ })).toHaveAttribute('href', '/photos?city=Cape%20Town');
+  });
+
+  // #23: a tag opened the deprecated /search page, which renders nothing; it lands on the filtered timeline now
+  describe('Tags row', () => {
+    const tag = (id: string, value: string) => ({ id, value, name: value.split('/').at(-1) }) as TagResponseDto;
+
+    it('links a tag to the photos timeline filtered by it', () => {
+      renderPage([], [], [tag('tag-1', 'Edits/Enhanced')]);
+      expect(screen.getByTitle('Edits/Enhanced')).toHaveAttribute('href', '/photos?tags=tag-1');
+    });
+
+    // the row shows as many as fit; getExploreTags (tag-links.spec.ts) orders the rest
+    it("shows noodle's Auto/ classification tags, but not the dishes of a meal", () => {
+      renderPage([], [], [tag('dish', 'Food/Noma Australia/Wattleseed'), tag('auto', 'Auto/Food')]);
+      expect(screen.getByTitle('Auto/Food')).toHaveAttribute('href', '/photos?tags=auto');
+      expect(screen.queryByTitle('Food/Noma Australia/Wattleseed')).not.toBeInTheDocument();
+    });
   });
 });

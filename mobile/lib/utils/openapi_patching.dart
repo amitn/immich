@@ -27,6 +27,33 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'cast': CastResponse(gCastEnabled: false).toJson(),
     'albums': {'defaultAssetOrder': 'desc'},
     'recentlyAdded': RecentlyAddedResponse(sidebarWeb: false).toJson(),
+    // A server without the assistant, photo books or collection notices has none of these features to turn on
+    'aiAnswers': AiAnswersResponse(enabled: false).toJson(),
+    'bookDrafts': BookDraftsResponse(enabled: false).toJson(),
+    'collectionNotifications': CollectionNotificationsResponse(enabled: false).toJson(),
+  },
+  'AdminConfigDto': {
+    'agent': {
+      'activityRetentionDays': 90,
+      'artProfile': '',
+      'autoApproveWrites': false,
+      'chatProfile': '',
+      'enabled': false,
+      'idleTimeoutMinutes': 15,
+      'maxConcurrentSessions': 3,
+      'mcpUrl': '',
+      'profiles': <Object?>[],
+    },
+    'books': {
+      'drafts': {'birthdays': false, 'enabled': false, 'maxPerRun': 3, 'trips': false, 'yearly': false},
+      'maps': {'defaultStyle': 'styled', 'stadiaApiKey': ''},
+    },
+    'collections': {
+      'notifications': {'enabled': false, 'maxPerRun': 3, 'windowDays': 14},
+    },
+    'food': {
+      'openStreetMap': {'enabled': false, 'overpassUrl': 'https://overpass-api.de/api/interpreter'},
+    },
   },
   'ServerConfigDto': {
     'mapLightStyleUrl': 'https://tiles.openfreemap.org/styles/positron',
@@ -39,7 +66,14 @@ final Map<String, Map<String, Object?>> openApiPatches = {
   'LoginResponseDto': {'isOnboarded': false},
   'SyncUserV1': {'profileChangedAt': _now, 'hasProfileImage': false},
   'SyncAssetV1': {'isEdited': false},
-  'ServerFeaturesDto': {'ocr': false, 'realtimeTranscoding': false},
+  'ServerFeaturesDto': {
+    'ocr': false,
+    'realtimeTranscoding': false,
+    'assistant': false,
+    'artisticStyles': false,
+    'bookStadiaMaps': false,
+    'restaurantLookup': false,
+  },
   'SearchAssetResponseDto': {'nextCursor': null},
   'MemoriesResponse': {'duration': 5, 'sidebarWeb': false},
   'WorkflowResponseDto': {'logging': false},

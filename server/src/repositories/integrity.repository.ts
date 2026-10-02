@@ -94,6 +94,22 @@ export class IntegrityRepository {
       .execute();
   }
 
+  /** exported PDF and HTML photo books live next to the thumbnails */
+  @GenerateSql({ params: [DummyValue.STRING] })
+  getBookExportPathsByPaths(paths: string[]) {
+    return this.db
+      .selectFrom('book')
+      .select((eb) => eb.ref('book.exportPath').$castTo<string>().as('path'))
+      .where('book.exportPath', 'in', paths)
+      .union((eb) =>
+        eb
+          .selectFrom('book')
+          .select((eb) => eb.ref('book.htmlExportPath').$castTo<string>().as('path'))
+          .where('book.htmlExportPath', 'in', paths),
+      )
+      .execute();
+  }
+
   @GenerateSql({ params: [DummyValue.STRING] })
   getTrackedPaths(paths: string[]) {
     return this.db
@@ -108,6 +124,18 @@ export class IntegrityRepository {
           .selectFrom('person')
           .select((eb) => eb.ref('person.thumbnailPath').$castTo<string>().as('path'))
           .where('person.thumbnailPath', 'in', paths),
+      )
+      .union((eb) =>
+        eb
+          .selectFrom('book')
+          .select((eb) => eb.ref('book.exportPath').$castTo<string>().as('path'))
+          .where('book.exportPath', 'in', paths),
+      )
+      .union((eb) =>
+        eb
+          .selectFrom('book')
+          .select((eb) => eb.ref('book.htmlExportPath').$castTo<string>().as('path'))
+          .where('book.htmlExportPath', 'in', paths),
       )
       .execute();
   }
