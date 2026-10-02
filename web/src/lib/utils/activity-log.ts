@@ -5,13 +5,16 @@ import {
   mdiBrush,
   mdiCameraBurst,
   mdiContentCopy,
+  mdiFlashOutline,
   mdiImageAlbum,
   mdiImageMinus,
   mdiImagePlus,
   mdiLinkVariant,
   mdiPalette,
+  mdiPencilOutline,
   mdiTagOutline,
   mdiTrashCanOutline,
+  mdiAccountMultiplePlusOutline,
   mdiVideoOutline,
 } from '@mdi/js';
 import type { Translations } from 'svelte-i18n';
@@ -34,6 +37,9 @@ const icons: Record<ActivityLogAction, string> = {
   [ActivityLogAction.CollectionEntries]: mdiTagOutline,
   [ActivityLogAction.HighlightCreate]: mdiVideoOutline,
   [ActivityLogAction.SharedLinkCreate]: mdiLinkVariant,
+  [ActivityLogAction.SpaceAddAssets]: mdiAccountMultiplePlusOutline,
+  [ActivityLogAction.WorkflowCreate]: mdiFlashOutline,
+  [ActivityLogAction.WorkflowUpdate]: mdiPencilOutline,
 };
 
 export const getActivityIcon = (action: ActivityLogAction) => icons[action] ?? mdiContentCopy;
@@ -55,6 +61,9 @@ const actionKeys: Record<ActivityLogAction, Translations> = {
   [ActivityLogAction.CollectionEntries]: 'activity_log_action_journal_entries',
   [ActivityLogAction.HighlightCreate]: 'activity_log_action_highlight_create',
   [ActivityLogAction.SharedLinkCreate]: 'activity_log_action_shared_link_create',
+  [ActivityLogAction.SpaceAddAssets]: 'activity_log_action_space_add_assets',
+  [ActivityLogAction.WorkflowCreate]: 'activity_log_action_workflow_create',
+  [ActivityLogAction.WorkflowUpdate]: 'activity_log_action_workflow_update',
 };
 
 /** the i18n key of the name of a kind of change, e.g. "Photos added to an album" */
@@ -84,6 +93,15 @@ export const getActivityTargetRoute = ({ action, targetId, undoneAt }: ActivityL
     }
     case ActivityLogAction.BookDraftDiscard: {
       return undoneAt ? Route.viewBook({ id: targetId }) : undefined;
+    }
+    case ActivityLogAction.SpaceAddAssets: {
+      return Route.viewSpace({ id: targetId });
+    }
+    case ActivityLogAction.WorkflowCreate: {
+      return undoneAt ? undefined : Route.viewWorkflow({ id: targetId });
+    }
+    case ActivityLogAction.WorkflowUpdate: {
+      return Route.viewWorkflow({ id: targetId });
     }
     default: {
       return;

@@ -6,6 +6,7 @@
   import EmptyPlaceholder from '$lib/components/shared-components/EmptyPlaceholder.svelte';
   import { Route } from '$lib/route';
   import { getWorkflowActions, getWorkflowsActions, getWorkflowShowSchemaAction } from '$lib/services/workflow.service';
+  import { getWorkflowAssistantActions, getWorkflowsAssistantActions } from '$lib/services/workflow-assistant.service';
   import { getWorkflowForShare, type WorkflowResponseDto } from '@immich/sdk';
   import {
     Badge,
@@ -44,6 +45,7 @@
   };
 
   const { Create, UseTemplate } = $derived(getWorkflowsActions($t));
+  const { Describe } = $derived(getWorkflowsAssistantActions($t));
 
   const onWorkflowCreate = async (response: WorkflowResponseDto) => {
     await goto(Route.viewWorkflow(response));
@@ -60,7 +62,7 @@
 
 <OnEvents {onWorkflowCreate} {onWorkflowUpdate} {onWorkflowDelete} />
 
-<UserPageLayout title={data.meta.title} actions={[UseTemplate, Create]} scrollbar={false}>
+<UserPageLayout title={data.meta.title} actions={[Describe, UseTemplate, Create]} scrollbar={false}>
   <section class="flex place-content-center sm:mx-4">
     <Container center size="large" class="pb-28">
       {#if workflows.length === 0}
@@ -76,8 +78,9 @@
         <div class="my-6 flex flex-col gap-3">
           {#each workflows as workflow (workflow.id)}
             {@const { ToggleEnabled, Duplicate, Logs, Edit, Delete } = getWorkflowActions($t, workflow)}
+            {@const { Explain } = getWorkflowAssistantActions($t, workflow)}
 
-            <Card class="group shadow-none transition-colors hover:border-primary">
+            <Card class="group hover:border-primary shadow-none transition-colors">
               <CardHeader>
                 <a
                   href={Route.viewWorkflow({ id: workflow.id })}
@@ -96,7 +99,7 @@
 
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <CardTitle class="truncate font-semibold text-dark group-hover:text-primary">
+                      <CardTitle class="text-dark group-hover:text-primary truncate font-semibold">
                         {workflow.name || $t('workflow')}
                       </CardTitle>
 
@@ -117,6 +120,7 @@
                   <ContextMenuButton
                     position="top-left"
                     items={[
+                      Explain,
                       ToggleEnabled,
                       Edit,
                       Duplicate,
