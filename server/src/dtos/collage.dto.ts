@@ -52,7 +52,8 @@ const collageOptions = {
 
 const onlyOneStyle = (dto: { stylePreset?: string; styleId?: string }) => !(dto.stylePreset && dto.styleId);
 const onlyOneStyleError = { error: 'Pass either stylePreset or styleId, not both' };
-const onlyOneSource = (dto: { assetIds?: string[]; memoryId?: string }) => !dto.assetIds !== !dto.memoryId;
+const onlyOneSource = (dto: { assetIds?: string[]; memoryId?: string }) =>
+  (dto.assetIds === undefined) !== (dto.memoryId === undefined);
 const onlyOneSourceError = { error: 'Pass either assetIds or memoryId' };
 
 const CollageSchema = z
