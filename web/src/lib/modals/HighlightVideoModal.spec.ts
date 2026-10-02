@@ -14,6 +14,7 @@ const job = (overrides: Partial<HighlightJobResponseDto> = {}): HighlightJobResp
   progress: 0,
   albumId: 'album-id',
   bookId: null,
+  memoryId: null,
   durationSeconds: 60,
   format: HighlightFormat.Landscape,
   resultAssetId: null,
@@ -84,6 +85,26 @@ describe('HighlightVideoModal component', () => {
         captions: false,
       }),
     });
+  });
+
+  it('should make a video of a memory, named like its card', async () => {
+    sdkMock.createHighlight.mockResolvedValue(job({ albumId: null, memoryId: 'memory-id' }));
+
+    render(HighlightVideoModal, { props: { memoryId: 'memory-id', title: 'Recent trip to Athens', onClose } });
+    await fireEvent.click(screen.getByLabelText('highlight_video_format_vertical'));
+    await fireEvent.click(screen.getByRole('button', { name: 'highlight_video_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createHighlight).toHaveBeenCalledWith({
+      highlightCreateDto: expect.objectContaining({
+        memoryId: 'memory-id',
+        title: 'Recent trip to Athens',
+        format: HighlightFormat.Vertical,
+      }),
+    });
+    const dto = sdkMock.createHighlight.mock.calls[0][0].highlightCreateDto;
+    expect(dto).not.toHaveProperty('albumId');
+    expect(dto).not.toHaveProperty('assetIds');
   });
 
   it('should make a vertical video for phones', async () => {
