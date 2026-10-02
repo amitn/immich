@@ -14,6 +14,7 @@ import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { NotificationRepository } from 'src/repositories/notification.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
@@ -43,6 +44,7 @@ const setup = (db?: Kysely<DB>) =>
       BookRepository,
       ConfigRepository,
       HighlightJobRepository,
+      MemoryExclusionRepository,
       MemoryRepository,
       SearchRepository,
       SystemMetadataRepository,

@@ -8,12 +8,14 @@ import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { DatabaseRepository } from 'src/repositories/database.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { SharedSpaceRepository } from 'src/repositories/shared-space.repository.js';
 import { SystemMetadataRepository } from 'src/repositories/system-metadata.repository.js';
 import { UserRepository } from 'src/repositories/user.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { DB } from 'src/schema/index.js';
 import { MemoryService, RULE_DAILY_LIMIT } from 'src/services/memory.service.js';
 import { newMediumService } from 'test/medium.factory.js';
@@ -31,6 +33,9 @@ const setup = (db?: Kysely<DB>) => {
       ConfigRepository,
       DatabaseRepository,
       MemoryRepository,
+      // Gallery fork (#12): the memory exclusions and the year recap
+      MemoryExclusionRepository,
+      YearRecapRepository,
       PersonRepository,
       SharedSpaceRepository,
       UserRepository,
