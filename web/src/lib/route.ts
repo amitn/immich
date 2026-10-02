@@ -224,6 +224,7 @@ export const Route = {
   largeFileUtility: () => '/utilities/large-files',
   geolocationUtility: () => '/utilities/geolocation',
   orientationUtility: () => '/utilities/orientation',
+  burstsUtility: (params?: { albumId?: string }) => '/utilities/bursts' + asQueryString(params),
 
   // workflows
   workflows: () => '/workflows',
