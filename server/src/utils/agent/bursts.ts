@@ -47,10 +47,12 @@ export const getBurstCandidates = (items: Array<{ id: string; time: number }>, m
   const maxMs = maxSeconds * 1000;
   const ids = new Set<string>();
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].time - sorted[i - 1].time <= maxMs) {
-      ids.add(sorted[i].id);
-      ids.add(sorted[i - 1].id);
+    if (!(sorted[i].time - sorted[i - 1].time <= maxMs)) {
+      continue;
     }
+
+    ids.add(sorted[i].id);
+    ids.add(sorted[i - 1].id);
   }
   return ids;
 };
@@ -141,11 +143,13 @@ export const partitionBurstScan = (assets: BurstScanAsset[]) => {
   const grouped = new Set<string>();
   const groups: BurstGroupDraft[] = [];
   for (const [duplicateId, members] of byDuplicate) {
-    if (members.length > 1) {
-      groups.push(toDraft(BurstGroupSource.Duplicate, duplicateId, members, { duplicateId, stackId: null }));
-      for (const { id } of members) {
-        grouped.add(id);
-      }
+    if (!(members.length > 1)) {
+      continue;
+    }
+
+    groups.push(toDraft(BurstGroupSource.Duplicate, duplicateId, members, { duplicateId, stackId: null }));
+    for (const { id } of members) {
+      grouped.add(id);
     }
   }
 
@@ -159,7 +163,7 @@ export const partitionBurstScan = (assets: BurstScanAsset[]) => {
     for (const { id } of members) {
       stacked.add(id);
     }
-    if (members.length > 1 && !members.some(({ isCopy }) => isCopy)) {
+    if (members.length > 1 && members.every(({ isCopy }) => !isCopy)) {
       groups.push(toDraft(BurstGroupSource.Stack, stackId, members, { duplicateId: null, stackId }));
     }
   }
@@ -238,7 +242,11 @@ export const rankBurst = (candidates: BurstCandidate[], rules: BurstRules): Burs
     reasons.push(BurstKeepReason.Largest);
   }
 
-  const best = (pick: (candidate: BurstCandidate) => number) => beats(pick(keeper), others.map(pick));
+  const best = (pick: (candidate: BurstCandidate) => number) =>
+    beats(
+      pick(keeper),
+      others.map((other) => pick(other)),
+    );
   if (best(({ score }) => score.sharpness)) {
     reasons.push(BurstKeepReason.Sharpest);
   }

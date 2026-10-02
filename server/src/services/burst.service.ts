@@ -77,7 +77,8 @@ const mapLimit = async <T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return results;
 };
 
-const toNumber = (value: string | number | bigint | null | undefined) => (value === null || value === undefined ? 0 : Number(value));
+const toNumber = (value: string | number | bigint | null | undefined) =>
+  value === null || value === undefined ? 0 : Number(value);
 
 const dimensionsOf = (row: ScanRow) => ({
   width: row.width ?? row.exifImageWidth ?? null,
@@ -147,9 +148,7 @@ export class BurstService extends BaseService {
       }
     }
 
-    const stackIds = unique(
-      allIds.map((id) => assets.get(id)?.stackId).filter((id): id is string => !!id),
-    );
+    const stackIds = unique(allIds.map((id) => assets.get(id)?.stackId).filter((id): id is string => !!id));
     const primaries = new Map<string, string>();
     for (const stackId of stackIds) {
       const stack = await this.stackRepository.getById(stackId);
@@ -289,7 +288,7 @@ export class BurstService extends BaseService {
       ]),
     );
 
-    const { groups, rest } = partitionBurstScan([...assets.values()]);
+    const { groups, rest } = partitionBurstScan(assets.values().toArray());
     const { machineLearning } = await this.getConfig({ withCache: true });
     const options = getBurstDefaults(machineLearning.duplicateDetection.maxDistance);
     const candidates = [...getBurstCandidates(rest, options.maxSeconds)];

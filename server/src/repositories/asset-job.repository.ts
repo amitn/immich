@@ -623,13 +623,7 @@ export class AssetJobRepository {
   @GenerateSql({
     params: [{ userId: DummyValue.UUID, albumId: DummyValue.UUID, takenAfter: DummyValue.DATE, limit: 50_000 }],
   })
-  getForBurstScan(options: {
-    userId: string;
-    albumId?: string;
-    takenAfter?: Date;
-    takenBefore?: Date;
-    limit: number;
-  }) {
+  getForBurstScan(options: { userId: string; albumId?: string; takenAfter?: Date; takenBefore?: Date; limit: number }) {
     const { userId, albumId, takenAfter, takenBefore, limit } = options;
     return this.db
       .selectFrom('asset')

@@ -38,8 +38,8 @@ import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { BurstService } from 'src/services/burst.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
-import { StackService } from 'src/services/stack.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { StackService } from 'src/services/stack.service.js';
 import { TagService } from 'src/services/tag.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
 import {
@@ -742,12 +742,14 @@ export class ActivityLogService extends BaseService {
     const warnings: string[] = [];
     const gone = ids.filter((id) => !found.get(id) || found.get(id)!.deletedAt).length;
     if (gone > 0) {
-      warnings.push(`${countPhotos(gone)} had been deleted since, so they stay deleted`);
+      warnings.push(`${countPhotos(gone)} ${gone === 1 ? 'was' : 'were'} deleted since`);
     }
     const present = assets.filter(({ id, deletedAt }) => !deletedAt && owned.has(id));
     const moved = present.filter(({ visibility }) => visibility !== AssetVisibility.Archive).length;
     if (moved > 0) {
-      warnings.push(`${countPhotos(moved)} were no longer in the archive, so they were left where they are`);
+      warnings.push(
+        `${countPhotos(moved)} ${moved === 1 ? 'was' : 'were'} no longer in the archive, so ${moved === 1 ? 'it was' : 'they were'} left as ${moved === 1 ? 'it is' : 'they are'}`,
+      );
     }
 
     const targets = present.filter(({ visibility }) => visibility === AssetVisibility.Archive).map(({ id }) => id);

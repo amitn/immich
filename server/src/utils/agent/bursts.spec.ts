@@ -182,7 +182,14 @@ describe('partitionBurstScan', () => {
       ['b', asset('b', { time: 3000 })],
     ]);
     expect(toBurstDrafts([['a', 'b']], assets)).toEqual([
-      { key: 'burst:a', source: BurstGroupSource.Burst, duplicateId: null, stackId: null, assetIds: ['a', 'b'], time: 3000 },
+      {
+        key: 'burst:a',
+        source: BurstGroupSource.Burst,
+        duplicateId: null,
+        stackId: null,
+        assetIds: ['a', 'b'],
+        time: 3000,
+      },
     ]);
   });
 });
@@ -255,7 +262,11 @@ describe('rankBurst', () => {
       keepId: 'b',
       reasons: [BurstKeepReason.Largest],
     });
-    expect(rankBurst([candidate('b'), candidate('a')], noRules)).toEqual({ order: ['a', 'b'], keepId: 'a', reasons: [] });
+    expect(rankBurst([candidate('b'), candidate('a')], noRules)).toEqual({
+      order: ['a', 'b'],
+      keepId: 'a',
+      reasons: [],
+    });
   });
 
   describe('rules', () => {
@@ -301,10 +312,11 @@ describe('rankBurst', () => {
     });
 
     it('should not name a rule that did not decide', () => {
-      const ranking = rankBurst(
-        [sharpJpeg, candidate('blurry', { score: score({ sharpness: 0.2, overall: 0.3 }) })],
-        { preferRaw: true, preferEdited: true, preferLargest: true },
-      );
+      const ranking = rankBurst([sharpJpeg, candidate('blurry', { score: score({ sharpness: 0.2, overall: 0.3 }) })], {
+        preferRaw: true,
+        preferEdited: true,
+        preferLargest: true,
+      });
       expect(ranking.keepId).toBe('jpeg');
       expect(ranking.reasons).toEqual([BurstKeepReason.Sharpest]);
     });

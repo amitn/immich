@@ -10,7 +10,10 @@ const DEFAULT_GROUPS = 50;
 const ScopeSchema = {
   albumId: z.uuid().optional().describe('Only the photos of this album'),
   takenAfter: z.string().optional().describe('Only the photos taken at or after this date (ISO), e.g. a trip start'),
-  takenBefore: z.string().optional().describe('Only the photos taken before this date (ISO), e.g. the day after a trip'),
+  takenBefore: z
+    .string()
+    .optional()
+    .describe('Only the photos taken before this date (ISO), e.g. the day after a trip'),
   preferRaw: z.boolean().optional().describe('Keep a RAW photo over the others (default false)'),
   preferEdited: z.boolean().optional().describe('Keep a photo edited in the app over the others (default true)'),
   preferLargest: z.boolean().optional().describe('Keep the photo with the most pixels (default false)'),
