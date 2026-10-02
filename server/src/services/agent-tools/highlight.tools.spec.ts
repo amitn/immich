@@ -1,6 +1,7 @@
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { HighlightJobStatus, JobName } from 'src/enum.js';
 import { HighlightAgentTools } from 'src/services/agent-tools/highlight.tools.js';
+import { HighlightService } from 'src/services/highlight.service.js';
 import { ASSISTANT_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
 import { AgentToolResult } from 'src/utils/agent/tools.js';
 import { AuthFactory } from 'test/factories/auth.factory.js';
@@ -87,6 +88,24 @@ describe(HighlightAgentTools.name, () => {
     const tool = sut.getTools().find((tool) => tool.name === 'make_highlight_video')!;
     expect(tool.description).toMatch(/vertical/);
     expect(() => tool.input.parse({ assetIds, format: 'square' })).toThrow();
+  });
+
+  it('should start a video of a memory', async () => {
+    const memoryId = newUuid();
+    const create = vi.spyOn(HighlightService.prototype, 'create').mockResolvedValue({
+      id: 'highlight-1',
+      title: 'Recent trip to Athens',
+      status: HighlightJobStatus.Pending,
+      durationSeconds: 60,
+      format: 'vertical',
+    } as never);
+
+    const result = parse(await call('make_highlight_video', { memoryId, format: 'vertical' }));
+
+    expect(create).toHaveBeenCalledWith(auth, { memoryId, format: 'vertical', music: undefined }, undefined);
+    expect(result).toMatchObject({ highlightId: 'highlight-1', title: 'Recent trip to Athens' });
+    expect(await call('make_highlight_video', { memoryId, albumId: newUuid() })).toMatchObject({ isError: true });
+    create.mockRestore();
   });
 
   it('should ask for exactly one source', async () => {

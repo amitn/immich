@@ -3,6 +3,7 @@
   import { shortcuts } from '$lib/actions/shortcut';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MenuOption from '$lib/components/shared-components/context-menu/MenuOption.svelte';
+  import MemoryCreationMenuOptions from '$lib/components/memory-creations/MemoryCreationMenuOptions.svelte';
   import GalleryViewer from '$lib/components/shared-components/gallery-viewer/GalleryViewer.svelte';
   import ArchiveAction from '$lib/components/timeline/actions/ArchiveAction.svelte';
   import ChangeDate from '$lib/components/timeline/actions/ChangeDateAction.svelte';
@@ -490,6 +491,8 @@
                     text={$t('remove_photo_from_memory')}
                     icon={mdiImageMinusOutline}
                   />
+                  <!-- Fork delta (#5): a video, a book or a collage of the whole moment of the memory -->
+                  <MemoryCreationMenuOptions memory={current.memory} />
                   <!-- shortcut={{ key: 'l', shift: shared }} -->
                 </ButtonContextMenu>
               </div>

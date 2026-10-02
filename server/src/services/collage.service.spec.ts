@@ -8,14 +8,28 @@ import { ActivityLogAction, AssetFileType, AssetType } from 'src/enum.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { AlbumService } from 'src/services/album.service.js';
+import { BookService } from 'src/services/book.service.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { ActivityRecorder } from 'src/utils/activity-log.js';
+import { AutoLayoutPhoto } from 'src/utils/book/auto-layout.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
 import { getForAsset } from 'test/mappers.js';
 import { newDate, newUuid, newUuidV7 } from 'test/small.factory.js';
 import { useS3Backend } from 'test/storage-backend.mock.js';
 import { ServiceMocks, automock, newTestService } from 'test/utils.js';
+
+const photo = (id: string, index: number, overrides: Partial<AutoLayoutPhoto> = {}): AutoLayoutPhoto => ({
+  id,
+  width: 120,
+  height: 90,
+  takenAt: Date.UTC(2025, 4, 3 + index, 10),
+  score: 0.5,
+  faces: [],
+  isFavorite: false,
+  ...overrides,
+});
 
 describe(CollageService.name, () => {
   let sut: CollageService;
@@ -103,6 +117,68 @@ describe(CollageService.name, () => {
       await expect(sut.render(auth, { assetIds: ids, layout: 'four-grid' })).rejects.toThrow(
         'Valid layouts: hero-left-two',
       );
+    });
+  });
+
+  describe('memories', () => {
+    const memoryId = newUuid();
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('should pick the best photos of the whole memory, one per burst, titled like the memory', async () => {
+      const burst = newUuid();
+      const resolve = vi.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue({
+        source: { title: 'Recent trip to Palermo, Italy' } as any,
+        memory: { memoryAt: new Date(), isSaved: false },
+        assets: [...ids, burst, 'clip'].map((id, index) => ({
+          id,
+          type: id === 'clip' ? AssetType.Video : AssetType.Image,
+          time: index,
+        })),
+      });
+      const getLayoutPhotos = vi
+        .spyOn(BookService.prototype, 'getLayoutPhotos')
+        .mockResolvedValue([
+          photo(ids[0], 0, { score: 0.9, clusterId: 1 }),
+          photo(burst, 0, { score: 0.4, clusterId: 1 }),
+          photo(ids[1], 1, { score: 0.7 }),
+          photo(ids[2], 2, { score: 0.6 }),
+        ]);
+
+      const { layouts, assetIds } = await sut.getLayouts(auth, { memoryId, count: 3 });
+
+      expect(resolve).toHaveBeenCalledWith(auth, memoryId);
+      expect(getLayoutPhotos.mock.calls[0][1]).toEqual([...ids, burst]);
+      expect(assetIds).toEqual(ids);
+      expect(layouts[0].id).toBe('hero-left-two');
+      expect(mocks.book.getAssetsForRender).toHaveBeenCalledWith(ids);
+    });
+
+    it('should draw the memory’s title unless another is given', async () => {
+      vi.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue({
+        source: { title: 'Recent trip to Palermo, Italy' } as any,
+        memory: { memoryAt: new Date(), isSaved: false },
+        assets: ids.map((id, index) => ({ id, type: AssetType.Image, time: index })),
+      });
+      vi.spyOn(BookService.prototype, 'getLayoutPhotos').mockResolvedValue(ids.map((id, index) => photo(id, index)));
+
+      const { assetIds } = await sut.getLayouts(auth, { memoryId });
+      expect(assetIds).toEqual(ids);
+      await expect(sut.pickMemoryPhotos(auth, memoryId)).resolves.toEqual({
+        assetIds: ids,
+        title: 'Recent trip to Palermo, Italy',
+      });
+    });
+
+    it('should refuse a memory with fewer than two photos', async () => {
+      vi.spyOn(MemorySourceService.prototype, 'resolve').mockResolvedValue({
+        source: { title: 'Video moments from July 2022' } as any,
+        memory: { memoryAt: new Date(), isSaved: false },
+        assets: [{ id: 'clip', type: AssetType.Video, time: 1 }],
+      });
+
+      await expect(sut.getLayouts(auth, { memoryId })).rejects.toThrow('fewer than 2 photos');
     });
   });
 
@@ -249,6 +325,7 @@ describe(CollageService.name, () => {
         duplicate: false,
         layout: 'hero-left-two',
         tag: 'Collages/Palermo',
+        assetIds: ids,
       });
       expect(mocks.asset.getById).toHaveBeenCalledWith(ids[2], { exifInfo: true });
       const [path, data] = mocks.storage.createFile.mock.calls[0];

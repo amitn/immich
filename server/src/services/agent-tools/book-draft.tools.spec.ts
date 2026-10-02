@@ -47,6 +47,7 @@ describe(BookDraftAgentTools.name, () => {
           key: 'food:2025',
           kind: BookDraftKind.Yearly,
           reason: 'You visited 6 restaurants in 2025 and photographed 54 dishes',
+          memoryId: null,
           createdAt,
           book: mapBook(book),
         },

@@ -540,6 +540,25 @@ describe(BookAgentTools.name, () => {
       expect(added.isError).toBeUndefined();
     });
 
+    it('should create a book from a memory', async () => {
+      const memoryId = newUuid();
+      const result = layoutResult();
+      const createFromMemory = vi.spyOn(BookService.prototype, 'createFromMemoryWithPlan').mockResolvedValue(result);
+      const createFromAlbum = vi.spyOn(BookService.prototype, 'createFromAlbumWithPlan');
+
+      const summary = JSON.parse(text(await call('auto_layout_book', { memoryId, targetPageCount: 12 })));
+
+      expect(createFromMemory).toHaveBeenCalledWith(
+        authStub.admin,
+        expect.objectContaining({ memoryId, targetPageCount: 12, improvePhotos: false }),
+      );
+      expect(createFromAlbum).not.toHaveBeenCalled();
+      expect(summary.bookId).toBe(result.book.id);
+      await expect(call('auto_layout_book', { memoryId, albumId: newUuid() })).resolves.toMatchObject({
+        isError: true,
+      });
+    });
+
     it('should report improvements without creating any copies', async () => {
       const albumId = newUuid();
       const result = layoutResult();

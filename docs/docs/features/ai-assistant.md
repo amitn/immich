@@ -24,6 +24,7 @@ With its tools, the assistant can:
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
 - make [collages](#collages) of a few photos;
+- make a video, a book or a collage of [a memory](#videos-books-and-collages-of-a-memory), e.g. _"make a video of our last trip"_;
 - create [artistic versions](#artistic-styles) of photos;
 - [design book and artistic styles of your own](#designing-your-own-styles) from a description;
 - find the restaurant meals among your photos, read their menus and [name the dishes](#food);
@@ -272,11 +273,11 @@ Anyone with the link can read the book, so check what the pages show before you 
 
 Every night, Gallery looks for books your photos are enough for, and drafts them in the background for you to review. The drafts are laid out by the server's own automatic layout, like **Export as book**: no assistant is involved, nothing leaves your server, and it costs no AI credits.
 
-| Kind           | Example                                                                                  | Drafted when                                                                                                                                                                                              | Style                        |
-| -------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| Yearly journal | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [journal](#journals).                         | The journal's book style     |
-| Trip           | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, or, without travel tags, the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
-| Birthday       | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                          | Soft                         |
+| Kind           | Example                                                                                  | Drafted when                                                                                                                                                                                                                                                                            | Style                        |
+| -------------- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| Yearly journal | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [journal](#journals).                                                                                                       | The journal's book style     |
+| Trip           | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, a trip of a [memory](#videos-books-and-collages-of-a-memory) (a recent trip or a trip anniversary), or the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
+| Birthday       | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                                                                                                        | Soft                         |
 
 When a draft is ready you get a notification, "A new photo book is ready to review: 2026 in food", which opens it. On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
 
@@ -284,6 +285,8 @@ When a draft is ready you get a notification, "A new photo book is ready to revi
 - **Discard** deletes the draft. It is never suggested again, and neither is a draft you delete from the book viewer.
 
 Open a draft to look at its pages. The viewer shows a banner with the same buttons, and **Polish with assistant**, which opens a chat to review the book, swap in better photos and write captions.
+
+A trip that Gallery's memories found (a **Recent trip** or **Trip anniversary** memory) has one definition: its book covers the days of the memory, and replaces the trip found from the days away from home on the same days, so the trip is suggested once. A trip of the travel journal, which you named, comes first. A birthday book is linked to the birthday memory of the same day.
 
 Every suggestion is made once. At most 3 books are drafted per night for each user (**Books per night**), and none while 6 drafts are waiting to be reviewed. You can also ask the assistant "what books have you made for me?": it lists the drafts with `list_book_drafts`, and keeps or discards one with `keep_book_draft` or `discard_book_draft`, which ask for approval.
 
@@ -356,6 +359,30 @@ A collage puts 2 to 9 photos on one page. Select the photos in the timeline, an 
 **Download** saves the collage (3000 pixels on the long side) to your computer. **Save collage** adds it to your timeline as a new photo, dated like its last photo and tagged `Collages/<title>` (or `Collages/<dates>` without a title), then opens it. A collage made in an album you can add to (one you own or edit, or an album of a space you're an **Editor** of) is added to that album. The photos themselves are never changed.
 
 You can also ask the assistant, e.g. _"suggest collages of our trip, the best 4 photos of each day"_. It picks the photos, previews the collages with `preview_collage`, and saves the ones you agree to with `make_collage`, which asks for approval.
+
+## Videos, books and collages of a memory
+
+Every [memory](/features/memories) card, on the **Memories** page and in the memory viewer, has a **⋮** menu with **Make a video**, **Make a book** and **Make a collage**. A memory shows at most a dozen photos, but each one is made from the whole moment the memory stands for:
+
+| Memory                        | What it is made of                                                   |
+| ----------------------------- | -------------------------------------------------------------------- |
+| Recent trip, trip anniversary | Every photo and video of the trip, from its first day to its last    |
+| Birthday                      | The photos of the person in the year that ended on that birthday     |
+| A month, a season             | The photos and videos of that month or season                        |
+| Favorite moments, videos      | The favorites, or the videos, of that month                          |
+| People together, times with   | The photos of those people in that month, or in that chapter of time |
+| A day years ago               | The photos and videos of that day                                    |
+| A theme, a place across years | The photos the memory shows                                          |
+
+Each is named like the card, e.g. _Recent trip to Athens, Greece_, in your language.
+
+- **Make a video** opens the [highlight video](#highlight-videos) dialog, where you choose the length, the style, **Landscape 16:9** or **Vertical 9:16**, and the music.
+- **Make a book** lays out a [photo book](#photo-books) and opens it: the dates on the cover, a map for every leg of a trip, and the Soft style for a birthday. It needs the assistant to be set up, like **Export as book**.
+- **Make a collage** picks the best photos of the moment (6 by default, one per burst, spread over its days) and opens the [collage](#collages) dialog with the memory's title, where you can change the shape, the layout and the style before you save it.
+
+Memories are private: only you can make something of your memories. Photos you don't own (e.g. of a space) are used as they are, like in any book or video.
+
+You can also ask the assistant: _"make a video of our last trip"_. It finds the trip with `list_memories` (and `get_memory`, which tells how many photos the trip has), then passes its `memoryId` to `make_highlight_video`, `auto_layout_book` or `make_collage`.
 
 ## Artistic styles
 
