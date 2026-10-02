@@ -15,7 +15,7 @@ const RENAMED_SETTINGS: Readonly<Record<string, string>> = {
  */
 export const getRenamedSettingsRedirect = (url: URL): string | undefined => {
   const keys = url.searchParams.get(QueryParameter.IS_OPEN)?.split(' ') ?? [];
-  if (!keys.some((key) => Object.hasOwn(RENAMED_SETTINGS, key))) {
+  if (keys.every((key) => !Object.hasOwn(RENAMED_SETTINGS, key))) {
     return;
   }
 
