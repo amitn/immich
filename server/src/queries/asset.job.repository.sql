@@ -1010,6 +1010,55 @@ where
   "asset"."id" = any ($5::uuid[])
   and "asset"."deletedAt" is null
 
+-- AssetJobRepository.getForBurstScan
+select
+  "asset"."id",
+  "asset"."ownerId",
+  "asset"."type",
+  "asset"."fileCreatedAt",
+  "asset"."duplicateId",
+  "asset"."stackId",
+  "asset"."originalFileName",
+  "asset"."isEdited",
+  "asset"."width",
+  "asset"."height",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."fileSizeInByte",
+  exists (
+    select
+    from
+      "tag_asset"
+      inner join "tag" on "tag"."id" = "tag_asset"."tagId"
+    where
+      "tag_asset"."assetId" = "asset"."id"
+      and (
+        "tag"."value" like $1
+        or "tag"."value" like $2
+      )
+  ) as "isCopy"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  exists (
+    select
+    from
+      "album_asset"
+    where
+      "album_asset"."assetId" = "asset"."id"
+      and "album_asset"."albumId" = $3::uuid
+  )
+  and "asset"."fileCreatedAt" >= $4
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+  and "asset"."status" = 'active'
+order by
+  "asset"."fileCreatedAt" desc,
+  "asset"."id" asc
+limit
+  $5
+
 -- AssetJobRepository.getAlbumsForAgent
 select
   "album_asset"."assetId",

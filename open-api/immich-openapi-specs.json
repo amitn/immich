@@ -10609,6 +10609,118 @@
         "x-immich-state": "Alpha"
       }
     },
+    "/bursts/clean": {
+      "post": {
+        "description": "Keep one photo of each group and archive the others (never delete them). Only the user’s own photos are archived; a group with photos of other users is skipped. The cleanup is recorded in the activity log, where it can be undone.",
+        "operationId": "cleanBursts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BurstCleanDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BurstCleanResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Clean up bursts",
+        "tags": [
+          "Bursts"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/bursts/search": {
+      "post": {
+        "description": "Find groups of near-identical photos on the timeline (duplicate groups, stacks, and bursts taken seconds apart that are in neither): the user’s own, or those of an album. Each group comes with the photo to keep (by the rules, then the quality score), why, and the photos that cleaning it up archives. Groups with photos of other users are read-only.",
+        "operationId": "searchBursts",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BurstSearchDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BurstSearchResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Find bursts",
+        "tags": [
+          "Bursts"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/classification/scan": {
       "post": {
         "operationId": "scanClassification",
@@ -30593,6 +30705,10 @@
       "description": "Administrative endpoints related to authentication."
     },
     {
+      "name": "Bursts",
+      "description": "Burst cleanup finds groups of near-identical photos (duplicate groups, stacks and bursts taken seconds apart), suggests the best photo of each and archives the others. Nothing is deleted, and every cleanup can be undone from the activity log."
+    },
+    {
       "name": "Books",
       "description": "A book is a paginated photo book layout built from assets, which can be rendered and exported as a PDF."
     },
@@ -30846,6 +30962,7 @@
           "bookDraft.keep",
           "bookDraft.discard",
           "bookStyle.create",
+          "burst.cleanup",
           "collection.entries",
           "highlight.create",
           "sharedLink.create"
@@ -37384,6 +37501,401 @@
         },
         "required": [
           "ids"
+        ],
+        "type": "object"
+      },
+      "BurstCleanDto": {
+        "properties": {
+          "dryRun": {
+            "description": "Only count what would be archived",
+            "type": "boolean"
+          },
+          "groups": {
+            "description": "The groups to clean up",
+            "items": {
+              "$ref": "#/components/schemas/BurstCleanGroupDto"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "groups"
+        ],
+        "type": "object"
+      },
+      "BurstCleanGroupDto": {
+        "properties": {
+          "assetIds": {
+            "description": "The photos of the group",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 2,
+            "type": "array"
+          },
+          "keepAssetId": {
+            "description": "The photo to keep; the others are archived",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assetIds",
+          "keepAssetId"
+        ],
+        "type": "object"
+      },
+      "BurstCleanGroupResultDto": {
+        "properties": {
+          "archivedAssetIds": {
+            "description": "The photos archived (or that would be, in a dry run)",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "error": {
+            "description": "Why the group was skipped",
+            "type": "string"
+          },
+          "keepAssetId": {
+            "description": "The photo kept",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archivedAssetIds",
+          "keepAssetId"
+        ],
+        "type": "object"
+      },
+      "BurstCleanResponseDto": {
+        "properties": {
+          "activityId": {
+            "description": "The change in the activity log, to undo it",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "archived": {
+            "description": "Number of photos archived (or that would be)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "dryRun": {
+            "description": "Whether nothing was changed",
+            "type": "boolean"
+          },
+          "groups": {
+            "description": "The outcome of each group",
+            "items": {
+              "$ref": "#/components/schemas/BurstCleanGroupResultDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "activityId",
+          "archived",
+          "dryRun",
+          "groups"
+        ],
+        "type": "object"
+      },
+      "BurstGroupResponseDto": {
+        "properties": {
+          "archiveAssetIds": {
+            "description": "The photos that cleaning up the group archives",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "assets": {
+            "description": "The photos, best first",
+            "items": {
+              "$ref": "#/components/schemas/BurstPhotoDto"
+            },
+            "type": "array"
+          },
+          "duplicateId": {
+            "description": "Duplicate group ID",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "keepAssetId": {
+            "description": "The suggested photo to keep",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "key": {
+            "description": "Group key, e.g. duplicate:<id>, stack:<id> or burst:<first asset id>",
+            "type": "string"
+          },
+          "readOnly": {
+            "description": "Whether the group has photos of other users, so it can not be cleaned up",
+            "type": "boolean"
+          },
+          "reasons": {
+            "description": "Why that photo is the one to keep",
+            "items": {
+              "$ref": "#/components/schemas/BurstKeepReason"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/components/schemas/BurstGroupSource"
+          },
+          "stackId": {
+            "description": "Stack ID",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "takenAt": {
+            "description": "When the newest photo of the group was taken",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "archiveAssetIds",
+          "assets",
+          "duplicateId",
+          "keepAssetId",
+          "key",
+          "readOnly",
+          "reasons",
+          "source",
+          "stackId",
+          "takenAt"
+        ],
+        "type": "object"
+      },
+      "BurstGroupSource": {
+        "description": "Where a group of near-identical photos comes from",
+        "enum": [
+          "duplicate",
+          "stack",
+          "burst"
+        ],
+        "type": "string"
+      },
+      "BurstKeepReason": {
+        "description": "Why a photo is the one to keep",
+        "enum": [
+          "raw",
+          "edited",
+          "largest",
+          "sharpest",
+          "bestExposed",
+          "mostFaces",
+          "largestFaces",
+          "favorite",
+          "highestRated",
+          "bestOverall"
+        ],
+        "type": "string"
+      },
+      "BurstPhotoDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "exposure": {
+            "description": "Exposure score, 0 to 1",
+            "format": "double",
+            "type": "number"
+          },
+          "faces": {
+            "description": "Number of faces",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "fileSize": {
+            "description": "File size in bytes",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "nullable": true,
+            "type": "integer"
+          },
+          "height": {
+            "description": "Height in pixels",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "nullable": true,
+            "type": "integer"
+          },
+          "isEdited": {
+            "description": "Whether the photo was edited in the app",
+            "type": "boolean"
+          },
+          "isOwned": {
+            "description": "Whether the photo is the user’s own: only those can be archived",
+            "type": "boolean"
+          },
+          "isRaw": {
+            "description": "Whether the photo is a RAW file",
+            "type": "boolean"
+          },
+          "score": {
+            "description": "Overall quality score, 0 to 1",
+            "format": "double",
+            "type": "number"
+          },
+          "sharpness": {
+            "description": "Sharpness score, 0 to 1",
+            "format": "double",
+            "type": "number"
+          },
+          "width": {
+            "description": "Width in pixels",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assetId",
+          "exposure",
+          "faces",
+          "fileSize",
+          "height",
+          "isEdited",
+          "isOwned",
+          "isRaw",
+          "score",
+          "sharpness",
+          "width"
+        ],
+        "type": "object"
+      },
+      "BurstRulesDto": {
+        "description": "What to keep, applied in this order before the quality score",
+        "properties": {
+          "preferEdited": {
+            "description": "Keep a photo edited in the app over the others (default true)",
+            "type": "boolean"
+          },
+          "preferLargest": {
+            "description": "Keep the photo with the most pixels, then the biggest file (default false)",
+            "type": "boolean"
+          },
+          "preferRaw": {
+            "description": "Keep a RAW photo over the others (default false)",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "BurstSearchDto": {
+        "properties": {
+          "albumId": {
+            "description": "Only the photos of this album",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "page": {
+            "description": "Page of groups, newest first (default 1)",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/BurstRulesDto"
+          },
+          "size": {
+            "description": "Groups per page (default 20)",
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "takenAfter": {
+            "description": "Only the photos taken at or after this date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          },
+          "takenBefore": {
+            "description": "Only the photos taken before this date",
+            "example": "2024-01-01T00:00:00.000Z",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BurstSearchResponseDto": {
+        "properties": {
+          "groups": {
+            "description": "The groups of the page, newest first",
+            "items": {
+              "$ref": "#/components/schemas/BurstGroupResponseDto"
+            },
+            "type": "array"
+          },
+          "hasNextPage": {
+            "description": "Whether there are more groups",
+            "type": "boolean"
+          },
+          "scanned": {
+            "description": "Number of photos looked at",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "total": {
+            "description": "Number of groups found",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "totalToArchive": {
+            "description": "Number of photos that cleaning up every group found would archive",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "truncated": {
+            "description": "Whether only the newest photos of the scope were looked at",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "groups",
+          "hasNextPage",
+          "scanned",
+          "total",
+          "totalToArchive",
+          "truncated"
         ],
         "type": "object"
       },
