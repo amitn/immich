@@ -253,7 +253,7 @@ export class CollectionNoticeService extends BaseService {
       },
     };
     const notified = await this.notifyNewVisits(auth, collections.notifications, new Date());
-    this.logger.log(`Found ${notified.length} new collection visit(s) to name for user ${id}`);
+    this.logger.log(`Found ${notified.length} new journal visit(s) to name for user ${id}`);
     return JobStatus.Success;
   }
 

@@ -20,6 +20,18 @@ import { BaseService } from 'src/services/base.service.js';
 import { IMMICH_MCP_SERVER_NAME } from 'src/utils/agent/instructions.js';
 import { AgentTool, AgentToolResult } from 'src/utils/agent/tools.js';
 
+/**
+ * The deprecated old names of a tool (`AgentTool.aliases`), e.g. query_collections for query_journals: the same tool
+ * under the old name, whose description points to the new one. They are listed after every current tool.
+ */
+export const getAliasTools = (tool: AgentTool): AgentTool[] =>
+  (tool.aliases ?? []).map((alias) => ({
+    ...tool,
+    name: alias,
+    aliases: undefined,
+    description: `Deprecated: the old name of ${tool.name}, which does the same. Call ${tool.name} instead.`,
+  }));
+
 /** Runs a tool call, e.g. with approval and logging around `tool.handler` */
 export type AgentToolRunner = (tool: AgentTool, input: Record<string, unknown>) => Promise<AgentToolResult>;
 
@@ -79,7 +91,8 @@ export class AgentToolService extends BaseService {
       ];
 
       this.tools = new Map();
-      for (const tool of providers.flatMap((provider) => provider.getTools())) {
+      const tools = providers.flatMap((provider) => provider.getTools());
+      for (const tool of [...tools, ...tools.flatMap((tool) => getAliasTools(tool))]) {
         if (this.tools.has(tool.name)) {
           throw new Error(`Duplicate agent tool name: ${tool.name}`);
         }

@@ -53,7 +53,7 @@ export class HighlightAgentTools extends BaseService {
           style: z
             .enum(highlightStyles)
             .optional()
-            .describe('auto (the book style, or the collection style such as food) or a book style preset'),
+            .describe('auto (the book style, or the journal style such as food) or a book style preset'),
           format: z
             .enum(HIGHLIGHT_FORMATS)
             .optional()

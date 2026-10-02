@@ -77,7 +77,7 @@ export const reviewKidsArtBook = ({ pages, photos, chapters }: CollectionReviewI
       message:
         `${plural(faces.length, 'photo')} of the artworks ${faces.length === 1 ? 'shows' : 'show'} a face: a ` +
         "kids' art book is for the artworks only, never for photos of the children. Take them out of the book (and " +
-        'of the collection), or crop them to the artwork',
+        'of the journal), or crop them to the artwork',
       pages: onPages,
       assetIds: faces.map(({ id }) => id).slice(0, 12),
     });

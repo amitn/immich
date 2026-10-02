@@ -723,7 +723,7 @@ export class ActivityLogService extends BaseService {
   ): Promise<UndoOutcome> {
     const pack = getCollectionPack(packId);
     if (!pack) {
-      return refuse(`The collection pack "${packId}" no longer exists`);
+      return refuse(`The journal "${packId}" no longer exists`);
     }
     const rules = getCollectionTagRules(pack);
     const ids = photos.map(({ id }) => id);

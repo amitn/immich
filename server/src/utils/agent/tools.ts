@@ -21,6 +21,11 @@ export type AgentToolContext = {
 export type AgentTool<S extends z.ZodObject = z.ZodObject> = {
   /** snake_case tool name exposed to the agent */
   name: string;
+  /**
+   * old names of the tool, still registered for one release as deprecated aliases that run it, so that a resumed
+   * conversation calling the old name keeps working (see `AgentToolService`)
+   */
+  aliases?: string[];
   title: string;
   description: string;
   input: S;
