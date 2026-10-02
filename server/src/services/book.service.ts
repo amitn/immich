@@ -62,8 +62,8 @@ import { ArtService } from 'src/services/art.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
-import { LinkRedaction, RedactionService } from 'src/services/redaction.service.js';
 import { ImproveService, ImprovedCopyResult, toImproveSource } from 'src/services/improve.service.js';
+import { LinkRedaction, RedactionService } from 'src/services/redaction.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
 import { ActivityRecorder, beginBookChange, quote } from 'src/utils/activity-log.js';
 import { analysisCache, getAnalysisKey } from 'src/utils/agent/analysis-cache.js';
@@ -923,7 +923,7 @@ export class BookService extends BaseService {
       // (#14) the PDF prints the photos as they are: a link that blurs faces or text on them does not share it
       const redactionService = BaseService.create(RedactionService, this);
       const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
-      if (redaction && (await redactionService.getLinkRegions(redaction, [...getBookPhotoIds(book, pages)])).size > 0) {
+      if (redaction && (await redactionService.hasLinkRegions(redaction, [...getBookPhotoIds(book, pages)]))) {
         throw new BadRequestException(
           'This link blurs faces or text in the photos of this book, so its PDF is not shared',
         );
@@ -1198,7 +1198,7 @@ export class BookService extends BaseService {
 
     // (#14) the regions a link blurs, drawn blurred into the images it embeds
     const redactionService = BaseService.create(RedactionService, this);
-    const blurred = redaction ? await redactionService.getLinkRegions(redaction, [...sources.keys()]) : new Map();
+    const blurred = redaction ? await redactionService.getLinkRegions(redaction, sources.keys().toArray()) : new Map();
 
     const sizes = new Map([...sources].map(([id, source]) => [id, source.size]));
     const images = new Map<string, HtmlImage>();
@@ -1296,7 +1296,7 @@ export class BookService extends BaseService {
     const sources = await this.getRenderSources(auth, assetIds, options.mode);
     if (options.redaction) {
       const redactionService = BaseService.create(RedactionService, this);
-      const blurred = await redactionService.getLinkRegions(options.redaction, [...sources.keys()]);
+      const blurred = await redactionService.getLinkRegions(options.redaction, sources.keys().toArray());
       for (const [assetId, regions] of blurred) {
         const source = sources.get(assetId);
         if (source && typeof source.input === 'string') {

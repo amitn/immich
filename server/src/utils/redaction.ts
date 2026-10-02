@@ -222,7 +222,7 @@ export const getTextRect = (box: RedactionOcrBox): RedactionRect | null => {
   return clampRect(pad(rect, padding, padding));
 };
 
-const toSet = (values?: Iterable<string>) => new Set(values ?? []);
+const toSet = (values?: Iterable<string>) => new Set(values);
 
 const matches = (face: RedactionFace, ids: Set<string>, identities: Set<string>) =>
   (!!face.personId && ids.has(face.personId)) || face.identityIds.some((id) => identities.has(id));
@@ -303,7 +303,11 @@ export type PlateMatch = 'format' | 'generic' | null;
 
 /** whether the text of an OCR box reads like a number plate */
 export const matchPlate = (text: string): PlateMatch => {
-  const upper = text.trim().toUpperCase().replaceAll(/\s+/g, ' ');
+  // plates are printed in capitals, and OCR reads them so: "Open 9-17" is a sign
+  if (/\p{Ll}/u.test(text)) {
+    return null;
+  }
+  const upper = text.trim().replaceAll(/\s+/g, ' ');
   const length = compact(upper).length;
   if (length < 4 || length > 9) {
     return null;

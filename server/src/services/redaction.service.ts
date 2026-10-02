@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Readable } from 'node:stream';
+import type { AssetEditActionItem } from 'src/dtos/editing.dto.js';
 import { AuthSharedLink } from 'src/database.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import type { AssetEditActionItem } from 'src/dtos/editing.dto.js';
 import {
   RedactionCreateDto,
   RedactionPreviewDto,
@@ -174,11 +174,13 @@ export class RedactionService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.AssetCopy, ids: [assetId] });
     const asset = await this.getPhoto(assetId);
 
-    const rects: Array<RedactionRect & { kind?: RedactionRegion['kind'] }> =
-      dto.regions ??
-      (await this.getSuggestions(asset, dto)).regions
+    let rects: Array<RedactionRect & { kind?: RedactionRegion['kind'] }> = dto.regions ?? [];
+    if (!dto.regions) {
+      const { regions } = await this.getSuggestions(asset, dto);
+      rects = regions
         .filter(({ selected }) => selected)
         .map(({ x, y, width, height, kind }) => ({ x, y, width, height, kind }));
+    }
     if (rects.length === 0) {
       throw new BadRequestException('There is nothing to blur on this photo');
     }
@@ -242,7 +244,8 @@ export class RedactionService extends BaseService {
     const faces: RedactionFace[] = withFaces ? await this.assetJobRepository.getRedactionFaces([asset.id]) : [];
     const boxes: RedactionOcrBox[] =
       text || plates || screens ? await this.assetJobRepository.getRedactionOcr([asset.id]) : [];
-    const scene = boxes.length > 0 ? ((await this.getScenes([asset.id])).get(asset.id) ?? null) : null;
+    const scenes = boxes.length > 0 ? await this.getScenes([asset.id]) : undefined;
+    const scene = scenes?.get(asset.id) ?? null;
     const people = await this.resolvePeople({ keep: dto.keepPersonIds, only: dto.onlyPersonIds });
 
     const size = this.getUneditedSize(asset);
@@ -340,6 +343,18 @@ export class RedactionService extends BaseService {
     return regions;
   }
 
+  /** the regions a link blurs on a photo, if any */
+  async getLinkRegionsOf(redaction: LinkRedaction, assetId: string) {
+    const regions = await this.getLinkRegions(redaction, [assetId]);
+    return regions.get(assetId);
+  }
+
+  /** whether a link blurs anything on photos */
+  async hasLinkRegions(redaction: LinkRedaction, assetIds: string[]) {
+    const regions = await this.getLinkRegions(redaction, assetIds);
+    return regions.size > 0;
+  }
+
   /** a key of what a link blurs on photos, e.g. for the cache of a web book */
   async getLinkFingerprint(redaction: LinkRedaction, assetIds: string[]) {
     const regions = await this.getLinkRegions(redaction, assetIds);
@@ -386,7 +401,7 @@ export class RedactionService extends BaseService {
     path: string,
     fileName: string,
   ): Promise<ImmichStreamResponse | null> {
-    const regions = (await this.getLinkRegions(redaction, [assetId])).get(assetId);
+    const regions = await this.getLinkRegionsOf(redaction, assetId);
     if (!regions) {
       return null;
     }
@@ -412,7 +427,7 @@ export class RedactionService extends BaseService {
       await this.requireVideoShown(redaction, assetId);
       return null;
     }
-    const regions = (await this.getLinkRegions(redaction, [assetId])).get(assetId);
+    const regions = await this.getLinkRegionsOf(redaction, assetId);
     if (!regions) {
       return null;
     }
