@@ -534,6 +534,7 @@ const BookDraftResponseSchema = z
       ),
     kind: BookDraftKindSchema,
     reason: z.string().describe('Why the book is suggested, e.g. "You visited 6 restaurants in 2026"'),
+    memoryId: z.uuidv4().nullable().describe('The memory the suggestion is based on, e.g. a recent trip'),
     createdAt: isoDatetimeToDate.describe('When the book was drafted'),
     book: BookResponseSchema.describe('The draft book'),
   })

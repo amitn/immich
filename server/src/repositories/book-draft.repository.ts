@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type Insertable, type Kysely, type Updateable, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
-import { AssetType, AssetVisibility, BookDraftState } from 'src/enum.js';
+import { AssetType, AssetVisibility, BookDraftState, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { asUuid } from 'src/utils/database.js';
@@ -151,6 +151,23 @@ export class BookDraftRepository {
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime() }));
+  }
+
+  /** a user's memories made by the rules given (e.g. `recent_trip`), the newest first, to base suggestions on (#5) */
+  @GenerateSql({ params: [DummyValue.UUID, ['recent_trip', 'birthday']] })
+  getRuleMemories(ownerId: string, ruleIds: string[]) {
+    if (ruleIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('memory')
+      .select(['memory.id', 'memory.type', 'memory.data', 'memory.memoryAt'])
+      .where('memory.ownerId', '=', ownerId)
+      .where('memory.type', '=', sql.lit(MemoryType.Rule))
+      .where('memory.deletedAt', 'is', null)
+      .where(sql<string>`"memory"."data"->>'ruleId'`, 'in', ruleIds)
+      .orderBy('memory.memoryAt', 'desc')
+      .execute();
   }
 
   /**
