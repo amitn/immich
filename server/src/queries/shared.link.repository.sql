@@ -459,6 +459,8 @@ select
   "shared_link"."allowUpload",
   "shared_link"."allowDownload",
   "shared_link"."password",
+  "shared_link"."redactFaces",
+  "shared_link"."redactText",
   (
     select
       to_json(obj)
@@ -504,6 +506,8 @@ select
   "shared_link"."allowUpload",
   "shared_link"."allowDownload",
   "shared_link"."password",
+  "shared_link"."redactFaces",
+  "shared_link"."redactText",
   (
     select
       to_json(obj)
