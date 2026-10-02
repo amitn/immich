@@ -1488,6 +1488,7 @@ export enum ApiTag {
   Activities = 'Activities',
   ActivityLog = 'Activity log',
   Albums = 'Albums',
+  Bursts = 'Bursts',
   Assistant = 'Assistant',
   ApiKeys = 'API keys',
   Authentication = 'Authentication',
@@ -1647,6 +1648,8 @@ export enum ActivityLogAction {
   BookDraftKeep = 'bookDraft.keep',
   BookDraftDiscard = 'bookDraft.discard',
   BookStyleCreate = 'bookStyle.create',
+  /** photos archived by burst cleanup, keeping the best of each group (#9) */
+  BurstCleanup = 'burst.cleanup',
   CollectionEntries = 'collection.entries',
   HighlightCreate = 'highlight.create',
   SharedLinkCreate = 'sharedLink.create',
@@ -1683,6 +1686,44 @@ export enum ArtJobStatus {
 }
 
 export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+/** where a group of burst cleanup comes from (#9) */
+export enum BurstGroupSource {
+  /** a duplicate group of the duplicate detection */
+  Duplicate = 'duplicate',
+  /** a stack */
+  Stack = 'stack',
+  /** photos taken within seconds of each other that look the same, found by burst cleanup */
+  Burst = 'burst',
+}
+
+export const BurstGroupSourceSchema = z
+  .enum(BurstGroupSource)
+  .describe('Where a group of near-identical photos comes from')
+  .meta({ id: 'BurstGroupSource' });
+
+/** why burst cleanup keeps a photo (#9) */
+export enum BurstKeepReason {
+  /** a rule: RAW is preferred */
+  Raw = 'raw',
+  /** a rule: edited is preferred */
+  Edited = 'edited',
+  /** the largest (a rule, or the tie-breaker) */
+  Largest = 'largest',
+  Sharpest = 'sharpest',
+  BestExposed = 'bestExposed',
+  MostFaces = 'mostFaces',
+  LargestFaces = 'largestFaces',
+  Favorite = 'favorite',
+  HighestRated = 'highestRated',
+  /** better on the overall quality score only */
+  BestOverall = 'bestOverall',
+}
+
+export const BurstKeepReasonSchema = z
+  .enum(BurstKeepReason)
+  .describe('Why a photo is the one to keep')
+  .meta({ id: 'BurstKeepReason' });
 
 export enum OrientationStatus {
   /** found by the check, waiting for the user */

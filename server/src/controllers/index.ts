@@ -13,6 +13,7 @@ import { AuthAdminController } from 'src/controllers/auth-admin.controller.js';
 import { AuthController } from 'src/controllers/auth.controller.js';
 import { BookStyleController } from 'src/controllers/book-style.controller.js';
 import { BookController } from 'src/controllers/book.controller.js';
+import { BurstController } from 'src/controllers/burst.controller.js';
 // Option M: Gallery does not adopt upstream's cluster-groups FEATURE — cross-user recognition is
 // answered by shared spaces + `face_identity`, and the fork relies on a person_group holding exactly
 // one person (enforced by the unique index `person_personGroupId_key`). ClusterGroupController's
@@ -83,6 +84,7 @@ export const controllers = [
   ArtController,
   BookController,
   BookStyleController,
+  BurstController,
   HighlightController,
   AppController,
   AssetController,

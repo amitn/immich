@@ -16,6 +16,7 @@ import { AuthService } from 'src/services/auth.service.js';
 import { BookDraftService } from 'src/services/book-draft.service.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { BurstService } from 'src/services/burst.service.js';
 import { ClassificationService } from 'src/services/classification.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
@@ -90,6 +91,7 @@ export const services = [
   BookDraftService,
   CollectionNoticeService,
   BookStyleService,
+  BurstService,
   HighlightService,
   ApiService,
   AssetFileService,

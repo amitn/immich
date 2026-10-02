@@ -18,6 +18,7 @@ import {
   ActivityLogSource,
   ActivityUndoStatus,
   ArtJobStatus,
+  AssetVisibility,
   BookDraftState,
   BookStatus,
   HighlightJobStatus,
@@ -35,7 +36,9 @@ import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { BurstService } from 'src/services/burst.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
+import { StackService } from 'src/services/stack.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { TagService } from 'src/services/tag.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
@@ -213,6 +216,10 @@ export class ActivityLogService extends BaseService {
           await this.albums().removeAssets(auth, albumId, { ids: assetIds });
           break;
         }
+        case ActivityLogAction.BurstCleanup: {
+          await this.redoBurstCleanup(auth, row.undo as ActivityUndoMap[ActivityLogAction.BurstCleanup]);
+          break;
+        }
         case ActivityLogAction.BookDraftKeep: {
           const { bookId, draftId } = row.undo as ActivityUndoMap[ActivityLogAction.BookDraftKeep];
           await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [bookId] }).catch(() =>
@@ -343,6 +350,9 @@ export class ActivityLogService extends BaseService {
       }
       case ActivityLogAction.BookDraftDiscard: {
         return this.undoDraftDiscard(auth, undo);
+      }
+      case ActivityLogAction.BurstCleanup: {
+        return this.undoBurstCleanup(auth, undo);
       }
       case ActivityLogAction.CollectionEntries: {
         return this.undoCollectionEntries(auth, undo);
@@ -714,6 +724,72 @@ export class ActivityLogService extends BaseService {
       await this.bookDraftRepository.update(draftId, { state: draftState, bookId });
     }
     return undone(warnings);
+  }
+
+  /**
+   * Un-archives exactly the photos a burst cleanup archived, while they are still the user's, in the library and in
+   * the archive (a photo moved since stays where it is now), and gives their stack its cover photo back.
+   */
+  private async undoBurstCleanup(
+    auth: AuthDto,
+    { groups }: ActivityUndoMap[ActivityLogAction.BurstCleanup],
+  ): Promise<UndoOutcome> {
+    const ids = unique(groups.flatMap(({ archivedAssetIds }) => archivedAssetIds));
+    const owned = await checkOwnedAssets(this.accessRepository, auth, ids);
+    const assets = await this.activityLogRepository.getAssets(ids);
+    const found = new Map(assets.map((asset) => [asset.id, asset]));
+
+    const warnings: string[] = [];
+    const gone = ids.filter((id) => !found.get(id) || found.get(id)!.deletedAt).length;
+    if (gone > 0) {
+      warnings.push(`${countPhotos(gone)} had been deleted since, so they stay deleted`);
+    }
+    const present = assets.filter(({ id, deletedAt }) => !deletedAt && owned.has(id));
+    const moved = present.filter(({ visibility }) => visibility !== AssetVisibility.Archive).length;
+    if (moved > 0) {
+      warnings.push(`${countPhotos(moved)} were no longer in the archive, so they were left where they are`);
+    }
+
+    const targets = present.filter(({ visibility }) => visibility === AssetVisibility.Archive).map(({ id }) => id);
+    const assetService = BaseService.create(AssetService, this);
+    for (let i = 0; i < targets.length; i += 1000) {
+      await assetService.updateAll(auth, { ids: targets.slice(i, i + 1000), visibility: AssetVisibility.Timeline });
+    }
+
+    for (const { keepAssetId, stack } of groups) {
+      if (!stack) {
+        continue;
+      }
+      const current = await this.activityLogRepository.getStack(stack.stackId);
+      const previous = found.get(stack.previousPrimaryAssetId);
+      const unchanged =
+        current?.primaryAssetId === keepAssetId &&
+        !!previous &&
+        !previous.deletedAt &&
+        (current.assetIds ?? []).includes(stack.previousPrimaryAssetId);
+      if (!unchanged) {
+        warnings.push('A stack was changed since, so it keeps its cover photo');
+        continue;
+      }
+      await BaseService.create(StackService, this).update(auth, stack.stackId, {
+        primaryAssetId: stack.previousPrimaryAssetId,
+      });
+    }
+
+    return undone(unique(warnings));
+  }
+
+  /** archives the photos of an undone burst cleanup again, as `BurstService.clean` does */
+  private async redoBurstCleanup(auth: AuthDto, { groups }: ActivityUndoMap[ActivityLogAction.BurstCleanup]) {
+    const result = await BaseService.create(BurstService, this).clean(auth, {
+      groups: groups.map(({ keepAssetId, archivedAssetIds }) => ({
+        keepAssetId,
+        assetIds: [keepAssetId, ...archivedAssetIds],
+      })),
+    });
+    if (result.archived === 0) {
+      throw new BadRequestException(result.groups.find(({ error }) => error)?.error ?? 'Nothing to archive again');
+    }
   }
 
   /** gives the photos back the collection tags and descriptions they had, unless they were named again since */
