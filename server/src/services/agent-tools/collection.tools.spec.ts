@@ -75,7 +75,7 @@ describe(CollectionAgentTools.name, () => {
   it('should take the pack of every call, and describe the packs', () => {
     for (const tool of sut.getTools()) {
       expect(() => tool.input.parse({})).toThrow();
-      expect(tool.input.shape.pack.description).toMatch(/^Collection pack: food \(restaurant meals/);
+      expect(tool.input.shape.pack.description).toMatch(/^Journal: food \(restaurant meals/);
     }
     const find = sut.getTools().find(({ name }) => name === 'find_visits')!;
     expect(() => find.input.parse({ pack: 'unknown', albumId: newUuid() })).toThrow();

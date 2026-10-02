@@ -69,7 +69,7 @@ export class ActivityAgentTools extends BaseService {
         description:
           'Undo changes from list_activity, only when the user asks: pass their ids, or the groupId of a chat turn to ' +
           'undo everything it changed. They are undone newest first. Created copies, artworks and videos go to the ' +
-          'trash (they can be restored from there), photos go back into or out of albums, collection names and ' +
+          'trash (they can be restored from there), photos go back into or out of albums, journal names and ' +
           'descriptions and books are restored, new albums and books are deleted. A change is refused when later ' +
           'changes depend on it (e.g. a copy placed in a book since, a book edited again, an album that changed): ' +
           'tell the user what was undone, and for each refusal the reason it gives.',

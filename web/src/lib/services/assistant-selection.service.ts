@@ -8,8 +8,8 @@ import {
   mdiViewDashboardOutline,
 } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
-import { getCollectionLabel } from '$lib/collections/pack';
-import { collectionPacks } from '$lib/collections/registry';
+import { getCollectionLabel } from '$lib/journals/pack';
+import { collectionPacks } from '$lib/journals/registry';
 import { assetMultiSelectManager } from '$lib/managers/asset-multi-select-manager.svelte';
 import {
   getAssistantSelectionCapabilities,
@@ -22,8 +22,8 @@ import type { TimelineAsset } from '$lib/managers/timeline-manager/types';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
 import CollageModal from '$lib/modals/CollageModal.svelte';
-import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 import HighlightVideoModal from '$lib/modals/HighlightVideoModal.svelte';
+import JournalNameModal from '$lib/modals/JournalNameModal.svelte';
 import { openAssistant } from '$lib/services/assistant.service';
 import { isEnabled } from '$lib/utils';
 import { handleError } from '$lib/utils/handle-error';
@@ -110,7 +110,7 @@ export const getAssistantSelectionActions = (
     title: $t(getCollectionLabel(pack, 'name_action')),
     icon: pack.icon,
     $if: () => caps.canName && pack.isAvailable(),
-    onAction: () => modalManager.show(CollectionNameModal, { pack, assetIds: takeSelection() }),
+    onAction: () => modalManager.show(JournalNameModal, { pack, assetIds: takeSelection() }),
   }));
 
   const MakeHighlightVideo: ActionItem = {

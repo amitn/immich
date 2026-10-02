@@ -11,8 +11,8 @@ import {
 } from '@mdi/js';
 import { t } from 'svelte-i18n';
 import { get } from 'svelte/store';
-import { getCollectionLabel, type WebCollectionPack } from '$lib/collections/pack';
-import { collectionPacks } from '$lib/collections/registry';
+import { getCollectionLabel, type WebCollectionPack } from '$lib/journals/pack';
+import { collectionPacks } from '$lib/journals/registry';
 import { assetViewerManager } from '$lib/managers/asset-viewer-manager.svelte';
 import { assistantCommandContext, type AssistantAlbumContext } from '$lib/managers/assistant-command-context.svelte';
 import {
@@ -25,8 +25,8 @@ import AlbumBookExportModal from '$lib/modals/AlbumBookExportModal.svelte';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
 import CollageModal from '$lib/modals/CollageModal.svelte';
-import CollectionNameModal from '$lib/modals/CollectionNameModal.svelte';
 import HighlightVideoModal from '$lib/modals/HighlightVideoModal.svelte';
+import JournalNameModal from '$lib/modals/JournalNameModal.svelte';
 import { getAssistantFeatures } from '$lib/services/assistant-selection.service';
 import { getAssistantAssetActions, openAssistant } from '$lib/services/assistant.service';
 import { getAlbumBookActions } from '$lib/services/book.service';
@@ -117,10 +117,10 @@ const getNameCommand = (pack: WebCollectionPack): CommandItem => ({
     }
     const album = getWholeAlbum(ctx);
     if (album) {
-      return modalManager.show(CollectionNameModal, { pack, album: album.album });
+      return modalManager.show(JournalNameModal, { pack, album: album.album });
     }
     // all of the selection: the dialog names the user's own photos, the others help to read the names
-    return modalManager.show(CollectionNameModal, { pack, assetIds: takeSelection(ctx) });
+    return modalManager.show(JournalNameModal, { pack, assetIds: takeSelection(ctx) });
   },
 });
 

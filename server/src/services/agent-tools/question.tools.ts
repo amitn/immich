@@ -42,7 +42,7 @@ const date = z
 
 export const QUESTION_NOTES = {
   tagsOnly:
-    'Only photos named with a collection pack count (their tags). Photos never named are not here: search_photos ' +
+    'Only photos named in a journal count (their tags). Photos never named are not here: search_photos ' +
     '(query, dates, places) and find_events find them.',
   byName:
     'Names are matched by their words, not their meaning ("dessert" does not find "Rum lamington"): pass synonyms ' +
@@ -67,7 +67,9 @@ const getNotes = (
 
 /**
  * Questions about the library ("which wine did we have at Noma?", "when did we last make the quiche?"): answered from
- * the tags the collection packs saved, across every pack of the registry.
+ * the tags the journals (the collection packs) saved, across every pack of the registry. The tools were named
+ * query_collections and summarize_collections before the journals rename (#24); the old names stay as deprecated
+ * aliases for one release.
  */
 @Injectable()
 export class QuestionAgentTools extends BaseService {
@@ -81,10 +83,11 @@ export class QuestionAgentTools extends BaseService {
 
     return [
       defineTool({
-        name: 'query_collections',
-        title: 'Ask the collections',
+        name: 'query_journals',
+        aliases: ['query_collections'],
+        title: 'Ask the journals',
         description:
-          'Answer factual questions about the life in the library from the collection tags of every pack ' +
+          'Answer factual questions about the life in the library from the journal tags of every pack ' +
           `(${packWords}): "which wine did we have at Noma?", "when did we last make the quiche?", "what did I eat ` +
           'at The French Laundry?", "which museums did we visit in 2025?", "every dessert we photographed". Filters ' +
           '(all optional, combined): pack; place, entry and text (fuzzy: accents, case and plurals ignored, "noma" ' +
@@ -98,7 +101,7 @@ export class QuestionAgentTools extends BaseService {
           'Show the photoIds to the user. Source photos (menus, wall labels) are listed as sourcePhotoIds only with ' +
           'includeSources, and travel documents never.',
         input: z.object({
-          pack: z.enum(packIds).optional().describe('Only this collection pack'),
+          pack: z.enum(packIds).optional().describe('Only this journal'),
           place: alternatives('The place, e.g. "noma", or alternatives'),
           entry: alternatives('The entry, e.g. "quiche", or alternatives like ["dessert", "petits fours", "cake"]'),
           text: alternatives('Words of the place or the entry, when unsure which one it is'),
@@ -137,12 +140,13 @@ export class QuestionAgentTools extends BaseService {
       }),
 
       defineTool({
-        name: 'summarize_collections',
-        title: 'Summarize the collections',
+        name: 'summarize_journals',
+        aliases: ['summarize_collections'],
+        title: 'Summarize the journals',
         description:
-          'What the collections of the library hold, per pack: the photos, visits, places and entries named with ' +
+          'What the journals of the library hold, per pack: the photos, visits, places and entries named with ' +
           'the tags of the pack, the years covered, the first and last visit and the places visited most recently. ' +
-          'Use it for "what collections do I have?", and to pick the pack, places and dates of query_collections. ' +
+          'Use it for "what journals do I have?", and to pick the pack, places and dates of query_journals. ' +
           'Returns {packs: [{pack, title, place, entry, visit (the words of the pack), photos, visits, places, ' +
           'entries, sources, years, first, last, recentPlaces: [{name, visits, last}]}], empty (packs with no ' +
           'named photos yet)}.',

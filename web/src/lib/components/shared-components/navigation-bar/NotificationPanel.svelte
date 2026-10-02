@@ -4,7 +4,7 @@
   import NotificationItem from '$lib/components/shared-components/navigation-bar/NotificationItem.svelte';
   import { notificationManager } from '$lib/stores/notification-manager.svelte';
   import { handleError } from '$lib/utils/handle-error';
-  import { openCollectionNotice } from '$lib/services/collections.service';
+  import { openCollectionNotice } from '$lib/services/journals.service';
   import { getCollectionNotice, getNotificationRoute } from '$lib/utils/notification';
   import { type NotificationDto } from '@immich/sdk';
   import { Button, Icon, Scrollable, Stack, Text, toastManager } from '@immich/ui';
@@ -39,7 +39,7 @@
   };
 
   const handleNotificationAction = async (notification: NotificationDto) => {
-    // "new collection found": the naming dialog of the pack, on the photos of the visit
+    // a journal notification ("new collection found" in the API): the naming dialog of the pack, on the photos of the visit
     const notice = getCollectionNotice(notification);
     if (notice && openCollectionNotice(notice)) {
       onClose?.();

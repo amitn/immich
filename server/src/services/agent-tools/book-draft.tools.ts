@@ -26,7 +26,7 @@ export class BookDraftAgentTools extends BaseService {
         title: 'List suggested books',
         description:
           'List the photo books Immich drafted for the user in the background, waiting for them to keep or discard: ' +
-          'a year of a collection ("2026 in food", "Museums we visited in 2025"), a trip, or the year before a ' +
+          'a year of a journal ("2026 in food", "Museums we visited in 2025"), a trip, or the year before a ' +
           'birthday. Each has its bookId, title, the reason it was suggested and its page count. Use it when the ' +
           'user asks which books were made for them. get_book, render_book and review_book work on drafts; to ' +
           'improve one, call edit_existing_book first.',

@@ -7,7 +7,7 @@
   import ControlAppBar from '$lib/components/shared-components/ControlAppBar.svelte';
   import GalleryViewer from '$lib/components/shared-components/gallery-viewer/GalleryViewer.svelte';
   import AskLibraryPanel from '$lib/components/search/AskLibraryPanel.svelte';
-  import CollectionMatches from '$lib/components/search/CollectionMatches.svelte';
+  import JournalMatches from '$lib/components/search/JournalMatches.svelte';
   import ArchiveAction from '$lib/components/timeline/actions/ArchiveAction.svelte';
   import ChangeDate from '$lib/components/timeline/actions/ChangeDateAction.svelte';
   import ChangeDescription from '$lib/components/timeline/actions/ChangeDescriptionAction.svelte';
@@ -384,7 +384,7 @@
       data-testid="search-question"
     >
       <AskLibraryPanel {question} />
-      <CollectionMatches query={question} />
+      <JournalMatches query={question} />
     </aside>
   {/if}
   <section

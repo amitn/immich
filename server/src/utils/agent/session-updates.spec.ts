@@ -258,7 +258,7 @@ describe('collection tool refs', () => {
     expect(refsOf('find_visits', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
   });
 
-  it('should find the photos of the answers of query_collections, but not the people', () => {
+  it('should find the photos of the answers of query_journals, but not the people', () => {
     const result = {
       total: { visits: 1, places: 1, entries: 2, photos: 3 },
       last: { pack: 'food', place: 'Noma Australia', date: '2016-03-23', entries: ['Rum lamington'], photoIds: [id1] },
@@ -277,8 +277,8 @@ describe('collection tool refs', () => {
       people: [{ id: id5, name: 'Anna' }],
       notes: ['Only photos named with a collection pack count.'],
     };
-    expect(refsOf('query_collections', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
-    expect(refsOf('query_collections', { total: {}, places: [{ place: 'Noma Australia', photoIds: [id5] }] })).toEqual({
+    expect(refsOf('query_journals', result)).toEqual({ ...none, assetIds: [id1, id2, id3, id4] });
+    expect(refsOf('query_journals', { total: {}, places: [{ place: 'Noma Australia', photoIds: [id5] }] })).toEqual({
       ...none,
       assetIds: [id5],
     });

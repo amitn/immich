@@ -54,7 +54,7 @@ describe('QUICK_ANSWER_INSTRUCTIONS', () => {
     const named = QUICK_ANSWER_INSTRUCTIONS.matchAll(/\b[a-z]+(?:_[a-z]+)+\b/g)
       .map(([name]) => name)
       .toArray();
-    expect(named).toEqual(['query_collections', 'search_photos', 'find_events']);
+    expect(named).toEqual(['query_journals', 'search_photos', 'find_events']);
     expect(named.filter((name) => !tools.has(name))).toEqual([]);
   });
 });

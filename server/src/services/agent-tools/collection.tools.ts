@@ -112,8 +112,8 @@ const describePacks = (packs: CollectionPack[]) =>
     .join('; ');
 
 /**
- * Collections: themed photos named by a pack (food: dishes matched with the menu of a restaurant). The same tools
- * work for every pack, which is given by its id.
+ * Journals (the collection packs of the API): themed photos named by a pack (food: dishes matched with the menu of a
+ * restaurant). The same tools work for every pack, which is given by its id.
  */
 @Injectable()
 export class CollectionAgentTools extends BaseService {
@@ -121,15 +121,15 @@ export class CollectionAgentTools extends BaseService {
     const collections = BaseService.create(CollectionService, this);
     const packs = getCollectionPacks();
     const packIds = packs.map(({ id }) => id) as [string, ...string[]];
-    const pack = z.enum(packIds).describe(`Collection pack: ${describePacks(packs)}`);
+    const pack = z.enum(packIds).describe(`Journal: ${describePacks(packs)}`);
     const lookupPacks = packs.filter((item) => item.place.lookup).map(({ id }) => id);
 
     return [
       defineTool({
         name: 'find_visits',
-        title: 'Find the visits of a collection',
+        title: 'Find the visits of a journal',
         description:
-          'Find the visits of a collection pack among photos (for food: the restaurant meals). Subjects (e.g. dishes ' +
+          'Find the visits of a journal among photos (for food: the restaurant meals). Subjects (e.g. dishes ' +
           'and drinks) are found by CLIP; sources (e.g. menus), signs or storefronts and receipts by CLIP and the ' +
           'text read on them; they are grouped into visits by time (gaps up to 45 minutes, up to 5 hours; a ' +
           'source or sign photographed apart joins the closest visit) and place when the photos are located. Give ' +
@@ -166,7 +166,7 @@ export class CollectionAgentTools extends BaseService {
         name: 'read_source',
         title: 'Read a source photo',
         description:
-          'Read the entries of a source photo of a collection (for food: the items of a menu): the original is read ' +
+          'Read the entries of a source photo of a journal (for food: the items of a menu): the original is read ' +
           'again with OCR in overlapping tiles at full resolution, then split into columns and lines by the pack ' +
           '(for food: prices, section headings, allergen codes, addresses, phone numbers and cover charges are set ' +
           'aside, and names over several lines are joined). Names stay in the language of the page. Returns {id, ' +
@@ -308,7 +308,7 @@ export class CollectionAgentTools extends BaseService {
         name: 'lookup_place',
         title: 'Look up places on OpenStreetMap',
         description:
-          'Look up the named places of a collection pack (for food: restaurants, cafés and bars) within `radius` ' +
+          'Look up the named places of a journal (for food: restaurants, cafés and bars) within `radius` ' +
           'meters (default 75) of a visit on OpenStreetMap, from the GPS of its photos (assetIds) or given ' +
           'coordinates. This sends the location to a public service (the Overpass API), so ask the user before you ' +
           'call it, and only when find_visits could not read the name. The admin has to enable it (Food > ' +
@@ -348,7 +348,7 @@ export class CollectionAgentTools extends BaseService {
         name: 'save_entries',
         title: 'Name the photos of a visit',
         description:
-          'Save the names of a visit of a collection pack: every photo gets the tag <Root>/<place>/<entry> (for ' +
+          'Save the names of a visit of a journal: every photo gets the tag <Root>/<place>/<entry> (for ' +
           'food Food/<restaurant>/<dish>), or <Root>/<place>/<SourceLeaf> for a source photo (Food/<restaurant>/Menu) ' +
           'with source: true, replacing the tag of the pack it had, and a subject photo with no description gets ' +
           'one in the words of the pack ("<dish> · <restaurant>"). Running it again replaces the names, so it is ' +
