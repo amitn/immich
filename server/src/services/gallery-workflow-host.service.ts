@@ -129,8 +129,11 @@ export class GalleryWorkflowHostService extends BaseService {
     return outcome === SKIPPED ? { ok: false, reason: 'no-access' } : { ok: true };
   }
 
-  /** Finds the named album among a space's linked albums, creating and linking it when absent. */
-  private async resolveSpaceAlbum(auth: AuthDto, spaceId: string, albumName: string): Promise<string> {
+  /**
+   * Finds the named album among a space's linked albums, creating and linking it when absent. Also used by the
+   * assistant to apply an addToSpaceAlbum step to the photos a workflow matches already (#11).
+   */
+  async resolveSpaceAlbum(auth: AuthDto, spaceId: string, albumName: string): Promise<string> {
     const { sharedSpace, album } = this.collaborators();
     const target = albumName.toLowerCase();
 

@@ -17,6 +17,7 @@ import { HighlightAgentTools } from 'src/services/agent-tools/highlight.tools.js
 import { LibraryAgentTools } from 'src/services/agent-tools/library.tools.js';
 import { OrientationAgentTools } from 'src/services/agent-tools/orientation.tools.js';
 import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
+import { WorkflowAgentTools } from 'src/services/agent-tools/workflow.tools.js';
 import { BaseService } from 'src/services/base.service.js';
 import { IMMICH_MCP_SERVER_NAME } from 'src/utils/agent/instructions.js';
 import { AgentTool, AgentToolResult } from 'src/utils/agent/tools.js';
@@ -89,6 +90,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(CollageAgentTools, this),
         BaseService.create(OrientationAgentTools, this),
         BaseService.create(BurstAgentTools, this),
+        BaseService.create(WorkflowAgentTools, this),
         BaseService.create(ActivityAgentTools, this),
       ];
 

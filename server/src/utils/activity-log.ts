@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import type { WorkflowTrigger } from '@immich/plugin-sdk';
 import type { AuthDto } from 'src/dtos/auth.dto.js';
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
 import type { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
@@ -81,7 +82,44 @@ export type ActivityUndoMap = {
   [ActivityLogAction.CollectionEntries]: { pack: string; photos: ActivityCollectionPhoto[] };
   [ActivityLogAction.HighlightCreate]: { highlightId: string };
   [ActivityLogAction.SharedLinkCreate]: { sharedLinkId: string };
+  /** the photos the change added to the space (not those that were in it already) */
+  [ActivityLogAction.SpaceAddAssets]: { spaceId: string; assetIds: string[] };
+  /** undoing deletes the workflow, while it is still as saved (`fingerprint`) */
+  [ActivityLogAction.WorkflowCreate]: { workflowId: string; fingerprint: string };
+  /** undoing restores `previous`, while the workflow is still as the change left it (`fingerprint`) */
+  [ActivityLogAction.WorkflowUpdate]: { workflowId: string; previous: WorkflowSnapshot; fingerprint: string };
 };
+
+/** what makes up a workflow, as an update changes it */
+export type WorkflowSnapshot = {
+  name: string | null;
+  description: string | null;
+  trigger: WorkflowTrigger;
+  enabled: boolean;
+  steps: Array<{ method: string; config: Record<string, unknown> | null; enabled: boolean }>;
+};
+
+type WorkflowLike = Omit<WorkflowSnapshot, 'steps'> & {
+  steps: Array<{ method: string; config: Record<string, unknown> | null; enabled?: boolean }>;
+};
+
+export const toWorkflowSnapshot = (workflow: WorkflowLike): WorkflowSnapshot => ({
+  name: workflow.name,
+  description: workflow.description,
+  trigger: workflow.trigger,
+  enabled: workflow.enabled,
+  steps: workflow.steps.map(({ method, config, enabled }) => ({
+    method,
+    config: config ?? null,
+    enabled: enabled ?? true,
+  })),
+});
+
+export const fingerprintWorkflow = (workflow: WorkflowLike) =>
+  createHash('sha256')
+    .update(stableStringify(toWorkflowSnapshot(workflow)))
+    .digest('hex')
+    .slice(0, 32);
 
 export type ActivityUndoData = ActivityUndoMap[ActivityLogAction];
 

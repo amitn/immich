@@ -1653,6 +1653,11 @@ export enum ActivityLogAction {
   CollectionEntries = 'collection.entries',
   HighlightCreate = 'highlight.create',
   SharedLinkCreate = 'sharedLink.create',
+  /** photos added to a shared space, e.g. when a smart album rule is applied to the photos it matches (#11) */
+  SpaceAddAssets = 'space.addAssets',
+  /** a workflow (a smart album rule) saved by the assistant (#11) */
+  WorkflowCreate = 'workflow.create',
+  WorkflowUpdate = 'workflow.update',
 }
 
 export const ActivityLogActionSchema = z

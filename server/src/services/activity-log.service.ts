@@ -39,8 +39,10 @@ import { BookService } from 'src/services/book.service.js';
 import { BurstService } from 'src/services/burst.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { SharedSpaceService } from 'src/services/shared-space.service.js';
 import { StackService } from 'src/services/stack.service.js';
 import { TagService } from 'src/services/tag.service.js';
+import { WorkflowService } from 'src/services/workflow.service.js';
 import { checkOwnedAssets } from 'src/utils/access.js';
 import {
   ActivityEntry,
@@ -52,6 +54,7 @@ import {
   beginBookChange,
   countPhotos,
   fingerprintBook,
+  fingerprintWorkflow,
   quote,
   recordActivity,
   snapshotBook,
@@ -220,6 +223,11 @@ export class ActivityLogService extends BaseService {
           await this.redoBurstCleanup(auth, row.undo as ActivityUndoMap[ActivityLogAction.BurstCleanup]);
           break;
         }
+        case ActivityLogAction.SpaceAddAssets: {
+          const { spaceId, assetIds } = row.undo as ActivityUndoMap[ActivityLogAction.SpaceAddAssets];
+          await BaseService.create(SharedSpaceService, this).addAssets(auth, spaceId, { assetIds });
+          break;
+        }
         case ActivityLogAction.BookDraftKeep: {
           const { bookId, draftId } = row.undo as ActivityUndoMap[ActivityLogAction.BookDraftKeep];
           await this.requireAccess({ auth, permission: Permission.BookUpdate, ids: [bookId] }).catch(() =>
@@ -362,6 +370,15 @@ export class ActivityLogService extends BaseService {
       }
       case ActivityLogAction.SharedLinkCreate: {
         return this.undoSharedLink(auth, undo);
+      }
+      case ActivityLogAction.SpaceAddAssets: {
+        return this.undoSpaceAdd(auth, undo);
+      }
+      case ActivityLogAction.WorkflowCreate: {
+        return this.undoWorkflowCreate(auth, undo);
+      }
+      case ActivityLogAction.WorkflowUpdate: {
+        return this.undoWorkflowUpdate(auth, undo);
       }
     }
   }
@@ -914,6 +931,81 @@ export class ActivityLogService extends BaseService {
       return undone(['The link was already deleted']);
     }
     await BaseService.create(SharedLinkService, this).remove(auth, sharedLinkId);
+    return undone();
+  }
+
+  /** takes the photos the change added out of the space again; photos that were in it before stay */
+  private async undoSpaceAdd(
+    auth: AuthDto,
+    { spaceId, assetIds }: ActivityUndoMap[ActivityLogAction.SpaceAddAssets],
+  ): Promise<UndoOutcome> {
+    const space = await this.sharedSpaceRepository.getById(spaceId);
+    if (!space) {
+      return undone(['The space was deleted since']);
+    }
+    const removed = await BaseService.create(SharedSpaceService, this).removeAssets(auth, spaceId, { assetIds });
+    const gone = assetIds.length - removed.length;
+    return undone(gone > 0 ? [`${countPhotos(gone)} were no longer in the space`] : []);
+  }
+
+  private workflows() {
+    return BaseService.create(WorkflowService, this);
+  }
+
+  /** the workflow as it is now, or undefined when it was deleted */
+  private async getWorkflow(workflowId: string) {
+    const workflow = await this.workflowRepository.get(workflowId);
+    if (!workflow) {
+      return;
+    }
+    return {
+      ...workflow,
+      steps: workflow.steps.map((step) => ({
+        method: `${step.pluginName}#${step.methodName}`,
+        config: step.config as Record<string, unknown> | null,
+        enabled: step.enabled,
+      })),
+    };
+  }
+
+  /** deletes a workflow the assistant saved, while nobody changed it since: a changed one is the user's now */
+  private async undoWorkflowCreate(
+    auth: AuthDto,
+    { workflowId, fingerprint }: ActivityUndoMap[ActivityLogAction.WorkflowCreate],
+  ): Promise<UndoOutcome> {
+    const workflow = await this.getWorkflow(workflowId);
+    if (!workflow) {
+      return undone(['The workflow was already deleted']);
+    }
+    if (fingerprintWorkflow(workflow) !== fingerprint) {
+      refuse(
+        `The workflow ${quote(workflow.name ?? 'Workflow')} was changed since it was saved, so it is kept: ` +
+          'delete it on the Workflows page if you no longer want it.',
+      );
+    }
+    await this.workflows().delete(auth, workflowId);
+    return undone();
+  }
+
+  /** gives a workflow back the rule it had before the change, while nobody changed it since */
+  private async undoWorkflowUpdate(
+    auth: AuthDto,
+    { workflowId, previous, fingerprint }: ActivityUndoMap[ActivityLogAction.WorkflowUpdate],
+  ): Promise<UndoOutcome> {
+    const workflow = await this.getWorkflow(workflowId);
+    if (!workflow) {
+      refuse('The workflow was deleted since');
+    }
+    if (fingerprintWorkflow(workflow!) !== fingerprint) {
+      refuse(`The workflow ${quote(workflow!.name ?? 'Workflow')} was changed again since, so it is kept as it is`);
+    }
+    await this.workflows().update(auth, workflowId, {
+      name: previous.name,
+      description: previous.description,
+      trigger: previous.trigger,
+      enabled: previous.enabled,
+      steps: previous.steps,
+    });
     return undone();
   }
 }
