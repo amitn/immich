@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# Installs the ACP agents of the AI assistant into one prefix, for the `server-agents` target of server/Dockerfile and
-# the `dev-agents` target of server/Dockerfile.dev. Run at image build time; needs node, npm and network access.
+# Installs the ACP agents of the AI assistant into one prefix, for the gallery-agents image (the `gallery-agents` target
+# of server/Dockerfile). Run at image build time; needs node, npm and network access. Outside Docker, it installs the
+# agents for a server that runs them itself: bash install-agents.sh ~/gallery-agents, then put its bin on PATH.
 #
 #   <prefix>/node_modules  the packages, with the native Claude Code and Codex binaries for this platform
 #   <prefix>/bin           claude-agent-acp, codex-acp, codex and claude (put this directory on PATH)
@@ -12,7 +13,7 @@
 
 set -euo pipefail
 
-PREFIX="${1:-/opt/immich-agents}"
+PREFIX="${1:-/opt/gallery-agents}"
 
 # Pinned versions. codex-acp depends on @openai/codex ^0.156.1, which the pinned CODEX_VERSION satisfies, so npm uses
 # it for both. claude-agent-acp pins @anthropic-ai/claude-agent-sdk (and the Claude Code binary in it) exactly.
@@ -25,7 +26,7 @@ cd "$PREFIX"
 
 # a package.json of our own, so that npm installs here and not in a parent directory
 if [ ! -f package.json ]; then
-  echo '{ "name": "immich-agents", "private": true }' > package.json
+  echo '{ "name": "gallery-agents", "private": true }' > package.json
 fi
 
 npm install --omit=dev --no-audit --no-fund --no-update-notifier --save-exact \

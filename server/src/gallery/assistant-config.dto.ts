@@ -33,6 +33,13 @@ const AdminConfigAgentProfileSchema = z
     passEnv: z
       .array(z.string().min(1))
       .describe('Names of server environment variables forwarded to the agent process (e.g. API keys)'),
+    host: z
+      .enum(['auto', 'local', 'remote'])
+      .meta({ id: 'AgentProfileHost' })
+      .optional()
+      .describe(
+        'Where the agent runs: "local" as a process of the server, "remote" on the agent host at AGENT_HOST_URL (the gallery-agents container, which forwards its own environment variables), "auto" (the default) on the agent host when AGENT_HOST_URL is set',
+      ),
   })
   .describe('An ACP agent that can be started by the assistant')
   .meta({ id: 'AdminConfigAgentProfileDto' });

@@ -118,6 +118,8 @@ export type AdminConfigAgentProfileDto = {
     command: string;
     /** Environment variables passed to the agent process */
     env: AdminConfigAgentEnvDto[];
+    /** Where the agent runs: "local" as a process of the server, "remote" on the agent host at AGENT_HOST_URL (the gallery-agents container, which forwards its own environment variables), "auto" (the default) on the agent host when AGENT_HOST_URL is set */
+    host?: AgentProfileHost;
     /** Unique profile name */
     name: string;
     /** Names of server environment variables forwarded to the agent process (e.g. API keys) */
@@ -13611,6 +13613,11 @@ export enum ActivityUndoStatus {
     Refused = "refused",
     AlreadyUndone = "alreadyUndone",
     Failed = "failed"
+}
+export enum AgentProfileHost {
+    Auto = "auto",
+    Local = "local",
+    Remote = "remote"
 }
 export enum DefaultStyle {
     Styled = "styled",

@@ -669,13 +669,19 @@ The palette only lists the commands that the selection or the page allows, under
 
 ## Setup
 
-The assistant needs an ACP agent in the server container, logged in to its provider. Then you turn it on in the settings.
+The assistant needs an ACP agent logged in to its provider. With Docker, the agents run in a container of their own, `gallery-agents`, and the server starts them there. Then you turn the assistant on in the settings.
 
 ### Docker
 
-The published images don't include the agents. Build the server image from this repository with `docker/docker-compose.assistant.yml`, which uses the `server-agents` target of `server/Dockerfile`:
+The published images don't include the agents. `docker/docker-compose.assistant.yml` builds the server and the `gallery-agents` image (the `gallery-agents` target of `server/Dockerfile`) from this repository:
 
-1. In the `docker` folder of the repository, create `.env` from `example.env` if you haven't, and build and start Gallery with the override:
+1. In the `docker` folder of the repository, create `.env` from `example.env` if you haven't, and set `AGENT_HOST_SECRET` in it to a random secret of at least 32 characters, which the server and the agent container share:
+
+   ```bash
+   echo "AGENT_HOST_SECRET=$(openssl rand -hex 32)" >> .env
+   ```
+
+2. Build and start Gallery with the override:
 
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.assistant.yml up -d --build
@@ -683,91 +689,157 @@ The published images don't include the agents. Build the server image from this 
 
    The override also works on top of `docker-compose.rootless.yml` and `docker-compose.prod.yml`. Use `--build` again after updating the repository. For development, use `docker-compose.dev.assistant.yml` on top of `docker-compose.dev.yml` in the same way.
 
-2. Log in to the agents you want to use, or give them an API key. A login uses your subscription; an API key is billed per use.
-   - **Claude Code** with a Claude subscription: run `docker exec -it immich_server claude`, type `/login`, open the link in your browser and paste the code back, then `/exit`. With an API key instead, set `ANTHROPIC_API_KEY` in `.env` and run the `up -d` command again.
-   - **Codex** with a ChatGPT subscription: run `docker exec -it immich_server codex login --device-auth`, open the link and enter the code. With an API key instead, set `OPENAI_API_KEY` in `.env`, run the `up -d` command again, then `docker exec immich_server sh -c 'printenv OPENAI_API_KEY | codex login --with-api-key'`.
+3. Log in to the agents you want to use, or give them an API key. A login uses your subscription; an API key is billed per use.
+   - **Claude Code** with a Claude subscription: run `docker exec -it gallery_agents claude`, type `/login`, open the link in your browser and paste the code back, then `/exit`. With an API key instead, set `ANTHROPIC_API_KEY` in `.env` and run the `up -d` command again.
+   - **Codex** with a ChatGPT subscription: run `docker exec -it gallery_agents codex login --device-auth`, open the link and enter the code. With an API key instead, set `OPENAI_API_KEY` in `.env`, run the `up -d` command again, then `docker exec gallery_agents sh -c 'printenv OPENAI_API_KEY | codex login --with-api-key'`.
 
-   `docker exec` runs as the user of the server (`1000:1000` with `docker-compose.rootless.yml`), so the login is saved where the agents look for it.
+   The logins are saved on the `agent-home` volume, where the agents look for them.
 
-3. Check the container:
+4. Check the agent container:
 
    ```bash
-   docker exec immich_server immich-check-assistant
+   docker exec gallery_agents gallery-check-assistant
    ```
 
-   It checks the agents (`claude-agent-acp --version`, `codex-acp --version`), the agent home, the logins, the fonts of the photo books and `ffmpeg`, and lists what's missing.
+   It checks the agents (`claude-agent-acp --version`, `codex-acp --version`), the agent host, the agent home, the logins and the isolation of the container, and lists what's missing.
 
-4. Turn the assistant on in the settings, as below.
+5. Turn the assistant on in the settings, as below.
 
-The `server-agents` image adds:
+The two containers:
 
-| What                                                                 | Why                                                                                                                                                 |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `claude-agent-acp`, with the Claude Code binary it comes with        | The `claude` profile. `claude` runs the same Claude Code, for logging in.                                                                           |
-| `codex-acp` and `codex`                                              | The `codex` profile, and the Codex CLI for logging in. Codex can generate images, so it can be the **Art profile**.                                 |
-| The agent home, `/var/lib/immich-agents`, on the `agent-home` volume | `HOME` of the server, of `docker exec` and so of the agents: their logins and settings (`~/.claude`, `~/.claude.json`, `~/.codex`) survive updates. |
+| Container        | What it has                                                                                                                                                                                                                                                      |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `immich_server`  | The server, as usual, with the fonts that photo books are drawn with (Liberation and GNU FreeFont) and the `ffmpeg` that highlight videos use. `AGENT_HOST_URL`, `AGENT_HOST_SECRET` and `AGENT_MCP_URL` tell it where the agents run.                           |
+| `gallery_agents` | The agent host, which starts the agents for the server; `claude-agent-acp` with the Claude Code binary it comes with (`claude` runs the same Claude Code, for logging in); `codex-acp` and `codex`. Codex can generate images, so it can be the **Art profile**. |
 
-The agents are installed in `/opt/immich-agents`, at the versions pinned in `docker/scripts/install-agents.sh`, and add about 650 MB to the image. Every image built from `server/Dockerfile` also has the fonts that photo books are drawn with (Liberation and GNU FreeFont); the image already has the `ffmpeg` that highlight videos use.
+The agents are installed in `/opt/gallery-agents`, at the versions pinned in `docker/scripts/install-agents.sh`. The image is about 1.3 GB, most of it the Claude Code and Codex binaries. Their home, `/var/lib/gallery-agents`, is on the `agent-home` volume: their logins and settings (`~/.claude`, `~/.claude.json`, `~/.codex`) survive updates.
 
-:::note Agents in the server container
-The agents run as processes inside the Gallery server container, for now. They see its filesystem with the permissions of the server, including the library in `/data`. What limits them is the [scrubbed environment and the tool checks](#security-and-privacy): they get no database or Gallery secrets, start in an empty directory, and can only use Gallery's tools, which ask for approval before changing the library. Running the agents in a separate container is a future hardening.
-:::
+The server reaches the agent host at `http://gallery-agents:2285`, and the agents reach Gallery's tools at `http://immich-server:2283/api/agent/mcp`, on a network the two containers share with nothing else. The agent host isn't published on a port of the machine. See [The agent container](#the-agent-container) for how it is locked down.
+
+#### Updating from the agents in the server container
+
+Before, the agents ran inside the server container (the `server-agents` image). With the new override, the server image has no agents, and the `agent-home` volume is mounted in `gallery_agents` instead:
+
+1. Add `AGENT_HOST_SECRET` to `.env`, as above, and run the `up -d --build` command.
+2. The logins on the `agent-home` volume are kept. If the server ran as root (the default `docker-compose.yml`), the volume belongs to root, and `gallery-check-assistant` reports that `/var/lib/gallery-agents` isn't writable. Give it to the user of the agent container, then restart it:
+
+   ```bash
+   docker run --rm --user 0 --entrypoint chown -v immich_agent-home:/var/lib/gallery-agents gallery-agents:local -R 1000:1000 /var/lib/gallery-agents
+   docker restart gallery_agents
+   ```
+
+   `immich_agent-home` is the volume of the default project name; `docker volume ls` lists yours.
+
+   Or log in again instead.
+
+3. Chats continue: a chat whose agent session can't be loaded again starts a new one with a recap of the conversation.
+
+The profiles keep working unchanged: with `AGENT_HOST_URL` set, profiles run on the agent host, unless their `host` is `local`.
 
 ### Other installations
 
-Install an ACP agent adapter where the server runs, for example `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`, so that its command is on the server's `PATH`. Log in as the user the server runs as (`claude-agent-acp --cli` runs Claude Code, and codex-acp installs `codex`), or give the server an API key such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`: the default profiles forward these variables to the agent. For photo books, install the Liberation fonts (`fonts-liberation` on Debian and Ubuntu).
+Without Docker, the server runs the agents itself, as processes. Install an ACP agent adapter where the server runs, for example with `bash docker/scripts/install-agents.sh ~/gallery-agents` (then put `~/gallery-agents/bin` on the server's `PATH`) or `npm install -g @agentclientprotocol/claude-agent-acp @agentclientprotocol/codex-acp`, so that its command is on the server's `PATH`. Log in as the user the server runs as (`claude-agent-acp --cli` runs Claude Code, and codex-acp installs `codex`), or give the server an API key such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`: the default profiles forward these variables to the agent. `bash docker/scripts/check-assistant.sh` checks the agents, the logins, the fonts and `ffmpeg`. For photo books, install the Liberation fonts (`fonts-liberation` on Debian and Ubuntu).
+
+You can also run the agent host on its own, with `node server/dist/bin/agent-host.js` as another user, or the `gallery-agents` image, and point the server to it with `AGENT_HOST_URL`, `AGENT_HOST_SECRET` and `AGENT_MCP_URL`, as `docker-compose.assistant.yml` does.
+
+### Agent host settings
+
+Environment variables of the server:
+
+| Variable            | Description                                                                                                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_HOST_URL`    | The agent host, for example `http://gallery-agents:2285`. When it is set, profiles run there unless their `host` is `local`. Unset, the server runs the agents itself. |
+| `AGENT_HOST_SECRET` | The secret shared with the agent host.                                                                                                                                 |
+| `AGENT_MCP_URL`     | The URL the agents reach Gallery's tools at from the agent host, used when the **MCP URL** setting is empty, for example `http://immich-server:2283/api/agent/mcp`.    |
+
+Environment variables of the agent container (`gallery-agents`):
+
+| Variable                  | Default                      | Description                                                                                                                             |
+| ------------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_HOST_SECRET`       | _(required)_                 | The secret shared with the server, at least 32 characters.                                                                              |
+| `AGENT_HOST_PORT`         | `2285`                       | The port the agent host listens on.                                                                                                     |
+| `AGENT_HOST_MAX_AGENTS`   | `8`                          | The most agents running at once. The server's **Maximum concurrent sessions** applies to chats and art jobs each.                       |
+| `AGENT_HOST_IDLE_MINUTES` | `60`                         | An agent is stopped after this many minutes without messages, if the server hasn't stopped it before.                                   |
+| `AGENT_HOST_COMMANDS`     | `claude-agent-acp,codex-acp` | The commands the profiles may start. Add the command of any other agent you install in the image; empty allows any.                     |
+| `ANTHROPIC_API_KEY`, ...  |                              | The variables the profiles forward (`passEnv`) come from the agent container, not from the server: set the API keys of the agents here. |
 
 ### Settings in Gallery
 
 1. In **Administration > Settings > AI Assistant**:
    - turn on **Enable AI assistant**;
-   - check the **Agent profiles** (command, arguments, environment variables and forwarded server variables);
+   - check the **Agent profiles** (command, arguments, environment variables and forwarded variables);
    - choose the **Chat profile** and, optionally, the **Art profile** (for example `codex`) to enable artistic styles and illustrated maps.
 2. Optionally, in **Administration > Settings > Photo books**, add a **Stadia Maps API key** for the watercolor, toner and terrain map styles. Styled maps need no key: they use the map of **Administration > Settings > Map**.
 3. Optionally, in **Administration > Settings > Food**, turn on **Look up restaurants on OpenStreetMap** (see [Restaurant names](#restaurant-names)).
 
 ### Settings
 
-| Setting                                | Default                                              | Description                                                                                                                                                                                                                                              |
-| -------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent.enabled`                        | `false`                                              | **Enable AI assistant**.                                                                                                                                                                                                                                 |
-| `agent.profiles`                       | `claude` (`claude-agent-acp`), `codex` (`codex-acp`) | **Agent profiles**: the ACP agents Gallery can start. Each has a `name`, a `command`, `args`, `env` (variables set on the agent process) and `passEnv` (names of server environment variables to forward).                                               |
-| `agent.chatProfile`                    | `claude`                                             | **Chat profile** used for assistant chats.                                                                                                                                                                                                               |
-| `agent.artProfile`                     | _(empty)_                                            | **Art profile** used for artistic styles and illustrated maps. It must be an agent that can generate images. Empty disables artistic styles.                                                                                                             |
-| `agent.maxConcurrentSessions`          | `3`                                                  | **Maximum concurrent sessions**: agent processes running at once. Idle chats are stopped to make room; new chats are rejected when all are busy. Art jobs are also limited to this number.                                                               |
-| `agent.idleTimeoutMinutes`             | `15`                                                 | **Idle timeout (minutes)**: an idle agent process is stopped after this time. The chat is kept and continues on your next message.                                                                                                                       |
-| `agent.autoApproveWrites`              | `false`                                              | **Auto-approve changes**: lets the agent change the library of every user without asking for approval.                                                                                                                                                   |
-| `agent.activityRetentionDays`          | `90`                                                 | **Activity log retention (days)**: how long changes stay in the activity log, where they can be undone (see [Undoing the assistant's changes](#undoing-the-assistants-changes)).                                                                         |
-| `agent.mcpUrl`                         | _(empty)_                                            | **MCP URL** the agent uses to reach Gallery's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp`.                                                                                                                                                 |
-| `books.maps.stadiaApiKey`              | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Not needed for styled and sketch maps.                                                                                                                                         |
-| `books.maps.defaultStyle`              | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                  |
-| `books.drafts.enabled`                 | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                   |
-| `books.drafts.maxPerRun`               | `3`                                                  | **Books per night**: the most books drafted for a user per run.                                                                                                                                                                                          |
-| `books.drafts.yearly`                  | `true`                                               | **Yearly collection books**, e.g. "2026 in food".                                                                                                                                                                                                        |
-| `books.drafts.trips`                   | `true`                                               | **Trip books**.                                                                                                                                                                                                                                          |
-| `books.drafts.birthdays`               | `true`                                               | **Birthday books**.                                                                                                                                                                                                                                      |
-| `collections.notifications.enabled`    | `false`                                              | **New collection found notifications**: notify the users of new visits of the collections to name, with the nightly tasks (see [New collection found](#new-collection-found)). Off by default for now. Users can turn it off in their settings.          |
-| `collections.notifications.maxPerRun`  | `3`                                                  | **Notifications per night**: the most notifications sent to a user per run.                                                                                                                                                                              |
-| `collections.notifications.windowDays` | `14`                                                 | **Days of uploads**: only photos uploaded in this many days are looked at.                                                                                                                                                                               |
-| `food.openStreetMap.enabled`           | `false`                                              | **Look up restaurants on OpenStreetMap**: lets the assistant look up the restaurants near a meal when their name can't be read on the photos. It sends the location of the meal to the Overpass API, only when the assistant asks and the user approves. |
-| `food.openStreetMap.overpassUrl`       | `https://overpass-api.de/api/interpreter`            | **Overpass API URL**: the Overpass API interpreter that is asked for the restaurants near a meal.                                                                                                                                                        |
+| Setting                                | Default                                              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent.enabled`                        | `false`                                              | **Enable AI assistant**.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `agent.profiles`                       | `claude` (`claude-agent-acp`), `codex` (`codex-acp`) | **Agent profiles**: the ACP agents Gallery can start. Each has a `name`, a `command`, `args`, `env` (variables set on the agent process), `passEnv` (names of environment variables to forward: of the agent container when the agent runs there, else of the server) and an optional `host`: `local` runs the agent as a process of the server, `remote` on the agent host of `AGENT_HOST_URL`, and `auto` (the default) on the agent host when `AGENT_HOST_URL` is set. |
+| `agent.chatProfile`                    | `claude`                                             | **Chat profile** used for assistant chats.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `agent.artProfile`                     | _(empty)_                                            | **Art profile** used for artistic styles and illustrated maps. It must be an agent that can generate images. Empty disables artistic styles.                                                                                                                                                                                                                                                                                                                              |
+| `agent.maxConcurrentSessions`          | `3`                                                  | **Maximum concurrent sessions**: agent processes running at once. Idle chats are stopped to make room; new chats are rejected when all are busy. Art jobs are also limited to this number.                                                                                                                                                                                                                                                                                |
+| `agent.idleTimeoutMinutes`             | `15`                                                 | **Idle timeout (minutes)**: an idle agent process is stopped after this time. The chat is kept and continues on your next message.                                                                                                                                                                                                                                                                                                                                        |
+| `agent.autoApproveWrites`              | `false`                                              | **Auto-approve changes**: lets the agent change the library of every user without asking for approval.                                                                                                                                                                                                                                                                                                                                                                    |
+| `agent.activityRetentionDays`          | `90`                                                 | **Activity log retention (days)**: how long changes stay in the activity log, where they can be undone (see [Undoing the assistant's changes](#undoing-the-assistants-changes)).                                                                                                                                                                                                                                                                                          |
+| `agent.mcpUrl`                         | _(empty)_                                            | **MCP URL** the agent uses to reach Gallery's tools. Empty uses `http://127.0.0.1:<port>/api/agent/mcp` for agents of the server, and `AGENT_MCP_URL` for agents on the agent host.                                                                                                                                                                                                                                                                                       |
+| `books.maps.stadiaApiKey`              | _(empty)_                                            | **Stadia Maps API key** for the watercolor, toner and terrain map styles. Not needed for styled and sketch maps.                                                                                                                                                                                                                                                                                                                                                          |
+| `books.maps.defaultStyle`              | `styled`                                             | **Default map style** used when a book's map style is **Auto**: `styled`, `sketch`, `watercolor`, `toner` or `terrain`. Styled maps use the map data of the Map page (`map.enabled`, `map.lightStyle`).                                                                                                                                                                                                                                                                   |
+| `books.drafts.enabled`                 | `true`                                               | **Suggested books**: draft books for the users with the nightly tasks, for them to keep or discard (see [Suggested books](#suggested-books)). Users can turn it off in their settings.                                                                                                                                                                                                                                                                                    |
+| `books.drafts.maxPerRun`               | `3`                                                  | **Books per night**: the most books drafted for a user per run.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `books.drafts.yearly`                  | `true`                                               | **Yearly collection books**, e.g. "2026 in food".                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `books.drafts.trips`                   | `true`                                               | **Trip books**.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `books.drafts.birthdays`               | `true`                                               | **Birthday books**.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `collections.notifications.enabled`    | `false`                                              | **New collection found notifications**: notify the users of new visits of the collections to name, with the nightly tasks (see [New collection found](#new-collection-found)). Off by default for now. Users can turn it off in their settings.                                                                                                                                                                                                                           |
+| `collections.notifications.maxPerRun`  | `3`                                                  | **Notifications per night**: the most notifications sent to a user per run.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `collections.notifications.windowDays` | `14`                                                 | **Days of uploads**: only photos uploaded in this many days are looked at.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `food.openStreetMap.enabled`           | `false`                                              | **Look up restaurants on OpenStreetMap**: lets the assistant look up the restaurants near a meal when their name can't be read on the photos. It sends the location of the meal to the Overpass API, only when the assistant asks and the user approves.                                                                                                                                                                                                                  |
+| `food.openStreetMap.overpassUrl`       | `https://overpass-api.de/api/interpreter`            | **Overpass API URL**: the Overpass API interpreter that is asked for the restaurants near a meal.                                                                                                                                                                                                                                                                                                                                                                         |
 
 The default `claude` profile forwards `ANTHROPIC_API_KEY` and `CLAUDE_CODE_EXECUTABLE`, and the `codex` profile forwards `OPENAI_API_KEY` and `CODEX_PATH`.
 
 ## Security and privacy
 
-- **Scrubbed environment.** An agent process doesn't inherit the server environment. It only gets `PATH`, `HOME`, `LANG` and `TZ`, the variables named in its profile's forwarded server variables, and the variables set in the profile. Variables starting with `DB_`, `REDIS_`, `IMMICH_`, `TYPESENSE_` or `MACHINE_LEARNING_` are never forwarded, even when configured.
-- **Empty working directory.** Each agent starts in its own empty, private temporary directory, which is removed when it stops. Gallery gives it no access to files or a terminal.
+- **Own container.** With Docker, the agents run in the `gallery-agents` container, not in the server's. They can't see the library or the database, and don't have the server's environment; see [The agent container](#the-agent-container).
+- **Scrubbed environment.** An agent process doesn't inherit the environment it is started from. It only gets `PATH`, `HOME`, `LANG` and `TZ`, the variables named in its profile's forwarded variables, and the variables set in the profile. Variables starting with `DB_`, `REDIS_`, `IMMICH_`, `TYPESENSE_`, `MACHINE_LEARNING_` or `AGENT_HOST_` are never forwarded, even when configured.
+- **Empty working directory.** Each agent starts in its own empty, private temporary directory, which is removed when it stops. Gallery gives it no access to files or a terminal. The art agent gets the photo in its prompt and as `source.jpg` in the directory; Gallery reads an output file back only from that directory, without following links.
 - **Per-session token.** Each running chat gets its own random token for Gallery's tools. It is only kept in memory, and revoked when the agent stops. Tool calls run with the permissions of the user who is chatting.
 - **Only Gallery tools.** Gallery rejects any tool that isn't a Gallery tool, such as the shell, files or the web. For Claude Code, the built-in tools are also removed, and the host user's settings, hooks and MCP servers are ignored.
 - **Restricted art agent.** The art agent gets no Gallery tools. It may only generate images and write files inside its own working directory; everything else is rejected.
 - **Cloud providers.** With a cloud model, photo previews, metadata and the names of people are sent to the provider. Artistic styles and illustrated maps send the photo or the map to the art agent's provider. Only configure agents you trust.
 - **OpenStreetMap.** The [restaurant lookup](#restaurant-names) is off by default. When it's on, the location of a meal is sent to the Overpass API only when the assistant asks and the user approves.
 
+### The agent container
+
+`docker-compose.assistant.yml` runs the `gallery-agents` container with:
+
+- **no library and no database**: its only volume is the agent home (`/var/lib/gallery-agents`), for the logins. `/data` doesn't exist in it;
+- **no server secrets**: it doesn't read `.env`, so it has no database or Redis password. It gets `AGENT_HOST_SECRET` and the API keys of the agents only;
+- **its own network**, shared with the server: the agents reach the server and the internet (their providers), but not the database, Redis or machine learning;
+- **a user**: it runs as user `1000`, with no capabilities and `no-new-privileges`;
+- **a read-only root filesystem**, with a `tmpfs` `/tmp` for the working directories;
+- **limits**: 2 CPUs, 4 GB of memory and 512 processes. Change `cpus`, `mem_limit` and `pids_limit` in the override if you need to;
+- **a protected agent host**: the agent host and process 1 run from files the user can't read, so the kernel doesn't let the agents (the same user) read their environment in `/proc` or trace them.
+
+The server connects to the agent host with the shared secret, one connection per agent process, each with an id of its own. The agent host stops an agent when its connection drops, when the server stops answering, or after an idle time, and only starts the commands in `AGENT_HOST_COMMANDS`. Per-chat tokens for Gallery's tools and the approvals work as before.
+
+What the container doesn't separate: the agents of all chats run as the same user in it, so one agent can see the processes of the others and their files in `/tmp`. Claude Code gets the token of its chat for Gallery's tools in its command line, which the other agents can read; with it, an agent that runs commands (Codex has a shell) could use Gallery's tools as another user while that chat's agent runs. Changes still ask that user for approval, unless auto-approve is on. Keep this in mind on a server shared by people who shouldn't see each other's photos. (The same held when the agents ran in the server container.)
+
+To check the isolation, run `docker exec gallery_agents gallery-check-assistant`. Among others, `ls /data` and `cat /proc/1/environ` must fail in the container:
+
+```bash
+docker exec gallery_agents ls /data            # No such file or directory
+docker exec gallery_agents cat /proc/1/environ # Permission denied
+```
+
 ## Troubleshooting
 
-- **The agent isn't found.** The chat shows an error such as `Agent claude exited during initialization`, with `ENOENT` in the message. Check that the profile's **Command** is installed in the server container and on its `PATH`. With Docker, the image must be built with `docker-compose.assistant.yml` (see [Docker](#docker)); `docker exec immich_server immich-check-assistant` shows what's missing.
-- **The agent isn't logged in.** The chat shows an authentication error, such as _Please run /login_. Log in again as in [Docker](#docker), or check the API key in `.env`. Logins are kept on the `agent-home` volume; they're lost if it's removed, for example with `docker compose down -v`.
+- **The agent isn't found.** The chat shows an error such as `Agent claude exited during initialization`, with `ENOENT` in the message. Check that the profile's **Command** is installed where the agent runs and on its `PATH`. With Docker, start Gallery with `docker-compose.assistant.yml` (see [Docker](#docker)); `docker exec gallery_agents gallery-check-assistant` shows what's missing.
+- **The agent host can't be reached.** The chat shows _Unable to reach the agent host_. Check that `gallery_agents` is running and healthy (`docker ps`), and that the server and `gallery_agents` share the `agents` network. _The agent host rejected the secret_ means `AGENT_HOST_SECRET` differs between the two; set it in `.env` and run the `up -d` command again. _The agent host doesn't run "…"_ means the profile's command isn't in `AGENT_HOST_COMMANDS`.
+- **The agent can't use Gallery's tools.** With the agents on the agent host, the **MCP URL** setting must be empty (then `AGENT_MCP_URL` is used) or an address the agent container reaches, such as `http://immich-server:2283/api/agent/mcp`, not `127.0.0.1`.
+- **The agent isn't logged in.** The chat shows an authentication error, such as _Please run /login_. Log in again as in [Docker](#docker), or check the API key in `.env`. Logins are kept on the `agent-home` volume; they're lost if it's removed, for example with `docker compose down -v`. A volume from before the agent container may belong to root; see [Updating from the agents in the server container](#updating-from-the-agents-in-the-server-container).
 - **No image is generated.** The error _The art agent did not produce an image_ means the art profile's agent can't generate images. Choose an agent with image generation, such as Codex, as the **Art profile**.
 - **Maps are drawn as sketches.** Styled maps need the map to be turned on in **Administration > Settings > Map**, and the server must reach its tile server (by default `tiles.immich.cloud`). The watercolor, toner and terrain styles need a Stadia Maps API key, and fall back to the sketch when the tiles can't be downloaded. The review shows **Map style not available**. A custom map style whose tiles are served as a single PMTiles file, or only as raster images, can't be used for styled maps.
 - **The menu isn't read.** The dialog says _No items could be read on the menu_, or the assistant finds few items. The menu may be blurry, tilted, in a strong perspective, too dark or partly covered. Photograph the menu straight on, flat and in focus, in several parts for a long menu. You can still name the dishes by hand, or **Ask the assistant**: it looks at the menu photos itself, reads the items, and matches the dishes with what it read.

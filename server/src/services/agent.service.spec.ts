@@ -85,6 +85,10 @@ const newFakeAgent = (capabilities?: Record<string, unknown>) => {
   const agent = {
     pid: 1,
     cwd: '/tmp/immich-agent/test',
+    remote: false,
+    mcpStdioBridge: { command: process.execPath, args: ['/usr/src/app/server/dist/bin/agent-mcp-stdio.js'] },
+    listFiles: vi.fn().mockResolvedValue([]),
+    readFile: vi.fn().mockResolvedValue(Buffer.alloc(0)),
     initialize: { protocolVersion: 1, agentCapabilities: capabilities ?? { mcpCapabilities: { http: true } } },
     newSession: vi.fn().mockResolvedValue({ sessionId: 'acp-session' }),
     loadSession: vi.fn().mockResolvedValue(undefined),
@@ -172,14 +176,15 @@ describe(AgentService.name, () => {
     let tokens = 0;
     mocks.acp.issueMcpToken.mockImplementation(() => `token-${++tokens}`);
     mocks.acp.revokeMcpToken.mockReturnValue(undefined);
-    mocks.acp.getWorkdir.mockImplementation((id) => `/tmp/immich-agent/${id}`);
-    mocks.acp.createWorkdir.mockImplementation((id) => Promise.resolve(`/tmp/immich-agent/${id}`));
-    mocks.acp.removeWorkdir.mockResolvedValue(undefined);
+    mocks.acp.getDefaultMcpUrl.mockImplementation((agent, port) =>
+      agent.remote ? 'http://immich-server:2283/api/agent/mcp' : `http://127.0.0.1:${port}/api/agent/mcp`,
+    );
 
     fake = newFakeAgent();
     handlers = undefined;
     mocks.acp.start.mockImplementation((options) => {
       handlers = options.handlers;
+      fake.agent.cwd = `/tmp/immich-agent/${options.workdir}`;
       return Promise.resolve(fake.agent);
     });
   });
@@ -231,7 +236,7 @@ describe(AgentService.name, () => {
       expect(mocks.acp.start).toHaveBeenCalledWith(
         expect.objectContaining({
           profile: expect.objectContaining({ name: 'claude', command: 'claude-agent-acp' }),
-          cwd: `/tmp/immich-agent/${session.id}`,
+          workdir: session.id,
         }),
       );
       expect(fake.agent.newSession).toHaveBeenCalledWith({
@@ -309,6 +314,49 @@ describe(AgentService.name, () => {
           ],
         }),
       );
+    });
+
+    it('should connect an agent on the agent host through its MCP bridge and the MCP URL of the server', async () => {
+      fake = newFakeAgent({});
+      Object.assign(fake.agent, {
+        remote: true,
+        mcpStdioBridge: { command: '/usr/local/bin/node', args: ['/opt/gallery-agents/host/agent-mcp-stdio.js'] },
+      });
+      const session = newSession();
+      await startTurn(session.id);
+
+      expect(fake.agent.newSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cwd: `/tmp/immich-agent/${session.id}`,
+          mcpServers: [
+            {
+              name: 'immich',
+              command: '/usr/local/bin/node',
+              args: ['/opt/gallery-agents/host/agent-mcp-stdio.js'],
+              env: [
+                { name: 'IMMICH_MCP_URL', value: 'http://immich-server:2283/api/agent/mcp' },
+                { name: 'IMMICH_MCP_TOKEN', value: 'token-1' },
+              ],
+            },
+          ],
+        }),
+      );
+    });
+
+    it('should stop an agent whose session could not be set up, and start a new one for the next message', async () => {
+      fake.agent.newSession.mockRejectedValueOnce(new Error('session/new failed'));
+      const session = newSession();
+      await startTurn(session.id);
+      await settle();
+
+      expect(fake.agent.kill).toHaveBeenCalledTimes(1);
+      expect(messages()).toContainEqual(
+        expect.objectContaining({ kind: AgentMessageKind.Error, content: { text: 'session/new failed' } }),
+      );
+
+      await startTurn(session.id, 'again');
+      expect(mocks.acp.start).toHaveBeenCalledTimes(2);
+      expect(fake.agent.newSession).toHaveBeenCalledTimes(2);
     });
 
     it('should load the previous ACP session when the agent supports it', async () => {
@@ -407,7 +455,6 @@ describe(AgentService.name, () => {
       expect(fake.agent.kill).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(60_000);
       expect(fake.agent.kill).toHaveBeenCalled();
-      expect(mocks.acp.removeWorkdir).toHaveBeenCalledWith(`/tmp/immich-agent/${session.id}`);
     });
   });
 
