@@ -40,6 +40,18 @@ const SharedLinkCreateSchema = z
     allowUpload: z.boolean().optional().describe('Allow uploads'),
     allowDownload: z.boolean().default(true).optional().describe('Allow downloads'),
     showMetadata: z.boolean().default(true).optional().describe('Show metadata'),
+    redactFaces: z
+      .boolean()
+      .optional()
+      .describe(
+        'Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed',
+      )
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .optional()
+      .describe('Blur the text and number plates found in the photos when serving through the link')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
     spaceId: z
       .uuidv4()
       .optional()
@@ -99,6 +111,18 @@ const SharedLinkEditSchema = z
     allowUpload: z.boolean().optional().describe('Allow uploads'),
     allowDownload: z.boolean().optional().describe('Allow downloads'),
     showMetadata: z.boolean().optional().describe('Show metadata'),
+    redactFaces: z
+      .boolean()
+      .optional()
+      .describe(
+        'Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed',
+      )
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .optional()
+      .describe('Blur the text and number plates found in the photos when serving through the link')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
   })
   .meta({ id: 'SharedLinkEditDto' });
 
@@ -138,6 +162,14 @@ const SharedLinkResponseSchema = z
     allowDownload: z.boolean().describe('Allow downloads'),
     showMetadata: z.boolean().describe('Show metadata'),
     slug: z.string().nullable().describe('Custom URL slug'),
+    redactFaces: z
+      .boolean()
+      .describe('Blur the faces of people who are not in what the link shares')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .describe('Blur the text and number plates of the photos')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
   })
   .describe('Shared link response')
   .meta({ id: 'SharedLinkResponseDto' });
@@ -196,6 +228,8 @@ export function mapSharedLink(
     allowDownload: sharedLink.allowDownload,
     showMetadata: sharedLink.showExif,
     slug: sharedLink.slug,
+    redactFaces: sharedLink.redactFaces ?? false,
+    redactText: sharedLink.redactText ?? false,
   };
 
   // unless we select sharedLink.album.sharedLinks this will be wrong

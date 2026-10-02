@@ -238,6 +238,9 @@ ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "spaceId";
 -- dropped in section 2 (which also took the shared_link_bookId_fkey constraint with it).
 DELETE FROM "shared_link" WHERE "type" = 'BOOK';
 ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "bookId";
+-- (#14) the redaction options of a link: upstream serves every link unredacted.
+ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "redactFaces";
+ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "redactText";
 
 -- -----------------------------------------------------------------------------
 -- 5. Strip Gallery's merged 'classification' key out of system_metadata's
@@ -560,6 +563,7 @@ DELETE FROM "kysely_migrations"
   '1794800000000-HighlightJob',
   '1794900000000-ActivityLog',
   '1795000000000-CollectionNotices',
+  '1795300000000-SharedLinkRedaction',
 
    -- Pre-rename names for two migrations that were renumbered off timestamp collisions
    -- ("renumber AddFaceRepairScanFlaggedFace off the #722 collision",
@@ -642,7 +646,8 @@ BEGIN
       OR "name" = '1794700000000-UserStyles'
       OR "name" = '1794800000000-HighlightJob'
       OR "name" = '1794900000000-ActivityLog'
-      OR "name" = '1795000000000-CollectionNotices';
+      OR "name" = '1795000000000-CollectionNotices'
+      OR "name" = '1795300000000-SharedLinkRedaction';
   IF fork_rows_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery row(s) still present in kysely_migrations after cleanup — aborting.', fork_rows_left;
   END IF;

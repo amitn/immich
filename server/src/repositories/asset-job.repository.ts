@@ -861,4 +861,224 @@ export class AssetJobRepository {
 
     return people.map((person) => ({ ...person, count: Number(person.count) }));
   }
+
+  /**
+   * What redaction (#14) needs of photos: their owner and type, the original and its renditions, the edits and the
+   * metadata that tells their size, orientation and colours
+   */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getForRedaction(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.ownerId',
+        'asset.type',
+        'asset.isEdited',
+        'asset.deletedAt',
+        'asset.visibility',
+        'asset.originalPath',
+        'asset.originalFileName',
+        'asset.livePhotoVideoId',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.orientation',
+        'asset_exif.colorspace',
+        'asset_exif.profileDescription',
+        'asset_exif.bitsPerSample',
+        'asset_exif.projectionType',
+      ])
+      .select(withEdits)
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_file')
+            .select(['asset_file.type', 'asset_file.path', 'asset_file.isEdited'])
+            .whereRef('asset_file.assetId', '=', 'asset.id'),
+        ).as('files'),
+      )
+      .where('asset.id', '=', anyUuid(ids))
+      .execute();
+  }
+
+  /** the still photos whose live photo video these videos are, e.g. to redact a live photo's motion with its still */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getLivePhotoStillIds(videoIds: string[]) {
+    if (videoIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset')
+      .select(['asset.id', 'asset.livePhotoVideoId'])
+      .where('asset.livePhotoVideoId', '=', anyUuid(videoIds))
+      .where('asset.deletedAt', 'is', null)
+      .execute();
+  }
+
+  /**
+   * The visible faces of photos with what redaction (#14) needs to decide on them: the person (id, name) and the face
+   * identities of the face and of its person (which tell the same person across libraries), and whether it is a pet
+   */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  async getRedactionFaces(assetIds: string[]) {
+    if (assetIds.length === 0) {
+      return [];
+    }
+    const rows = await this.db
+      .selectFrom('asset_face')
+      .leftJoin('person', 'person.personGroupId', 'asset_face.personGroupId')
+      .select([
+        'asset_face.id',
+        'asset_face.assetId',
+        'asset_face.imageWidth',
+        'asset_face.imageHeight',
+        'asset_face.boundingBoxX1',
+        'asset_face.boundingBoxY1',
+        'asset_face.boundingBoxX2',
+        'asset_face.boundingBoxY2',
+        'person.personGroupId as personId',
+        'person.name as personName',
+        'person.identityId as personIdentityId',
+      ])
+      .select((eb) => petFacePredicate(eb).as('isPet'))
+      .select((eb) =>
+        eb
+          .selectFrom('face_identity_face')
+          .select((sub) => sub.fn.agg<string[]>('array_agg', ['face_identity_face.identityId']).as('ids'))
+          .whereRef('face_identity_face.assetFaceId', '=', 'asset_face.id')
+          .as('faceIdentityIds'),
+      )
+      .where('asset_face.assetId', '=', anyUuid(assetIds))
+      .where('asset_face.deletedAt', 'is', null)
+      .where('asset_face.isVisible', 'is', true)
+      .orderBy('asset_face.boundingBoxX1', 'asc')
+      .execute();
+
+    return rows.map(({ personIdentityId, faceIdentityIds, isPet, ...row }) => ({
+      ...row,
+      isPet: !!isPet,
+      identityIds: [...new Set([...(faceIdentityIds ?? []), ...(personIdentityId ? [personIdentityId] : [])])],
+    }));
+  }
+
+  /** the visible OCR boxes of photos (fractions of the unedited upright preview) */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getRedactionOcr(assetIds: string[]) {
+    if (assetIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset_ocr')
+      .select([
+        'asset_ocr.id',
+        'asset_ocr.assetId',
+        'asset_ocr.x1',
+        'asset_ocr.y1',
+        'asset_ocr.x2',
+        'asset_ocr.y2',
+        'asset_ocr.x3',
+        'asset_ocr.y3',
+        'asset_ocr.x4',
+        'asset_ocr.y4',
+        'asset_ocr.text',
+      ])
+      .where('asset_ocr.assetId', '=', anyUuid(assetIds))
+      .where('asset_ocr.isVisible', 'is', true)
+      .orderBy('asset_ocr.y1', 'asc')
+      .orderBy('asset_ocr.x1', 'asc')
+      .execute();
+  }
+
+  /** people by person id, with their face identity: their faces in other libraries are theirs too */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getRedactionPeople(personIds: string[]) {
+    if (personIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('person')
+      .select(['person.personGroupId as id', 'person.ownerId', 'person.name', 'person.type', 'person.identityId'])
+      .where('person.personGroupId', '=', anyUuid(personIds))
+      .execute();
+  }
+
+  /**
+   * The named people (not pets) of a set of photos, with the number of its photos each is in: the people "in" what a
+   * shared link shares (#14). A person is counted by face identity when it has one, so the same person in two
+   * libraries counts once. The photos are an album's, a link's own, or given.
+   */
+  @GenerateSql({ params: [{ albumId: DummyValue.UUID }] })
+  async getRedactionPeopleCounts(source: { albumId: string } | { sharedLinkId: string } | { assetIds: string[] }) {
+    if ('assetIds' in source && source.assetIds.length === 0) {
+      return [];
+    }
+    const key = sql<string>`coalesce("person"."identityId", "person"."personGroupId")`;
+    const rows = await this.db
+      .selectFrom('asset_face')
+      .innerJoin('person', 'person.personGroupId', 'asset_face.personGroupId')
+      .select([
+        key.as('key'),
+        sql<string[]>`array_agg(distinct "person"."personGroupId")`.as('personIds'),
+        sql<Array<string | null>>`array_agg(distinct "person"."identityId")`.as('identityIds'),
+        sql<number>`count(distinct "asset_face"."assetId")`.as('photos'),
+      ])
+      .where('asset_face.deletedAt', 'is', null)
+      .where('asset_face.isVisible', 'is', true)
+      .where('person.type', '!=', 'pet')
+      .where('person.name', '!=', '')
+      .$if('albumId' in source, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset_face.assetId')
+              .where('album_asset.albumId', '=', asUuid((source as { albumId: string }).albumId)),
+          ),
+        ),
+      )
+      .$if('sharedLinkId' in source, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('shared_link_asset')
+              .whereRef('shared_link_asset.assetId', '=', 'asset_face.assetId')
+              .where('shared_link_asset.sharedLinkId', '=', asUuid((source as { sharedLinkId: string }).sharedLinkId)),
+          ),
+        ),
+      )
+      .$if('assetIds' in source, (qb) =>
+        qb.where('asset_face.assetId', '=', anyUuid((source as { assetIds: string[] }).assetIds)),
+      )
+      .groupBy(key)
+      .execute();
+
+    return rows.map((row) => ({
+      key: String(row.key),
+      personIds: row.personIds,
+      identityIds: row.identityIds.filter((id): id is string => !!id),
+      photos: Number(row.photos),
+    }));
+  }
+
+  /** how many photos and videos a shared link shares: an album's, or its own */
+  @GenerateSql({ params: [{ albumId: DummyValue.UUID }] })
+  async countRedactionAssets(source: { albumId: string } | { sharedLinkId: string }) {
+    const row =
+      'albumId' in source
+        ? await this.db
+            .selectFrom('album_asset')
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('album_asset.albumId', '=', asUuid(source.albumId))
+            .executeTakeFirst()
+        : await this.db
+            .selectFrom('shared_link_asset')
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('shared_link_asset.sharedLinkId', '=', asUuid(source.sharedLinkId))
+            .executeTakeFirst();
+    return Number(row?.count ?? 0);
+  }
 }

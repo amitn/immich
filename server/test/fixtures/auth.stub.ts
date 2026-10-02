@@ -47,6 +47,8 @@ export const authStub = {
       bookId: null,
       expiresAt: null,
       password: null,
+      redactFaces: false,
+      redactText: false,
       userId: '42',
     },
   }),
