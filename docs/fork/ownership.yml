@@ -461,6 +461,7 @@ features:
       - journal-notifications
       - ask-your-library
       - burst-cleanup
+      - redaction
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -497,6 +498,8 @@ features:
       - server/src/controllers/highlight.controller.ts
       - server/src/controllers/orientation.controller.spec.ts
       - server/src/controllers/orientation.controller.ts
+      - server/src/controllers/redaction.controller.spec.ts
+      - server/src/controllers/redaction.controller.ts
       - server/src/dtos/activity-log.dto.ts
       - server/src/dtos/agent.dto.ts
       - server/src/dtos/art.dto.ts
@@ -508,6 +511,7 @@ features:
       - server/src/dtos/food.dto.ts
       - server/src/dtos/highlight.dto.ts
       - server/src/dtos/orientation.dto.ts
+      - server/src/dtos/redaction.dto.ts
       - server/src/queries/activity.log.repository.sql
       - server/src/queries/agent.repository.sql
       - server/src/queries/art.job.repository.sql
@@ -529,6 +533,7 @@ features:
       - server/src/repositories/map.repository.tiles.spec.ts
       - server/src/repositories/media.repository.agent.spec.ts
       - server/src/repositories/media.repository.enhance.spec.ts
+      - server/src/repositories/media.repository.redact.spec.ts
       - server/src/repositories/media.repository.straighten.spec.ts
       - server/src/schema/tables/activity-log.table.ts
       - server/src/schema/tables/agent-message.table.ts
@@ -578,6 +583,8 @@ features:
       - server/src/services/improve.service.ts
       - server/src/services/orientation.service.spec.ts
       - server/src/services/orientation.service.ts
+      - server/src/services/redaction.service.spec.ts
+      - server/src/services/redaction.service.ts
       - server/src/utils/access-book.spec.ts
       - server/src/utils/activity-log.spec.ts
       - server/src/utils/activity-log.ts
@@ -592,6 +599,8 @@ features:
       - server/src/utils/orientation.spec.ts
       - server/src/utils/orientation.ts
       - server/src/utils/preferences-ai-answers.spec.ts
+      - server/src/utils/redaction.spec.ts
+      - server/src/utils/redaction.ts
       - server/src/utils/shared-link.spec.ts
       - server/src/utils/shared-link.ts
       - server/test/factories/book.factory.ts
@@ -615,6 +624,7 @@ features:
       - server/test/medium/specs/services/agent.service.spec.ts
       - server/test/medium/specs/services/burst.service.spec.ts
       - server/test/medium/specs/services/crop-copy.service.spec.ts
+      - server/test/medium/specs/services/redaction.service.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
       - web/src/lib/components/activity-log/**
@@ -669,7 +679,10 @@ features:
       - web/src/lib/modals/ManageBookStylesModal.svelte
       - web/src/lib/modals/OrientationScanModal.spec.ts
       - web/src/lib/modals/OrientationScanModal.svelte
+      - web/src/lib/modals/RedactModal.spec.ts
+      - web/src/lib/modals/RedactModal.svelte
       - web/src/lib/modals/SharedLinkCreateModal.book.spec.ts
+      - web/src/lib/modals/SharedLinkCreateModal.redact.spec.ts
       - web/src/lib/modals/StyleCreatorModal.spec.ts
       - web/src/lib/modals/StyleCreatorModal.svelte
       - web/src/lib/services/assistant.service.spec.ts
@@ -706,6 +719,8 @@ features:
       - web/src/lib/utils/markdown.ts
       - web/src/lib/utils/notification.spec.ts
       - web/src/lib/utils/notification.ts
+      - web/src/lib/utils/redaction.spec.ts
+      - web/src/lib/utils/redaction.ts
       - web/src/lib/utils/style-creator.spec.ts
       - web/src/lib/utils/style-creator.ts
       - web/src/routes/(user)/activity/**
@@ -864,6 +879,7 @@ features:
         - server/src/schema/migrations-gallery/1794800000000-HighlightJob.ts
         - server/src/schema/migrations-gallery/1794900000000-ActivityLog.ts
         - server/src/schema/migrations-gallery/1795000000000-CollectionNotices.ts
+        - server/src/schema/migrations-gallery/1795300000000-SharedLinkRedaction.ts
     required_checks: [e2e-rebase-smoke]
 
 checks:
