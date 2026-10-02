@@ -21,6 +21,7 @@ With its tools, the assistant can:
 - crop photos around faces, straighten tilted photos, enhance dull ones and [turn sideways ones upright](#sideways-and-upside-down-photos);
 - [clean up bursts](#burst-cleanup): keep the best photo of each group of near-identical photos and archive the others;
 - create albums, and add or remove photos;
+- set up [smart albums](#smart-albums) in plain words: workflows that sort your new photos into albums and shared spaces, and explain the workflows you have;
 - design, review, edit and export [photo books](#photo-books);
 - make [highlight videos](#highlight-videos) of albums, books and selections;
 - make [collages](#collages) of a few photos;
@@ -82,6 +83,9 @@ What undo does:
 | A book link                                                                        | Deletes the link.                                                                                                                                                        |
 | A highlight video                                                                  | Stops it if it's still rendering; otherwise takes the video out of its album and moves it to the trash.                                                                  |
 | A burst cleanup                                                                    | Puts the photos it archived back on the timeline, and gives a stack its head back.                                                                                       |
+| A saved workflow                                                                   | Deletes the workflow, but only if it's unchanged since it was saved. A workflow you changed since is kept.                                                               |
+| A changed workflow                                                                 | Gives the workflow back the rule, name and state it had, unless it was changed again since.                                                                              |
+| Photos added to a shared space                                                     | Takes exactly those photos out of the space; photos that were in it before stay.                                                                                         |
 
 Undo never deletes photos or videos for good: new ones go to the trash.
 
@@ -95,7 +99,7 @@ Undo never deletes photos or videos for good: new ones go to the trash.
 
 When part of a change can't be undone, for example a photo that was deleted since, the rest is undone and the result says what was left as it was.
 
-**Redo.** A toast after undoing offers **Redo** for the changes that are simple to repeat: adding photos to an album, removing them, keeping a suggested book, and a burst cleanup. Other changes can't be redone; ask the assistant to do them again.
+**Redo.** A toast after undoing offers **Redo** for the changes that are simple to repeat: adding photos to an album, removing them, adding photos to a shared space, keeping a suggested book, and a burst cleanup. Other changes can't be redone; ask the assistant to do them again.
 
 **Notifications.** When an auto-approved reply makes several changes, you get a notification, "The assistant made 12 changes", which opens those changes in the activity log.
 
@@ -499,6 +503,30 @@ A duplicate group stays as it is: the duplicates page still lists it, with the a
 **Ask the assistant.** _"Clean up the bursts from my trip to Sicily, keep the RAW ones"_: the assistant finds the dates of the trip with `find_events`, lists the groups with `find_bursts` (which changes nothing, so it is the dry run) and tells you what it would archive, then `clean_up_bursts` archives them after you approve. You can name the rules, or another photo to keep.
 
 The assistant can't tell open from closed eyes: _Most faces_ and _Clearest faces_ count the faces the face detection found, and a turned-away or blinking face is sometimes still found. Check the groups with people before cleaning them all up.
+
+## Smart albums
+
+A smart album is a **workflow** (see the **Workflows** page) that sorts your new photos as they come in: _"every screenshot from 2025 goes to an album"_, _"every dish from Italy"_, _"videos taken in Rome go to the Family space"_. Tell the assistant what you want in plain words; it writes the workflow, and the workflow engine runs it on every photo you upload from then on.
+
+**How it works.**
+
+1. The assistant turns your request into filters and actions with `draft_workflow`, which saves nothing. It shows you the rule in plain words and a preview: how many of your photos match it today, with a few of them.
+2. After you approve, `save_workflow` saves it, creating its album (or tags) if they don't exist yet.
+3. A workflow only runs on new photos. The assistant then offers `apply_workflow`, which adds the photos that match already to the workflow's albums and spaces, as a separate step you approve.
+
+**What a workflow can match.** The file name (contains, starts with, is, or a pattern), photos or videos, a date range (or the same days every year, like every Christmas), a place by the names your library uses (country, state, city) or a distance from a point, the camera make, model and lens, a missing time zone, and tags. A tag includes the tags under it, so **Food** matches every dish the [food journal](#food) names (`Food/<restaurant>/<dish>`), and **Food/Noma** the dishes of one restaurant, also restaurants you visit later.
+
+**What it can do.** Add the photo to an album, to a shared space or to an album of a shared space, tag it, archive it, or mark it as a favorite.
+
+**When it runs.** The assistant picks the moment that fits the filters: at upload for the file name and type; once the date, place and camera are read for those filters; and when a photo gets a tag for tag filters, for example when a journal names a dish.
+
+**What it can't do.** A workflow runs when a photo is uploaded, before the faces in it are recognized and without knowing what it shows, so it can't follow **people** (_"every photo of Mia"_) or a **description** (_"at the beach"_), nor albums or favorites. The assistant says so and offers a one-off album of the photos that match now instead (new photos are not added to it), or a workflow for the rest of the request if that still helps.
+
+**Explain and change.** On the **Workflows** page, **Explain** in the menu of a workflow says in plain words when it runs, what a photo must match and what happens to it, and notes a workflow that is turned off or that filters on a date at upload, before the date is read. **Change with the assistant** opens a chat to change it, and **Describe a workflow…** at the top of the page opens a chat to set up a new one. The assistant can also list your workflows (`list_workflows`), explain one (`explain_workflow`) and change it (`update_workflow`, after you approve).
+
+**Your photos only.** A workflow runs on the photos you upload, so the preview and `apply_workflow` only look at your own photos, never a partner's or other members' photos in a shared space. Adding photos to a shared space needs the **Editor** role in it.
+
+**Undo.** Saving or changing a workflow, its new album, and the photos `apply_workflow` added are changes in the [activity log](#undoing-the-assistants-changes) that you can undo.
 
 ## Journals
 
