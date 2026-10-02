@@ -26,7 +26,7 @@ const HighlightStyleSchema = z
   )
   .meta({ id: 'HighlightStyle' });
 
-const HighlightFormatSchema = z
+export const HighlightFormatSchema = z
   .enum(HIGHLIGHT_FORMATS)
   .describe(
     'The shape of the video: landscape (16:9, 1920×1080) or vertical (9:16, 1080×1920, for phones and social apps, ' +

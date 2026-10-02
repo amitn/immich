@@ -3,7 +3,7 @@ import type { AuthDto } from 'src/dtos/auth.dto.js';
 import type { BookMap, BookStyle, NormalizedRect } from 'src/dtos/book.dto.js';
 import type { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import type { BookRepository } from 'src/repositories/book.repository.js';
-import { ActivityLogAction, ActivityLogSource, BookDraftState, BookStatus } from 'src/enum.js';
+import { ActivityLogAction, ActivityLogSource, BookDraftState, BookStatus, MemoryExclusionType } from 'src/enum.js';
 
 /** how many snapshots of a book are kept for undo; undoing an older change is refused */
 export const BOOK_REVISIONS_KEPT = 50;
@@ -45,6 +45,15 @@ export type ActivityCollectionPhoto = {
   previousDescription?: string;
 };
 
+/** a memory exclusion as it was before a change removed it (#12) */
+export type ActivityMemoryExclusion = {
+  type: MemoryExclusionType;
+  personGroupId: string | null;
+  albumId: string | null;
+  startDate: string | null;
+  endDate: string | null;
+};
+
 /** what undoing each kind of change needs */
 export type ActivityUndoMap = {
   /** the album as it was created: undoing deletes it only while it is still like this */
@@ -80,6 +89,15 @@ export type ActivityUndoMap = {
   };
   [ActivityLogAction.CollectionEntries]: { pack: string; photos: ActivityCollectionPhoto[] };
   [ActivityLogAction.HighlightCreate]: { highlightId: string };
+  /**
+   * the memory exclusions a change added (undoing removes them) and removed (undoing adds them back), and the
+   * documents switch before the change (#12)
+   */
+  [ActivityLogAction.MemoryExclusionChange]: {
+    addedIds: string[];
+    removed: ActivityMemoryExclusion[];
+    previousDocuments?: boolean;
+  };
   [ActivityLogAction.SharedLinkCreate]: { sharedLinkId: string };
 };
 

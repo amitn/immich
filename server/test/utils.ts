@@ -38,6 +38,8 @@ import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClassificationRepository } from 'src/repositories/classification.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -193,6 +195,18 @@ const mockFn = (label: string, { strict }: { strict: boolean }) => {
   });
 };
 
+/**
+ * The memory exclusions of #12 are read by the memory engine, the memory creations and the suggested books: by
+ * default a user keeps nothing out of their memories, so specs that are not about exclusions need not mock them.
+ */
+const newMemoryExclusionRepositoryMock = () => {
+  const mock = automock(MemoryExclusionRepository);
+  mock.getAll.mockResolvedValue([]);
+  mock.findPeopleByName.mockResolvedValue([]);
+  mock.getKeptAssetIds.mockImplementation((ids: string[]) => Promise.resolve(new Set(ids)));
+  return mock;
+};
+
 export const mockBaseService = <T extends BaseService>(service: new (...args: any[]) => T) => {
   return automock(service, { args: [{ setContext: () => {} }], strict: false });
 };
@@ -259,6 +273,8 @@ export type ServiceOverrides = {
   book: BookRepository;
   bookDraft: BookDraftRepository;
   collectionNotice: CollectionNoticeRepository;
+  memoryExclusion: MemoryExclusionRepository;
+  yearRecap: YearRecapRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -369,6 +385,8 @@ export const getMocks = () => {
     book: automock(BookRepository),
     bookDraft: automock(BookDraftRepository),
     collectionNotice: automock(CollectionNoticeRepository),
+    memoryExclusion: newMemoryExclusionRepositoryMock(),
+    yearRecap: automock(YearRecapRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -460,6 +478,8 @@ export const newTestService = <T extends BaseService>(
     overrides.book || (mocks.book as As<BookRepository>),
     overrides.bookDraft || (mocks.bookDraft as As<BookDraftRepository>),
     overrides.collectionNotice || (mocks.collectionNotice as As<CollectionNoticeRepository>),
+    overrides.memoryExclusion || (mocks.memoryExclusion as As<MemoryExclusionRepository>),
+    overrides.yearRecap || (mocks.yearRecap as As<YearRecapRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

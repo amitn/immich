@@ -21,6 +21,8 @@ import { ClassificationService } from 'src/services/classification.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
 import { CollageService } from 'src/services/collage.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
+import { YearRecapService } from 'src/services/year-recap.service.js';
 import { CollectionNoticeService } from 'src/services/collection-notice.service.js';
 import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
@@ -112,6 +114,7 @@ export const services = [
   FaceSuggestionService,
   EnhanceService,
   CollageService,
+  YearRecapService,
   OrientationService,
   FoodService,
   IntegrityService,
@@ -123,6 +126,7 @@ export const services = [
   MapService,
   MediaService,
   MemoryService,
+  MemoryExclusionService,
   MetadataService,
   NotificationService,
   NotificationAdminService,

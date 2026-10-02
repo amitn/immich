@@ -176,7 +176,12 @@ describe(BookDraftService.name, () => {
       await expect(sut.draftBooks(auth, { ...drafts, yearly: false, birthdays: false }, NOW)).resolves.toEqual([
         'trip:2025-06-01',
       ]);
-      expect(mocks.bookDraft.getCollectionTags).toHaveBeenCalledWith(auth.user.id, ['Travel/']);
+      expect(mocks.bookDraft.getCollectionTags).toHaveBeenCalledWith(auth.user.id, ['Travel/'], {
+        personIds: [],
+        dateRanges: [],
+        albumIds: [],
+        documents: false,
+      });
       expect(mocks.bookDraft.getPeopleWithBirthdays).not.toHaveBeenCalled();
     });
 
@@ -304,6 +309,7 @@ describe(BookDraftService.name, () => {
         personId,
         new Date('2025-03-10T00:00:00.000Z'),
         new Date('2026-03-11T00:00:00.000Z'),
+        { personIds: [], dateRanges: [], albumIds: [], documents: false },
       );
       expect(createDraft).toHaveBeenCalledWith(
         auth,

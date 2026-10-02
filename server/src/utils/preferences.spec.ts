@@ -29,6 +29,7 @@ const getDefaultPreferences = (): UserPreferences => ({
       trip_anniversary: true,
       themed: true,
       person_throwback: true,
+      year_recap: true,
     },
   },
   people: {
@@ -74,6 +75,9 @@ const getDefaultPreferences = (): UserPreferences => ({
   },
   collectionNotifications: {
     enabled: true,
+  },
+  memoryExclusions: {
+    documents: false,
   },
 });
 
@@ -204,6 +208,7 @@ describe('getPreferences', () => {
       trip_anniversary: true,
       themed: true,
       person_throwback: true,
+      year_recap: true,
     });
   });
 

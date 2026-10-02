@@ -34,6 +34,7 @@ import { AlbumService } from 'src/services/album.service.js';
 import { ArtService } from 'src/services/art.service.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { BurstService } from 'src/services/burst.service.js';
@@ -360,6 +361,9 @@ export class ActivityLogService extends BaseService {
       case ActivityLogAction.HighlightCreate: {
         return this.undoHighlight(auth, undo);
       }
+      case ActivityLogAction.MemoryExclusionChange: {
+        return this.undoMemoryExclusionChange(auth, undo);
+      }
       case ActivityLogAction.SharedLinkCreate: {
         return this.undoSharedLink(auth, undo);
       }
@@ -368,6 +372,15 @@ export class ActivityLogService extends BaseService {
 
   private albums() {
     return BaseService.create(AlbumService, this);
+  }
+
+  /** puts the memory exclusions back as they were before the change (#12) */
+  private async undoMemoryExclusionChange(
+    auth: AuthDto,
+    undo: ActivityUndoMap[ActivityLogAction.MemoryExclusionChange],
+  ): Promise<UndoOutcome> {
+    await BaseService.create(MemoryExclusionService, this).revert(auth.user.id, undo);
+    return undone();
   }
 
   /** deletes the album, but only while it is exactly as it was created: albums have no trash */

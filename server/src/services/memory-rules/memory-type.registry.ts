@@ -2,6 +2,7 @@ import { SystemConfig } from 'src/dtos/config.dto.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { BirthdayMemoryRule } from 'src/services/memory-rules/birthday.rule.js';
 import { FavoritesThrowbackMemoryRule } from 'src/services/memory-rules/favorites-throwback.rule.js';
 import { MemoryRule } from 'src/services/memory-rules/memory-rule.interface.js';
@@ -16,12 +17,15 @@ import { ThemeSearchPort } from 'src/services/memory-rules/theme-search.port.js'
 import { ThemedMemoryRule } from 'src/services/memory-rules/themed.rule.js';
 import { TripAnniversaryMemoryRule } from 'src/services/memory-rules/trip-anniversary.rule.js';
 import { VideoMomentsMemoryRule } from 'src/services/memory-rules/video-moments.rule.js';
+import { YearRecapMemoryRule } from 'src/services/memory-rules/year-recap.rule.js';
 
 export interface MemoryRuleDeps {
   personRepository: PersonRepository;
   assetRepository: AssetRepository;
   memoryRepository: MemoryRepository;
   themeSearchPort: ThemeSearchPort;
+  /** Gallery fork (#12): the year, its people and its journals, for `year_recap` */
+  yearRecapRepository: Pick<YearRecapRepository, 'getAssets' | 'getPeople' | 'getJournalTags'>;
   /**
    * Admin-tunable knobs from `SystemConfig['memories']`. Optional so callers that construct rules
    * without config (tests, tooling) fall back to each rule's own default.
@@ -47,6 +51,7 @@ const RULE_FACTORIES: Record<string, (deps: MemoryRuleDeps) => MemoryRule> = {
       deps.assetRepository,
       deps.memories?.personThrowbackDormancyMonths ?? DEFAULT_DORMANCY_MONTHS,
     ),
+  year_recap: (deps) => new YearRecapMemoryRule(deps.yearRecapRepository),
 };
 
 /** instantiate the rule-kind memory rules whose key is in `enabledKeys` (in registry order, deduped) */

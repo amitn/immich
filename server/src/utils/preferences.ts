@@ -65,6 +65,9 @@ const getDefaultPreferences = (): UserPreferences => {
     collectionNotifications: {
       enabled: true,
     },
+    memoryExclusions: {
+      documents: false,
+    },
   };
 };
 

@@ -39,6 +39,8 @@ import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClassificationRepository } from 'src/repositories/classification.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
 import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -636,6 +638,8 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case BookRepository:
     case BookDraftRepository:
     case CollectionNoticeRepository:
+    case MemoryExclusionRepository:
+    case YearRecapRepository:
     case AlbumRepository:
     case AlbumUserRepository:
     case ActivityRepository:
@@ -745,6 +749,8 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
     case FacePersonVerdictRepository:
     case LibraryRepository:
     case MemoryRepository:
+    case MemoryExclusionRepository:
+    case YearRecapRepository:
     case IntegrityRepository:
     case NotificationRepository:
     case OcrRepository:

@@ -990,6 +990,9 @@ export enum JobName {
 
   HighlightRender = 'HighlightRender',
 
+  /** a new year recap memory: notify its owner and draft its book (#12) */
+  YearRecapPrepare = 'YearRecapPrepare',
+
   OrientationCheckQueueAll = 'OrientationCheckQueueAll',
   OrientationCheck = 'OrientationCheck',
 
@@ -1652,6 +1655,8 @@ export enum ActivityLogAction {
   BurstCleanup = 'burst.cleanup',
   CollectionEntries = 'collection.entries',
   HighlightCreate = 'highlight.create',
+  /** people, albums or days left out of the memories, or let back in (#12) */
+  MemoryExclusionChange = 'memoryExclusion.change',
   SharedLinkCreate = 'sharedLink.create',
 }
 
@@ -1792,12 +1797,29 @@ export enum BookDraftKind {
   Trip = 'trip',
   /** the year of a person's life that ended on their latest birthday */
   Birthday = 'birthday',
+  /** the year in review of a `year_recap` memory (#12) */
+  Recap = 'recap',
 }
 
 export const BookDraftKindSchema = z
   .enum(BookDraftKind)
   .describe('Kind of suggested book')
   .meta({ id: 'BookDraftKind' });
+
+/** what a memory exclusion leaves out of the memories and what is made of them (#12) */
+export enum MemoryExclusionType {
+  /** the photos of a person or a pet */
+  Person = 'person',
+  /** the photos of an album */
+  Album = 'album',
+  /** the photos taken in a range of days */
+  DateRange = 'date_range',
+}
+
+export const MemoryExclusionTypeSchema = z
+  .enum(MemoryExclusionType)
+  .describe('What a memory exclusion leaves out')
+  .meta({ id: 'MemoryExclusionType' });
 
 export enum BookDraftState {
   Drafted = 'drafted',

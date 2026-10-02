@@ -25,6 +25,8 @@ import { BurstController } from 'src/controllers/burst.controller.js';
 // import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
 import { ClassificationController } from 'src/controllers/classification.controller.js';
 import { CollageController } from 'src/controllers/collage.controller.js';
+import { MemoryExclusionController } from 'src/controllers/memory-exclusion.controller.js';
+import { YearRecapController } from 'src/controllers/year-recap.controller.js';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
@@ -103,6 +105,7 @@ export const controllers = [
   DuplicateController,
   EnhanceController,
   CollageController,
+  YearRecapController,
   OrientationController,
   FaceController,
   FaceRepairAdminController,
@@ -116,6 +119,7 @@ export const controllers = [
   MaintenanceController,
   MapController,
   MemoryController,
+  MemoryExclusionController,
   NotificationController,
   NotificationAdminController,
   OAuthController,

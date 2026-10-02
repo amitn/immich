@@ -56,6 +56,28 @@ describe('revert-to-immich.sql', () => {
     expect(missing).toEqual([]);
   });
 
+  // The tables of the AI assistant and what came after it (books, journals, highlight videos, memory exclusions…),
+  // created by the 1794… and later migrations: every one of them is dropped and guarded, whatever its name.
+  const assistantTables = migrationFiles
+    .filter((file) => Number(file.split('-', 1)[0]) >= 1_794_000_000_000)
+    .flatMap((file) =>
+      [
+        ...readFileSync(join(migrationsGalleryDir, file), 'utf8').matchAll(
+          /CREATE TABLE(?: IF NOT EXISTS)? "?([a-z_]+)"?/g,
+        ),
+      ].map((m) => m[1]),
+    );
+
+  it('finds the tables of the assistant migrations', () => {
+    expect(assistantTables).toEqual(expect.arrayContaining(['book_draft', 'memory_exclusion']));
+  });
+
+  it('drops and guards every table of the assistant migrations', () => {
+    const notDropped = assistantTables.filter((t) => !sql.includes(`DROP TABLE IF EXISTS "${t}" CASCADE`));
+    const notGuarded = assistantTables.filter((t) => !guardBlock.includes(`'${t}'`));
+    expect({ notDropped, notGuarded }).toEqual({ notDropped: [], notGuarded: [] });
+  });
+
   it('lists every migrations-gallery migration in the step-8 kysely_migrations DELETE block', () => {
     const missing = migrationNames.filter((name) => !deleteBlock.includes(`'${name}'`));
     expect(missing).toEqual([]);

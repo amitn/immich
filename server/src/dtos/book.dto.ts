@@ -524,7 +524,7 @@ const BookResponseSchema = z
   })
   .meta({ id: 'BookResponseDto' });
 
-const BookDraftResponseSchema = z
+export const BookDraftResponseSchema = z
   .object({
     id: z.uuidv4().describe('Suggestion ID'),
     key: z

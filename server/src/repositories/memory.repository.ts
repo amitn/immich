@@ -10,6 +10,8 @@ import { AssetOrderWithRandom, AssetVisibility, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { MemoryTable } from 'src/schema/tables/memory.table.js';
 import { asUuid } from 'src/utils/database.js';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
+import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 import {
   type TimelineHiddenScope,
   hiddenFromOwnTimeline,
@@ -162,7 +164,13 @@ export class MemoryRepository implements IBulkAsset {
   // via the candidate builder above). The subtraction is therefore `ownerId != asset.ownerId OR
   // notHidden`, never a bare AND — the same partner-trap shape §6.4 guards on the timeline. Passing
   // no `hiddenScope` (the only caller today, generation-time dedup) leaves the query unchanged.
-  search(ownerId: string, dto: MemorySearchDto, hiddenScope?: TimelineHiddenScope, visibleSpaceIds: string[] = []) {
+  search(
+    ownerId: string,
+    dto: MemorySearchDto,
+    hiddenScope?: TimelineHiddenScope,
+    visibleSpaceIds: string[] = [],
+    exclusions?: MemoryExclusions,
+  ) {
     return this.searchBuilder(ownerId, dto)
       .select((eb) =>
         jsonArrayFrom(
@@ -201,6 +209,8 @@ export class MemoryRepository implements IBulkAsset {
                 ),
               ),
             )
+            // Gallery fork (#12): what the owner keeps out of their memories
+            .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
             .orderBy('asset.localDateTime', 'asc'),
         ).as('assets'),
       )
@@ -227,7 +237,7 @@ export class MemoryRepository implements IBulkAsset {
    * over what the card shows, and an asset carrying a hidden person's face is not shown.
    */
   @GenerateSql({ params: [DummyValue.UUID, { from: DummyValue.DATE, to: DummyValue.DATE }] })
-  getForOverlapReconcile(ownerId: string, window: { from: Date; to: Date }) {
+  getForOverlapReconcile(ownerId: string, window: { from: Date; to: Date }, exclusions?: MemoryExclusions) {
     return this.db
       .selectFrom('memory')
       .select(['memory.id', 'memory.type', 'memory.data', 'memory.isSaved', 'memory.showAt', 'memory.hideAt'])
@@ -256,6 +266,8 @@ export class MemoryRepository implements IBulkAsset {
                 ),
               ),
             )
+            // Gallery fork (#12): what the owner keeps out of their memories
+            .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
             .orderBy('asset.localDateTime', 'asc'),
         ).as('assets'),
       )
@@ -288,6 +300,7 @@ export class MemoryRepository implements IBulkAsset {
     dto: MemorySearchDto,
     hiddenScope?: TimelineHiddenScope,
     visibleSpaceIds: string[] = [],
+    exclusions?: MemoryExclusions,
   ) {
     return (
       this.accessibleSearchBuilder(userId, dto)
@@ -320,6 +333,8 @@ export class MemoryRepository implements IBulkAsset {
                   ),
                 ),
               )
+              // Gallery fork (#12): what the viewer keeps out of their memories
+              .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
               .orderBy('asset.localDateTime', 'asc'),
           ).as('assets'),
         )
@@ -348,8 +363,14 @@ export class MemoryRepository implements IBulkAsset {
   // after the caller's own action and pass neither, so their SQL is unchanged. `get()` is the
   // read surface and is the one MemoryService resolves a scope for.
   @GenerateSql({ params: [DummyValue.UUID] })
-  get(id: string, viewerId?: string, hiddenScope?: TimelineHiddenScope, visibleSpaceIds: string[] = []) {
-    return this.getByIdBuilder(id, viewerId, hiddenScope, visibleSpaceIds).executeTakeFirst();
+  get(
+    id: string,
+    viewerId?: string,
+    hiddenScope?: TimelineHiddenScope,
+    visibleSpaceIds: string[] = [],
+    exclusions?: MemoryExclusions,
+  ) {
+    return this.getByIdBuilder(id, viewerId, hiddenScope, visibleSpaceIds, exclusions).executeTakeFirst();
   }
 
   async create(memory: Insertable<MemoryTable>, assetIds: Set<string>) {
@@ -460,6 +481,7 @@ export class MemoryRepository implements IBulkAsset {
     viewerId?: string,
     hiddenScope?: TimelineHiddenScope,
     visibleSpaceIds: string[] = [],
+    exclusions?: MemoryExclusions,
   ) {
     return this.db
       .selectFrom('memory')
@@ -481,7 +503,9 @@ export class MemoryRepository implements IBulkAsset {
                   hiddenFromOwnTimeline(eb, hiddenScope!, { kind: 'inline', visibleSpaceIds, viewerId: viewerId! })!,
                 ]),
               ),
-            ),
+            )
+            // Gallery fork (#12): what the viewer keeps out of their memories
+            .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!)),
         ).as('assets'),
       )
       .where('id', '=', id)

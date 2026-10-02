@@ -140,6 +140,18 @@ const CollectionNotificationsUpdateSchema = z
   .optional()
   .meta({ id: 'CollectionNotificationsUpdate' });
 
+const MemoryExclusionsUpdateSchema = z
+  .object({
+    documents: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them',
+      ),
+  })
+  .optional()
+  .meta({ id: 'MemoryExclusionsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
     aiAnswers: AiAnswersUpdateSchema,
@@ -152,6 +164,7 @@ const UserPreferencesUpdateSchema = z
     emailNotifications: EmailNotificationsUpdateSchema,
     folders: FoldersUpdateSchema,
     memories: MemoriesUpdateSchema,
+    memoryExclusions: MemoryExclusionsUpdateSchema,
     people: PeopleUpdateSchema,
     purchase: PurchaseUpdateSchema,
     ratings: RatingsUpdateSchema,
@@ -259,6 +272,16 @@ const CollectionNotificationsResponseSchema = z
   })
   .meta({ id: 'CollectionNotificationsResponse' });
 
+const MemoryExclusionsResponseSchema = z
+  .object({
+    documents: z
+      .boolean()
+      .describe(
+        'Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them',
+      ),
+  })
+  .meta({ id: 'MemoryExclusionsResponse' });
+
 const AiAnswersResponseSchema = z
   .object({
     enabled: z
@@ -284,6 +307,7 @@ const UserPreferencesResponseSchema = z
     recentlyAdded: RecentlyAddedResponseSchema,
     bookDrafts: BookDraftsResponseSchema,
     collectionNotifications: CollectionNotificationsResponseSchema,
+    memoryExclusions: MemoryExclusionsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 
