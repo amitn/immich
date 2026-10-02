@@ -42,6 +42,8 @@
   let password = $state('');
   let slug = $state('');
   let expiresAt = $state<string | null>(null);
+  let redactFaces = $state(false);
+  let redactText = $state(false);
 
   let type = $derived(book ? SharedLinkType.Book : albumId ? SharedLinkType.Album : SharedLinkType.Individual);
 
@@ -53,7 +55,17 @@
   );
 
   const onSubmit = async () => {
-    const common = { type, expiresAt, description, password, allowDownload, showMetadata, slug };
+    const common = {
+      type,
+      expiresAt,
+      description,
+      password,
+      allowDownload,
+      showMetadata,
+      slug,
+      redactFaces,
+      redactText,
+    };
     const success = await handleCreateSharedLink(
       // nobody uploads to a book, and a book is not tethered to a space
       book ? { ...common, bookId: book.id } : { ...common, albumId, assetIds, allowUpload, spaceId },
@@ -117,6 +129,9 @@
     bind:allowUpload
     bind:showMetadata
     bind:expiresAt
+    bind:redactFaces
+    bind:redactText
+    shareType={type}
     isBook={type === SharedLinkType.Book}
   />
 

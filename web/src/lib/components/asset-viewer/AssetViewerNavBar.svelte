@@ -193,6 +193,7 @@
         <ActionMenuItem action={AssistantActions.AskAssistant} />
         <ActionMenuItem action={AssistantActions.ArtisticStyle} />
         <ActionMenuItem action={AssistantActions.AutoEnhance} />
+        <ActionMenuItem action={AssistantActions.Redact} />
 
         {#if isOwner && !isLocked}
           <ArchiveAction {asset} {onAction} {preAction} />
