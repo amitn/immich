@@ -1056,7 +1056,7 @@ describe(BookService.name, () => {
       await sut.renderPage(linkAuth, book.id, page.id, { size: 800 });
       expect(render).toHaveBeenCalledWith(asset.id, expect.any(String), regions.get(asset.id), { quality: 92 });
       const [spec] = mocks.media.composeBookPage.mock.calls.at(-1)!;
-      expect(spec.slots.map(({ input }) => input)).toContainEqual(Buffer.from('blurred'));
+      expect(spec.slots.map((slot) => slot?.input)).toContainEqual(Buffer.from('blurred'));
 
       await sut.previewHtml(linkAuth, book.id);
       expect(render).toHaveBeenCalledTimes(2);

@@ -1057,7 +1057,7 @@ export class AssetJobRepository {
       .execute();
 
     return rows.map((row) => ({
-      key: String(row.key),
+      key: row.key,
       personIds: row.personIds,
       identityIds: row.identityIds.filter((id): id is string => !!id),
       photos: Number(row.photos),
