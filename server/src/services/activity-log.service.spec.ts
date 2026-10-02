@@ -9,6 +9,7 @@ import {
   BookStatus,
   HighlightJobStatus,
   JobStatus,
+  MemoryExclusionType,
   NotificationType,
 } from 'src/enum.js';
 import { ActivityLogService } from 'src/services/activity-log.service.js';
@@ -18,6 +19,7 @@ import { AssetService } from 'src/services/asset.service.js';
 import { BookStyleService } from 'src/services/book-style.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { HighlightService } from 'src/services/highlight.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
 import { TagService } from 'src/services/tag.service.js';
 import { ActivityUndoMap, BookSnapshot, fingerprintBook, toBookSnapshot } from 'src/utils/activity-log.js';
@@ -819,6 +821,22 @@ describe(ActivityLogService.name, () => {
       expect(removeAssets).toHaveBeenCalledWith(auth, 'album', { ids: ['video'] });
       expect(deleteAll).toHaveBeenCalledWith(auth, { ids: ['video'], force: false });
     });
+  });
+
+  it('should put the memory exclusions back as they were (#12)', async () => {
+    const undo = {
+      addedIds: ['added'],
+      removed: [
+        { type: MemoryExclusionType.Album, personGroupId: null, albumId: 'album', startDate: null, endDate: null },
+      ],
+      previousDocuments: true,
+    };
+    const revert = vi.spyOn(MemoryExclusionService.prototype, 'revert').mockResolvedValue();
+
+    await expect(undoOne(row(ActivityLogAction.MemoryExclusionChange, undo))).resolves.toMatchObject({
+      status: ActivityUndoStatus.Undone,
+    });
+    expect(revert).toHaveBeenCalledWith(auth.user.id, undo);
   });
 
   it('should delete a shared link', async () => {

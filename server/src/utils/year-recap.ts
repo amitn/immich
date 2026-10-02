@@ -151,24 +151,24 @@ export const getYearRecapStats = (
 };
 
 /** the stats in a sentence, for a notification or the assistant (the cards word them in the viewer's language) */
-export const describeYearRecap = (stats: YearRecapStats) => {
+export const describeYearRecap = (stats: Partial<YearRecapStats> & Pick<YearRecapStats, 'count'>) => {
   const plural = (count: number, singular: string, pluralForm = `${singular}s`) =>
     `${count.toLocaleString('en')} ${count === 1 ? singular : pluralForm}`;
   const parts = [plural(stats.count, 'photo')];
-  if (stats.places > 0) {
+  if (stats.places) {
     parts.push(plural(stats.places, 'place'));
   }
-  if (stats.people > 0) {
+  if (stats.people) {
     parts.push(plural(stats.people, 'person', 'people'));
   }
-  if (stats.trips > 0) {
+  if (stats.trips) {
     parts.push(plural(stats.trips, 'trip'));
   }
-  const food = stats.journals.food;
+  const food = stats.journals?.food;
   if (food && food.entries > 0) {
     parts.push(plural(food.entries, 'dish', 'dishes'));
   }
-  const museum = stats.journals.museum;
+  const museum = stats.journals?.museum;
   if (museum && museum.places > 0) {
     parts.push(plural(museum.places, 'museum'));
   }

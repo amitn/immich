@@ -317,6 +317,60 @@ describe(BookDraftService.name, () => {
       );
     });
 
+    it('should not draft a birthday book of someone the user keeps out of their memories (#12)', async () => {
+      const personId = newUuid();
+      mocks.memoryExclusion.getAll.mockResolvedValue([
+        {
+          id: newUuid(),
+          type: 'person',
+          personGroupId: personId,
+          albumId: null,
+          startDate: null,
+          endDate: null,
+          createdAt: new Date(),
+          personName: 'Maya',
+          personType: 'person',
+          albumName: null,
+        },
+      ] as never);
+      mocks.bookDraft.getPeopleWithBirthdays.mockResolvedValue([
+        { id: personId, name: 'Maya', birthDate: '2019-03-10' },
+      ]);
+
+      await expect(sut.draftBooks(auth, drafts, NOW)).resolves.toEqual([]);
+      expect(mocks.bookDraft.getPersonPhotos).not.toHaveBeenCalled();
+    });
+
+    it('should draft from the photos the memory exclusions leave in (#12)', async () => {
+      const exclusion = {
+        id: newUuid(),
+        type: 'date_range',
+        personGroupId: null,
+        albumId: null,
+        startDate: '2025-06-01',
+        endDate: '2025-06-03',
+        createdAt: new Date(),
+        personName: null,
+        personType: null,
+        albumName: null,
+      };
+      mocks.memoryExclusion.getAll.mockResolvedValue([exclusion] as never);
+      mocks.user.getMetadata.mockResolvedValue([
+        { key: UserMetadataKey.Preferences, value: { memoryExclusions: { documents: true } } },
+      ]);
+
+      await sut.draftBooks(auth, drafts, NOW);
+
+      const expected = {
+        personIds: [],
+        albumIds: [],
+        dateRanges: [{ from: '2025-06-01', to: '2025-06-03' }],
+        documents: true,
+      };
+      expect(mocks.bookDraft.getCollectionTags).toHaveBeenCalledWith(auth.user.id, expect.any(Array), expected);
+      expect(mocks.bookDraft.getTimeline).toHaveBeenCalledWith(auth.user.id, expected);
+    });
+
     it('should forget the key when the layout fails, so it is tried again', async () => {
       mocks.bookDraft.getCollectionTags.mockResolvedValue(foodYear());
       createDraft.mockRejectedValue(new BadRequestException('There are no photos to lay out'));
