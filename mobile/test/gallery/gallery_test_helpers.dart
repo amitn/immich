@@ -9,6 +9,7 @@ import 'package:immich_mobile/gallery/providers/gallery_images.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_navigator.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/toast.provider.dart';
 import 'package:immich_mobile/services/toast.service.dart';
+import 'package:openapi/api.dart';
 
 /// A 1×1 transparent PNG
 final kTransparentPng = Uint8List.fromList(const [
@@ -57,6 +58,14 @@ class FakeGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openNotifications() async => calls.add('notifications');
+
+  @override
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  }) async => calls.add('export album $albumId as book${stylePreset == null ? '' : ' ($stylePreset)'}');
 
   @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');

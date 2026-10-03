@@ -1104,6 +1104,8 @@
   "biometric_not_available": "Logowanie biometryczne nie jest dostępne na tym urządzeniu",
   "birthdate_set_description": "Data urodzenia jest używana do obliczenia wieku danej osoby podczas wykonania zdjęcia.",
   "blurred_background": "Rozmyte tło",
+  "book_creating": "Układanie stron…",
+  "book_page_size_cm": "{width} × {height} cm",
   "browse_templates": "Przeglądaj szablony",
   "bugs_and_feature_requests": "Błędy i prośby o funkcje",
   "build": "Kompilacja",

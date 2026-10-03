@@ -1104,6 +1104,8 @@
   "biometric_not_available": "Биометрическая аутентификация недоступна на этом устройстве",
   "birthdate_set_description": "Дата рождения используется для определения возраста человека на момент фотографии.",
   "blurred_background": "Размытый фон",
+  "book_creating": "Вёрстка страниц…",
+  "book_page_size_cm": "{width} × {height} см",
   "browse_templates": "Просмотреть шаблоны",
   "bugs_and_feature_requests": "Ошибки и запросы",
   "build": "Сборка",

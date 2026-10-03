@@ -14,6 +14,7 @@ import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
 import 'package:immich_mobile/repositories/memory_api.repository.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:logging/logging.dart';
+import 'package:openapi/api.dart';
 
 /// Where the assistant screens lead: behind a provider, so widget tests can follow the navigation without a router
 abstract interface class GalleryNavigator {
@@ -25,6 +26,14 @@ abstract interface class GalleryNavigator {
   Future<void> openBook(String bookId);
 
   Future<void> openNotifications();
+
+  /// "Export as book…" of an album, with [stylePreset] chosen (e.g. the preset of a journal)
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  });
 
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
@@ -64,6 +73,16 @@ class RouterGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openNotifications() => _router.push(const GalleryNotificationsRoute());
+
+  @override
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  }) => _router.push(
+    BookExportRoute(albumId: albumId, albumName: albumName, assetCount: assetCount, stylePreset: stylePreset?.toJson()),
+  );
 
   @override
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));

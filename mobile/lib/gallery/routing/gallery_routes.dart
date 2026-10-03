@@ -3,6 +3,7 @@ import 'package:immich_mobile/routing/router.dart';
 
 // The pages of the assistant work; router.dart imports this file, so its generated part sees them
 export 'package:immich_mobile/gallery/presentation/pages/assistant.page.dart';
+export 'package:immich_mobile/gallery/presentation/pages/book_export.page.dart';
 export 'package:immich_mobile/gallery/presentation/pages/book_viewer.page.dart';
 export 'package:immich_mobile/gallery/presentation/pages/books.page.dart';
 export 'package:immich_mobile/gallery/presentation/pages/gallery_notifications.page.dart';
@@ -11,6 +12,7 @@ export 'package:immich_mobile/gallery/presentation/pages/gallery_notifications.p
 List<AutoRoute> galleryRoutes(List<AutoRouteGuard> guards) => [
   AutoRoute(page: AssistantRoute.page, guards: guards),
   AutoRoute(page: BooksRoute.page, guards: guards),
+  AutoRoute(page: BookExportRoute.page, guards: guards),
   AutoRoute(page: BookViewerRoute.page, guards: guards),
   AutoRoute(page: GalleryNotificationsRoute.page, guards: guards),
 ];

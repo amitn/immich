@@ -107,3 +107,19 @@ BookReviewResponseDto review() => BookReviewResponseDto.fromJson({
     {'assetId': 'asset-1', 'page': 2, 'slot': 1, 'score': 0.2},
   ],
 })!;
+
+BookUserStyleResponseDto userStyle(String id, {String name = 'Sepia'}) => BookUserStyleResponseDto.fromJson({
+  'id': id,
+  'name': name,
+  'description': 'Brown ink on old paper',
+  'createdAt': '2026-09-01T10:00:00.000Z',
+  'updatedAt': '2026-09-01T10:00:00.000Z',
+  'style': {
+    'background': '#f1e4c8',
+    'textColor': '#5b3a1a',
+    'fontFamily': 'serif',
+    'marginMm': 14,
+    'gutterMm': 4,
+    'theme': 'plain',
+  },
+})!;

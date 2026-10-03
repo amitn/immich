@@ -1102,6 +1102,8 @@
   "biometric_not_available": "此裝置不支援生物辨識驗證",
   "birthdate_set_description": "出生日期用於計算此人在相片拍攝時的年齡。",
   "blurred_background": "背景模糊",
+  "book_creating": "正在排版頁面…",
+  "book_page_size_cm": "{width} × {height} 公分",
   "browse_templates": "瀏覽範本",
   "bugs_and_feature_requests": "錯誤及功能請求",
   "build": "建置編號",

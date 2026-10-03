@@ -1104,6 +1104,8 @@
   "biometric_not_available": "Die biometrische Authentifizierung ist auf diesem Gerät nicht verfügbar",
   "birthdate_set_description": "Das Geburtsdatum wird verwendet, um das Alter dieser Person zum Zeitpunkt eines Fotos zu berechnen.",
   "blurred_background": "Unscharfer Hintergrund",
+  "book_creating": "Seiten werden gestaltet…",
+  "book_page_size_cm": "{width} × {height} cm",
   "browse_templates": "Vorlagen durchsuchen",
   "bugs_and_feature_requests": "Fehler & Verbesserungsvorschläge",
   "build": "Build",

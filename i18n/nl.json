@@ -1104,6 +1104,8 @@
   "biometric_not_available": "Biometrische authenticatie is niet beschikbaar op dit apparaat",
   "birthdate_set_description": "De geboortedatum wordt gebruikt om de leeftijd van deze persoon op het moment van de foto te berekenen.",
   "blurred_background": "Vervaagde achtergrond",
+  "book_creating": "Pagina's worden opgemaakt…",
+  "book_page_size_cm": "{width} × {height} cm",
   "browse_templates": "Blader door templates",
   "bugs_and_feature_requests": "Bugs & functieverzoeken",
   "build": "Build",
