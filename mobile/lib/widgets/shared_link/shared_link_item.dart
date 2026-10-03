@@ -105,9 +105,14 @@ class SharedLinkItem extends ConsumerWidget {
         height: imageSize * 1.2,
         width: imageSize,
         child: thumbnailUrl == null
-            ? const Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
-                child: Icon(Icons.image_not_supported_outlined),
+            ? Card(
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.all(Radius.circular(10))),
+                // Gallery (#3): a book link has no photo of its own
+                child: Icon(
+                  sharedLink.type == SharedLinkSource.book
+                      ? Icons.menu_book_outlined
+                      : Icons.image_not_supported_outlined,
+                ),
               )
             : ThumbnailWithInfo(
                 imageUrl: thumbnailUrl,
