@@ -230,6 +230,11 @@ export const Route = {
   workflows: () => '/workflows',
   viewWorkflow: ({ id }: { id: string }) => `/workflows/${id}`,
 
+  // assistant routines (#15): `tab=inbox` opens the changes waiting for approval
+  routines: (params?: { tab?: 'inbox' }) => '/routines' + asQueryString(params),
+  viewRoutine: ({ id }: { id: string }) => `/routines/${id}`,
+  viewRoutineRun: ({ id }: { id: string }) => `/routines/runs/${id}`,
+
   // face cleanup
   faceCleanup: () => '/admin/face-cleanup',
   faceCleanupScan: () => '/admin/face-cleanup/scan',

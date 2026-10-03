@@ -18,6 +18,7 @@
   } from '$lib/managers/agent-conversation.svelte';
   import { Route } from '$lib/route';
   import { takePendingAssistantAssets } from '$lib/services/assistant.service';
+  import { openRoutineEditor } from '$lib/services/routine.service';
   import { websocketEvents } from '$lib/stores/websocket';
   import { handleError } from '$lib/utils/handle-error';
   import {
@@ -36,7 +37,7 @@
     type AgentUpdateDto,
   } from '@immich/sdk';
   import { Alert, Button, IconButton, LoadingSpinner, modalManager, Switch, toastManager } from '@immich/ui';
-  import { mdiArrowDown, mdiForumOutline, mdiHistory, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
+  import { mdiArrowDown, mdiCalendarSync, mdiForumOutline, mdiHistory, mdiPlus, mdiTrashCanOutline } from '@mdi/js';
   import { onMount, tick } from 'svelte';
   import { t } from 'svelte-i18n';
   import type { PageData } from './$types';
@@ -371,6 +372,12 @@
     }
   };
 
+  /** "Make this a routine" (#15): a routine whose instruction is what the user asked in the turn */
+  const makeRoutine = async (turnId: string) => {
+    const text = (conversation.messages.find(({ id }) => id === turnId)?.content.text ?? '').trim();
+    await openRoutineEditor({ initial: { name: toChatTitle(text).slice(0, 100), instruction: text } });
+  };
+
   const pickExample = async (prompt: string) => {
     draft = prompt;
     await focusInput();
@@ -549,6 +556,17 @@
                     busy={chatActivity.isBusy(changes.map(({ id }) => id))}
                     onUndo={() => chatActivity.undo({ groupId: turnId })}
                   />
+                  <div class="-mt-2 flex justify-end">
+                    <Button
+                      size="tiny"
+                      variant="ghost"
+                      color="secondary"
+                      leadingIcon={mdiCalendarSync}
+                      onclick={() => makeRoutine(turnId)}
+                    >
+                      {$t('routine_make')}
+                    </Button>
+                  </div>
                 {/if}
               {/each}
             {/if}

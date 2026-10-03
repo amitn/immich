@@ -37,17 +37,28 @@ const methods = wrapper<Manifest>({
 
     return {};
   },
+
+  // queues the asset for one of the owner's assistant routines (#15); the routine runs on the batch later
+  sendToRoutine: ({ data, config, workflow }) => {
+    gallery(workflow.authToken)('sendToRoutine', {
+      assetId: data.asset.id,
+      routineId: config.routineId,
+    });
+
+    return {};
+  },
 });
 
 const {
   assetTagPathFilter,
   addToSpace,
   addToSpaceAlbum,
+  sendToRoutine,
 
   // should be empty. ensures that every field is destructured
   ...rest
 } = methods;
 
-export { addToSpace, addToSpaceAlbum, assetTagPathFilter };
+export { addToSpace, addToSpaceAlbum, assetTagPathFilter, sendToRoutine };
 
 'All methods must be destructured and exported' satisfies string & typeof rest;

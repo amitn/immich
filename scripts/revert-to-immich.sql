@@ -180,6 +180,10 @@ DROP TABLE IF EXISTS "collection_notice_check" CASCADE;
 DROP TABLE IF EXISTS "collection_notice" CASCADE;
 DROP TABLE IF EXISTS "highlight_job" CASCADE;
 DROP TABLE IF EXISTS "memory_exclusion" CASCADE;
+DROP TABLE IF EXISTS "assistant_routine_approval" CASCADE;
+DROP TABLE IF EXISTS "assistant_routine_run" CASCADE;
+DROP TABLE IF EXISTS "assistant_routine_event" CASCADE;
+DROP TABLE IF EXISTS "assistant_routine" CASCADE;
 DROP TABLE IF EXISTS "memory_notice" CASCADE;
 
 -- -----------------------------------------------------------------------------
@@ -353,6 +357,7 @@ DELETE FROM "migration_overrides"
    'trigger_art_job_updatedAt',
    'trigger_art_style_updatedAt',
    'trigger_book_draft_updatedAt',
+   'trigger_assistant_routine_updatedAt',
    'index_memory_exclusion_ownerId_albumId_key',
    'index_memory_exclusion_ownerId_personGroupId_key',
    'index_memory_notice_userId_day_key',
@@ -572,6 +577,7 @@ DELETE FROM "kysely_migrations"
   '1795300000000-SharedLinkRedaction',
   '1795400000000-MemoryExclusions',
   '1795500000000-MemoryNotices',
+  '1796000000000-AssistantRoutines',
 
    -- Pre-rename names for two migrations that were renumbered off timestamp collisions
    -- ("renumber AddFaceRepairScanFlaggedFace off the #722 collision",
@@ -658,7 +664,8 @@ BEGIN
       OR "name" = '1795100000000-BookDraftMemory'
       OR "name" = '1795300000000-SharedLinkRedaction'
       OR "name" = '1795400000000-MemoryExclusions'
-      OR "name" = '1795500000000-MemoryNotices';
+      OR "name" = '1795500000000-MemoryNotices'
+      OR "name" = '1796000000000-AssistantRoutines';
   IF fork_rows_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery row(s) still present in kysely_migrations after cleanup — aborting.', fork_rows_left;
   END IF;
@@ -688,7 +695,7 @@ BEGIN
        'face_person_verdict', 'face_repair_scan', 'face_repair_decline',
        'face_repair_scan_flagged_face', 'face_repair_lock',
        'pet_search',
-       'activity_log', 'agent_message', 'agent_session', 'art_job', 'art_style', 'book_page_asset', 'book_page', 'book_revision', 'book_draft', 'book_style', 'book', 'collection_notice_check', 'collection_notice', 'highlight_job', 'memory_exclusion', 'memory_notice'
+       'activity_log', 'agent_message', 'agent_session', 'art_job', 'art_style', 'book_page_asset', 'book_page', 'book_revision', 'book_draft', 'book_style', 'book', 'collection_notice_check', 'collection_notice', 'highlight_job', 'memory_exclusion', 'assistant_routine', 'assistant_routine_event', 'assistant_routine_run', 'assistant_routine_approval', 'memory_notice'
      );
   IF fork_tables_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery table(s) still present after cleanup — aborting.', fork_tables_left;

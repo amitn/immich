@@ -68,6 +68,7 @@ import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -129,6 +130,7 @@ export const BASE_SERVICE_DEPENDENCIES = [
   MemoryExclusionRepository,
   MemoryNoticeRepository,
   YearRecapRepository,
+  RoutineRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,
@@ -213,6 +215,7 @@ export class BaseService {
     protected memoryExclusionRepository: MemoryExclusionRepository,
     protected memoryNoticeRepository: MemoryNoticeRepository,
     protected yearRecapRepository: YearRecapRepository,
+    protected routineRepository: RoutineRepository,
     protected albumRepository: AlbumRepository,
     protected albumUserRepository: AlbumUserRepository,
     protected apiKeyRepository: ApiKeyRepository,
@@ -318,6 +321,7 @@ export class BaseService {
       ctx.memoryExclusionRepository,
       ctx.memoryNoticeRepository,
       ctx.yearRecapRepository,
+      ctx.routineRepository,
       ctx.albumRepository,
       ctx.albumUserRepository,
       ctx.apiKeyRepository,

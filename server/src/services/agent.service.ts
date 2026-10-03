@@ -20,7 +20,15 @@ import {
   mapAgentSession,
 } from 'src/dtos/agent.dto.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
-import { AgentMessageKind, AgentMessageRole, AgentSessionStatus, ImmichWorker, Permission } from 'src/enum.js';
+import {
+  AgentMessageKind,
+  AgentMessageRole,
+  AgentSessionStatus,
+  ImmichWorker,
+  Permission,
+  RoutineApprovalStatus,
+  RoutineRunStatus,
+} from 'src/enum.js';
 import {
   AcpAgent,
   AcpExitInfo,
@@ -50,13 +58,27 @@ import {
   summarizeToolArgs,
   truncateText,
 } from 'src/utils/agent/session-updates.js';
-import { AgentTool, AgentToolContext, AgentToolResult, toolError } from 'src/utils/agent/tools.js';
+import { AgentTool, AgentToolContext, AgentToolResult, toolError, toolJson } from 'src/utils/agent/tools.js';
+import { getRoutineToolDecision, hashRoutineToken } from 'src/utils/routines.js';
 
 /** how long a mutating tool call waits for the user before it counts as declined */
 export const AGENT_APPROVAL_TIMEOUT_MS = 10 * 60 * 1000;
 /** streamed text is written to the database at most this often; every chunk is still sent over the websocket */
 export const AGENT_TEXT_FLUSH_MS = 1000;
 const RECAP_MESSAGES = 20;
+/** how long a headless run waits for the agent to end its turn after being asked to stop */
+const HEADLESS_STOP_GRACE_MS = 15_000;
+/** how often a headless run checks whether it should stop */
+const HEADLESS_POLL_MS = 5000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** how a headless run (a routine run, #15) ended */
+export type HeadlessRunResult = {
+  status: 'completed' | 'failed' | 'timeout' | 'cancelled';
+  error?: string;
+  /** the agent's last text message: its summary */
+  summary?: string;
+};
 
 /**
  * Options for claude-agent-acp (ignored by other agents), read from `_meta.claudeCode.options` of `session/new` and
@@ -132,6 +154,10 @@ type RunningAgent = {
   unreviewedChanges: number;
   /** a change of the current turn was approved automatically (auto-approve in the chat, or for every chat) */
   autoApproved: boolean;
+  /** a run without a chat window (a routine run): no idle timer, stopped when its turn ends */
+  headless?: boolean;
+  /** called when the current turn ends, with the status it ends in */
+  onTurnEnd?: (status: AgentSessionStatus) => void;
 };
 
 type PendingApproval = {
@@ -340,9 +366,16 @@ export class AgentService extends BaseService {
 
   async authenticateMcp(authorization: string | undefined): Promise<AgentToolContext> {
     const [scheme, token] = authorization?.split(' ') ?? [];
-    const context = scheme?.toLowerCase() === 'bearer' && token ? this.acpRepository.getMcpToken(token) : undefined;
+    const bearer = scheme?.toLowerCase() === 'bearer' && token ? token : undefined;
+    const context = bearer ? this.acpRepository.getMcpToken(bearer) : undefined;
     if (!context) {
-      throw new UnauthorizedException('Invalid agent token');
+      // a routine run (#15) runs its agent in a job of another worker, which keeps the token's hash with the run
+      const run = bearer ? await this.routineRepository.getRunByTokenHash(hashRoutineToken(bearer)) : undefined;
+      const user = run ? await this.agentRepository.getAuthUser(run.ownerId) : undefined;
+      if (!run || !user) {
+        throw new UnauthorizedException('Invalid agent token');
+      }
+      return { auth: { user }, sessionId: run.sessionId, routineRunId: run.id };
     }
 
     const user = await this.agentRepository.getAuthUser(context.userId);
@@ -355,6 +388,10 @@ export class AgentService extends BaseService {
 
   /** Runs an MCP tool call: asks the user to approve mutating tools and logs the call to the session. */
   async runTool(context: AgentToolContext, tool: AgentTool, input: Record<string, unknown>): Promise<AgentToolResult> {
+    if (context.routineRunId) {
+      return this.runRoutineTool(context, context.routineRunId, tool, input);
+    }
+
     const run = context.sessionId ? this.running.get(context.sessionId) : undefined;
     const { agent: config } = await this.getConfig({ withCache: true });
     const entry = run ? await this.enqueue(run, () => this.startMcpToolCall(run, tool, input)) : undefined;
@@ -399,6 +436,170 @@ export class AgentService extends BaseService {
     }
 
     return result;
+  }
+
+  /**
+   * A tool call of a routine run (#15): counted against the run's limit, then run, queued for the user's approval in
+   * the Routines inbox (approving it makes the recorded call again), or only reported (a dry run), as the run's
+   * approval mode says. The changes it makes are a group of the activity log: the run's id.
+   */
+  private async runRoutineTool(
+    context: AgentToolContext,
+    runId: string,
+    tool: AgentTool,
+    input: Record<string, unknown>,
+  ): Promise<AgentToolResult> {
+    const run = await this.routineRepository.countToolCall(runId);
+    if (!run || run.status !== RoutineRunStatus.Running) {
+      return toolError('This routine run has ended. Stop now.');
+    }
+    if (run.toolCalls > run.limits.toolCalls) {
+      return toolError(
+        `This run reached its limit of ${run.limits.toolCalls} tool calls. Stop now and write your summary.`,
+      );
+    }
+
+    const decision = getRoutineToolDecision(run.approvalMode, tool);
+    if (decision !== 'run') {
+      const { agent: config } = await this.getConfig({ withCache: true });
+      const approval = await this.routineRepository.createApproval({
+        runId: run.id,
+        ownerId: run.ownerId,
+        toolName: tool.name,
+        title: tool.title,
+        summary: summarizeToolArgs(input),
+        input,
+        status: decision === 'report' ? RoutineApprovalStatus.DryRun : RoutineApprovalStatus.Pending,
+        expiresAt: new Date(Date.now() + config.routines.approvalExpiryDays * DAY_MS),
+      });
+      return toolJson(
+        decision === 'report'
+          ? {
+              dryRun: true,
+              message: `Dry run: ${tool.name} was not called, nothing changed. It is reported to the user as a change you would make; carry on as if it had worked.`,
+            }
+          : {
+              queued: true,
+              changeId: approval.id,
+              message: `Queued for the user's approval: ${tool.name} will be called exactly like this if they approve it. Don't call it again; carry on and mention it in your summary.`,
+            },
+      );
+    }
+
+    const activity = ActivityRecorder.assistant({ sessionId: context.sessionId, toolName: tool.name, groupId: run.id });
+    let result: AgentToolResult;
+    try {
+      result = await tool.handler({ ...context, activity }, input);
+    } catch (error: Error | unknown) {
+      this.logger.warn(`Agent tool ${tool.name} of routine run ${run.id} failed: ${error}`);
+      result = toolError(error instanceof Error ? error.message : String(error));
+    }
+    if (activity.ids.length > 0) {
+      await this.routineRepository.countChanges(run.id, activity.ids.length);
+    }
+    return result;
+  }
+
+  /**
+   * Runs one prompt turn in a session without a chat window, and waits for its end: a routine run (#15), in the job of
+   * a background worker. The transcript is stored like a chat's. The agent's MCP token is the run's (`token`), which
+   * the API process finds by its hash; the approval mode is applied there (see `runRoutineTool`).
+   */
+  async runHeadless({
+    session,
+    text,
+    displayText,
+    token,
+    timeoutMs,
+    isCancelled,
+  }: {
+    session: Session;
+    /** the prompt sent to the agent */
+    text: string;
+    /** the user message of the transcript */
+    displayText: string;
+    token: string;
+    timeoutMs: number;
+    /** checked now and then: true stops the run */
+    isCancelled?: () => Promise<boolean>;
+  }): Promise<HeadlessRunResult> {
+    const config = await this.requireEnabled();
+    const run = this.newRunningAgent(session, token);
+    run.headless = true;
+    run.busy = true;
+    this.running.set(session.id, run);
+
+    const ended = new Promise<AgentSessionStatus>((resolve) => {
+      run.onTurnEnd = resolve;
+    });
+    const timers: NodeJS.Timeout[] = [];
+    try {
+      const message = await this.agentRepository.createMessage({
+        sessionId: session.id,
+        role: AgentMessageRole.User,
+        kind: AgentMessageKind.Text,
+        content: { text: displayText },
+      });
+      await this.agentRepository.updateSession(session.id, { status: AgentSessionStatus.Running });
+      this.emit(run, AgentSessionStatus.Running, message);
+      run.turnId = message.id;
+      run.ready = this.startAgent(run, session, config, message.id);
+      this.runTurn(run, { text }).catch((error) => this.logger.error(`Routine session ${session.id} failed`, error));
+
+      const stop = new Promise<'timeout' | 'cancelled'>((resolve) => {
+        const timeout = setTimeout(() => resolve('timeout'), timeoutMs);
+        const poll = setInterval(() => {
+          void isCancelled?.()
+            .then((cancelled) => cancelled && resolve('cancelled'))
+            .catch(() => {});
+        }, HEADLESS_POLL_MS);
+        timers.push(timeout, poll);
+      });
+
+      const outcome = await Promise.race([ended, stop]);
+      if (outcome === 'timeout' || outcome === 'cancelled') {
+        run.cancelRequested = true;
+        if (run.agent && run.acpSessionId) {
+          await run.agent.cancel(run.acpSessionId).catch(() => {});
+        }
+        await Promise.race([
+          ended,
+          new Promise((resolve) => {
+            timers.push(setTimeout(resolve, HEADLESS_STOP_GRACE_MS));
+          }),
+        ]);
+        return {
+          status: outcome,
+          summary: await this.getLastAgentText(session.id),
+          ...(outcome === 'timeout' && {
+            error: `The run reached its time limit of ${Math.round(timeoutMs / 60_000)} minutes`,
+          }),
+        };
+      }
+
+      const summary = await this.getLastAgentText(session.id);
+      if (outcome === AgentSessionStatus.Error) {
+        const messages = await this.agentRepository.getMessages(session.id);
+        const error = messages.findLast((message) => message.kind === AgentMessageKind.Error);
+        return { status: 'failed', error: String(error?.content.text ?? 'The assistant failed'), summary };
+      }
+      return { status: 'completed', summary };
+    } finally {
+      for (const timer of timers) {
+        clearTimeout(timer);
+        clearInterval(timer);
+      }
+      await this.stopAgent(session.id, run);
+      if (run.busy) {
+        run.busy = false;
+        await this.setStatus(run, AgentSessionStatus.Idle).catch(() => {});
+      }
+    }
+  }
+
+  private async getLastAgentText(sessionId: string) {
+    const [last] = await this.agentRepository.getRecentTextMessages(sessionId, 1);
+    return last && last.role === AgentMessageRole.Agent ? String(last.content.text ?? '') || undefined : undefined;
   }
 
   protected getToolService() {
@@ -458,11 +659,11 @@ export class AgentService extends BaseService {
     }
   }
 
-  private newRunningAgent(session: Session): RunningAgent {
+  private newRunningAgent(session: Session, token?: string): RunningAgent {
     return {
       sessionId: session.id,
       userId: session.userId,
-      token: this.acpRepository.issueMcpToken({ userId: session.userId, sessionId: session.id }),
+      token: token ?? this.acpRepository.issueMcpToken({ userId: session.userId, sessionId: session.id }),
       primed: false,
       busy: false,
       cancelRequested: false,
@@ -618,7 +819,7 @@ export class AgentService extends BaseService {
     this.resolveApprovals(run.sessionId, AgentPermissionStatus.Expired);
 
     // "The assistant made 12 changes": the user did not see them one by one, so point them to the activity log
-    if (run.turnId && run.autoApproved && run.unreviewedChanges >= AUTO_APPROVED_CHANGES_NOTIFY_MIN) {
+    if (!run.headless && run.turnId && run.autoApproved && run.unreviewedChanges >= AUTO_APPROVED_CHANGES_NOTIFY_MIN) {
       await BaseService.create(ActivityLogService, this).notifyAutoApprovedChanges(run.userId, {
         sessionId: run.sessionId,
         groupId: run.turnId,
@@ -627,7 +828,7 @@ export class AgentService extends BaseService {
     run.unreviewedChanges = 0;
     run.autoApproved = false;
 
-    if (this.running.get(run.sessionId) === run) {
+    if (!run.headless && this.running.get(run.sessionId) === run) {
       const { agent: config } = await this.getConfig({ withCache: true });
       clearTimeout(run.idleTimer);
       run.idleTimer = setTimeout(() => void this.stopAgent(run.sessionId, run), config.idleTimeoutMinutes * 60_000);
@@ -635,6 +836,7 @@ export class AgentService extends BaseService {
     }
 
     await this.setStatus(run, status);
+    run.onTurnEnd?.(status);
   }
 
   private onAgentExit(run: RunningAgent, { code, signal, stderr }: AcpExitInfo) {
@@ -678,6 +880,10 @@ export class AgentService extends BaseService {
   }
 
   private emit(run: RunningAgent, status: AgentSessionStatus, message?: Message) {
+    // a routine run has no chat window: its run page polls while it runs
+    if (run.headless) {
+      return;
+    }
     this.websocketRepository.clientSend('on_agent_update', run.userId, {
       sessionId: run.sessionId,
       status,

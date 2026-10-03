@@ -20,12 +20,21 @@ describe('gallery plugin manifest', () => {
     expect(result.success).toBe(true);
   });
 
-  it('declares the two space actions and the tag path filter (#11)', () => {
+  it('declares the two space actions, the tag path filter (#11) and sending to a routine (#15)', () => {
     expect(
       readManifest()
         .methods.map((method: { name: string }) => method.name)
         .sort(),
-    ).toEqual(['addToSpace', 'addToSpaceAlbum', 'assetTagPathFilter']);
+    ).toEqual(['addToSpace', 'addToSpaceAlbum', 'assetTagPathFilter', 'sendToRoutine']);
+  });
+
+  it('picks the routine of sendToRoutine with a RoutineId field (#15)', () => {
+    const method = readManifest().methods.find((method: { name: string }) => method.name === 'sendToRoutine');
+    expect(method).toMatchObject({
+      hostFunctions: true,
+      types: ['AssetV1'],
+      schema: { required: ['routineId'], properties: { routineId: { uiHint: { type: 'RoutineId' } } } },
+    });
   });
 
   it('runs the tag path filter in the plugin alone, without host functions', () => {
@@ -128,11 +137,13 @@ const SPACE_C = '00000000-0000-4000-8000-00000000000c';
 type Doubles = {
   sharedSpace: { addAssets: Mock; getLinkedAlbums: Mock; linkAlbum: Mock };
   album: { create: Mock; addAssets: Mock; delete: Mock };
+  routine: { sendFromWorkflow: Mock };
 };
 
 const makeDoubles = (): Doubles => ({
   sharedSpace: { addAssets: vi.fn(), getLinkedAlbums: vi.fn(), linkAlbum: vi.fn() },
   album: { create: vi.fn(), addAssets: vi.fn(), delete: vi.fn() },
+  routine: { sendFromWorkflow: vi.fn() },
 });
 
 class TestableService extends GalleryWorkflowHostService {
@@ -411,5 +422,43 @@ describe('addToSpaceAlbum compensation', () => {
     doubles.album.delete.mockRejectedValue(new Error('delete blew up'));
 
     await expect(runAlbum(sut, config)).resolves.toMatchObject({ ok: false });
+  });
+});
+
+describe('sendToRoutine (#15)', () => {
+  const ROUTINE = '00000000-0000-4000-8000-0000000000ff';
+
+  it('queues the asset for the routine, and nothing more', async () => {
+    const { sut, doubles } = setupTestable();
+    doubles.routine.sendFromWorkflow.mockResolvedValue(true);
+
+    await expect(sut.dispatch(auth, 'sendToRoutine', { assetId: ASSET, routineId: ROUTINE })).resolves.toEqual({
+      ok: true,
+    });
+    expect(doubles.routine.sendFromWorkflow).toHaveBeenCalledWith(auth, ROUTINE, ASSET);
+  });
+
+  it("resolves not-found for a routine that is not the owner's, off or paused", async () => {
+    const { sut, doubles } = setupTestable();
+    doubles.routine.sendFromWorkflow.mockResolvedValue(false);
+
+    await expect(sut.dispatch(auth, 'sendToRoutine', { assetId: ASSET, routineId: ROUTINE })).resolves.toEqual({
+      ok: false,
+      reason: 'not-found',
+    });
+  });
+
+  it('resolves invalid-config without a routine, and never throws for a user-fixable failure', async () => {
+    const { sut, doubles } = setupTestable();
+    await expect(sut.dispatch(auth, 'sendToRoutine', { assetId: ASSET })).resolves.toEqual({
+      ok: false,
+      reason: 'invalid-config',
+    });
+
+    doubles.routine.sendFromWorkflow.mockRejectedValue(new BadRequestException('nope'));
+    await expect(sut.dispatch(auth, 'sendToRoutine', { assetId: ASSET, routineId: ROUTINE })).resolves.toEqual({
+      ok: false,
+      reason: 'no-access',
+    });
   });
 });

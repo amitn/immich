@@ -568,6 +568,44 @@ A smart album is a **workflow** (see the **Workflows** page) that sorts your new
 
 **Undo.** Saving or changing a workflow, its new album, and the photos `apply_workflow` added are changes in the [activity log](#undoing-the-assistants-changes) that you can undo.
 
+## Assistant routines
+
+A routine is an instruction in plain words that the assistant runs **on its own**, on a schedule or after an event, without a chat window. Workflows (above) are fast rules that sort each photo as it arrives; routines are for the work that needs looking and judging across many photos: naming dishes and artworks, choosing the best shots, laying out books, making videos, cleaning up bursts.
+
+**Examples.**
+
+- _"Every night, name the dishes of new restaurant visits and add them to my Food 2026 album."_
+- _"When I tag photos **print**, make a 20-page book in my Wedding style and tell me."_
+- _"After every trip, make a vertical highlight video and a book draft."_
+- _"Every Sunday, clean up the week's bursts: keep the best, ask before archiving the rest."_
+- _"When photos from a museum arrive, name the artworks."_
+
+**Making one.** Open **Routines** in the sidebar and choose **New routine**, or ask in a chat (_"do this every time I upload restaurant photos"_): the assistant proposes a routine with `create_routine`, which you approve like any change. After a chat turn that did what you want, **Make this a routine** under the turn opens the editor with what you asked. A routine has:
+
+| Part        | Options                                                                                                                                                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instruction | Plain words, complete on their own: a run has no chat history.                                                                                                                                                                            |
+| When        | A **schedule** (every day or every week at a time, or a cron expression), an **event** (new photos uploaded, a new journal visit, photos got a tag, a trip ended, a book draft was made, photos sent by a Workflow), or only **Run now**. |
+| Scope       | Albums, tags, a journal, only what is new since the last run, or the last days. The photos an event hands over are given to the run too.                                                                                                  |
+| Approval    | **Ask me**, **Auto-approve safe actions** or **Dry run** (below).                                                                                                                                                                         |
+| Limits      | Runs per day, minutes and tool calls per run, and the agent profile (for example a cheaper model for nightly naming).                                                                                                                     |
+
+**Events are batched.** A routine that runs after uploads starts once the photos stop arriving (10 minutes without a new one by default), with all of them in one run, never one run per photo. A long upload still gets a run every hour or so. The changes a routine run makes, such as the copies it creates or the tags it adds, never start a routine again.
+
+**From a Workflow.** The **Send to assistant routine** step of a Workflow hands the photo to one of your routines, so the Workflow's filters (place, type, tags, camera…) choose the photos a routine gets. The step only queues the photo: the routine runs on the batch later.
+
+**Approval modes.**
+
+- **Ask me** (the default, and where new routines start): every change the run wants to make waits for you in the **Inbox** of the Routines page, where you approve or deny it one by one or for a whole run. Approving a change makes the recorded tool call again, exactly as the assistant made it. Changes that wait for a week (set by the administrator) expire.
+- **Auto-approve safe actions**: reversible, low-risk changes are made right away: albums, journal names and descriptions, copies stacked with their originals (crops, straightened and enhanced photos), collages, highlight videos and book edits. Anything that archives, removes, shares, exports, makes artworks or changes settings still waits for you.
+- **Dry run**: nothing changes. The run looks and judges as for a real run, and reports what it would change. **Dry run** on a routine also runs it once this way, which is a good first step for a new routine.
+
+**Results.** Each run sends a notification, such as _"Routine “Name dishes” ran: 12 changes · 2 need your OK"_, which opens the run: its summary, the photos and events it started with, its changes, and the whole transcript, shown like a chat. Every change of a run, the approved ones included, is in the [activity log](#undoing-the-assistants-changes) as one group, which **Undo** undoes together.
+
+**Safety.** A run uses the same tools and the same access checks as a chat with you: it sees only what you can see, and changes only what you could. Nothing is ever deleted, only archived or moved to the trash. A routine that fails several times in a row is paused until you resume it, and the administrator sets how many routines and runs each user may have, how long a run may take and how many run at once, or turns routines off (**Administration > Settings > AI Assistant > Routines**).
+
+**Costs.** A run uses the assistant's agent like a chat: with a cloud model, every run costs about as much as a chat of the same work. Keep the runs per day low, and use a dry run to see what a routine does before it runs every night.
+
 ## Redact before sharing
 
 **Redact…** in the menu of the photo viewer blurs the faces, text and number plates of a photo before you share it. Only the owner of a photo can redact it, and the photo itself is never changed: the result is a **copy**, stacked with the original and tagged **Edits/Redacted**, which you can share instead.

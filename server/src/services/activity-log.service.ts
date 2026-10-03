@@ -384,6 +384,9 @@ export class ActivityLogService extends BaseService {
       case ActivityLogAction.WorkflowUpdate: {
         return this.undoWorkflowUpdate(auth, undo);
       }
+      case ActivityLogAction.RoutineCreate: {
+        return this.undoRoutineCreate(auth, undo);
+      }
     }
   }
 
@@ -1019,6 +1022,25 @@ export class ActivityLogService extends BaseService {
       enabled: previous.enabled,
       steps: previous.steps,
     });
+    return undone();
+  }
+
+  /** deletes a routine the assistant made, while nobody changed it since (#15); the changes of its runs stay */
+  private async undoRoutineCreate(
+    auth: AuthDto,
+    { routineId, updatedAt }: ActivityUndoMap[ActivityLogAction.RoutineCreate],
+  ): Promise<UndoOutcome> {
+    const routine = await this.routineRepository.get(routineId);
+    if (!routine || routine.ownerId !== auth.user.id) {
+      return undone(['The routine was already deleted']);
+    }
+    if (routine.updatedAt.toISOString() !== new Date(updatedAt).toISOString()) {
+      refuse(
+        `The routine ${quote(routine.name)} was changed since it was made, so it is kept: ` +
+          'delete it on the Routines page if you no longer want it.',
+      );
+    }
+    await this.routineRepository.delete(routineId);
     return undone();
   }
 }

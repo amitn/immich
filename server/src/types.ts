@@ -579,6 +579,10 @@ export type JobItem =
   // Highlight videos
   | { name: JobName.HighlightRender; data: IEntityJob }
 
+  // Assistant routines (#15)
+  | { name: JobName.RoutineTick; data?: IBaseJob }
+  | { name: JobName.RoutineRun; data: IEntityJob & { delay?: number } }
+
   // Orientation
   | { name: JobName.OrientationCheckQueueAll; data?: IBaseJob }
   | { name: JobName.OrientationCheck; data: IOrientationCheckJob }

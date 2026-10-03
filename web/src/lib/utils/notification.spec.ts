@@ -49,6 +49,15 @@ describe('getNotificationRoute', () => {
     ).toBe('/activity?group=turn-1');
   });
 
+  it('should open the run of a routine (#15)', () => {
+    expect(
+      getNotificationRoute({
+        type: NotificationType.Custom,
+        data: '{"routineRunId":"run-1","routineId":"routine-1"}',
+      }),
+    ).toBe('/routines/runs/run-1');
+  });
+
   it('should ignore notifications without a target', () => {
     expect(getNotificationRoute({ type: NotificationType.Custom })).toBeUndefined();
     expect(getNotificationRoute({ type: NotificationType.Custom, data: 'not json' })).toBeUndefined();

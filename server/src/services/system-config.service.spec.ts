@@ -79,6 +79,17 @@ const updatedConfig = Object.freeze<SystemConfig>({
     autoApproveWrites: false,
     activityRetentionDays: 90,
     mcpUrl: '',
+    routines: {
+      enabled: true,
+      maxRoutinesPerUser: 20,
+      maxRunsPerDay: 24,
+      maxConcurrentRuns: 1,
+      maxRunMinutes: 30,
+      maxToolCalls: 200,
+      pauseAfterFailures: 3,
+      approvalExpiryDays: 7,
+      eventSettleMinutes: 10,
+    },
   },
   job: {
     [QueueName.BackgroundTask]: { concurrency: 5 },

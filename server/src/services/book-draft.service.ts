@@ -229,6 +229,14 @@ export class BookDraftService extends BaseService {
         targetPageCount: getDraftPageCount(candidate.assetIds.length),
       });
       await this.bookDraftRepository.update(claimed.id, { bookId: book.id });
+      // the routines that run after a book draft is made (#15)
+      await this.eventRepository.emit('BookDraftCreate', {
+        userId: auth.user.id,
+        bookId: book.id,
+        kind: candidate.kind,
+        title: candidate.title,
+        assetIds: candidate.assetIds,
+      });
       return book.id;
     } catch (error: any) {
       // the suggestion is made again on the next run

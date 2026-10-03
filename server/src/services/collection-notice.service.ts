@@ -400,6 +400,13 @@ export class CollectionNoticeService extends BaseService {
       });
       await this.collectionNoticeRepository.setNotification(claimed.id, notification.id);
       this.websocketRepository.clientSend('on_notification', userId, mapNotification(notification));
+      // the routines that run after a new journal visit (#15)
+      await this.eventRepository.emit('JournalVisitFound', {
+        userId,
+        pack: visit.pack,
+        assetIds: visit.assetIds,
+        title: visit.title,
+      });
       return true;
     } catch (error: any) {
       // the visit is notified on the next run

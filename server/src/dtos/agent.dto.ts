@@ -120,7 +120,7 @@ export const AgentMessageContentSchema = z
 
 export type AgentMessageContent = z.infer<typeof AgentMessageContentSchema>;
 
-const AgentMessageSchema = z
+export const AgentMessageSchema = z
   .object({
     id: z.uuidv4().describe('Message ID'),
     sessionId: z.uuidv4().describe('Session ID'),

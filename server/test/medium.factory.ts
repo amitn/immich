@@ -69,6 +69,7 @@ import { OcrRepository } from 'src/repositories/ocr.repository.js';
 import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
 import { SharedLinkAssetRepository } from 'src/repositories/shared-link-asset.repository.js';
@@ -640,6 +641,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case BookDraftRepository:
     case CollectionNoticeRepository:
     case MemoryExclusionRepository:
+    case RoutineRepository:
     case MemoryNoticeRepository:
     case YearRecapRepository:
     case AlbumRepository:
@@ -752,6 +754,7 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
     case LibraryRepository:
     case MemoryRepository:
     case MemoryExclusionRepository:
+    case RoutineRepository:
     case MemoryNoticeRepository:
     case YearRecapRepository:
     case IntegrityRepository:

@@ -68,6 +68,20 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     },
     'memoryNotifications': {'digest': false, 'enabled': false},
   },
+  // assistant routines (#15): a server without them has nothing to run
+  'AdminConfigAgentDto': {
+    'routines': {
+      'approvalExpiryDays': 7,
+      'enabled': false,
+      'eventSettleMinutes': 10,
+      'maxConcurrentRuns': 1,
+      'maxRoutinesPerUser': 20,
+      'maxRunMinutes': 30,
+      'maxRunsPerDay': 24,
+      'maxToolCalls': 200,
+      'pauseAfterFailures': 3,
+    },
+  },
   'ServerConfigDto': {
     'mapLightStyleUrl': 'https://tiles.openfreemap.org/styles/positron',
     'mapDarkStyleUrl': 'https://tiles.openfreemap.org/styles/dark',

@@ -1,5 +1,6 @@
 <script lang="ts">
   import SchemaAlbumPicker from '$lib/components/SchemaAlbumPicker.svelte';
+  import SchemaRoutinePicker from '$lib/components/SchemaRoutinePicker.svelte';
   import Self from '$lib/components/SchemaConfiguration.svelte';
   import SchemaSpaceAlbumPicker from '$lib/components/SchemaSpaceAlbumPicker.svelte';
   import SchemaSpacePicker from '$lib/components/SchemaSpacePicker.svelte';
@@ -85,6 +86,9 @@
   <SchemaAlbumPicker {label} {description} array={schema.array} bind:albumIds={getUiHintValue, setUiHintValue} />
 {:else if schema.uiHint?.type === 'TagId'}
   <SchemaTagPicker bind:tagIds={getUiHintValue, setUiHintValue} />
+{:else if schema.uiHint?.type === 'RoutineId'}
+  <!-- "Send to assistant routine" (#15): one of the user's routines -->
+  <SchemaRoutinePicker {label} {description} bind:routineId={() => getString() ?? '', setValue} />
 {:else if schema.uiHint?.type === 'SpaceId'}
   <SchemaSpacePicker {label} {description} array={schema.array} bind:spaceIds={getUiHintValue, setUiHintValue} />
   <!-- `config` here is the parent object, so a sibling `SpaceId` property is readable by name and
