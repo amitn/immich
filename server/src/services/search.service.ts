@@ -224,6 +224,11 @@ export class SearchService extends BaseService {
       userIds = await this.getUserIdsToSearch(auth, dto.visibility);
     }
 
+    // (#14) a link that blurs text does not tell which photos have a text either
+    if (auth.sharedLink?.redactText && dto.ocr) {
+      throw new BadRequestException('This link does not search the text of its photos');
+    }
+
     const page = dto.page ?? 1;
     const size = dto.size;
     const timelineSpaceIds = await this.getTimelineSpaceIds(auth, dto.withSharedSpaces || !!dto.albumIds?.length);

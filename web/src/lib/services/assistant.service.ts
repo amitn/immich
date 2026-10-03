@@ -1,12 +1,13 @@
 import { AssetTypeEnum, AssetVisibility, type AssetResponseDto } from '@immich/sdk';
 import { modalManager, type ActionItem } from '@immich/ui';
-import { mdiAutoFix, mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
+import { mdiAutoFix, mdiBlur, mdiCreationOutline, mdiPaletteOutline } from '@mdi/js';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import ArtisticStyleModal from '$lib/modals/ArtisticStyleModal.svelte';
 import AutoEnhanceModal from '$lib/modals/AutoEnhanceModal.svelte';
+import RedactModal from '$lib/modals/RedactModal.svelte';
 import { Route } from '$lib/route';
 
 /** Above this many assets the ids are handed over in memory instead of in the URL */
@@ -77,5 +78,13 @@ export const getAssistantAssetActions = ($t: MessageFormatter, asset: AssetRespo
     onAction: () => modalManager.show(AutoEnhanceModal, { asset }),
   };
 
-  return { AskAssistant, ArtisticStyle, AutoEnhance };
+  // (#14) blurs faces, text and plates into a copy, with local image processing: owner-only, like every copy
+  const Redact: ActionItem = {
+    title: $t('redact'),
+    icon: mdiBlur,
+    $if: () => isOwner && isUsable && asset.type === AssetTypeEnum.Image,
+    onAction: () => modalManager.show(RedactModal, { asset }),
+  };
+
+  return { AskAssistant, ArtisticStyle, AutoEnhance, Redact };
 };

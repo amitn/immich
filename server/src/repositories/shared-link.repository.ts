@@ -253,6 +253,8 @@ export class SharedLinkRepository {
         'shared_link.allowUpload',
         'shared_link.allowDownload',
         'shared_link.password',
+        'shared_link.redactFaces',
+        'shared_link.redactText',
         jsonObjectFrom(
           eb.selectFrom('user').select(columns.authUser).whereRef('user.id', '=', 'shared_link.userId'),
         ).as('user'),

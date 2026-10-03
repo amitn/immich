@@ -7423,6 +7423,208 @@
         "x-immich-state": "Stable"
       }
     },
+    "/assets/{id}/redact": {
+      "post": {
+        "description": "Create a copy of a photo with regions blurred or pixelated: the given regions, or the selected suggestions for the options. The original is never changed: the copy is a new asset stacked with it and tagged Edits/Redacted. Only the owner of a photo can redact it. The copy is recorded in the activity log, where undoing it moves the copy to the trash.",
+        "operationId": "redactAsset",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedactionCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedactionResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Redact a photo",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/assets/{id}/redact/preview": {
+      "post": {
+        "description": "Render the preview of a photo with the regions blurred or pixelated, as a JPEG image, without saving it.",
+        "operationId": "renderRedactionPreview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedactionPreviewDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Preview a redaction",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.view",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/assets/{id}/redact/suggest": {
+      "post": {
+        "description": "Suggest the regions of a photo to blur before sharing it, from its face and OCR boxes: faces (except the people to keep; pets are never suggested), text that looks personal, number plates, screens and documents. Changes nothing. The regions are fractions of the photo as it is shown, and the selected ones are blurred by default.",
+        "operationId": "suggestRedactions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedactionSuggestDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedactionSuggestionResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Suggest regions to redact",
+        "tags": [
+          "Assets"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "asset.read",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/assets/{id}/thumbnail": {
       "get": {
         "description": "Retrieve the thumbnail image for the specified asset. Viewing the fullsize thumbnail might redirect to downloadAsset, which requires a different permission.",
@@ -48348,6 +48550,379 @@
         },
         "type": "object"
       },
+      "RedactionCreateDto": {
+        "properties": {
+          "faces": {
+            "description": "Suggest the faces (default true); pets are never suggested",
+            "type": "boolean"
+          },
+          "keepPersonIds": {
+            "description": "People whose faces are not blurred; the faces of everyone else are",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "onlyPersonIds": {
+            "description": "Blur only the faces of these people (the other faces are suggested, not selected)",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "plates": {
+            "description": "Suggest number plates (default true)",
+            "type": "boolean"
+          },
+          "regions": {
+            "description": "The regions to blur; without them, the selected suggestions for the options are blurred",
+            "items": {
+              "$ref": "#/components/schemas/RedactionRectDto"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "screens": {
+            "description": "Suggest the text of screens (default true)",
+            "type": "boolean"
+          },
+          "style": {
+            "$ref": "#/components/schemas/RedactionStyle",
+            "description": "Blur (default) or pixelate"
+          },
+          "text": {
+            "description": "Suggest the text (default true): text that looks personal, and the text of documents, is selected; other text, such as signs, is suggested only",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RedactionKind": {
+        "description": "What a region covers: a face, text, a number plate, a screen, or an area drawn by the user",
+        "enum": [
+          "face",
+          "text",
+          "plate",
+          "screen",
+          "manual"
+        ],
+        "type": "string"
+      },
+      "RedactionPreviewDto": {
+        "properties": {
+          "regions": {
+            "description": "The regions to blur",
+            "items": {
+              "$ref": "#/components/schemas/RedactionRectDto"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          },
+          "style": {
+            "$ref": "#/components/schemas/RedactionStyle",
+            "description": "Blur (default) or pixelate"
+          }
+        },
+        "required": [
+          "regions"
+        ],
+        "type": "object"
+      },
+      "RedactionReason": {
+        "description": "Why a region is suggested: unknown (a face of nobody the library knows), person (a named person), kept (a person to keep), notChosen (not among the people to blur), personal (text that looks personal), plate, screen, document, other (other text, not selected) or manual",
+        "enum": [
+          "unknown",
+          "person",
+          "kept",
+          "notChosen",
+          "personal",
+          "plate",
+          "screen",
+          "document",
+          "other",
+          "manual"
+        ],
+        "type": "string"
+      },
+      "RedactionRectDto": {
+        "description": "A region to blur, in fractions of the photo as it is shown (upright, with its edits)",
+        "properties": {
+          "height": {
+            "description": "Height, as a fraction of the photo height",
+            "exclusiveMinimum": true,
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RedactionKind",
+            "description": "What the region covers (default manual)"
+          },
+          "width": {
+            "description": "Width, as a fraction of the photo width",
+            "exclusiveMinimum": true,
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge, as a fraction of the photo width",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge, as a fraction of the photo height",
+            "format": "double",
+            "maximum": 1,
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "height",
+          "width",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "RedactionRegionDto": {
+        "properties": {
+          "height": {
+            "description": "Height, as a fraction of the photo height",
+            "format": "double",
+            "type": "number"
+          },
+          "id": {
+            "description": "Region ID within the photo, e.g. face:<face id>, text:<OCR box id> or screen",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RedactionKind"
+          },
+          "personId": {
+            "description": "The person of a face",
+            "format": "uuid",
+            "nullable": true,
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "personName": {
+            "description": "The name of the person of a face",
+            "nullable": true,
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/RedactionReason"
+          },
+          "selected": {
+            "description": "Whether the region is blurred unless deselected",
+            "type": "boolean"
+          },
+          "text": {
+            "description": "The text OCR read",
+            "type": "string"
+          },
+          "width": {
+            "description": "Width, as a fraction of the photo width",
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "description": "Left edge, as a fraction of the photo width",
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "description": "Top edge, as a fraction of the photo height",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "height",
+          "id",
+          "kind",
+          "reason",
+          "selected",
+          "width",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      },
+      "RedactionResponseDto": {
+        "properties": {
+          "description": {
+            "description": "What was blurred, e.g. \"3 faces, 1 number plate\"",
+            "type": "string"
+          },
+          "duplicate": {
+            "description": "An identical copy existed and was returned",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "ID of the redacted copy",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "regionCount": {
+            "description": "Number of regions blurred",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "sourceId": {
+            "description": "ID of the original photo, which is not changed",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "duplicate",
+          "id",
+          "regionCount",
+          "sourceId"
+        ],
+        "type": "object"
+      },
+      "RedactionStyle": {
+        "description": "How the regions are hidden: blurred or pixelated",
+        "enum": [
+          "blur",
+          "pixelate"
+        ],
+        "type": "string"
+      },
+      "RedactionSuggestDto": {
+        "properties": {
+          "faces": {
+            "description": "Suggest the faces (default true); pets are never suggested",
+            "type": "boolean"
+          },
+          "keepPersonIds": {
+            "description": "People whose faces are not blurred; the faces of everyone else are",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "onlyPersonIds": {
+            "description": "Blur only the faces of these people (the other faces are suggested, not selected)",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "plates": {
+            "description": "Suggest number plates (default true)",
+            "type": "boolean"
+          },
+          "screens": {
+            "description": "Suggest the text of screens (default true)",
+            "type": "boolean"
+          },
+          "text": {
+            "description": "Suggest the text (default true): text that looks personal, and the text of documents, is selected; other text, such as signs, is suggested only",
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RedactionSuggestionResponseDto": {
+        "properties": {
+          "assetId": {
+            "description": "Asset ID",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "hasFaces": {
+            "description": "Whether face detection has run on the photo and found faces",
+            "type": "boolean"
+          },
+          "hasText": {
+            "description": "Whether OCR has run on the photo and found text",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "Height of the photo as it is shown, in pixels (0 when unknown)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "regions": {
+            "description": "The suggested regions",
+            "items": {
+              "$ref": "#/components/schemas/RedactionRegionDto"
+            },
+            "type": "array"
+          },
+          "scene": {
+            "description": "What the photo shows, from its CLIP embedding; null without one",
+            "nullable": true,
+            "properties": {
+              "document": {
+                "description": "How likely the photo shows a document, 0 to 1",
+                "format": "double",
+                "type": "number"
+              },
+              "screen": {
+                "description": "How likely the photo shows a screen, 0 to 1",
+                "format": "double",
+                "type": "number"
+              },
+              "vehicle": {
+                "description": "How likely the photo shows a vehicle, 0 to 1",
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "vehicle",
+              "screen",
+              "document"
+            ],
+            "type": "object"
+          },
+          "width": {
+            "description": "Width of the photo as it is shown, in pixels (0 when unknown)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assetId",
+          "hasFaces",
+          "hasText",
+          "height",
+          "regions",
+          "scene",
+          "width"
+        ],
+        "type": "object"
+      },
       "ReleaseChannel": {
         "description": "Release channel",
         "enum": [
@@ -49757,6 +50332,36 @@
             "nullable": true,
             "type": "string"
           },
+          "redactFaces": {
+            "description": "Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
+          "redactText": {
+            "description": "Blur the text and number plates found in the photos when serving through the link",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
           "showMetadata": {
             "default": true,
             "description": "Show metadata",
@@ -49809,6 +50414,36 @@
             "description": "Link password",
             "nullable": true,
             "type": "string"
+          },
+          "redactFaces": {
+            "description": "Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
+          "redactText": {
+            "description": "Blur the text and number plates found in the photos when serving through the link",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
           },
           "showMetadata": {
             "description": "Show metadata",
@@ -49904,6 +50539,36 @@
             "nullable": true,
             "type": "string"
           },
+          "redactFaces": {
+            "description": "Blur the faces of people who are not in what the link shares",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
+          "redactText": {
+            "description": "Blur the text and number plates of the photos",
+            "type": "boolean",
+            "x-immich-history": [
+              {
+                "version": "v3.3.0",
+                "state": "Added"
+              },
+              {
+                "version": "v3.3.0",
+                "state": "Alpha"
+              }
+            ],
+            "x-immich-state": "Alpha"
+          },
           "showMetadata": {
             "description": "Show metadata",
             "type": "boolean"
@@ -49933,6 +50598,8 @@
           "id",
           "key",
           "password",
+          "redactFaces",
+          "redactText",
           "showMetadata",
           "slug",
           "type",

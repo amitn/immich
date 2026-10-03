@@ -78,6 +78,12 @@ describe('revert-to-immich.sql', () => {
     expect({ notDropped, notGuarded }).toEqual({ notDropped: [], notGuarded: [] });
   });
 
+  it('drops the redaction options of shared links (#14)', () => {
+    for (const column of ['redactFaces', 'redactText']) {
+      expect(sql).toContain(`ALTER TABLE "shared_link"       DROP COLUMN IF EXISTS "${column}";`);
+    }
+  });
+
   it('lists every migrations-gallery migration in the step-8 kysely_migrations DELETE block', () => {
     const missing = migrationNames.filter((name) => !deleteBlock.includes(`'${name}'`));
     expect(missing).toEqual([]);

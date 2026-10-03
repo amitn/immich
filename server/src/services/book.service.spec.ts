@@ -24,6 +24,7 @@ import { BookService, getBookExportKey, getBookHtmlPath, getBookPdfPath } from '
 import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { ImproveService, ImproveSource, ImprovedCopyResult } from 'src/services/improve.service.js';
 import { MemorySourceService } from 'src/services/memory-source.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
 import { StorageService } from 'src/services/storage.service.js';
 import { ImproveEstimate } from 'src/utils/agent/improve.js';
 import { validatePageStyle } from 'src/utils/book/layouts.js';
@@ -1034,6 +1035,34 @@ describe(BookService.name, () => {
 
       mocks.sharedLink.getServableAssetIds.mockResolvedValue(new Set());
       await expect(sut.downloadPdf(linkAuth, book.id)).rejects.toThrow('no longer shared');
+    });
+
+    it('should draw the photos blurred through a link that blurs faces or text, and not give the PDF (#14)', async () => {
+      const { book, asset } = await setupExport();
+      mocks.book.get.mockResolvedValue({ ...book, exportPath: '/data/thumbs/books/book.pdf' });
+      allowLink(book.id);
+      const linkAuth = sharedLinkAuth(book.id, { allowDownload: true, redactFaces: true });
+      const regions = new Map([[asset.id, [{ x: 0.1, y: 0.1, width: 0.2, height: 0.2 }]]]);
+      vi.spyOn(RedactionService.prototype, 'getLinkRedaction').mockResolvedValue({
+        linkId: linkAuth.sharedLink!.id,
+        redactFaces: true,
+        redactText: false,
+        people: {},
+      });
+      vi.spyOn(RedactionService.prototype, 'getLinkRegions').mockResolvedValue(regions);
+      const render = vi.spyOn(RedactionService.prototype, 'renderAssetFile').mockResolvedValue(Buffer.from('blurred'));
+      const [page] = await mocks.book.getPages(book.id);
+
+      await sut.renderPage(linkAuth, book.id, page.id, { size: 800 });
+      expect(render).toHaveBeenCalledWith(asset.id, expect.any(String), regions.get(asset.id), { quality: 92 });
+      const [spec] = mocks.media.composeBookPage.mock.calls.at(-1)!;
+      expect(spec.slots.map((slot) => slot?.input)).toContainEqual(Buffer.from('blurred'));
+
+      await sut.previewHtml(linkAuth, book.id);
+      expect(render).toHaveBeenCalledTimes(2);
+
+      await expect(sut.downloadPdf(linkAuth, book.id)).rejects.toThrow('blurs faces or text');
+      vi.restoreAllMocks();
     });
 
     it('should show the book of the link, drawn with the photos of its owner', async () => {

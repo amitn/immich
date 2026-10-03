@@ -73,7 +73,7 @@ describe('assistant service', () => {
     };
 
     it('should offer the copies of a photo to its owner', () => {
-      expect(shown('me')).toEqual(['AskAssistant', 'ArtisticStyle', 'AutoEnhance']);
+      expect(shown('me')).toEqual(['AskAssistant', 'ArtisticStyle', 'AutoEnhance', 'Redact']);
     });
 
     it("should not offer copies of someone else's photo, e.g. of a shared space", () => {
