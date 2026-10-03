@@ -31,6 +31,8 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'aiAnswers': AiAnswersResponse(enabled: false).toJson(),
     'bookDrafts': BookDraftsResponse(enabled: false).toJson(),
     'collectionNotifications': CollectionNotificationsResponse(enabled: false).toJson(),
+    // A server without memory exclusions shows every memory, documents included
+    'memoryExclusions': MemoryExclusionsResponse(documents: false).toJson(),
   },
   'AdminConfigDto': {
     'agent': {
@@ -75,6 +77,8 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'restaurantLookup': false,
   },
   'SearchAssetResponseDto': {'nextCursor': null},
+  // A server without redaction never hides faces or text behind a shared link
+  'SharedLinkResponseDto': {'redactFaces': false, 'redactText': false},
   'MemoriesResponse': {'duration': 5, 'sidebarWeb': false},
   'WorkflowResponseDto': {'logging': false},
 };
