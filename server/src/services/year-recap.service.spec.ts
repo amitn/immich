@@ -111,7 +111,6 @@ describe(YearRecapService.name, () => {
           memoryId: 'recap-memory',
           assetIds: expect.arrayContaining(['a-0', 'a-119']),
         }),
-        { notify: false },
       );
       expect(mocks.notification.create).toHaveBeenCalledWith({
         userId: 'owner',
@@ -121,6 +120,27 @@ describe(YearRecapService.name, () => {
         description: '120 photos, 4 places. Watch it, make a video of it, or keep the book of the year',
         data: JSON.stringify({ memoryId: 'recap-memory', year: 2025, bookId: 'book-1' }),
       });
+    });
+
+    it('drafts the book but does not tell an owner who turned the memory notifications off (#6)', async () => {
+      mocks.memory.get.mockResolvedValue(recapMemory());
+      mocks.user.get.mockResolvedValue(user({ memoryNotifications: { memories: false } }));
+      getDrafts.mockResolvedValue([draftOf('book-1')]);
+
+      await expect(sut.handlePrepare({ id: 'recap-memory' })).resolves.toBe(JobStatus.Success);
+
+      expect(draftCandidate).toHaveBeenCalled();
+      expect(mocks.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('does not tell the owner when the admin turned the memory notifications off (#6)', async () => {
+      mocks.memory.get.mockResolvedValue(recapMemory());
+      mocks.user.get.mockResolvedValue(user());
+      mocks.systemMetadata.get.mockResolvedValue({ memoryNotifications: { enabled: false } });
+
+      await expect(sut.handlePrepare({ id: 'recap-memory' })).resolves.toBe(JobStatus.Success);
+
+      expect(mocks.notification.create).not.toHaveBeenCalled();
     });
 
     it('only tells the owner when they have suggested books off', async () => {
@@ -228,7 +248,6 @@ describe(YearRecapService.name, () => {
       expect(draftCandidate).toHaveBeenCalledWith(
         auth,
         expect.objectContaining({ key: expect.stringMatching(/^recap:2025:\d+$/), title: 'Our 2025' }),
-        { notify: false },
       );
       expect(mocks.yearRecap.getAssets).toHaveBeenCalledWith(
         'owner',

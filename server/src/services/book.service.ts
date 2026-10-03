@@ -153,6 +153,7 @@ import {
 import { reviewBook } from 'src/utils/book/review.js';
 import { asHumanReadable } from 'src/utils/bytes.js';
 import { ImmichMediaResponse } from 'src/utils/file.js';
+import { wantsCreationNotices } from 'src/utils/memory-notices.js';
 import { mimeTypes } from 'src/utils/mime-types.js';
 import { findOrFail } from 'src/utils/misc.js';
 import { setDifference } from 'src/utils/set.js';
@@ -2406,6 +2407,13 @@ export class BookService extends BaseService {
     book: Book,
     notification: { level: NotificationLevel; title: string; description: string },
   ): Promise<void> {
+    // a creation the user asked for is ready: told unless they turned that off; a failure is always told (#6)
+    if (
+      notification.level !== NotificationLevel.Error &&
+      !wantsCreationNotices(await this.userRepository.getMetadata(book.ownerId))
+    ) {
+      return;
+    }
     try {
       const item = await this.notificationRepository.create({
         userId: book.ownerId,

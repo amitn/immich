@@ -56,6 +56,7 @@ import {
 } from 'src/utils/highlight/plan.js';
 import { HighlightClipSource, renderHighlight } from 'src/utils/highlight/render.js';
 import { LocalFile } from 'src/utils/local-files.js';
+import { wantsCreationNotices } from 'src/utils/memory-notices.js';
 
 type HighlightJob = Selectable<HighlightJobTable>;
 
@@ -699,6 +700,13 @@ export class HighlightService extends BaseService {
     job: HighlightJob,
     notification: { level: NotificationLevel; title: string; description: string; data: Record<string, string> },
   ) {
+    // a creation the user asked for is ready: told unless they turned that off; a failure is always told (#6)
+    if (
+      notification.level !== NotificationLevel.Error &&
+      !wantsCreationNotices(await this.userRepository.getMetadata(job.ownerId))
+    ) {
+      return;
+    }
     try {
       const item = await this.notificationRepository.create({
         userId: job.ownerId,

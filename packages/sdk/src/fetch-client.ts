@@ -460,6 +460,12 @@ export type AdminConfigMemoriesDto = {
         [key: string]: boolean;
     };
 };
+export type AdminConfigMemoryNotificationsDto = {
+    /** Let the users get a weekly email of the week's memories, waiting drafts and new journal visits (off for each user until they turn it on; needs email to be set up) */
+    digest: boolean;
+    /** Send each user at most one notification a day of a memory (on this day, a trip anniversary) or a suggested photo book waiting for them, at the time of day they choose */
+    enabled: boolean;
+};
 export type AdminConfigFacesDto = {
     /** Import */
     "import": boolean;
@@ -630,6 +636,7 @@ export type AdminConfigDto = {
     machineLearning: AdminConfigMachineLearningDto;
     map: AdminConfigMapDto;
     memories: AdminConfigMemoriesDto;
+    memoryNotifications: AdminConfigMemoryNotificationsDto;
     metadata: AdminConfigMetadataDto;
     newVersionCheck: AdminConfigNewVersionCheckDto;
     nightlyTasks: AdminConfigNightlyTasksDto;
@@ -1215,6 +1222,22 @@ export type MemoryExclusionsResponse = {
     /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
     documents: boolean;
 };
+export type MemoryNotificationsResponse = {
+    /** Whether the user is notified when a video, a book or an artwork they asked for is ready */
+    creations: boolean;
+    /** Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits */
+    digest: boolean;
+    /** The day of the week of the digest, 1 (Monday) to 7 (Sunday) */
+    digestDay: number;
+    /** Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories) */
+    drafts: boolean;
+    /** The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent */
+    hour: number;
+    /** Whether the user is notified of a memory of the day (at most one notification a day, with the drafts) */
+    memories: boolean;
+    /** The IANA time zone of hour, e.g. Europe/London; the server's when empty */
+    timeZone: string;
+};
 export type PeopleResponse = {
     /** Whether people are enabled */
     enabled: boolean;
@@ -1260,6 +1283,7 @@ export type UserPreferencesResponseDto = {
     folders: FoldersResponse;
     memories: MemoriesResponse;
     memoryExclusions: MemoryExclusionsResponse;
+    memoryNotifications: MemoryNotificationsResponse;
     people: PeopleResponse;
     purchase: PurchaseResponse;
     ratings: RatingsResponse;
@@ -1325,6 +1349,22 @@ export type MemoryExclusionsUpdate = {
     /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
     documents?: boolean;
 };
+export type MemoryNotificationsUpdate = {
+    /** Whether the user is notified when a video, a book or an artwork they asked for is ready */
+    creations?: boolean;
+    /** Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits */
+    digest?: boolean;
+    /** The day of the week of the digest, 1 (Monday) to 7 (Sunday) */
+    digestDay?: number;
+    /** Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories) */
+    drafts?: boolean;
+    /** The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent */
+    hour?: number;
+    /** Whether the user is notified of a memory of the day (at most one notification a day, with the drafts) */
+    memories?: boolean;
+    /** The IANA time zone of hour, e.g. Europe/London; the server's when empty */
+    timeZone?: string;
+};
 export type PeopleUpdate = {
     /** Whether people are enabled */
     enabled?: boolean;
@@ -1371,6 +1411,7 @@ export type UserPreferencesUpdateDto = {
     folders?: FoldersUpdate;
     memories?: MemoriesUpdate;
     memoryExclusions?: MemoryExclusionsUpdate;
+    memoryNotifications?: MemoryNotificationsUpdate;
     people?: PeopleUpdate;
     purchase?: PurchaseUpdate;
     ratings?: RatingsUpdate;
@@ -15043,6 +15084,8 @@ export enum JobName {
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
     YearRecapPrepare = "YearRecapPrepare",
+    MemoryNoticesQueueAll = "MemoryNoticesQueueAll",
+    MemoryNoticesSend = "MemoryNoticesSend",
     OrientationCheckQueueAll = "OrientationCheckQueueAll",
     OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",

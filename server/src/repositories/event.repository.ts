@@ -3,6 +3,7 @@ import { ModuleRef, Reflector } from '@nestjs/core';
 import { orderBy } from 'lodash-es';
 import { Socket } from 'socket.io';
 import type { JobItem, JobSource, UploadFile } from 'src/types.js';
+import type { MemoryNoticeEvent } from 'src/utils/memory-notices.js';
 import { Asset } from 'src/database.js';
 import { EventConfig } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
@@ -108,6 +109,9 @@ type EventMap = {
 
   // websocket events
   WebsocketConnect: [{ userId: string }];
+
+  /** Gallery fork (#6): a notification of the day was sent; the hook of a push channel (#3) */
+  MemoryNoticeSend: [MemoryNoticeEvent];
 };
 
 export type AppRestartEvent = {

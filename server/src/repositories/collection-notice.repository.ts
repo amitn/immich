@@ -35,6 +35,30 @@ export class CollectionNoticeRepository {
       .executeTakeFirst();
   }
 
+  /**
+   * The visits notified to the user since then whose notification is still unread (#6: the weekly digest), the newest
+   * first, with the question and the line of their notification
+   */
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.DATE] })
+  getUnreadSince(userId: string, since: Date) {
+    return this.db
+      .selectFrom('collection_notice')
+      .innerJoin('notification', 'notification.id', 'collection_notice.notificationId')
+      .select([
+        'collection_notice.pack',
+        'collection_notice.assetIds',
+        'collection_notice.createdAt',
+        'notification.title',
+        'notification.description',
+      ])
+      .where('collection_notice.userId', '=', userId)
+      .where('collection_notice.createdAt', '>=', since)
+      .where('notification.readAt', 'is', null)
+      .where('notification.deletedAt', 'is', null)
+      .orderBy('collection_notice.createdAt', 'desc')
+      .execute();
+  }
+
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID] })
   async setNotification(id: string, notificationId: string): Promise<void> {
     await this.db

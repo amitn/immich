@@ -40,6 +40,7 @@ import { DerivedAssetService, getArtworkTag } from 'src/services/derived-asset.s
 import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
 import { ArtStyle, artStyles, buildArtPrompt, checkArtPrompt, getArtStyle } from 'src/utils/agent/art-styles.js';
 import { getAgentProfile, isArtEnabled } from 'src/utils/agent/config.js';
+import { wantsCreationNotices } from 'src/utils/memory-notices.js';
 import { findOrFail } from 'src/utils/misc.js';
 
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
@@ -353,6 +354,13 @@ export class ArtService extends BaseService {
     assetId: string | null,
     notification: { level: NotificationLevel; title: string; description: string },
   ): Promise<void> {
+    // a creation the user asked for is ready: told unless they turned that off; a failure is always told (#6)
+    if (
+      notification.level !== NotificationLevel.Error &&
+      !wantsCreationNotices(await this.userRepository.getMetadata(job.userId))
+    ) {
+      return;
+    }
     try {
       const item = await this.notificationRepository.create({
         userId: job.userId,

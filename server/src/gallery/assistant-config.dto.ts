@@ -131,6 +131,18 @@ export const AssistantFoodSchema = z
   .describe('Food photos config')
   .meta({ id: 'AdminConfigFoodDto' });
 
+export const AssistantMemoryNotificationsSchema = z
+  .object({
+    enabled: configBool.describe(
+      'Send each user at most one notification a day of a memory (on this day, a trip anniversary) or a suggested photo book waiting for them, at the time of day they choose',
+    ),
+    digest: configBool.describe(
+      "Let the users get a weekly email of the week's memories, waiting drafts and new journal visits (off for each user until they turn it on; needs email to be set up)",
+    ),
+  })
+  .describe('Memory notifications config')
+  .meta({ id: 'AdminConfigMemoryNotificationsDto' });
+
 export const assistantTopLevelDefaults = {
   agent: {
     enabled: false,
@@ -178,5 +190,9 @@ export const assistantTopLevelDefaults = {
       enabled: false,
       overpassUrl: DEFAULT_OVERPASS_URL,
     },
+  },
+  memoryNotifications: {
+    enabled: true,
+    digest: true,
   },
 };

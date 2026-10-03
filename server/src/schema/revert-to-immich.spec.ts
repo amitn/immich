@@ -68,7 +68,7 @@ describe('revert-to-immich.sql', () => {
     );
 
   it('finds the tables of the assistant migrations', () => {
-    expect(assistantTables).toEqual(expect.arrayContaining(['book_draft', 'memory_exclusion']));
+    expect(assistantTables).toEqual(expect.arrayContaining(['book_draft', 'memory_exclusion', 'memory_notice']));
   });
 
   it('drops and guards every table of the assistant migrations', () => {

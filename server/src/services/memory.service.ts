@@ -207,6 +207,14 @@ export class MemoryService extends BaseService {
         }
       }
     });
+
+    // Gallery fork (#6): the memory of the day, for the users whose time of day has already come. Fail soft like
+    // every phase above: the hourly run catches up.
+    try {
+      await this.jobRepository.queue({ name: JobName.MemoryNoticesQueueAll });
+    } catch (error) {
+      this.logger.warn(`Failed to queue the memory notifications: ${error}`);
+    }
   }
 
   private async createOnThisDayMemories(ownerId: string, target: DateTime) {

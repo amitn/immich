@@ -1,3 +1,4 @@
+import { IANAZone } from 'luxon';
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import type { UserPreferences } from 'src/types.js';
@@ -152,6 +153,47 @@ const MemoryExclusionsUpdateSchema = z
   .optional()
   .meta({ id: 'MemoryExclusionsUpdate' });
 
+const MemoryNotificationsUpdateSchema = z
+  .object({
+    memories: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)',
+      ),
+    creations: z
+      .boolean()
+      .optional()
+      .describe('Whether the user is notified when a video, a book or an artwork they asked for is ready'),
+    drafts: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)',
+      ),
+    hour: z
+      .int()
+      .min(0)
+      .max(23)
+      .optional()
+      .describe(
+        'The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent',
+      ),
+    timeZone: z
+      .string()
+      .max(64)
+      .refine((zone) => zone === '' || IANAZone.isValidZone(zone), { error: 'Unknown time zone' })
+      .optional()
+      .describe("The IANA time zone of hour, e.g. Europe/London; the server's when empty"),
+    digest: z
+      .boolean()
+      .optional()
+      .describe("Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits"),
+    digestDay: z.int().min(1).max(7).optional().describe('The day of the week of the digest, 1 (Monday) to 7 (Sunday)'),
+  })
+  .optional()
+  .meta({ id: 'MemoryNotificationsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
     aiAnswers: AiAnswersUpdateSchema,
@@ -165,6 +207,7 @@ const UserPreferencesUpdateSchema = z
     folders: FoldersUpdateSchema,
     memories: MemoriesUpdateSchema,
     memoryExclusions: MemoryExclusionsUpdateSchema,
+    memoryNotifications: MemoryNotificationsUpdateSchema,
     people: PeopleUpdateSchema,
     purchase: PurchaseUpdateSchema,
     ratings: RatingsUpdateSchema,
@@ -282,6 +325,34 @@ const MemoryExclusionsResponseSchema = z
   })
   .meta({ id: 'MemoryExclusionsResponse' });
 
+const MemoryNotificationsResponseSchema = z
+  .object({
+    memories: z
+      .boolean()
+      .describe(
+        'Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)',
+      ),
+    creations: z
+      .boolean()
+      .describe('Whether the user is notified when a video, a book or an artwork they asked for is ready'),
+    drafts: z
+      .boolean()
+      .describe(
+        'Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)',
+      ),
+    hour: z
+      .int()
+      .describe(
+        'The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent',
+      ),
+    timeZone: z.string().describe("The IANA time zone of hour, e.g. Europe/London; the server's when empty"),
+    digest: z
+      .boolean()
+      .describe("Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits"),
+    digestDay: z.int().describe('The day of the week of the digest, 1 (Monday) to 7 (Sunday)'),
+  })
+  .meta({ id: 'MemoryNotificationsResponse' });
+
 const AiAnswersResponseSchema = z
   .object({
     enabled: z
@@ -308,6 +379,7 @@ const UserPreferencesResponseSchema = z
     bookDrafts: BookDraftsResponseSchema,
     collectionNotifications: CollectionNotificationsResponseSchema,
     memoryExclusions: MemoryExclusionsResponseSchema,
+    memoryNotifications: MemoryNotificationsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 

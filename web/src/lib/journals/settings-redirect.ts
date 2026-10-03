@@ -2,11 +2,13 @@ import { QueryParameter } from '$lib/constants';
 
 /**
  * The settings accordions renamed with the journals (#24): the old key in `?isOpen=` and its new one, e.g.
- * `/admin/system-settings?isOpen=collections`, which links in the docs and the browser history still open
+ * `/admin/system-settings?isOpen=collections`, which links in the docs and the browser history still open. The journal
+ * notifications moved to the memory notifications (#6).
  */
 const RENAMED_SETTINGS: Readonly<Record<string, string>> = {
   collections: 'journals',
-  'collection-notifications': 'journal-notifications',
+  'collection-notifications': 'memory-notifications',
+  'journal-notifications': 'memory-notifications',
 };
 
 /**

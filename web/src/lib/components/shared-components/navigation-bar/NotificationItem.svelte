@@ -1,8 +1,12 @@
 <script lang="ts">
   import { NotificationLevel, NotificationType, type NotificationDto } from '@immich/sdk';
+  import { locale } from '$lib/stores/preferences.store';
+  import { getNotificationText } from '$lib/utils/memory-notice';
   import { IconButton, Stack, Text } from '@immich/ui';
   import {
     mdiBackupRestore,
+    mdiBookOpenPageVariantOutline,
+    mdiCalendarHeart,
     mdiImageAlbum,
     mdiImagePlus,
     mdiInformationOutline,
@@ -10,6 +14,7 @@
     mdiSync,
   } from '@mdi/js';
   import { DateTime } from 'luxon';
+  import { t } from 'svelte-i18n';
 
   interface Props {
     notification: NotificationDto;
@@ -17,6 +22,11 @@
   }
 
   let { notification, onclick }: Props = $props();
+
+  // Gallery fork (#6): a memory notification and a waiting draft read in the viewer's language
+  const text = $derived(getNotificationText(notification, $t, $locale));
+  const title = $derived(text?.title ?? notification.title);
+  const description = $derived(text ? text.description : notification.description);
 
   const getAlertColor = (level: NotificationLevel) => {
     switch (level) {
@@ -108,9 +118,13 @@
   <div class="grid grid-cols-[56px_1fr_32px] items-center gap-2">
     <div class="flex place-content-center place-items-center">
       <IconButton
-        icon={getIconType(notification.type)}
+        icon={text?.kind === 'memory'
+          ? mdiCalendarHeart
+          : text?.kind === 'draft'
+            ? mdiBookOpenPageVariantOutline
+            : getIconType(notification.type)}
         color={getAlertColor(notification.level)}
-        aria-label={notification.title}
+        aria-label={title}
         shape="round"
         class={getIconBgColor(notification.level)}
         size="small"
@@ -118,9 +132,9 @@
     </div>
 
     <Stack class="text-left" gap={1}>
-      <Text size="tiny" class="text-base text-black dark:text-white" fontWeight="semi-bold">{notification.title}</Text>
-      {#if notification.description}
-        <Text class="overflow-hidden text-gray-600 dark:text-gray-300">{notification.description}</Text>
+      <Text size="tiny" class="text-base text-black dark:text-white" fontWeight="semi-bold">{title}</Text>
+      {#if description}
+        <Text class="overflow-hidden text-gray-600 dark:text-gray-300">{description}</Text>
       {/if}
 
       <Text size="tiny" color="muted">{formatRelativeTime(notification.createdAt)}</Text>
