@@ -24,6 +24,11 @@ class GalleryImages {
     url: getThumbnailUrlForRemoteId(assetId, type: AssetMediaSize.preview, thumbhash: cacheKey),
   );
 
+  /// The photo before and after auto enhance at [strength], side by side, rendered by the server
+  ImageProvider enhancePreview(String assetId, EnhanceStrength strength) => RemoteImageProvider(
+    url: '${Store.get(StoreKey.serverEndpoint)}/assets/$assetId/enhance/preview.jpg?strength=$strength',
+  );
+
   ImageProvider bookPage(String bookId, String pageId, {required int size, DateTime? cacheKey}) => RemoteImageProvider(
     url: bookPageRenderUrl(bookId, pageId, size: size, cacheKey: cacheKey),
   );

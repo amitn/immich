@@ -39,6 +39,12 @@ class FakeGalleryImages extends GalleryImages {
   }
 
   @override
+  ImageProvider enhancePreview(String assetId, EnhanceStrength strength) {
+    requested.add('enhance:$assetId@$strength');
+    return MemoryImage(kTransparentPng);
+  }
+
+  @override
   ImageProvider bookPage(String bookId, String pageId, {required int size, DateTime? cacheKey}) {
     requested.add('page:$bookId/$pageId@$size');
     return MemoryImage(kTransparentPng);
@@ -81,6 +87,12 @@ class FakeGalleryNavigator implements GalleryNavigator {
     int albumAssetCount = 0,
     List<String> assetIds = const [],
   }) async => calls.add('journal $pack ${albumId == null ? 'assets=${assetIds.join(',')}' : 'album=$albumId'}');
+
+  @override
+  Future<void> openArtisticStyle(String assetId) async => calls.add('art $assetId');
+
+  @override
+  Future<void> openAutoEnhance(String assetId) async => calls.add('enhance $assetId');
 
   @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');

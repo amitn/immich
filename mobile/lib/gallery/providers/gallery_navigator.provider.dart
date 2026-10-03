@@ -44,6 +44,12 @@ abstract interface class GalleryNavigator {
     List<String> assetIds = const [],
   });
 
+  /// "Artistic style…" of a photo of the user's
+  Future<void> openArtisticStyle(String assetId);
+
+  /// "Auto enhance" of a photo of the user's
+  Future<void> openAutoEnhance(String assetId);
+
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
 
@@ -109,6 +115,12 @@ class RouterGalleryNavigator implements GalleryNavigator {
       assetIds: assetIds,
     ),
   );
+
+  @override
+  Future<void> openArtisticStyle(String assetId) => _router.push(ArtisticStyleRoute(assetId: assetId));
+
+  @override
+  Future<void> openAutoEnhance(String assetId) => _router.push(AutoEnhanceRoute(assetId: assetId));
 
   @override
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));
