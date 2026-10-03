@@ -3077,6 +3077,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} 已上傳",
   "shared_link_album_includes_contributed_assets": "此相簿位於共享空間中。其他成員新增至相簿的照片會包含在連結裡，任何擁有該網址的人都能公開檢視。",
   "shared_link_app_bar_title": "分享連結",
+  "shared_link_book": "照片書",
   "shared_link_clipboard_copied_massage": "已複製到剪貼簿",
   "shared_link_create_error": "建立分享連結時發生錯誤",
   "shared_link_custom_url_description": "使用自訂 URL 名稱來使用共享連結",

@@ -3095,6 +3095,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} geüpload",
   "shared_link_album_includes_contributed_assets": "Dit album zit in een gedeelde ruimte. Foto’s die andere leden eraan hebben toegevoegd zitten in de link en worden openbaar zichtbaar voor iedereen met de URL.",
   "shared_link_app_bar_title": "Gedeelde links",
+  "shared_link_book": "Fotoboek",
   "shared_link_clipboard_copied_massage": "Gekopieerd naar klembord",
   "shared_link_create_error": "Fout bij het maken van een gedeelde link",
   "shared_link_custom_url_description": "Krijg toegang tot deze gedeelde link met een aangepaste URL-naam",

@@ -3115,6 +3115,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} Przesłano",
   "shared_link_album_includes_contributed_assets": "Ten album znajduje się w udostępnionym Space. Zdjęcia dodane do niego przez innych członków są uwzględnione w linku i stają się publicznie widoczne dla każdego, kto ma ten adres URL.",
   "shared_link_app_bar_title": "Udostępnione linki",
+  "shared_link_book": "Fotoksiążka",
   "shared_link_clipboard_copied_massage": "Skopiowane do schowka",
   "shared_link_create_error": "Błąd podczas tworzenia linka do udostępnienia",
   "shared_link_custom_url_description": "Otwórz udostępniony link z niestandardowym adresem URL",

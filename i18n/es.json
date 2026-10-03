@@ -3091,6 +3091,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} cargado(s)",
   "shared_link_album_includes_contributed_assets": "Este álbum está en un Space compartido. Las fotos que otros miembros han añadido a él se incluyen en el enlace y pasan a ser públicamente visibles para cualquiera que tenga la URL.",
   "shared_link_app_bar_title": "Enlaces compartidos",
+  "shared_link_book": "Fotolibro",
   "shared_link_clipboard_copied_massage": "Copiado al portapapeles",
   "shared_link_create_error": "Error creando el enlace compartido",
   "shared_link_custom_url_description": "Accede a este enlace compartido mediante una URL personalizada",

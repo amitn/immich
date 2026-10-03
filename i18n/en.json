@@ -4298,6 +4298,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} Uploaded",
   "shared_link_album_includes_contributed_assets": "This album is in a shared space. Photos other members contributed to it are included in the link and become publicly visible to anyone who has the URL.",
   "shared_link_app_bar_title": "Shared Links",
+  "shared_link_book": "Photo book",
   "shared_link_clipboard_copied_massage": "Copied to clipboard",
   "shared_link_create_error": "Error while creating shared link",
   "shared_link_custom_url_description": "Access this shared link with a custom URL name",

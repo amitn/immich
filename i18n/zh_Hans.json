@@ -3053,6 +3053,7 @@
   "shared_intent_upload_button_progress_text": "已上传{current} / {total}",
   "shared_link_album_includes_contributed_assets": "此相册位于共享空间中。其他成员添加到相册的照片会包含在链接里，任何拥有该网址的人都能公开查看。",
   "shared_link_app_bar_title": "共享链接",
+  "shared_link_book": "照片书",
   "shared_link_clipboard_copied_massage": "复制到剪贴板",
   "shared_link_create_error": "创建共享链接出错",
   "shared_link_custom_url_description": "使用自定义URL访问此共享链接",

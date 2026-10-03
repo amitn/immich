@@ -3090,6 +3090,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} Envoyé(s)",
   "shared_link_album_includes_contributed_assets": "Cet album se trouve dans un espace partagé. Les photos que d'autres membres y ont ajoutées sont incluses dans le lien et deviennent publiquement visibles par quiconque possède l'URL.",
   "shared_link_app_bar_title": "Liens partagés",
+  "shared_link_book": "Livre photo",
   "shared_link_clipboard_copied_massage": "Copié dans le presse-papier",
   "shared_link_create_error": "Erreur pendant la création du lien partagé",
   "shared_link_custom_url_description": "Accéder à ce lien partagé avec un nom d'URL personnalisée",

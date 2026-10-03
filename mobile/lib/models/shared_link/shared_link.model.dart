@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:immich_mobile/gallery/shared_links/book_shared_link.dart';
 import 'package:openapi/api.dart';
 
 part 'shared_link.model.freezed.dart';
 
-enum SharedLinkSource { album, individual }
+// book: Gallery photo books (#3)
+enum SharedLinkSource { album, individual, book }
 
 @freezed
 abstract class SharedLink with _$SharedLink {
@@ -24,6 +26,9 @@ abstract class SharedLink with _$SharedLink {
   }) = _SharedLink;
 
   factory SharedLink.fromDto(SharedLinkResponseDto dto) {
+    if (dto.type == SharedLinkType.BOOK) {
+      return bookSharedLinkFromDto(dto);
+    }
     final isAlbum = dto.type == SharedLinkType.ALBUM;
     return SharedLink(
       id: dto.id,

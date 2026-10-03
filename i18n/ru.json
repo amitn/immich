@@ -3097,6 +3097,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} Загружено",
   "shared_link_album_includes_contributed_assets": "Этот альбом находится в общем пространстве. Фотографии, добавленные в него другими участниками, включены в ссылку и станут общедоступными для всех, у кого есть этот URL.",
   "shared_link_app_bar_title": "Публичные ссылки",
+  "shared_link_book": "Фотокнига",
   "shared_link_clipboard_copied_massage": "Скопировано в буфер обмена",
   "shared_link_create_error": "Ошибка при создании публичной ссылки",
   "shared_link_custom_url_description": "Ввести свой URL-адрес для общей ссылки",

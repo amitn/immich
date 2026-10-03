@@ -3090,6 +3090,7 @@
   "shared_intent_upload_button_progress_text": "{current} / {total} hochgeladen",
   "shared_link_album_includes_contributed_assets": "Dieses Album liegt in einem geteilten Bereich. Fotos, die andere Mitglieder dazu beigesteuert haben, sind im Link enthalten und werden für alle öffentlich sichtbar, die die URL haben.",
   "shared_link_app_bar_title": "Geteilte Links",
+  "shared_link_book": "Fotobuch",
   "shared_link_clipboard_copied_massage": "Link kopiert",
   "shared_link_create_error": "Fehler beim Erstellen der Linkfreigabe",
   "shared_link_custom_url_description": "Greife über eine benutzerdefinierte URL auf diesen Freigabelink zu",

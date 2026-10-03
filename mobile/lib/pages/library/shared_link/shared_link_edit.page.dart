@@ -36,6 +36,9 @@ class SharedLinkEditPage extends HookConsumerWidget {
   /// share is only known server-side, and the warning below says so without claiming a count.
   final int contributedCount;
 
+  /// Gallery (#3): the photo book this link is being created for
+  final String? bookId;
+
   const SharedLinkEditPage({
     super.key,
     this.existingLink,
@@ -43,12 +46,15 @@ class SharedLinkEditPage extends HookConsumerWidget {
     this.albumId,
     this.spaceId,
     this.contributedCount = 0,
+    this.bookId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeData = context.themeData;
     final colorScheme = context.colorScheme;
+    // Gallery (#3): a book link downloads the book's PDF, shows photo details in the web book, and takes no uploads
+    final isBook = bookId != null || existingLink?.type == SharedLinkSource.book;
     final externalDomain = ref.watch(serverInfoProvider.select((s) => s.serverConfig.externalDomain));
     final displayServerUrl = externalDomain.isNotEmpty ? externalDomain : getServerUrl();
     final expiryPresets = <(Duration, String)>[
@@ -127,6 +133,10 @@ class SharedLinkEditPage extends HookConsumerWidget {
           return buildSharedLinkRow(leading: context.t.public_album, content: existingLink!.title);
         }
 
+        if (existingLink!.type == SharedLinkSource.book) {
+          return buildSharedLinkRow(leading: context.t.shared_link_book, content: existingLink!.title);
+        }
+
         if (existingLink!.type == SharedLinkSource.individual) {
           return buildSharedLinkRow(
             leading: context.t.shared_link_individual_shared,
@@ -195,7 +205,7 @@ class SharedLinkEditPage extends HookConsumerWidget {
         onChanged: (value) => showMetadata.value = value,
         dense: true,
         title: Text(
-          context.t.show_metadata,
+          isBook ? context.t.book_share_show_photo_details : context.t.show_metadata,
           style: themeData.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       );
@@ -203,11 +213,11 @@ class SharedLinkEditPage extends HookConsumerWidget {
 
     Widget buildAllowDownloadButton() {
       return SwitchListTile.adaptive(
-        value: allowDownload.value && showMetadata.value,
-        onChanged: showMetadata.value ? (value) => allowDownload.value = value : null,
+        value: allowDownload.value && (isBook || showMetadata.value),
+        onChanged: isBook || showMetadata.value ? (value) => allowDownload.value = value : null,
         dense: true,
         title: Text(
-          context.t.allow_public_user_to_download,
+          isBook ? context.t.book_share_allow_pdf_download : context.t.allow_public_user_to_download,
           style: themeData.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       );
@@ -382,6 +392,7 @@ class SharedLinkEditPage extends HookConsumerWidget {
             slug: slugController.text.isEmpty ? null : slugController.text,
             expiresAt: calculateExpiry()?.toUtc(),
             spaceId: spaceId,
+            bookId: bookId,
           );
       if (!context.mounted) {
         return;
@@ -531,8 +542,7 @@ class SharedLinkEditPage extends HookConsumerWidget {
                     const SizedBox(height: 16),
                     buildAllowDownloadButton(),
                     const SizedBox(height: 16),
-                    buildAllowUploadButton(),
-                    const SizedBox(height: 16),
+                    if (!isBook) ...[buildAllowUploadButton(), const SizedBox(height: 16)],
                     buildExpiryAfterButton(),
                     const SizedBox(height: 24),
                     Align(
