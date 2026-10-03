@@ -20,12 +20,18 @@ describe('gallery plugin manifest', () => {
     expect(result.success).toBe(true);
   });
 
-  it('declares exactly the two space actions', () => {
+  it('declares the two space actions and the tag path filter (#11)', () => {
     expect(
       readManifest()
         .methods.map((method: { name: string }) => method.name)
         .sort(),
-    ).toEqual(['addToSpace', 'addToSpaceAlbum']);
+    ).toEqual(['addToSpace', 'addToSpaceAlbum', 'assetTagPathFilter']);
+  });
+
+  it('runs the tag path filter in the plugin alone, without host functions', () => {
+    const filter = readManifest().methods.find((method: { name: string }) => method.name === 'assetTagPathFilter');
+    expect(filter).toMatchObject({ uiHints: ['Filter'], schema: { required: ['tag'] } });
+    expect(filter.hostFunctions).toBeUndefined();
   });
 });
 
@@ -33,11 +39,12 @@ describe('manifest / handler parity', () => {
   // U1 — the dispatcher is string-keyed across the WASM boundary, so a renamed handler would
   // otherwise break only at runtime. Introduced here, in the task that makes it pass, so no commit
   // in this plan ever leaves the suite red.
-  it('has a handler for every manifest method and no extras', () => {
+  it('has a handler for every manifest method that calls the host, and no extras', () => {
     const { sut } = newTestService(GalleryWorkflowHostService);
     expect(sut.methodNames.sort()).toEqual(
       readManifest()
-        .methods.map((method: { name: string }) => method.name)
+        .methods.filter((method: { hostFunctions?: boolean }) => method.hostFunctions)
+        .map((method: { name: string }) => method.name)
         .sort(),
     );
   });

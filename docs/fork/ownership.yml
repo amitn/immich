@@ -465,6 +465,7 @@ features:
       - redaction
       - memory-exclusions
       - year-recap
+      - smart-albums
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -655,6 +656,7 @@ features:
       - server/test/medium/specs/services/memory-creations.service.spec.ts
       - server/test/medium/specs/services/redaction.service.spec.ts
       - server/test/medium/specs/services/memory-exclusions.service.spec.ts
+      - server/test/medium/specs/workflow/workflow-smart-album.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
       - web/src/lib/components/activity-log/**
@@ -717,6 +719,8 @@ features:
       - web/src/lib/modals/SharedLinkCreateModal.redact.spec.ts
       - web/src/lib/modals/StyleCreatorModal.spec.ts
       - web/src/lib/modals/StyleCreatorModal.svelte
+      - web/src/lib/modals/WorkflowExplainModal.spec.ts
+      - web/src/lib/modals/WorkflowExplainModal.svelte
       - web/src/lib/services/assistant.service.spec.ts
       - web/src/lib/services/assistant.service.ts
       - web/src/lib/services/book.service.ts
@@ -725,6 +729,8 @@ features:
       - web/src/lib/services/journals.service.ts
       - web/src/lib/services/memory-creations.service.spec.ts
       - web/src/lib/services/memory-creations.service.ts
+      - web/src/lib/services/workflow-assistant.service.spec.ts
+      - web/src/lib/services/workflow-assistant.service.ts
       - web/src/lib/utils/activity-log.ts
       - web/src/lib/utils/agent-config.spec.ts
       - web/src/lib/utils/agent-config.ts
@@ -759,6 +765,8 @@ features:
       - web/src/lib/utils/redaction.ts
       - web/src/lib/utils/style-creator.spec.ts
       - web/src/lib/utils/style-creator.ts
+      - web/src/lib/utils/workflow-explain.spec.ts
+      - web/src/lib/utils/workflow-explain.ts
       - web/src/routes/(user)/activity/**
       - web/src/routes/(user)/assistant/**
       - web/src/routes/(user)/books/**

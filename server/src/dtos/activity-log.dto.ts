@@ -16,6 +16,7 @@ export const REDOABLE_ACTIONS: ReadonlySet<ActivityLogAction> = new Set([
   ActivityLogAction.AlbumRemoveAssets,
   ActivityLogAction.BookDraftKeep,
   ActivityLogAction.BurstCleanup,
+  ActivityLogAction.SpaceAddAssets,
 ]);
 
 const ActivityLogSearchSchema = z

@@ -6,13 +6,16 @@ import {
   mdiCameraBurst,
   mdiContentCopy,
   mdiEyeOffOutline,
+  mdiFlashOutline,
   mdiImageAlbum,
   mdiImageMinus,
   mdiImagePlus,
   mdiLinkVariant,
   mdiPalette,
+  mdiPencilOutline,
   mdiTagOutline,
   mdiTrashCanOutline,
+  mdiAccountMultiplePlusOutline,
   mdiVideoOutline,
 } from '@mdi/js';
 import type { Translations } from 'svelte-i18n';
@@ -36,6 +39,9 @@ const icons: Record<ActivityLogAction, string> = {
   [ActivityLogAction.HighlightCreate]: mdiVideoOutline,
   [ActivityLogAction.MemoryExclusionChange]: mdiEyeOffOutline,
   [ActivityLogAction.SharedLinkCreate]: mdiLinkVariant,
+  [ActivityLogAction.SpaceAddAssets]: mdiAccountMultiplePlusOutline,
+  [ActivityLogAction.WorkflowCreate]: mdiFlashOutline,
+  [ActivityLogAction.WorkflowUpdate]: mdiPencilOutline,
 };
 
 export const getActivityIcon = (action: ActivityLogAction) => icons[action] ?? mdiContentCopy;
@@ -58,6 +64,9 @@ const actionKeys: Record<ActivityLogAction, Translations> = {
   [ActivityLogAction.HighlightCreate]: 'activity_log_action_highlight_create',
   [ActivityLogAction.MemoryExclusionChange]: 'activity_log_action_memory_exclusion_change',
   [ActivityLogAction.SharedLinkCreate]: 'activity_log_action_shared_link_create',
+  [ActivityLogAction.SpaceAddAssets]: 'activity_log_action_space_add_assets',
+  [ActivityLogAction.WorkflowCreate]: 'activity_log_action_workflow_create',
+  [ActivityLogAction.WorkflowUpdate]: 'activity_log_action_workflow_update',
 };
 
 /** the i18n key of the name of a kind of change, e.g. "Photos added to an album" */
@@ -87,6 +96,15 @@ export const getActivityTargetRoute = ({ action, targetId, undoneAt }: ActivityL
     }
     case ActivityLogAction.BookDraftDiscard: {
       return undoneAt ? Route.viewBook({ id: targetId }) : undefined;
+    }
+    case ActivityLogAction.SpaceAddAssets: {
+      return Route.viewSpace({ id: targetId });
+    }
+    case ActivityLogAction.WorkflowCreate: {
+      return undoneAt ? undefined : Route.viewWorkflow({ id: targetId });
+    }
+    case ActivityLogAction.WorkflowUpdate: {
+      return Route.viewWorkflow({ id: targetId });
     }
     default: {
       return;
