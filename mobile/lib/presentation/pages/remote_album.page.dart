@@ -7,6 +7,7 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/album/album.model.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
+import 'package:immich_mobile/gallery/presentation/widgets/album/gallery_album_menu.widget.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/presentation/widgets/album/pending_uploads_banner.widget.dart';
 import 'package:immich_mobile/presentation/widgets/bottom_sheet/remote_album_bottom_sheet.widget.dart';
@@ -509,6 +510,7 @@ class _AlbumKebabMenu extends ConsumerWidget {
           onShowOptions: onShowOptions,
           // L15: gated to owned albums (mirrors web's isOwned gate on the same affordance).
           onLinkToSpace: isOwner ? onLinkToSpace : null,
+          galleryMenuChildren: galleryAlbumMenuItems(context, ref, album),
         );
       },
     );

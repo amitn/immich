@@ -104,6 +104,9 @@ const _kParamTypeOverrides = <String, String>{
   // Gallery (#3): the id of a photo book is a UUID
   'book_draft_polish_prompt.id': 'String',
   'book_edit_prompt.id': 'String',
+  // Gallery (#3): a length in centimetres, e.g. 29.7
+  'book_page_size_cm.height': 'String',
+  'book_page_size_cm.width': 'String',
   'cleanup_found_assets_with_size.size': 'String',
 };
 

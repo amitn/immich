@@ -6,6 +6,7 @@ import 'package:immich_mobile/domain/models/user.model.dart';
 import 'package:immich_mobile/extensions/asyncvalue_extensions.dart';
 import 'package:immich_mobile/extensions/build_context_extensions.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/library/gallery_library_entries.widget.dart';
+import 'package:immich_mobile/gallery/presentation/widgets/tags/gallery_tags_row.widget.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/presentation/widgets/images/local_album_thumbnail.widget.dart';
 import 'package:immich_mobile/presentation/widgets/images/remote_image_provider.dart';
@@ -45,8 +46,9 @@ class LibraryPage extends ConsumerWidget {
           ),
           const _ActionButtonGrid(),
           const _CollectionCards(),
-          // Gallery (#3): the assistant and the photo books
+          // Gallery (#3): the assistant and the photo books, and the tags
           const GalleryLibraryEntries(),
+          const GalleryTagsRow(),
           const _QuickAccessButtonList(),
           // Bottom clearance for the floating nav pill so the last list item
           // isn't obscured when scrolled to the end.

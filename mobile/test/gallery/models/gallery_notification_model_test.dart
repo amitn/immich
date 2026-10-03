@@ -58,15 +58,29 @@ void main() {
       expect(notificationTargetOf({'bookId': 'book-1', 'assetId': 'asset-1'}), const BookNotificationTarget('book-1'));
     });
 
-    test('the changes of an assistant turn and the journal notices have no screen in the app', () {
+    test('the changes of an assistant turn have no screen in the app', () {
       expect(notificationTargetOf({'activityGroupId': 'group-1', 'albumId': 'album-1'}), isNull);
+    });
+
+    test('the visits of a journal to name open its naming page, before anything else', () {
       expect(
         notificationTargetOf({
           'collectionPack': 'food',
-          'assetIds': <String>['a'],
+          'assetIds': <Object?>['a', '', 7, 'b'],
+          'albumId': 'album-1',
         }),
-        isNull,
+        const JournalNotificationTarget('food', ['a', 'b']),
       );
+      // a journal this app does not know, or no photos: where the rest of the data leads
+      expect(
+        notificationTargetOf({
+          'collectionPack': 'pottery',
+          'assetIds': <String>['a'],
+          'albumId': 'album-1',
+        }),
+        const AlbumNotificationTarget('album-1'),
+      );
+      expect(notificationTargetOf({'collectionPack': 'food', 'assetIds': <String>[]}), isNull);
     });
 
     test('ignores empty and non-string ids', () {

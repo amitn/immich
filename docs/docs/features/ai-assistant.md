@@ -852,12 +852,18 @@ The palette only lists the commands that the selection or the page allows, under
 The Android and iOS app shows the assistant and the photo books when your server has the assistant turned on; with an older server or the assistant off, they're hidden.
 
 - **Library → Assistant** opens the chat. **Chats** (the history button) lists your chats, where you can open or delete one, and the menu has the chat's **Auto-approve** switch. Replies stream in as they're written, tool calls show the photos they found (tap one to open it), and **Permission needed** cards have **Allow**, **Allow all in this chat** and **Deny**. **Stop** cancels the run.
-- **Ask assistant**: select photos in the timeline and select **Ask assistant** in the selection sheet. The photos are attached to your next message.
+- **Ask assistant**: select photos in the timeline, an album or a space and select **Ask assistant** in the selection sheet, or open a photo and select **Ask assistant** in its **⋮** menu. The photos are attached to your next message.
 - **Albums → Create with assistant** (the sparkle button) starts a chat with the same request as on the web.
 - **Library → Photo books** lists your books, with the **Suggested for you** drafts to **Keep** or **Discard**. Open a book to turn its pages; tap a page to zoom in. The book's bar has the **Review** (read only), **Share Link** (with a password and an expiry date) and, in its menu, **Download PDF**, which exports the PDF first when it's missing or outdated, and **Edit with assistant**.
 - The bell in the **Library** bar lists your unread notifications. Tapping one opens the book, artwork, highlight video, album or memory it's about, and a new one shows up at the bottom of the screen with **Open**.
 
-Creating books from an album, highlight videos, artistic styles, auto-enhance, naming the photos of your journals and editing book pages are on the web for now.
+- **Export as book…** in an album's **⋮** menu makes a photo book of the album: a title, a page size, a style (the presets, or one of your own styles), the number of pages, map pages and their style, and improved photos. The new book opens when its pages are laid out.
+- **Name in a journal…** in an album's **⋮** menu, or in the selection sheet, lists the journals (food, museum, wine, cookbook, travel, concerts, nature, reading, kids' art and garden). Pick one to see the visits it found, then name one: check the place, tap a menu or a label to read it full screen, choose each subject's name from what was read or type it, and select **Save**. Photos of other people, such as other members of a space, help to read the names, but only their owner can name them. A notice about new visits to name opens the same page.
+- **Artistic style…** and **Auto enhance** are in a photo's **⋮** menu when the photo is yours. The artistic style shows its progress while the art agent works; both save a new photo stacked with the original, and you can drag across the photo to compare it before and after.
+- **Make a highlight video…** is in an album's **⋮** menu and in the selection sheet, and a memory has a video button with **Make a video** and **Vertical video**. Choose the length, landscape or vertical 9:16 for stories and messages, the style, maps, captions and music. When the video is ready, **Share** sends it to another app and **Open** plays it.
+- **Library → Tags** shows your tags with their newest photo; tap one to see its photos in the timeline. **View All** opens the tree of your tags, a level at a time.
+
+Editing book pages is on the web for now.
 
 ## Setup
 

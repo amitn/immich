@@ -35,6 +35,21 @@ class BookApiRepository extends ApiRepository {
   /// The review of a book: what to fix, the people in it, good photos not used
   Future<BookReviewResponseDto> getReview(String id) => checkNull(_api.getBookReview(id));
 
+  /// The style presets, with the style each stands for
+  Future<List<BookStylePresetResponseDto>> getStylePresets() => checkNull(_api.getBookStylePresets());
+
+  /// The styles of the user's own (e.g. designed with the assistant), oldest first like the presets
+  Future<List<BookUserStyleResponseDto>> getUserStyles() async {
+    final styles = await checkNull(_api.getBookUserStyles());
+    return [...styles]..sort((a, b) {
+      final byDate = a.createdAt.compareTo(b.createdAt);
+      return byDate != 0 ? byDate : a.name.compareTo(b.name);
+    });
+  }
+
+  /// Lays out a new book from the photos of an album
+  Future<BookAutoLayoutResponseDto> createFromAlbum(BookFromAlbumDto dto) => checkNull(_api.createBookFromAlbum(dto));
+
   /// Queues the export of the print-ready PDF; poll [getBook] until `exportStatus` is completed
   Future<void> exportPdf(String id) =>
       _api.exportBook(id, bookExportDto: BookExportDto(format: const Optional.present(BookExportFormat.pdf)));

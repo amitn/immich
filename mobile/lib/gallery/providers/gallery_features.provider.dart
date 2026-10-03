@@ -1,4 +1,5 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:immich_mobile/models/server_info/server_features.model.dart';
 import 'package:immich_mobile/providers/server_info.provider.dart';
 import 'package:openapi/api.dart';
 
@@ -37,6 +38,16 @@ class GalleryFeatures {
   /// no book endpoints
   bool get books => assistant;
 
+  /// A Gallery server: the features with no flag of their own (journals, highlight videos, auto enhance) come with
+  /// it. Upstream Immich reports none of these flags; a Gallery server with every one of them off is taken for it
+  bool get gallery => assistant || artisticStyles || bookStadiaMaps || restaurantLookup;
+
+  /// The highlight videos (`/highlights`)
+  bool get highlights => gallery;
+
+  /// Auto enhance (`/assets/{id}/enhance`): local image processing, no AI
+  bool get autoEnhance => gallery;
+
   @override
   bool operator ==(Object other) =>
       other is GalleryFeatures &&
@@ -57,5 +68,23 @@ class GalleryFeatures {
 /// The assistant features of the connected server; refreshed with the server features (on connect and on a config
 /// update over the websocket)
 final galleryFeaturesProvider = Provider<GalleryFeatures>(
-  (ref) => ref.watch(serverInfoProvider.select((info) => info.serverFeatures.gallery)),
+  (ref) => _serverFeature(ref, (features) => features.gallery, const GalleryFeatures()),
+);
+
+/// A server feature; [none] while the app has no API to ask (the API service is set on login, and widget tests of
+/// the upstream screens that host these entries set none)
+T _serverFeature<T>(Ref ref, T Function(ServerFeatures features) select, T none) {
+  try {
+    return ref.watch(serverInfoProvider.select((info) => select(info.serverFeatures)));
+  } on UnimplementedError {
+    return none;
+  }
+}
+
+/// The journals ("Name the dishes…"): on a Gallery server with smart search, which finds the photos of the subjects,
+/// like the web's `isAvailable`
+final galleryJournalsProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(galleryFeaturesProvider.select((features) => features.gallery)) &&
+      _serverFeature(ref, (features) => features.smartSearch, false),
 );

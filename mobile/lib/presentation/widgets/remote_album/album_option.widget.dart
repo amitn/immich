@@ -15,6 +15,7 @@ class RemoteAlbumOption extends StatelessWidget {
     this.onEditAlbum,
     this.onShowOptions,
     this.onLinkToSpace,
+    this.galleryMenuChildren = const [],
     this.iconColor,
     this.iconShadows,
   });
@@ -32,6 +33,9 @@ class RemoteAlbumOption extends StatelessWidget {
   /// the selected space. Null hides the menu item (gated to owned albums by
   /// the caller, mirroring the other owner-only options here).
   final VoidCallback? onLinkToSpace;
+
+  /// Gallery (#3): "Export as book…", "Make a highlight video…" and the journals
+  final List<Widget> galleryMenuChildren;
   final Color? iconColor;
   final List<Shadow>? iconShadows;
 
@@ -117,6 +121,8 @@ class RemoteAlbumOption extends StatelessWidget {
         ),
       );
     }
+
+    menuChildren.addAll(galleryMenuChildren);
 
     if (onDeleteAlbum != null) {
       menuChildren.add(const Divider(height: 1));

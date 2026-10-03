@@ -9,6 +9,7 @@ import 'package:immich_mobile/gallery/providers/gallery_images.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_navigator.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/toast.provider.dart';
 import 'package:immich_mobile/services/toast.service.dart';
+import 'package:openapi/api.dart';
 
 /// A 1×1 transparent PNG
 final kTransparentPng = Uint8List.fromList(const [
@@ -28,6 +29,18 @@ class FakeGalleryImages extends GalleryImages {
   @override
   ImageProvider assetThumbnail(String assetId) {
     requested.add('asset:$assetId');
+    return MemoryImage(kTransparentPng);
+  }
+
+  @override
+  ImageProvider assetPreview(String assetId, {String? cacheKey}) {
+    requested.add('preview:$assetId');
+    return MemoryImage(kTransparentPng);
+  }
+
+  @override
+  ImageProvider enhancePreview(String assetId, EnhanceStrength strength) {
+    requested.add('enhance:$assetId@$strength');
     return MemoryImage(kTransparentPng);
   }
 
@@ -57,6 +70,51 @@ class FakeGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openNotifications() async => calls.add('notifications');
+
+  @override
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  }) async => calls.add('export album $albumId as book${stylePreset == null ? '' : ' ($stylePreset)'}');
+
+  @override
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  }) async => calls.add('journal $pack ${albumId == null ? 'assets=${assetIds.join(',')}' : 'album=$albumId'}');
+
+  @override
+  Future<void> openArtisticStyle(String assetId) async => calls.add('art $assetId');
+
+  @override
+  Future<void> openAutoEnhance(String assetId) async => calls.add('enhance $assetId');
+
+  @override
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds = const [],
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  }) async => calls.add(
+    'highlight ${albumId != null
+        ? 'album=$albumId'
+        : memoryId != null
+        ? 'memory=$memoryId'
+        : 'assets=${assetIds.join(',')}'}'
+    '${title == null ? '' : ' "$title"'}${vertical ? ' vertical' : ''}',
+  );
+
+  @override
+  Future<void> openTags({String path = ''}) async => calls.add('tags $path'.trim());
+
+  @override
+  void openTagPhotos(String tagId) => calls.add('tag photos $tagId');
 
   @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');
@@ -91,6 +149,9 @@ class FakeGalleryNavigator implements GalleryNavigator {
         return openAlbum(albumId);
       case MemoryNotificationTarget(:final memoryId):
         return openMemory(memoryId);
+      case JournalNotificationTarget(:final pack, :final assetIds):
+        await nameInJournal(pack: pack, assetIds: assetIds);
+        return true;
     }
   }
 }
@@ -119,8 +180,10 @@ List<Override> galleryOverrides({
   FakeGalleryImages? images,
   FakeGalleryNavigator? navigator,
   FakeToastService? toast,
+  bool journals = true,
 }) => [
   galleryFeaturesProvider.overrideWithValue(features),
+  galleryJournalsProvider.overrideWithValue(journals && features.gallery),
   galleryImagesProvider.overrideWithValue(images ?? FakeGalleryImages()),
   galleryNavigatorProvider.overrideWithValue(navigator ?? FakeGalleryNavigator()),
   toastServiceProvider.overrideWithValue(toast ?? FakeToastService()),

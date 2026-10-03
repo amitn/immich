@@ -833,7 +833,13 @@ features:
       - mobile/lib/pages/library/shared_link/shared_link_edit.page.dart
       - mobile/lib/presentation/pages/album.page.dart
       - mobile/lib/presentation/pages/library.page.dart
+      - mobile/lib/presentation/pages/memory.page.dart
+      - mobile/lib/presentation/pages/remote_album.page.dart
+      - mobile/lib/presentation/widgets/asset_viewer/viewer_kebab_menu.widget.dart
       - mobile/lib/presentation/widgets/bottom_sheet/general_bottom_sheet.widget.dart
+      - mobile/lib/presentation/widgets/bottom_sheet/remote_album_bottom_sheet.widget.dart
+      - mobile/lib/presentation/widgets/bottom_sheet/space_bottom_sheet.widget.dart
+      - mobile/lib/presentation/widgets/remote_album/album_option.widget.dart
       - mobile/lib/providers/websocket.provider.dart
       - mobile/lib/routing/router.dart
       - mobile/lib/services/shared_link.service.dart

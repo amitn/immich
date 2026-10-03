@@ -11,9 +11,11 @@ import 'package:immich_mobile/providers/infrastructure/album.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/asset.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/db.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
+import 'package:immich_mobile/providers/photos_filter/photos_filter.provider.dart';
 import 'package:immich_mobile/repositories/memory_api.repository.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:logging/logging.dart';
+import 'package:openapi/api.dart';
 
 /// Where the assistant screens lead: behind a provider, so widget tests can follow the navigation without a router
 abstract interface class GalleryNavigator {
@@ -25,6 +27,44 @@ abstract interface class GalleryNavigator {
   Future<void> openBook(String bookId);
 
   Future<void> openNotifications();
+
+  /// "Export as book…" of an album, with [stylePreset] chosen (e.g. the preset of a journal)
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  });
+
+  /// "Name the …" of a journal, in an album or in photos
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  });
+
+  /// "Artistic style…" of a photo of the user's
+  Future<void> openArtisticStyle(String assetId);
+
+  /// "Auto enhance" of a photo of the user's
+  Future<void> openAutoEnhance(String assetId);
+
+  /// "Make a highlight video…" of an album, photos or a memory
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds,
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  });
+
+  /// The tree of the tags, at [path] (e.g. Holidays/Italy)
+  Future<void> openTags({String path = ''});
+
+  /// The photos of a tag, in the timeline filtered by it (the web's `/photos?tags=<id>`)
+  void openTagPhotos(String tagId);
 
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
@@ -64,6 +104,62 @@ class RouterGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openNotifications() => _router.push(const GalleryNotificationsRoute());
+
+  @override
+  Future<void> exportAlbumAsBook({
+    required String albumId,
+    required String albumName,
+    required int assetCount,
+    BookStylePreset? stylePreset,
+  }) => _router.push(
+    BookExportRoute(albumId: albumId, albumName: albumName, assetCount: assetCount, stylePreset: stylePreset?.toJson()),
+  );
+
+  @override
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  }) => _router.push(
+    JournalNameRoute(
+      pack: pack,
+      albumId: albumId,
+      albumName: albumName,
+      albumAssetCount: albumAssetCount,
+      assetIds: assetIds,
+    ),
+  );
+
+  @override
+  Future<void> openArtisticStyle(String assetId) => _router.push(ArtisticStyleRoute(assetId: assetId));
+
+  @override
+  Future<void> openAutoEnhance(String assetId) => _router.push(AutoEnhanceRoute(assetId: assetId));
+
+  @override
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds = const [],
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  }) => _router.push(
+    HighlightVideoRoute(albumId: albumId, assetIds: assetIds, memoryId: memoryId, title: title, vertical: vertical),
+  );
+
+  @override
+  Future<void> openTags({String path = ''}) => _router.push(TagsRoute(path: path));
+
+  @override
+  void openTagPhotos(String tagId) {
+    // set before navigating, or the timeline opens unfiltered
+    _ref.read(photosFilterProvider.notifier)
+      ..reset()
+      ..toggleTag(tagId);
+    unawaited(_router.navigate(const MainTimelineRoute()));
+  }
 
   @override
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));
@@ -156,6 +252,9 @@ class RouterGalleryNavigator implements GalleryNavigator {
         return openAlbum(albumId);
       case MemoryNotificationTarget(:final memoryId):
         return openMemory(memoryId);
+      case JournalNotificationTarget(:final pack, :final assetIds):
+        unawaited(nameInJournal(pack: pack, assetIds: assetIds));
+        return true;
     }
   }
 }
