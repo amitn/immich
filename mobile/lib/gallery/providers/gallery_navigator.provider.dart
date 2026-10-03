@@ -11,6 +11,7 @@ import 'package:immich_mobile/providers/infrastructure/album.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/asset.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/db.provider.dart';
 import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
+import 'package:immich_mobile/providers/photos_filter/photos_filter.provider.dart';
 import 'package:immich_mobile/repositories/memory_api.repository.dart';
 import 'package:immich_mobile/routing/router.dart';
 import 'package:logging/logging.dart';
@@ -58,6 +59,12 @@ abstract interface class GalleryNavigator {
     String? title,
     bool vertical = false,
   });
+
+  /// The tree of the tags, at [path] (e.g. Holidays/Italy)
+  Future<void> openTags({String path = ''});
+
+  /// The photos of a tag, in the timeline filtered by it (the web's `/photos?tags=<id>`)
+  void openTagPhotos(String tagId);
 
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
@@ -141,6 +148,18 @@ class RouterGalleryNavigator implements GalleryNavigator {
   }) => _router.push(
     HighlightVideoRoute(albumId: albumId, assetIds: assetIds, memoryId: memoryId, title: title, vertical: vertical),
   );
+
+  @override
+  Future<void> openTags({String path = ''}) => _router.push(TagsRoute(path: path));
+
+  @override
+  void openTagPhotos(String tagId) {
+    // set before navigating, or the timeline opens unfiltered
+    _ref.read(photosFilterProvider.notifier)
+      ..reset()
+      ..toggleTag(tagId);
+    unawaited(_router.navigate(const MainTimelineRoute()));
+  }
 
   @override
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));

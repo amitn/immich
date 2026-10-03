@@ -111,6 +111,12 @@ class FakeGalleryNavigator implements GalleryNavigator {
   );
 
   @override
+  Future<void> openTags({String path = ''}) async => calls.add('tags $path'.trim());
+
+  @override
+  void openTagPhotos(String tagId) => calls.add('tag photos $tagId');
+
+  @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');
 
   @override

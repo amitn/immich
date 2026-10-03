@@ -1,4 +1,5 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:immich_mobile/models/server_info/server_features.model.dart';
 import 'package:immich_mobile/providers/server_info.provider.dart';
 import 'package:openapi/api.dart';
 
@@ -67,13 +68,23 @@ class GalleryFeatures {
 /// The assistant features of the connected server; refreshed with the server features (on connect and on a config
 /// update over the websocket)
 final galleryFeaturesProvider = Provider<GalleryFeatures>(
-  (ref) => ref.watch(serverInfoProvider.select((info) => info.serverFeatures.gallery)),
+  (ref) => _serverFeature(ref, (features) => features.gallery, const GalleryFeatures()),
 );
+
+/// A server feature; [none] while the app has no API to ask (the API service is set on login, and widget tests of
+/// the upstream screens that host these entries set none)
+T _serverFeature<T>(Ref ref, T Function(ServerFeatures features) select, T none) {
+  try {
+    return ref.watch(serverInfoProvider.select((info) => select(info.serverFeatures)));
+  } on UnimplementedError {
+    return none;
+  }
+}
 
 /// The journals ("Name the dishes…"): on a Gallery server with smart search, which finds the photos of the subjects,
 /// like the web's `isAvailable`
 final galleryJournalsProvider = Provider<bool>(
   (ref) =>
       ref.watch(galleryFeaturesProvider.select((features) => features.gallery)) &&
-      ref.watch(serverInfoProvider.select((info) => info.serverFeatures.smartSearch)),
+      _serverFeature(ref, (features) => features.smartSearch, false),
 );
