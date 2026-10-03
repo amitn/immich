@@ -87,7 +87,8 @@ export class YearRecapService extends BaseService {
     let bookId: string | undefined;
     if (books.drafts.enabled && preferences.bookDrafts.enabled) {
       try {
-        bookId = (await this.draftBook(auth, year, {}, { automatic: true }))?.book.id;
+        const draft = await this.draftBook(auth, year, {}, { automatic: true });
+        bookId = draft?.book.id;
       } catch (error: any) {
         this.logger.warn(`Unable to draft the ${year} recap book of ${user.id}: ${error?.message ?? error}`);
       }

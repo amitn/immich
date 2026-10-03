@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { type Insertable, type Kysely, type Updateable, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetType, AssetVisibility, BookDraftState, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { asUuid } from 'src/utils/database.js';
-import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 
 /** Books suggested to users (`book_draft`), and what the suggestions are made from */

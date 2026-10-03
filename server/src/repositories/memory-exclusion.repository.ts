@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { type Insertable, type Kysely, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
 import { MemoryExclusionType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { MemoryExclusionTable } from 'src/schema/tables/memory-exclusion.table.js';
-import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 
 const EXCLUSIONS_EXAMPLE: MemoryExclusions = {

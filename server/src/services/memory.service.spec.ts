@@ -47,6 +47,32 @@ const overlapRow = (overrides: {
   assets: overrides.assets.map((id) => ({ id })),
 });
 
+/** a row of `memory_exclusion`, as `getAll` returns it (#12) */
+const exclusionRow = (overrides: Record<string, unknown>) => ({
+  id: newUuid(),
+  type: 'person',
+  personGroupId: null,
+  albumId: null,
+  startDate: null,
+  endDate: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  personName: null,
+  personType: null,
+  albumName: null,
+  ...overrides,
+});
+
+/** a rule candidate of a month recap (#12) */
+const candidate = (overrides: Record<string, unknown> = {}) => ({
+  ruleId: 'month_recap',
+  dedupeKey: `month_recap:${newUuid()}`,
+  score: 100,
+  assetIds: ids('a', 12),
+  memoryAt: DateTime.fromISO('2026-04-23T00:00:00Z'),
+  context: { year: 2025, month: 4, count: 12 },
+  ...overrides,
+});
+
 describe(MemoryService.name, () => {
   let sut: MemoryService;
   let mocks: ServiceMocks;
@@ -1950,57 +1976,33 @@ describe(MemoryService.name, () => {
     });
   });
 
+  /** runs the nightly rule pass for one day, with the given candidates and exclusions */
+  const generate = async (
+    candidates: Array<ReturnType<typeof candidate>>,
+    rows: unknown[],
+    metadata: unknown[] = [],
+  ) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-23T12:00:00Z'));
+    const user = { ...factory.userAdmin(), metadata };
+    mocks.user.getList.mockResolvedValue([user as any]);
+    mocks.systemMetadata.get.mockResolvedValue({
+      lastOnThisDayDate: '2026-04-25T00:00:00.000Z',
+      lastRuleDate: '2026-04-22T00:00:00.000Z',
+    });
+    mocks.asset.getByDayOfYear.mockResolvedValue([]);
+    mocks.memory.hasRuleMemory.mockResolvedValue(false);
+    mocks.memory.create.mockResolvedValue(MemoryFactory.create() as any);
+    mocks.memoryExclusion.getAll.mockResolvedValue(rows as any);
+    const rule = { id: 'stub', evaluate: vi.fn().mockResolvedValue(candidates) };
+    vi.spyOn(sut as any, 'getMemoryRules').mockReturnValue([rule] as never);
+    await sut.onMemoriesCreate();
+    vi.useRealTimers();
+    return { user, rule };
+  };
+
   // Gallery fork (#12): what a user keeps out of their memories, applied to every rule and to the memories served
   describe('memory exclusions', () => {
-    const exclusionRow = (overrides: Record<string, unknown>) => ({
-      id: newUuid(),
-      type: 'person',
-      personGroupId: null,
-      albumId: null,
-      startDate: null,
-      endDate: null,
-      createdAt: new Date('2026-01-01T00:00:00Z'),
-      personName: null,
-      personType: null,
-      albumName: null,
-      ...overrides,
-    });
-
-    const candidate = (overrides: Record<string, unknown> = {}) => ({
-      ruleId: 'month_recap',
-      dedupeKey: `month_recap:${newUuid()}`,
-      score: 100,
-      assetIds: ids('a', 12),
-      memoryAt: DateTime.fromISO('2026-04-23T00:00:00Z'),
-      context: { year: 2025, month: 4, count: 12 },
-      ...overrides,
-    });
-
-    /** runs the nightly rule pass for one day, with the given candidates and exclusions */
-    const generate = async (
-      candidates: Array<ReturnType<typeof candidate>>,
-      rows: unknown[],
-      metadata: unknown[] = [],
-    ) => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-04-23T12:00:00Z'));
-      const user = { ...factory.userAdmin(), metadata };
-      mocks.user.getList.mockResolvedValue([user as any]);
-      mocks.systemMetadata.get.mockResolvedValue({
-        lastOnThisDayDate: '2026-04-25T00:00:00.000Z',
-        lastRuleDate: '2026-04-22T00:00:00.000Z',
-      });
-      mocks.asset.getByDayOfYear.mockResolvedValue([]);
-      mocks.memory.hasRuleMemory.mockResolvedValue(false);
-      mocks.memory.create.mockResolvedValue(MemoryFactory.create() as any);
-      mocks.memoryExclusion.getAll.mockResolvedValue(rows as any);
-      const rule = { id: 'stub', evaluate: vi.fn().mockResolvedValue(candidates) };
-      vi.spyOn(sut as any, 'getMemoryRules').mockReturnValue([rule] as never);
-      await sut.onMemoriesCreate();
-      vi.useRealTimers();
-      return { user, rule };
-    };
-
     const documentsOn = [{ key: UserMetadataKey.Preferences, value: { memoryExclusions: { documents: true } } }];
 
     it.each([
@@ -2106,16 +2108,14 @@ describe(MemoryService.name, () => {
       mocks.memory.hasRuleMemory.mockResolvedValue(false);
       const rule = {
         id: 'year_recap',
-        evaluate: vi
-          .fn()
-          .mockResolvedValue([
-            candidate({
-              ruleId: 'year_recap',
-              dedupeKey: 'year_recap:2025',
-              assetIds: ids('y', 30),
-              visibleForDays: 14,
-            }),
-          ]),
+        evaluate: vi.fn().mockResolvedValue([
+          candidate({
+            ruleId: 'year_recap',
+            dedupeKey: 'year_recap:2025',
+            assetIds: ids('y', 30),
+            visibleForDays: 14,
+          }),
+        ]),
       };
       vi.spyOn(sut as any, 'getMemoryRules').mockReturnValue([rule] as never);
       mocks.memory.create.mockResolvedValueOnce({ ...memory, id: 'recap-memory' } as any);

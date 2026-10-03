@@ -128,6 +128,35 @@ const seedPersonWithIdentity = async (ctx: Context, ownerId: string, name: strin
 
 const exclusionsOf = (overrides: Partial<MemoryExclusions>) => ({ ...NO_MEMORY_EXCLUSIONS, ...overrides });
 
+/** 12 July 2023 photos, and four more that each kind of exclusion leaves out */
+const seedJuly = async (ctx: Context, userId: string) => {
+  const kept: string[] = [];
+  for (let day = 5; day <= 16; day++) {
+    const photo = await seedPhoto(ctx, userId, `2023-07-${day}T12:00:00Z`);
+    kept.push(photo.id);
+  }
+  const { person } = await ctx.newPerson({ ownerId: userId, name: 'Dana' });
+  const { person: pet } = await ctx.newPerson({ ownerId: userId, name: 'Rex', type: 'pet' });
+  const excluded = {
+    person: await seedPhoto(ctx, userId, '2023-07-17T12:00:00Z'),
+    pet: await seedPhoto(ctx, userId, '2023-07-18T12:00:00Z'),
+    days: await seedPhoto(ctx, userId, '2023-07-20T12:00:00Z'),
+    album: await seedPhoto(ctx, userId, '2023-07-21T12:00:00Z'),
+    documents: await seedPhoto(ctx, userId, '2023-07-22T12:00:00Z'),
+  };
+  await ctx.newAssetFace({ assetId: excluded.person.id, personGroupId: person.personGroupId });
+  await ctx.newAssetFace({ assetId: excluded.pet.id, personGroupId: pet.personGroupId });
+  const { album } = await ctx.newAlbum({ ownerId: userId, albumName: 'Work' }, [excluded.album.id]);
+  await tag(ctx, userId, 'Auto/Screenshots', [excluded.documents.id]);
+  return { kept, excluded, person, pet, album };
+};
+
+const generateOn = async (sut: MemoryService, day: string) => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(day));
+  await sut.onMemoriesCreate();
+};
+
 describe('memory exclusions (#12)', () => {
   beforeEach(async () => {
     defaultDatabase = await getKyselyDB();
@@ -227,34 +256,6 @@ describe('memory exclusions (#12)', () => {
   });
 
   describe('the memory rules', () => {
-    /** 12 July 2023 photos, and four more that each kind of exclusion leaves out */
-    const seedJuly = async (ctx: Context, userId: string) => {
-      const kept: string[] = [];
-      for (let day = 5; day <= 16; day++) {
-        kept.push((await seedPhoto(ctx, userId, `2023-07-${day}T12:00:00Z`)).id);
-      }
-      const { person } = await ctx.newPerson({ ownerId: userId, name: 'Dana' });
-      const { person: pet } = await ctx.newPerson({ ownerId: userId, name: 'Rex', type: 'pet' });
-      const excluded = {
-        person: await seedPhoto(ctx, userId, '2023-07-17T12:00:00Z'),
-        pet: await seedPhoto(ctx, userId, '2023-07-18T12:00:00Z'),
-        days: await seedPhoto(ctx, userId, '2023-07-20T12:00:00Z'),
-        album: await seedPhoto(ctx, userId, '2023-07-21T12:00:00Z'),
-        documents: await seedPhoto(ctx, userId, '2023-07-22T12:00:00Z'),
-      };
-      await ctx.newAssetFace({ assetId: excluded.person.id, personGroupId: person.personGroupId });
-      await ctx.newAssetFace({ assetId: excluded.pet.id, personGroupId: pet.personGroupId });
-      const { album } = await ctx.newAlbum({ ownerId: userId, albumName: 'Work' }, [excluded.album.id]);
-      await tag(ctx, userId, 'Auto/Screenshots', [excluded.documents.id]);
-      return { kept, excluded, person, pet, album };
-    };
-
-    const generateOn = async (sut: MemoryService, day: string) => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(new Date(day));
-      await sut.onMemoriesCreate();
-    };
-
     it.each(['person', 'pet', 'days', 'album', 'documents'] as const)(
       'leaves the photos of an excluded %s out of a new month recap',
       async (kind) => {
@@ -336,12 +337,12 @@ describe('memory exclusions (#12)', () => {
 
       await generateOn(sut, '2026-07-01T00:00:00Z');
 
-      const birthdays = async (userId: string) =>
-        (
-          await ctx
-            .get(MemoryRepository)
-            .search(userId, { type: MemoryType.Rule, for: new Date('2026-07-01T00:00:00Z') })
-        ).filter((memory) => (memory.data as { ruleId: string }).ruleId === 'birthday');
+      const birthdays = async (userId: string) => {
+        const memories = await ctx
+          .get(MemoryRepository)
+          .search(userId, { type: MemoryType.Rule, for: new Date('2026-07-01T00:00:00Z') });
+        return memories.filter((memory) => (memory.data as { ruleId: string }).ruleId === 'birthday');
+      };
       expect(await birthdays(excluding.user.id)).toEqual([]);
       expect(await birthdays(control.user.id)).toHaveLength(1);
     });
@@ -375,11 +376,10 @@ describe('memory exclusions (#12)', () => {
 
       await generateOn(sut, '2026-01-02T06:00:00Z');
 
-      const recaps = (
-        await ctx
-          .get(MemoryRepository)
-          .search(user.id, { type: MemoryType.Rule, for: new Date('2026-01-10T00:00:00Z') })
-      ).filter((memory) => (memory.data as { ruleId: string }).ruleId === 'year_recap');
+      const memories = await ctx
+        .get(MemoryRepository)
+        .search(user.id, { type: MemoryType.Rule, for: new Date('2026-01-10T00:00:00Z') });
+      const recaps = memories.filter((memory) => (memory.data as { ruleId: string }).ruleId === 'year_recap');
       expect(recaps).toHaveLength(1);
       expect(recaps[0].data).toMatchObject({
         dedupeKey: 'year_recap:2025',

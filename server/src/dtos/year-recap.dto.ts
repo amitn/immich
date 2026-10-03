@@ -32,7 +32,7 @@ const exclusionOptions = {
     .describe('Leave screenshots, receipts and documents out of this recap, even when the memories keep them'),
 };
 
-const YearRecapQuerySchema = z.object(exclusionOptions).meta({ id: 'YearRecapQueryDto' });
+const _YearRecapQuerySchema = z.object(exclusionOptions);
 
 const YearRecapBookSchema = z
   .object({
@@ -101,7 +101,7 @@ export class YearRecapBookDto extends createZodDto(YearRecapBookSchema) {}
 export class YearRecapVideoDto extends createZodDto(YearRecapVideoSchema) {}
 export class YearRecapResponseDto extends createZodDto(YearRecapResponseSchema) {}
 
-export type YearRecapExclusionOptions = z.infer<typeof YearRecapQuerySchema>;
+export type YearRecapExclusionOptions = z.infer<typeof _YearRecapQuerySchema>;
 
 /** the exclusions of one recap, to add to the user's memory exclusions */
 export const toExtraExclusions = (options: YearRecapExclusionOptions = {}): Partial<MemoryExclusions> => ({

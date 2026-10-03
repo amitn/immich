@@ -32,7 +32,7 @@ const describeRow = (row: Pick<ExclusionRow, 'type' | 'personName' | 'albumName'
       return row.albumName ? `the album ${quote(row.albumName)}` : 'an album';
     }
     case MemoryExclusionType.DateRange: {
-      return row.startDate === row.endDate ? `${row.startDate}` : `${row.startDate} to ${row.endDate}`;
+      return row.startDate === row.endDate ? (row.startDate ?? '') : `${row.startDate} to ${row.endDate}`;
     }
   }
 };
@@ -94,7 +94,7 @@ export class MemoryExclusionService extends BaseService {
   /** Lets the photos of an exclusion back into the memories */
   async remove(auth: AuthDto, id: string, activity?: ActivityRecorder): Promise<void> {
     const rows = await this.memoryExclusionRepository.getAll(auth.user.id);
-    if (!rows.some((row) => row.id === id)) {
+    if (rows.every((row) => row.id !== id)) {
       throw new BadRequestException('Memory exclusion not found');
     }
     await this.change(auth, { removeIds: [id] }, activity);
@@ -122,8 +122,8 @@ export class MemoryExclusionService extends BaseService {
     if (albumIds.length > 0) {
       await this.requireAccess({ auth, permission: Permission.AlbumRead, ids: albumIds });
     }
-    const removeIds = [...new Set(change.removeIds ?? [])];
-    const unknown = removeIds.filter((id) => !before.some((row) => row.id === id));
+    const removeIds = [...new Set(change.removeIds)];
+    const unknown = removeIds.filter((id) => before.every((row) => row.id !== id));
     if (unknown.length > 0) {
       throw new BadRequestException(`Memory exclusion not found: ${unknown.join(', ')}`);
     }

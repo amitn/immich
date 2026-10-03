@@ -61,11 +61,10 @@ describe('revert-to-immich.sql', () => {
   const assistantTables = migrationFiles
     .filter((file) => Number(file.split('-', 1)[0]) >= 1_794_000_000_000)
     .flatMap((file) =>
-      [
-        ...readFileSync(join(migrationsGalleryDir, file), 'utf8').matchAll(
-          /CREATE TABLE(?: IF NOT EXISTS)? "?([a-z_]+)"?/g,
-        ),
-      ].map((m) => m[1]),
+      readFileSync(join(migrationsGalleryDir, file), 'utf8')
+        .matchAll(/CREATE TABLE(?: IF NOT EXISTS)? "?([a-z_]+)"?/g)
+        .map((m) => m[1])
+        .toArray(),
     );
 
   it('finds the tables of the assistant migrations', () => {

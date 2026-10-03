@@ -103,7 +103,7 @@ describe('YearRecapActions', () => {
 
   it('offers the draft already made of the year, to keep or discard', async () => {
     sdkMock.getBookDrafts.mockResolvedValue([draftOf('book-2')] as never);
-    sdkMock.discardBookDraft.mockResolvedValue();
+    sdkMock.discardBookDraft.mockResolvedValue(undefined as never);
     render(YearRecapActions, { props: { memory, title: '2025 in review' } });
 
     await fireEvent.click(await screen.findByText('book_draft_discard'));
@@ -112,7 +112,7 @@ describe('YearRecapActions', () => {
     expect(await screen.findByText('year_recap_make_book')).toBeInTheDocument();
   });
 
-  it('offers no book without the book engine', async () => {
+  it('offers no book without the book engine', () => {
     flags.assistant = false;
     render(YearRecapActions, { props: { memory, title: '2025 in review' } });
 

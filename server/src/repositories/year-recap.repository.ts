@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { type Kysely, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
+import type { YearRecapAsset, YearRecapPerson, YearRecapTag } from 'src/utils/year-recap.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetFileType, AssetType, AssetVisibility } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { getCollectionTagPrefixes } from 'src/utils/book/collections.js';
-import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
-import type { YearRecapAsset, YearRecapPerson, YearRecapTag } from 'src/utils/year-recap.js';
 
 const EXCLUSIONS_EXAMPLE: MemoryExclusions = {
   personIds: [DummyValue.UUID],

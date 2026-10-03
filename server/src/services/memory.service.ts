@@ -17,6 +17,7 @@ import {
 } from 'src/dtos/memory.dto.js';
 import { DatabaseLock, JobName, MemoryType, Permission, QueueName, SystemMetadataKey } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { toMemoryExclusions } from 'src/services/memory-exclusion.service.js';
 import {
   getAdminAvailableMemoryTypeKeys,
   getMemoryTypeFloor,
@@ -28,7 +29,6 @@ import { createMemoryRules } from 'src/services/memory-rules/memory-type.registr
 import { type ReservableMemory, planReservation } from 'src/services/memory-rules/reservation.util.js';
 import { MemoryThemeSearchAdapter } from 'src/services/memory-rules/theme-search.adapter.js';
 import { YEAR_RECAP_RULE_ID } from 'src/services/memory-rules/year-recap.rule.js';
-import { toMemoryExclusions } from 'src/services/memory-exclusion.service.js';
 import { addAssets, removeAssets } from 'src/utils/asset.util.js';
 import {
   type MemoryExclusions,
@@ -578,9 +578,14 @@ export class MemoryService extends BaseService {
     const [hiddenScope, visibleSpaceIds] = await this.resolveHiddenScopeAndVisibleSpaces(auth.user.id);
     // Gallery fork (#12): what the viewer keeps out of their memories, the memories made before included
     const exclusions = await this.getExclusions(auth.user.id);
-    const memories = (
-      await this.memoryRepository.searchAccessible(auth.user.id, dto, hiddenScope, visibleSpaceIds, exclusions)
-    ).filter((memory) => !isMemoryAboutExcludedPerson(getRuleContext(memory.data), exclusions));
+    const found = await this.memoryRepository.searchAccessible(
+      auth.user.id,
+      dto,
+      hiddenScope,
+      visibleSpaceIds,
+      exclusions,
+    );
+    const memories = found.filter((memory) => !isMemoryAboutExcludedPerson(getRuleContext(memory.data), exclusions));
     const assetIds = memories.flatMap((memory) => memory.assets.map((asset) => asset.id));
     const allowedAssetIds = await this.checkAccess({ auth, permission: Permission.AssetView, ids: assetIds });
 

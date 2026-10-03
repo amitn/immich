@@ -34,10 +34,12 @@ export const pickCardAssets = (assets: YearRecapAsset[], cap = ASSET_CAP): strin
   let remaining = Math.min(cap, assets.length);
   while (remaining > 0) {
     for (const [index, group] of months.entries()) {
-      if (remaining > 0 && quotas[index] < group.length) {
-        quotas[index]++;
-        remaining--;
+      if (!(remaining > 0 && quotas[index] < group.length)) {
+        continue;
       }
+
+      quotas[index]++;
+      remaining--;
     }
   }
 

@@ -4,13 +4,13 @@ import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { DateTime } from 'luxon';
 import { InjectKysely } from 'nestjs-kysely';
 import type { IBulkAsset } from 'src/types.js';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { Chunked, ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
 import { MemorySearchDto } from 'src/dtos/memory.dto.js';
 import { AssetOrderWithRandom, AssetVisibility, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { MemoryTable } from 'src/schema/tables/memory.table.js';
 import { asUuid } from 'src/utils/database.js';
-import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 import {
   type TimelineHiddenScope,

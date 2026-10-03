@@ -217,8 +217,8 @@ export class YearRecapAgentTools extends BaseService {
   /** the ids of people and pets given by id or by exact name; an unknown name is an error */
   private async resolvePeople(ownerId: string, ids: string[] = [], names: string[] = []) {
     const found = await this.memoryExclusionRepository.findPeopleByName(ownerId, names);
-    const missing = names.filter(
-      (name) => !found.some((person) => person.name.trim().toLowerCase() === name.trim().toLowerCase()),
+    const missing = names.filter((name) =>
+      found.every((person) => person.name.trim().toLowerCase() !== name.trim().toLowerCase()),
     );
     if (missing.length > 0) {
       throw new Error(`No person or pet is named ${missing.join(', ')}: use find_people to look them up`);

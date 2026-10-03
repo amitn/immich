@@ -47,7 +47,8 @@
       return;
     }
     try {
-      draft = (await getBookDrafts()).find((candidate) => isDraftOf(candidate));
+      const drafts = await getBookDrafts();
+      draft = drafts.find((candidate) => isDraftOf(candidate));
     } catch (error) {
       handleError(error, $t('errors.unable_to_make_year_recap_book'), { notify: false });
     }

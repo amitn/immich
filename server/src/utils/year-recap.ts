@@ -46,7 +46,7 @@ export const YEAR_RECAP_TOP = 3;
 const MIN_TRIP_PHOTOS = 10;
 
 const top = <T>(counts: Map<string, { value: T; count: number }>, limit = YEAR_RECAP_TOP) =>
-  [...counts.entries()]
+  [...counts]
     .toSorted((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([, { value }]) => value);
@@ -150,10 +150,11 @@ export const getYearRecapStats = (
   };
 };
 
+const plural = (count: number, singular: string, pluralForm = `${singular}s`) =>
+  `${count.toLocaleString('en')} ${count === 1 ? singular : pluralForm}`;
+
 /** the stats in a sentence, for a notification or the assistant (the cards word them in the viewer's language) */
 export const describeYearRecap = (stats: Partial<YearRecapStats> & Pick<YearRecapStats, 'count'>) => {
-  const plural = (count: number, singular: string, pluralForm = `${singular}s`) =>
-    `${count.toLocaleString('en')} ${count === 1 ? singular : pluralForm}`;
   const parts = [plural(stats.count, 'photo')];
   if (stats.places) {
     parts.push(plural(stats.places, 'place'));

@@ -25,8 +25,6 @@ import { BurstController } from 'src/controllers/burst.controller.js';
 // import { ClusterGroupController } from 'src/controllers/cluster-group.controller.js';
 import { ClassificationController } from 'src/controllers/classification.controller.js';
 import { CollageController } from 'src/controllers/collage.controller.js';
-import { MemoryExclusionController } from 'src/controllers/memory-exclusion.controller.js';
-import { YearRecapController } from 'src/controllers/year-recap.controller.js';
 import { CollectionController } from 'src/controllers/collection.controller.js';
 import { ConfigAdminController } from 'src/controllers/config-admin.controller.js';
 import { ConfigPublicController } from 'src/controllers/config-public.controller.js';
@@ -47,6 +45,7 @@ import { LibraryManifestController } from 'src/controllers/library-manifest.cont
 import { LibraryController } from 'src/controllers/library.controller.js';
 import { MaintenanceController } from 'src/controllers/maintenance.controller.js';
 import { MapController } from 'src/controllers/map.controller.js';
+import { MemoryExclusionController } from 'src/controllers/memory-exclusion.controller.js';
 import { MemoryController } from 'src/controllers/memory.controller.js';
 import { NotificationAdminController } from 'src/controllers/notification-admin.controller.js';
 import { NotificationController } from 'src/controllers/notification.controller.js';
@@ -76,6 +75,7 @@ import { UserController } from 'src/controllers/user.controller.js';
 import { VideoStreamController } from 'src/controllers/video-stream.controller.js';
 import { ViewController } from 'src/controllers/view.controller.js';
 import { WorkflowController } from 'src/controllers/workflow.controller.js';
+import { YearRecapController } from 'src/controllers/year-recap.controller.js';
 
 export const controllers = [
   ApiKeyController,
