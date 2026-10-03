@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:immich_mobile/gallery/shared_links/book_shared_link.dart';
+import 'package:immich_mobile/gallery/utils/book_shared_link.dart';
 import 'package:immich_mobile/models/shared_link/shared_link.model.dart';
 import 'package:openapi/api.dart';
 

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:immich_mobile/gallery/notifications/gallery_notification.dart';
-import 'package:immich_mobile/gallery/websocket/gallery_events.dart';
+import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
+import 'package:immich_mobile/gallery/providers/gallery_events.provider.dart';
 import 'package:openapi/api.dart';
 
 /// A socket stand-in: the handlers by event name, and a way to emit an event to them

@@ -5,7 +5,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/store.model.dart';
 import 'package:immich_mobile/entities/store.entity.dart';
-import 'package:immich_mobile/gallery/websocket/gallery_events.dart';
+import 'package:immich_mobile/gallery/providers/gallery_socket.provider.dart';
 import 'package:immich_mobile/infrastructure/repositories/network.repository.dart';
 import 'package:immich_mobile/models/server_info/server_version.model.dart';
 import 'package:immich_mobile/providers/auth.provider.dart';
@@ -103,11 +103,7 @@ class WebsocketNotifier extends StateNotifier<WebsocketState> {
         socket.on('on_config_update', _refreshServerInfo);
         socket.on('on_new_release', _handleReleaseUpdates);
         // Gallery (#3): the assistant, artworks, highlight videos and notifications
-        registerGallerySocketHandlers(
-          socket.on,
-          _ref.read(galleryEventBusProvider),
-          onNewAsset: () => _handleRemoteChange(null),
-        );
+        connectGallerySocket(socket.on, _ref, onNewAsset: () => _handleRemoteChange(null));
       } catch (e) {
         dPrint(() => "[WEBSOCKET] Catch Websocket Error - $e");
       }

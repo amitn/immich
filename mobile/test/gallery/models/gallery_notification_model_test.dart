@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:immich_mobile/gallery/notifications/gallery_notification.dart';
+import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
 
 void main() {
   group('parseNotificationData', () {

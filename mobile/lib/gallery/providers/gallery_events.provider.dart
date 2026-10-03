@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:immich_mobile/gallery/notifications/gallery_notification.dart';
+import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
 import 'package:logging/logging.dart';
 import 'package:openapi/api.dart';
 

@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:immich_mobile/gallery/shared_links/book_shared_link.dart';
+import 'package:immich_mobile/gallery/utils/book_shared_link.dart';
 import 'package:openapi/api.dart';
 
 part 'shared_link.model.freezed.dart';

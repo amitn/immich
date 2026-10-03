@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:immich_mobile/gallery/features/gallery_features.dart';
+import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
 import 'package:openapi/api.dart';
 
 part 'server_features.model.freezed.dart';

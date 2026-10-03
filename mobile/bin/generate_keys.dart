@@ -101,6 +101,9 @@ const _kParamTypeOverrides = <String, String>{
   'advanced_settings_clear_image_cache_success.size': 'String',
   'backup_controller_page_storage_format.total': 'String',
   'backup_controller_page_storage_format.used': 'String',
+  // Gallery (#3): the id of a photo book is a UUID
+  'book_draft_polish_prompt.id': 'String',
+  'book_edit_prompt.id': 'String',
   'cleanup_found_assets_with_size.size': 'String',
 };
 
