@@ -6,6 +6,7 @@ import {
   mdiBackupRestore,
   mdiBellBadgeOutline,
   mdiBellOutline,
+  mdiBellRingOutline,
   mdiBookOpenOutline,
   mdiBookOpenPageVariantOutline,
   mdiBookshelf,
@@ -93,6 +94,7 @@ const SYSTEM_SETTINGS_SOURCE: ReadonlyArray<[key: string, baseKey: string, icon:
   ['assistant', 'agent_settings', mdiCreationOutline],
   ['journals', 'journal_settings', mdiBellBadgeOutline],
   ['food', 'food_settings', mdiSilverwareForkKnife],
+  ['memory-notifications', 'memory_notifications_settings', mdiBellRingOutline],
   ['photo-books', 'book_settings', mdiBookOpenPageVariantOutline],
 ];
 
