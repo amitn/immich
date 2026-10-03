@@ -11,6 +11,7 @@ import { AssetRepository } from 'src/repositories/asset.repository.js';
 import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
 import { BookRepository } from 'src/repositories/book.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
+import { EventRepository } from 'src/repositories/event.repository.js';
 import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -53,6 +54,7 @@ const setup = (db?: Kysely<DB>) =>
     ],
     mock: [
       ActivityLogRepository,
+      EventRepository,
       JobRepository,
       LoggingRepository,
       NotificationRepository,
@@ -196,6 +198,7 @@ describe('memory creations (#5)', () => {
     const { ctx } = setup();
     const drafts = ctx.getService(BookDraftService);
     const { auth, memory, trip } = await seedTrip(ctx);
+    const emit = ctx.getMock(EventRepository).emit.mockResolvedValue();
 
     const keys = await drafts.draftBooks(auth, { ...defaults.books.drafts, yearly: false }, TARGET.toJSDate());
 
@@ -206,6 +209,8 @@ describe('memory creations (#5)', () => {
     const pages = await ctx.get(BookRepository).getPages(draft.bookId!);
     const placed = pages.flatMap((page) => page.assets.map(({ assetId }) => assetId));
     expect(placed).toContain(trip[0]);
+    // the routines are told of the new draft (#15)
+    expect(emit).toHaveBeenCalledWith('BookDraftCreate', expect.objectContaining({ bookId: draft.bookId }));
 
     // deleting the memory keeps the suggestion
     await ctx.get(MemoryRepository).delete(memory.id);

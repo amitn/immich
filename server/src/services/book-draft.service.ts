@@ -219,6 +219,7 @@ export class BookDraftService extends BaseService {
       return;
     }
 
+    let bookId: string;
     try {
       const { book } = await this.books.createDraft(auth, {
         title: candidate.title,
@@ -229,15 +230,7 @@ export class BookDraftService extends BaseService {
         targetPageCount: getDraftPageCount(candidate.assetIds.length),
       });
       await this.bookDraftRepository.update(claimed.id, { bookId: book.id });
-      // the routines that run after a book draft is made (#15)
-      await this.eventRepository.emit('BookDraftCreate', {
-        userId: auth.user.id,
-        bookId: book.id,
-        kind: candidate.kind,
-        title: candidate.title,
-        assetIds: candidate.assetIds,
-      });
-      return book.id;
+      bookId = book.id;
     } catch (error: any) {
       // the suggestion is made again on the next run
       this.logger.warn(
@@ -246,6 +239,20 @@ export class BookDraftService extends BaseService {
       await this.bookDraftRepository.delete(claimed.id);
       return;
     }
+
+    // the routines that run after a book draft is made (#15); a routine that can't be told never undoes the draft
+    try {
+      await this.eventRepository.emit('BookDraftCreate', {
+        userId: auth.user.id,
+        bookId,
+        kind: candidate.kind,
+        title: candidate.title,
+        assetIds: candidate.assetIds,
+      });
+    } catch (error: any) {
+      this.logger.warn(`Unable to tell the routines of the book draft ${bookId}: ${error?.message ?? error}`);
+    }
+    return bookId;
   }
 
   /** The drafts waiting for the user to keep or discard them, the newest first */
