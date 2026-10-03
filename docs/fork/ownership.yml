@@ -466,13 +466,15 @@ features:
       - memory-exclusions
       - year-recap
     risk: high
-    domains: [server, web, database]
+    domains: [server, web, mobile, database]
     owned_paths:
       - docker/docker-compose.assistant.yml
       - docker/docker-compose.dev.assistant.yml
       - docker/scripts/check-assistant.sh
       - docker/scripts/install-agents.sh
       - docs/docs/features/ai-assistant.md
+      - mobile/lib/gallery/**
+      - mobile/test/gallery/**
       - server/src/bin/agent-host.ts
       - server/src/bin/agent-mcp-stdio.ts
       - server/src/controllers/activity-log.controller.spec.ts
@@ -784,6 +786,19 @@ features:
       - docker/README.md
       - docker/docker-compose.dev.yml
       - docker/example.env
+      - mobile/bin/generate_keys.dart
+      - mobile/lib/models/server_info/server_features.model.dart
+      - mobile/lib/models/shared_link/shared_link.model.dart
+      - mobile/lib/pages/library/shared_link/shared_link_edit.page.dart
+      - mobile/lib/presentation/pages/album.page.dart
+      - mobile/lib/presentation/pages/library.page.dart
+      - mobile/lib/presentation/widgets/bottom_sheet/general_bottom_sheet.widget.dart
+      - mobile/lib/providers/websocket.provider.dart
+      - mobile/lib/routing/router.dart
+      - mobile/lib/services/shared_link.service.dart
+      - mobile/lib/utils/openapi_patching.dart
+      - mobile/lib/widgets/shared_link/shared_link_item.dart
+      - mobile/test/modules/utils/openapi_patching_test.dart
       - server/Dockerfile
       - server/Dockerfile.dev
       - server/package.json

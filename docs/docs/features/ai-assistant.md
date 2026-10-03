@@ -781,6 +781,18 @@ The assistant's actions are also commands of the Search Palette (<kbd>Ctrl</kbd>
 
 The palette only lists the commands that the selection or the page allows, under the rules of [Photos you don't own](#photos-you-dont-own).
 
+## In the mobile app
+
+The Android and iOS app shows the assistant and the photo books when your server has the assistant turned on; with an older server or the assistant off, they're hidden.
+
+- **Library → Assistant** opens the chat. **Chats** (the history button) lists your chats, where you can open or delete one, and the menu has the chat's **Auto-approve** switch. Replies stream in as they're written, tool calls show the photos they found (tap one to open it), and **Permission needed** cards have **Allow**, **Allow all in this chat** and **Deny**. **Stop** cancels the run.
+- **Ask assistant**: select photos in the timeline and select **Ask assistant** in the selection sheet. The photos are attached to your next message.
+- **Albums → Create with assistant** (the sparkle button) starts a chat with the same request as on the web.
+- **Library → Photo books** lists your books, with the **Suggested for you** drafts to **Keep** or **Discard**. Open a book to turn its pages; tap a page to zoom in. The book's bar has the **Review** (read only), **Share Link** (with a password and an expiry date) and, in its menu, **Download PDF**, which exports the PDF first when it's missing or outdated, and **Edit with assistant**.
+- The bell in the **Library** bar lists your unread notifications. Tapping one opens the book, artwork, highlight video, album or memory it's about, and a new one shows up at the bottom of the screen with **Open**.
+
+Creating books from an album, highlight videos, artistic styles, auto-enhance, naming the photos of your journals and editing book pages are on the web for now.
+
 ## Setup
 
 The assistant needs an ACP agent logged in to its provider. With Docker, the agents run in a container of their own, `gallery-agents`, and the server starts them there. Then you turn the assistant on in the settings.
