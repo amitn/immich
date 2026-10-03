@@ -178,6 +178,26 @@ class AssistantNotifier extends StateNotifier<AssistantState> {
     }
   }
 
+  /// Catches up after the websocket was away (the app in the background): the chat list, and the open chat
+  Future<void> refresh() async {
+    unawaited(loadSessions());
+    final id = state.sessionId;
+    if (id == null || state.isLoadingSession) {
+      return;
+    }
+    try {
+      final detail = await _repository.getSession(id);
+      if (mounted && state.sessionId == id) {
+        state = state.copyWith(
+          status: detail.status,
+          messages: AssistantConversation.load(state.messages, detail.messages.map(AssistantMessage.fromDto).toList()),
+        );
+      }
+    } catch (error, stackTrace) {
+      _log.warning('Unable to refresh the assistant chat $id', error, stackTrace);
+    }
+  }
+
   void newChat() {
     state = state.copyWith(
       sessionId: () => null,
@@ -352,6 +372,8 @@ class AssistantNotifier extends StateNotifier<AssistantState> {
   }
 }
 
-final assistantProvider = StateNotifierProvider.autoDispose<AssistantNotifier, AssistantState>(
-  (ref) => AssistantNotifier(ref.watch(assistantApiRepositoryProvider), ref.watch(galleryEventBusProvider)),
+/// The state of one assistant screen, by a key of the screen: a chat opened from a book opened from another chat is
+/// a chat of its own
+final assistantProvider = StateNotifierProvider.autoDispose.family<AssistantNotifier, AssistantState, Object>(
+  (ref, _) => AssistantNotifier(ref.watch(assistantApiRepositoryProvider), ref.watch(galleryEventBusProvider)),
 );

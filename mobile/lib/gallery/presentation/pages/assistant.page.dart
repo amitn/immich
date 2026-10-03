@@ -16,6 +16,7 @@ import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
 import 'package:immich_mobile/gallery/utils/assistant_conversation.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/providers/infrastructure/toast.provider.dart';
+import 'package:immich_mobile/providers/websocket.provider.dart';
 import 'package:openapi/api.dart';
 
 /// The AI assistant: a chat that searches the library, makes albums, crops and photo books, and asks before changing
@@ -55,8 +56,9 @@ class _AssistantChat extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(assistantProvider);
-    final notifier = ref.read(assistantProvider.notifier);
+    final screen = useMemoized(Object.new);
+    final state = ref.watch(assistantProvider(screen));
+    final notifier = ref.read(assistantProvider(screen).notifier);
     final controller = useTextEditingController(text: prompt ?? '');
     final focusNode = useFocusNode();
     final scaffoldKey = useMemoized(GlobalKey<ScaffoldState>.new);
@@ -86,6 +88,13 @@ class _AssistantChat extends HookConsumerWidget {
       unawaited(Future.microtask(() => guard(() => notifier.start(sessionId: sessionId, assetIds: assetIds))));
       return null;
     }, const []);
+
+    // the replies come over the websocket: when it reconnects, catch up on what it missed
+    ref.listen(websocketProvider.select((socket) => socket.isConnected), (previous, connected) {
+      if (connected && previous == false) {
+        unawaited(notifier.refresh());
+      }
+    });
 
     // the text leaves the box while it is sent, and comes back when sending fails
     Future<void> send() => guard(() async {

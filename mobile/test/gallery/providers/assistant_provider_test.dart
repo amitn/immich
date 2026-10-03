@@ -10,6 +10,8 @@ import 'package:openapi/api.dart';
 
 import '../assistant_fixtures.dart';
 
+const _screen = 'screen';
+
 class _MockAssistantApiRepository extends Mock implements AssistantApiRepository {}
 
 void main() {
@@ -41,9 +43,9 @@ void main() {
   test('an update of another chat moves it in the list but leaves the open chat alone', () async {
     when(() => repository.getSessions()).thenAnswer((_) async => [session('s1', title: 'Open'), session('s2')]);
     when(() => repository.getSession('s1')).thenAnswer((_) async => detail('s1', title: 'Open'));
-    final subscription = container.listen(assistantProvider, (_, _) {});
+    final subscription = container.listen(assistantProvider(_screen), (_, _) {});
     addTearDown(subscription.close);
-    final notifier = container.read(assistantProvider.notifier);
+    final notifier = container.read(assistantProvider(_screen).notifier);
 
     await notifier.start(sessionId: 's1');
     await Future<void>.delayed(Duration.zero);
@@ -56,7 +58,7 @@ void main() {
       ),
     );
 
-    final state = container.read(assistantProvider);
+    final state = container.read(assistantProvider(_screen));
     expect(state.sessionId, 's1');
     expect(state.messages, isEmpty);
     expect(state.isRunning, isFalse);
@@ -67,26 +69,26 @@ void main() {
 
   test('an update of a chat the list does not know reloads the list', () async {
     when(() => repository.getSessions()).thenAnswer((_) async => [session('s1')]);
-    final subscription = container.listen(assistantProvider, (_, _) {});
+    final subscription = container.listen(assistantProvider(_screen), (_, _) {});
     addTearDown(subscription.close);
-    await container.read(assistantProvider.notifier).start();
+    await container.read(assistantProvider(_screen).notifier).start();
     await Future<void>.delayed(Duration.zero);
 
     when(() => repository.getSessions()).thenAnswer((_) async => [session('s9', title: 'From the web'), session('s1')]);
     await emit(update('s9', 'running'));
     await Future<void>.delayed(Duration.zero);
 
-    expect(container.read(assistantProvider).sessions!.first.title, 'From the web');
+    expect(container.read(assistantProvider(_screen)).sessions!.first.title, 'From the web');
   });
 
   test('a failed chat list is an empty list, not a spinner', () async {
     when(() => repository.getSessions()).thenThrow(ApiException(500, 'boom'));
-    final subscription = container.listen(assistantProvider, (_, _) {});
+    final subscription = container.listen(assistantProvider(_screen), (_, _) {});
     addTearDown(subscription.close);
 
-    await container.read(assistantProvider.notifier).loadSessions();
+    await container.read(assistantProvider(_screen).notifier).loadSessions();
 
-    final state = container.read(assistantProvider);
+    final state = container.read(assistantProvider(_screen));
     expect(state.sessions, isEmpty);
     expect(state.sessionsFailed, isTrue);
   });
@@ -94,13 +96,45 @@ void main() {
   test('a chat that fails to load returns to a new chat', () async {
     when(() => repository.getSessions()).thenAnswer((_) async => []);
     when(() => repository.getSession('gone')).thenThrow(ApiException(404, 'not found'));
-    final subscription = container.listen(assistantProvider, (_, _) {});
+    final subscription = container.listen(assistantProvider(_screen), (_, _) {});
     addTearDown(subscription.close);
 
     await expectLater(
-      container.read(assistantProvider.notifier).openSession('gone'),
+      container.read(assistantProvider(_screen).notifier).openSession('gone'),
       throwsA(isA<AssistantError>().having((error) => error.failure, 'failure', AssistantFailure.loadChat)),
     );
-    expect(container.read(assistantProvider).sessionId, isNull);
+    expect(container.read(assistantProvider(_screen)).sessionId, isNull);
+  });
+
+  test('refresh catches up on the replies the websocket missed', () async {
+    when(() => repository.getSessions()).thenAnswer((_) async => [session('s1')]);
+    when(() => repository.getSession('s1')).thenAnswer(
+      (_) async => detail(
+        's1',
+        status: 'running',
+        messages: [
+          messageJson('m1', role: 'user', content: {'text': 'Hi'}),
+        ],
+      ),
+    );
+    final subscription = container.listen(assistantProvider(_screen), (_, _) {});
+    addTearDown(subscription.close);
+    final notifier = container.read(assistantProvider(_screen).notifier);
+    await notifier.start(sessionId: 's1');
+
+    when(() => repository.getSession('s1')).thenAnswer(
+      (_) async => detail(
+        's1',
+        messages: [
+          messageJson('m1', role: 'user', content: {'text': 'Hi'}),
+          messageJson('m2', content: {'text': 'Hello!'}),
+        ],
+      ),
+    );
+    await notifier.refresh();
+
+    final state = container.read(assistantProvider(_screen));
+    expect(state.messages.map((message) => message.text), ['Hi', 'Hello!']);
+    expect(state.isRunning, isFalse);
   });
 }
