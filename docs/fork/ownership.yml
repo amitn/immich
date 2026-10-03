@@ -465,6 +465,7 @@ features:
       - redaction
       - memory-exclusions
       - year-recap
+      - memory-notifications
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -520,6 +521,7 @@ features:
       - server/src/dtos/orientation.dto.ts
       - server/src/dtos/redaction.dto.ts
       - server/src/dtos/year-recap.dto.ts
+      - server/src/emails/memory-digest.email.tsx
       - server/src/gallery/assistant-config.dto.ts
       - server/src/queries/activity.log.repository.sql
       - server/src/queries/agent.repository.sql
@@ -529,6 +531,7 @@ features:
       - server/src/queries/collection.notice.repository.sql
       - server/src/queries/highlight.job.repository.sql
       - server/src/queries/memory.exclusion.repository.sql
+      - server/src/queries/memory.notice.repository.sql
       - server/src/queries/year.recap.repository.sql
       - server/src/repositories/acp.repository.container.spec.ts
       - server/src/repositories/acp.repository.spec.ts
@@ -547,6 +550,7 @@ features:
       - server/src/repositories/media.repository.redact.spec.ts
       - server/src/repositories/media.repository.straighten.spec.ts
       - server/src/repositories/memory-exclusion.repository.ts
+      - server/src/repositories/memory-notice.repository.ts
       - server/src/repositories/year-recap.repository.ts
       - server/src/schema/tables/activity-log.table.ts
       - server/src/schema/tables/agent-message.table.ts
@@ -562,6 +566,7 @@ features:
       - server/src/schema/tables/collection-notice.table.ts
       - server/src/schema/tables/highlight-job.table.ts
       - server/src/schema/tables/memory-exclusion.table.ts
+      - server/src/schema/tables/memory-notice.table.ts
       - server/src/services/activity-log.service.spec.ts
       - server/src/services/activity-log.service.ts
       - server/src/services/agent-tool.service.ts
@@ -597,6 +602,8 @@ features:
       - server/src/services/improve.service.ts
       - server/src/services/memory-exclusion.service.spec.ts
       - server/src/services/memory-exclusion.service.ts
+      - server/src/services/memory-notice.service.spec.ts
+      - server/src/services/memory-notice.service.ts
       - server/src/services/memory-rules/year-recap.rule.spec.ts
       - server/src/services/memory-rules/year-recap.rule.ts
       - server/src/services/memory-source.service.spec.ts
@@ -619,6 +626,8 @@ features:
       - server/src/utils/image-decode.ts
       - server/src/utils/memory-exclusions.spec.ts
       - server/src/utils/memory-exclusions.ts
+      - server/src/utils/memory-notices.spec.ts
+      - server/src/utils/memory-notices.ts
       - server/src/utils/memory-source.spec.ts
       - server/src/utils/memory-source.ts
       - server/src/utils/orientation.benchmark.spec.ts
@@ -655,6 +664,7 @@ features:
       - server/test/medium/specs/services/memory-creations.service.spec.ts
       - server/test/medium/specs/services/redaction.service.spec.ts
       - server/test/medium/specs/services/memory-exclusions.service.spec.ts
+      - server/test/medium/specs/services/memory-notices.service.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
       - web/src/lib/components/activity-log/**
@@ -665,6 +675,7 @@ features:
       - web/src/lib/components/layouts/UserPageLayout.spec.ts
       - web/src/lib/components/memory-creations/**
       - web/src/lib/components/memory-exclusions/**
+      - web/src/lib/components/memory-notifications/**
       - web/src/lib/components/orientation/**
       - web/src/lib/components/pages/SharedLinkPage.spec.ts
       - web/src/lib/components/search/AskLibraryPanel.spec.ts
@@ -753,6 +764,8 @@ features:
       - web/src/lib/utils/markdown.ts
       - web/src/lib/utils/memory-exclusions.spec.ts
       - web/src/lib/utils/memory-exclusions.ts
+      - web/src/lib/utils/memory-notice.spec.ts
+      - web/src/lib/utils/memory-notice.ts
       - web/src/lib/utils/notification.spec.ts
       - web/src/lib/utils/notification.ts
       - web/src/lib/utils/redaction.spec.ts
@@ -773,6 +786,8 @@ features:
       - web/src/routes/admin/system-settings/FoodSettings.svelte
       - web/src/routes/admin/system-settings/JournalSettings.spec.ts
       - web/src/routes/admin/system-settings/JournalSettings.svelte
+      - web/src/routes/admin/system-settings/MemoryNotificationSettings.spec.ts
+      - web/src/routes/admin/system-settings/MemoryNotificationSettings.svelte
       - web/src/routes/admin/system-settings/book-settings-description.spec.ts
       - web/src/test-data/factories/activity-log-factory.ts
       - web/src/test-data/factories/book-factory.ts

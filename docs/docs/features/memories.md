@@ -139,7 +139,7 @@ Early in January, the `year_recap` memory recaps the year that just ended: **202
 
 It is made on the 2nd of January, so the photos of New Year's Eve are in it, and stays in the memory lane until the 15th. A year needs at least 30 photos and videos, taken in at least 3 months. It competes for the 6 daily rule slots like any other memory, ahead of the month and season recaps and behind a birthday; when the 2nd is full it is tried again each day until the 8th.
 
-Nothing is made without asking. You get a notification, **Your 2026 in review is ready**, which opens the memory. On the **Memories** page the card shows its stats and offers:
+Nothing is made without asking. You get a notification, **Your 2026 in review is ready**, which opens the memory (unless you turned the [memory notifications](#memory-notifications) of memories off). On the **Memories** page the card shows its stats and offers:
 
 - **Video** and **Vertical video**: a [highlight video](/features/ai-assistant#highlight-videos) of the whole year, landscape or 9:16 for phones;
 - the **book of the year**, drafted in the background when you have [suggested books](/features/ai-assistant#suggested-books) on, and kept or discarded with **Keep** and **Discard** like the other suggestions (with them off, **Make the book** drafts it when you ask).
@@ -205,6 +205,36 @@ Example config-file override that keeps trips, turns off **On this day**, and ke
   }
 }
 ```
+
+## Memory notifications
+
+Gallery can remind you of your memories, like a phone does: once a day, at the time you choose, a notification of a memory of the day.
+
+- **Memory of the day**: the best memory of the day you were not told of yet: a trip anniversary, a place on this day, a birthday, a plain **On this day**… The memory engine's own ranking picks it: a rule's memory by its score, then the **On this day** card with the most photos. Clicking the notification opens the memory. The year in review has [its own notification](#year-in-review) and is not repeated.
+- **Photo books waiting for you**: on a day without a memory to tell, a [suggested book](/features/ai-assistant#suggested-books) waiting for you to keep or discard, e.g. **Your trip book is ready**, which opens the book.
+- **New journal visits**: the [journal notifications](/features/ai-assistant#journal-notifications), e.g. _Name the dishes from last night at Taormina?_
+- **Ready creations**: a video, a photo book or an artwork you asked for is ready. A failure is always told.
+
+You get **at most one notification a day** of a memory or a waiting book, and each memory and each book is told of once: dismissing the notification never brings it back. Journal visits and the creations you asked for are not part of that limit. A memory about someone you [keep out of your memories](#keeping-people-days-and-albums-out-of-your-memories), or whose photos you all keep out, is never notified, and only the memory types you have on are.
+
+The notifications are worded in your language when you read them, from the facts of the memory: Gallery stores what the memory is about, not a sentence.
+
+### Weekly email digest
+
+Turn on the **Weekly email digest** to get, on the day of the week you choose, an email with the week's memories, the photo books waiting for you and the journal visits you have not opened yet, each with a link. It is only sent when there is something to tell, once a week, and needs the server to [send email](/administration/email-notification). It is off until you turn it on, and follows the **Email notifications** switch of your account too.
+
+### Settings
+
+Choose each kind, the **Time of day** and the digest under **Account Settings → Memory notifications**. The time of day is in the time zone of the browser you save the settings from. Gallery checks every hour, and right after the memories of the night are made, which users' time of day has come.
+
+Administrators turn the notification of the day or the digest off for everyone in **Administration → Settings → Memory notifications**:
+
+| Setting                       | Default | Behavior                                                                                                                     |
+| ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `memoryNotifications.enabled` | `true`  | **Notification of the day**: at most one notification a day of a memory or a waiting photo book, at each user's time of day. |
+| `memoryNotifications.digest`  | `true`  | **Weekly email digest**: lets users turn on the weekly email. Off for each user until they turn it on.                       |
+
+The notifications appear in the web app's notification panel. Push notifications to the Android app are planned.
 
 ## API behavior
 
