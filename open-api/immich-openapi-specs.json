@@ -18407,728 +18407,6 @@
         "x-immich-state": "Alpha"
       }
     },
-    "/routines": {
-      "get": {
-        "description": "The routines of the current user, the newest first, with their last run.",
-        "operationId": "getRoutines",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RoutineResponseDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve the routines",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      },
-      "post": {
-        "description": "Make an instruction the assistant runs on its own, on a schedule or after an event.",
-        "operationId": "createRoutine",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RoutineCreateDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Create a routine",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.create",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/approvals": {
-      "post": {
-        "description": "Approve or deny queued changes, one by one or every change of a run. Approving a change makes the recorded tool call again, exactly as the agent made it; it is recorded in the activity log with the run.",
-        "operationId": "decideRoutineApprovals",
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RoutineApprovalDecisionDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineApprovalDecisionResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Approve or deny changes of routine runs",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.update",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/config": {
-      "get": {
-        "description": "Whether routines can run, the agent profiles, the limits and the tools that are safe to auto-approve.",
-        "operationId": "getRoutineConfig",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineConfigResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve the routine settings",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/inbox": {
-      "get": {
-        "description": "The changes of routine runs that wait for approval, the oldest first.",
-        "operationId": "getRoutineInbox",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RoutineApprovalResponseDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve the Routines inbox",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/runs/{id}": {
-      "get": {
-        "description": "A run with its transcript, like a chat, and its changes that waited for approval.",
-        "operationId": "getRoutineRun",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineRunDetailResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve a routine run",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/runs/{id}/cancel": {
-      "post": {
-        "description": "Cancel a queued run, or stop a running one.",
-        "operationId": "cancelRoutineRun",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineRunResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Stop a routine run",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.update",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/runs/{id}/undo": {
-      "post": {
-        "description": "Undo every change of a run, and the changes of it that were approved later, newest first.",
-        "operationId": "undoRoutineRun",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ActivityUndoResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Undo a routine run",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.update",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/{id}": {
-      "delete": {
-        "description": "Delete a routine with its runs; the changes of its runs stay in the activity log.",
-        "operationId": "deleteRoutine",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Delete a routine",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.delete",
-        "x-immich-state": "Alpha"
-      },
-      "get": {
-        "description": "A routine with its last run.",
-        "operationId": "getRoutine",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve a routine",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      },
-      "patch": {
-        "description": "Change a routine, turn it on or off, or resume it after it was paused.",
-        "operationId": "updateRoutine",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RoutineUpdateDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Update a routine",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.update",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/{id}/run": {
-      "post": {
-        "description": "Queue a run of the routine now, or a dry run that only reports what it would change.",
-        "operationId": "runRoutine",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RoutineRunCreateDto"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RoutineRunResponseDto"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Run a routine now",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.update",
-        "x-immich-state": "Alpha"
-      }
-    },
-    "/routines/{id}/runs": {
-      "get": {
-        "description": "The last 50 runs, the newest first.",
-        "operationId": "getRoutineRuns",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/RoutineRunResponseDto"
-                  },
-                  "type": "array"
-                }
-              }
-            },
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          },
-          {
-            "cookie": []
-          },
-          {
-            "api_key": []
-          }
-        ],
-        "summary": "Retrieve the runs of a routine",
-        "tags": [
-          "Assistant"
-        ],
-        "x-immich-history": [
-          {
-            "version": "v3.3.0",
-            "state": "Added"
-          },
-          {
-            "version": "v3.3.0",
-            "state": "Alpha"
-          }
-        ],
-        "x-immich-permission": "agentSession.read",
-        "x-immich-state": "Alpha"
-      }
-    },
     "/search/cities": {
       "get": {
         "description": "Retrieve a list of assets with each asset belonging to a different city. This endpoint is used on the places pages to show a single thumbnail for each city the user has assets in.",
@@ -32293,8 +31571,7 @@
           "sharedLink.create",
           "space.addAssets",
           "workflow.create",
-          "workflow.update",
-          "routine.create"
+          "workflow.update"
         ],
         "type": "string"
       },
@@ -32628,9 +31905,6 @@
               "$ref": "#/components/schemas/AdminConfigAgentProfileDto"
             },
             "type": "array"
-          },
-          "routines": {
-            "$ref": "#/components/schemas/AdminConfigRoutinesDto"
           }
         },
         "required": [
@@ -32642,8 +31916,7 @@
           "idleTimeoutMinutes",
           "maxConcurrentSessions",
           "mcpUrl",
-          "profiles",
-          "routines"
+          "profiles"
         ],
         "type": "object"
       },
@@ -32997,6 +32270,9 @@
           "memories": {
             "$ref": "#/components/schemas/AdminConfigMemoriesDto"
           },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/AdminConfigMemoryNotificationsDto"
+          },
           "metadata": {
             "$ref": "#/components/schemas/AdminConfigMetadataDto"
           },
@@ -33056,6 +32332,7 @@
           "machineLearning",
           "map",
           "memories",
+          "memoryNotifications",
           "metadata",
           "newVersionCheck",
           "nightlyTasks",
@@ -33806,6 +33083,24 @@
         ],
         "type": "object"
       },
+      "AdminConfigMemoryNotificationsDto": {
+        "description": "Memory notifications config",
+        "properties": {
+          "digest": {
+            "description": "Let the users get a weekly email of the week's memories, waiting drafts and new journal visits (off for each user until they turn it on; needs email to be set up)",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "Send each user at most one notification a day of a memory (on this day, a trip anniversary) or a suggested photo book waiting for them, at the time of day they choose",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "digest",
+          "enabled"
+        ],
+        "type": "object"
+      },
       "AdminConfigMetadataDto": {
         "properties": {
           "faces": {
@@ -34128,75 +33423,6 @@
         },
         "required": [
           "enabled"
-        ],
-        "type": "object"
-      },
-      "AdminConfigRoutinesDto": {
-        "description": "Assistant routines config",
-        "properties": {
-          "approvalExpiryDays": {
-            "description": "Days a change of a routine run waits for approval in the Routines inbox before it expires",
-            "maximum": 90,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "enabled": {
-            "description": "Let the users make assistant routines, which run the assistant on its own on a schedule or after an event",
-            "type": "boolean"
-          },
-          "eventSettleMinutes": {
-            "description": "A routine that runs after uploads (or other events) starts once no new event came for this long",
-            "maximum": 240,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "maxConcurrentRuns": {
-            "description": "Most routine runs at the same time on this server",
-            "maximum": 20,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "maxRoutinesPerUser": {
-            "description": "Most routines a user can have",
-            "maximum": 100,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "maxRunMinutes": {
-            "description": "Longest a routine run may take, in minutes",
-            "maximum": 240,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "maxRunsPerDay": {
-            "description": "Most routine runs of a user in 24 hours, all their routines together",
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "maxToolCalls": {
-            "description": "Most tool calls of a routine run",
-            "maximum": 2000,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "pauseAfterFailures": {
-            "description": "A routine is paused after this many failed runs in a row, until its owner resumes it",
-            "maximum": 20,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "approvalExpiryDays",
-          "enabled",
-          "eventSettleMinutes",
-          "maxConcurrentRuns",
-          "maxRoutinesPerUser",
-          "maxRunMinutes",
-          "maxRunsPerDay",
-          "maxToolCalls",
-          "pauseAfterFailures"
         ],
         "type": "object"
       },
@@ -44324,8 +43550,8 @@
           "BookExportHtml",
           "HighlightRender",
           "YearRecapPrepare",
-          "RoutineTick",
-          "RoutineRun",
+          "MemoryNoticesQueueAll",
+          "MemoryNoticesSend",
           "OrientationCheckQueueAll",
           "OrientationCheck",
           "DatabaseBackup",
@@ -45298,6 +44524,90 @@
           "documents": {
             "description": "Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them",
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MemoryNotificationsResponse": {
+        "properties": {
+          "creations": {
+            "description": "Whether the user is notified when a video, a book or an artwork they asked for is ready",
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits",
+            "type": "boolean"
+          },
+          "digestDay": {
+            "description": "The day of the week of the digest, 1 (Monday) to 7 (Sunday)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "drafts": {
+            "description": "Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)",
+            "type": "boolean"
+          },
+          "hour": {
+            "description": "The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "memories": {
+            "description": "Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "The IANA time zone of hour, e.g. Europe/London; the server's when empty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "creations",
+          "digest",
+          "digestDay",
+          "drafts",
+          "hour",
+          "memories",
+          "timeZone"
+        ],
+        "type": "object"
+      },
+      "MemoryNotificationsUpdate": {
+        "properties": {
+          "creations": {
+            "description": "Whether the user is notified when a video, a book or an artwork they asked for is ready",
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits",
+            "type": "boolean"
+          },
+          "digestDay": {
+            "description": "The day of the week of the digest, 1 (Monday) to 7 (Sunday)",
+            "maximum": 7,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "drafts": {
+            "description": "Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)",
+            "type": "boolean"
+          },
+          "hour": {
+            "description": "The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent",
+            "maximum": 23,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memories": {
+            "description": "Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "The IANA time zone of hour, e.g. Europe/London; the server's when empty",
+            "maxLength": 64,
+            "type": "string"
           }
         },
         "type": "object"
@@ -49820,933 +49130,6 @@
         "required": [
           "angle"
         ],
-        "type": "object"
-      },
-      "RoutineApprovalDecisionDto": {
-        "properties": {
-          "approve": {
-            "description": "true applies the changes, false denies them",
-            "type": "boolean"
-          },
-          "ids": {
-            "description": "The changes to decide",
-            "items": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            },
-            "maxItems": 500,
-            "type": "array"
-          },
-          "runId": {
-            "description": "Decide every pending change of this run",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approve"
-        ],
-        "type": "object"
-      },
-      "RoutineApprovalDecisionResponseDto": {
-        "properties": {
-          "applied": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "denied": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "failed": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "results": {
-            "description": "The changes as decided",
-            "items": {
-              "$ref": "#/components/schemas/RoutineApprovalResponseDto"
-            },
-            "type": "array"
-          },
-          "skipped": {
-            "description": "Changes that were decided before, or expired",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "applied",
-          "denied",
-          "failed",
-          "results",
-          "skipped"
-        ],
-        "type": "object"
-      },
-      "RoutineApprovalMode": {
-        "description": "What happens to the changes of a run: ask, make the safe ones, or only report them",
-        "enum": [
-          "ask",
-          "auto_safe",
-          "dry_run"
-        ],
-        "type": "string"
-      },
-      "RoutineApprovalResponseDto": {
-        "properties": {
-          "activityIds": {
-            "description": "The activity log entries of the change, once applied",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "assetIds": {
-            "description": "The photos of the arguments",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "createdAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "decidedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "expiresAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "id": {
-            "description": "Change ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "input": {
-            "additionalProperties": {},
-            "description": "The arguments, applied as they are",
-            "type": "object"
-          },
-          "result": {
-            "description": "What applying it returned, or why it failed",
-            "nullable": true,
-            "type": "string"
-          },
-          "routineId": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "routineName": {
-            "type": "string"
-          },
-          "runId": {
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/RoutineApprovalStatus"
-          },
-          "summary": {
-            "description": "A short summary of the arguments",
-            "type": "string"
-          },
-          "title": {
-            "description": "The title of the tool",
-            "type": "string"
-          },
-          "toolName": {
-            "description": "The tool the change calls",
-            "type": "string"
-          }
-        },
-        "required": [
-          "activityIds",
-          "assetIds",
-          "createdAt",
-          "decidedAt",
-          "expiresAt",
-          "id",
-          "input",
-          "result",
-          "runId",
-          "status",
-          "summary",
-          "title",
-          "toolName"
-        ],
-        "type": "object"
-      },
-      "RoutineApprovalStatus": {
-        "description": "Status of a change of a routine run",
-        "enum": [
-          "pending",
-          "applying",
-          "applied",
-          "failed",
-          "denied",
-          "expired",
-          "dry_run"
-        ],
-        "type": "string"
-      },
-      "RoutineConfigResponseDto": {
-        "properties": {
-          "approvalExpiryDays": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "defaultLimits": {
-            "$ref": "#/components/schemas/RoutineLimitsDto"
-          },
-          "defaultProfile": {
-            "description": "The chat profile, used when a routine names none",
-            "type": "string"
-          },
-          "enabled": {
-            "description": "Whether routines can run: the assistant and routines are on",
-            "type": "boolean"
-          },
-          "maxLimits": {
-            "$ref": "#/components/schemas/RoutineLimitsDto"
-          },
-          "maxRoutines": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "profiles": {
-            "description": "The agent profiles a routine can use",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "safeTools": {
-            "description": "The tools \"Auto-approve safe actions\" runs without asking",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "approvalExpiryDays",
-          "defaultLimits",
-          "defaultProfile",
-          "enabled",
-          "maxLimits",
-          "maxRoutines",
-          "profiles",
-          "safeTools"
-        ],
-        "type": "object"
-      },
-      "RoutineCreateDto": {
-        "properties": {
-          "approvalMode": {
-            "$ref": "#/components/schemas/RoutineApprovalMode",
-            "description": "Defaults to ask: every change waits for approval"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "instruction": {
-            "description": "What to do, in plain words",
-            "maxLength": 5000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "limits": {
-            "properties": {
-              "minutes": {
-                "description": "Longest a run may take, in minutes",
-                "maximum": 240,
-                "minimum": 1,
-                "type": "integer"
-              },
-              "runsPerDay": {
-                "description": "Most runs in 24 hours",
-                "maximum": 1000,
-                "minimum": 1,
-                "type": "integer"
-              },
-              "toolCalls": {
-                "description": "Most tool calls of a run",
-                "maximum": 2000,
-                "minimum": 1,
-                "type": "integer"
-              }
-            },
-            "type": "object"
-          },
-          "name": {
-            "description": "Routine name",
-            "maxLength": 100,
-            "minLength": 1,
-            "type": "string"
-          },
-          "profile": {
-            "description": "Agent profile (empty for the chat profile)",
-            "maxLength": 100,
-            "nullable": true,
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RoutineScopeDto"
-          },
-          "trigger": {
-            "$ref": "#/components/schemas/RoutineTriggerDto"
-          }
-        },
-        "required": [
-          "instruction",
-          "name",
-          "trigger"
-        ],
-        "type": "object"
-      },
-      "RoutineEvent": {
-        "description": "Event the routine runs after",
-        "enum": [
-          "upload",
-          "journal_visit",
-          "tag",
-          "trip",
-          "book_draft",
-          "workflow"
-        ],
-        "type": "string"
-      },
-      "RoutineLimitsDto": {
-        "description": "Limits of the runs (capped by the server settings)",
-        "properties": {
-          "minutes": {
-            "description": "Longest a run may take, in minutes",
-            "maximum": 240,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "runsPerDay": {
-            "description": "Most runs in 24 hours",
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "toolCalls": {
-            "description": "Most tool calls of a run",
-            "maximum": 2000,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "minutes",
-          "runsPerDay",
-          "toolCalls"
-        ],
-        "type": "object"
-      },
-      "RoutineResponseDto": {
-        "properties": {
-          "approvalMode": {
-            "$ref": "#/components/schemas/RoutineApprovalMode"
-          },
-          "consecutiveFailures": {
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "createdAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "id": {
-            "description": "Routine ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "instruction": {
-            "type": "string"
-          },
-          "lastRun": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/RoutineRunResponseDto"
-              }
-            ],
-            "nullable": true
-          },
-          "lastRunAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "limits": {
-            "$ref": "#/components/schemas/RoutineLimitsDto"
-          },
-          "name": {
-            "type": "string"
-          },
-          "nextRunAt": {
-            "description": "When a scheduled routine runs next",
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "pausedAt": {
-            "description": "When it was paused after repeated failures",
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "pendingApprovals": {
-            "description": "Changes of its runs that wait for approval",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "pendingEvents": {
-            "description": "Events (photos, visits...) waiting for the next run",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "profile": {
-            "description": "Agent profile (null for the chat profile)",
-            "nullable": true,
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RoutineScopeDto"
-          },
-          "trigger": {
-            "$ref": "#/components/schemas/RoutineTriggerDto"
-          },
-          "updatedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalMode",
-          "consecutiveFailures",
-          "createdAt",
-          "enabled",
-          "id",
-          "instruction",
-          "lastRun",
-          "lastRunAt",
-          "limits",
-          "name",
-          "nextRunAt",
-          "pausedAt",
-          "pendingApprovals",
-          "pendingEvents",
-          "profile",
-          "scope",
-          "trigger",
-          "updatedAt"
-        ],
-        "type": "object"
-      },
-      "RoutineRunCreateDto": {
-        "properties": {
-          "dryRun": {
-            "description": "Only report what the run would change",
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "RoutineRunDetailResponseDto": {
-        "properties": {
-          "approvalMode": {
-            "$ref": "#/components/schemas/RoutineApprovalMode"
-          },
-          "approvals": {
-            "description": "The changes that waited for (or got) a decision",
-            "items": {
-              "$ref": "#/components/schemas/RoutineApprovalResponseDto"
-            },
-            "type": "array"
-          },
-          "assetIds": {
-            "description": "The photos handed to the run",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "changes": {
-            "description": "Changes the run made itself",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "createdAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "error": {
-            "description": "Why the run failed or was skipped",
-            "nullable": true,
-            "type": "string"
-          },
-          "events": {
-            "description": "The events the run was started for",
-            "items": {
-              "$ref": "#/components/schemas/RoutineRunEventDto"
-            },
-            "type": "array"
-          },
-          "finishedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "id": {
-            "description": "Run ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "messages": {
-            "description": "The transcript, oldest first",
-            "items": {
-              "$ref": "#/components/schemas/AgentMessageDto"
-            },
-            "type": "array"
-          },
-          "moreAssets": {
-            "description": "Photos handed to the run beyond assetIds",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "pendingApprovals": {
-            "description": "Changes that wait for approval",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "routineId": {
-            "description": "Routine ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "routineName": {
-            "type": "string"
-          },
-          "sessionId": {
-            "description": "The assistant session of the run: its transcript",
-            "format": "uuid",
-            "nullable": true,
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "startedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/RoutineRunStatus"
-          },
-          "summary": {
-            "description": "The agent's summary of the run",
-            "nullable": true,
-            "type": "string"
-          },
-          "toolCalls": {
-            "description": "Tool calls made",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "trigger": {
-            "description": "What started the run: manual, schedule or event",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalMode",
-          "approvals",
-          "assetIds",
-          "changes",
-          "createdAt",
-          "error",
-          "events",
-          "finishedAt",
-          "id",
-          "messages",
-          "moreAssets",
-          "pendingApprovals",
-          "routineId",
-          "routineName",
-          "sessionId",
-          "startedAt",
-          "status",
-          "summary",
-          "toolCalls",
-          "trigger"
-        ],
-        "type": "object"
-      },
-      "RoutineRunEventDto": {
-        "properties": {
-          "at": {
-            "description": "When it happened",
-            "type": "string"
-          },
-          "data": {
-            "additionalProperties": {},
-            "description": "What the run is told about it",
-            "type": "object"
-          },
-          "kind": {
-            "description": "The event",
-            "type": "string"
-          }
-        },
-        "required": [
-          "at",
-          "kind"
-        ],
-        "type": "object"
-      },
-      "RoutineRunResponseDto": {
-        "properties": {
-          "approvalMode": {
-            "$ref": "#/components/schemas/RoutineApprovalMode"
-          },
-          "assetIds": {
-            "description": "The photos handed to the run",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "changes": {
-            "description": "Changes the run made itself",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "createdAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "error": {
-            "description": "Why the run failed or was skipped",
-            "nullable": true,
-            "type": "string"
-          },
-          "events": {
-            "description": "The events the run was started for",
-            "items": {
-              "$ref": "#/components/schemas/RoutineRunEventDto"
-            },
-            "type": "array"
-          },
-          "finishedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "id": {
-            "description": "Run ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "moreAssets": {
-            "description": "Photos handed to the run beyond assetIds",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "pendingApprovals": {
-            "description": "Changes that wait for approval",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "routineId": {
-            "description": "Routine ID",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "sessionId": {
-            "description": "The assistant session of the run: its transcript",
-            "format": "uuid",
-            "nullable": true,
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-            "type": "string"
-          },
-          "startedAt": {
-            "example": "2024-01-01T00:00:00.000Z",
-            "format": "date-time",
-            "nullable": true,
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/RoutineRunStatus"
-          },
-          "summary": {
-            "description": "The agent's summary of the run",
-            "nullable": true,
-            "type": "string"
-          },
-          "toolCalls": {
-            "description": "Tool calls made",
-            "maximum": 9007199254740991,
-            "minimum": -9007199254740991,
-            "type": "integer"
-          },
-          "trigger": {
-            "description": "What started the run: manual, schedule or event",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approvalMode",
-          "assetIds",
-          "changes",
-          "createdAt",
-          "error",
-          "events",
-          "finishedAt",
-          "id",
-          "moreAssets",
-          "pendingApprovals",
-          "routineId",
-          "sessionId",
-          "startedAt",
-          "status",
-          "summary",
-          "toolCalls",
-          "trigger"
-        ],
-        "type": "object"
-      },
-      "RoutineRunStatus": {
-        "description": "Status of a routine run",
-        "enum": [
-          "queued",
-          "running",
-          "succeeded",
-          "failed",
-          "cancelled",
-          "skipped"
-        ],
-        "type": "string"
-      },
-      "RoutineScopeDto": {
-        "description": "What the runs are pointed at; the access checks are the same as in the chat",
-        "properties": {
-          "albumIds": {
-            "description": "Only these albums",
-            "items": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            },
-            "maxItems": 100,
-            "type": "array"
-          },
-          "days": {
-            "description": "Only the last days",
-            "maximum": 3650,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "pack": {
-            "description": "Only this journal, e.g. food",
-            "maxLength": 50,
-            "type": "string"
-          },
-          "personIds": {
-            "description": "Only these people",
-            "items": {
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
-              "type": "string"
-            },
-            "maxItems": 100,
-            "type": "array"
-          },
-          "sinceLastRun": {
-            "description": "Only what is new since the last run",
-            "type": "boolean"
-          },
-          "tags": {
-            "description": "Only these tags",
-            "items": {
-              "maxLength": 200,
-              "minLength": 1,
-              "type": "string"
-            },
-            "maxItems": 100,
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "RoutineTriggerDto": {
-        "description": "When the routine runs: manually, on a schedule, or after an event",
-        "properties": {
-          "cron": {
-            "description": "Schedule: a cron expression of 5 fields, e.g. \"0 2 * * *\" for every night at 2:00",
-            "maxLength": 100,
-            "type": "string"
-          },
-          "event": {
-            "$ref": "#/components/schemas/RoutineEvent"
-          },
-          "pack": {
-            "description": "Journal visit event: only visits of this journal, e.g. food",
-            "maxLength": 50,
-            "type": "string"
-          },
-          "tag": {
-            "description": "Tag event: only this tag or a tag under it, e.g. print or Food/Noma",
-            "maxLength": 200,
-            "type": "string"
-          },
-          "timezone": {
-            "description": "Schedule: the time zone of the cron expression",
-            "maxLength": 100,
-            "type": "string"
-          },
-          "type": {
-            "$ref": "#/components/schemas/RoutineTriggerType"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "RoutineTriggerType": {
-        "description": "When the routine runs",
-        "enum": [
-          "manual",
-          "schedule",
-          "event"
-        ],
-        "type": "string"
-      },
-      "RoutineUpdateDto": {
-        "properties": {
-          "approvalMode": {
-            "$ref": "#/components/schemas/RoutineApprovalMode"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "instruction": {
-            "description": "What to do, in plain words",
-            "maxLength": 5000,
-            "minLength": 1,
-            "type": "string"
-          },
-          "limits": {
-            "properties": {
-              "minutes": {
-                "description": "Longest a run may take, in minutes",
-                "maximum": 240,
-                "minimum": 1,
-                "type": "integer"
-              },
-              "runsPerDay": {
-                "description": "Most runs in 24 hours",
-                "maximum": 1000,
-                "minimum": 1,
-                "type": "integer"
-              },
-              "toolCalls": {
-                "description": "Most tool calls of a run",
-                "maximum": 2000,
-                "minimum": 1,
-                "type": "integer"
-              }
-            },
-            "type": "object"
-          },
-          "name": {
-            "description": "Routine name",
-            "maxLength": 100,
-            "minLength": 1,
-            "type": "string"
-          },
-          "paused": {
-            "description": "false resumes a routine that was paused after repeated failures",
-            "enum": [
-              false
-            ],
-            "type": "boolean"
-          },
-          "profile": {
-            "description": "Agent profile (empty for the chat profile)",
-            "maxLength": 100,
-            "nullable": true,
-            "type": "string"
-          },
-          "scope": {
-            "$ref": "#/components/schemas/RoutineScopeDto"
-          },
-          "trigger": {
-            "$ref": "#/components/schemas/RoutineTriggerDto"
-          }
-        },
         "type": "object"
       },
       "ScopedPersonProfileRefDto": {
@@ -59433,6 +57816,9 @@
           "memoryExclusions": {
             "$ref": "#/components/schemas/MemoryExclusionsResponse"
           },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/MemoryNotificationsResponse"
+          },
           "people": {
             "$ref": "#/components/schemas/PeopleResponse"
           },
@@ -59463,6 +57849,7 @@
           "folders",
           "memories",
           "memoryExclusions",
+          "memoryNotifications",
           "people",
           "purchase",
           "ratings",
@@ -59506,6 +57893,9 @@
           },
           "memoryExclusions": {
             "$ref": "#/components/schemas/MemoryExclusionsUpdate"
+          },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/MemoryNotificationsUpdate"
           },
           "people": {
             "$ref": "#/components/schemas/PeopleUpdate"

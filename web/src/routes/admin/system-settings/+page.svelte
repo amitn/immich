@@ -14,6 +14,7 @@
   import MachineLearningSettings from './MachineLearningSettings.svelte';
   import MapSettings from './MapSettings.svelte';
   import MemoriesSettings from './MemoriesSettings.svelte';
+  import MemoryNotificationSettings from './MemoryNotificationSettings.svelte';
   import MetadataSettings from './MetadataSettings.svelte';
   import NewVersionCheckSettings from './NewVersionCheckSettings.svelte';
   import NightlyTasksSettings from './NightlyTasksSettings.svelte';
@@ -35,6 +36,7 @@
     mdiAccountOutline,
     mdiBackupRestore,
     mdiBellOutline,
+    mdiBellRingOutline,
     mdiBookOpenPageVariantOutline,
     mdiBellBadgeOutline,
     mdiBookshelf,
@@ -188,6 +190,13 @@
       subtitle: $t('admin.memories_settings_description'),
       key: 'memories',
       icon: mdiHistory,
+    },
+    {
+      component: MemoryNotificationSettings,
+      title: $t('admin.memory_notifications_settings'),
+      subtitle: $t('admin.memory_notifications_settings_description'),
+      key: 'memory-notifications',
+      icon: mdiBellRingOutline,
     },
     {
       component: NotificationSettings,

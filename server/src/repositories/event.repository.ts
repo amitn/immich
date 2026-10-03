@@ -3,6 +3,7 @@ import { ModuleRef, Reflector } from '@nestjs/core';
 import { orderBy } from 'lodash-es';
 import { Socket } from 'socket.io';
 import type { JobItem, JobSource, UploadFile } from 'src/types.js';
+import type { MemoryNoticeEvent } from 'src/utils/memory-notices.js';
 import { Asset } from 'src/database.js';
 import { EventConfig } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
@@ -117,6 +118,8 @@ type EventMap = {
   TripEnded: [{ userId: string; memoryId: string; title: string; assetIds: string[] }];
   /** a photo book draft was made */
   BookDraftCreate: [{ userId: string; bookId: string; kind: string; title: string; assetIds: string[] }];
+  /** Gallery fork (#6): a notification of the day was sent; the hook of a push channel (#3) */
+  MemoryNoticeSend: [MemoryNoticeEvent];
 };
 
 export type AppRestartEvent = {

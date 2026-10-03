@@ -57,6 +57,7 @@ import { MachineLearningRepository } from 'src/repositories/machine-learning.rep
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { MemoryNoticeRepository } from 'src/repositories/memory-notice.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
@@ -127,6 +128,7 @@ export const BASE_SERVICE_DEPENDENCIES = [
   BookDraftRepository,
   CollectionNoticeRepository,
   MemoryExclusionRepository,
+  MemoryNoticeRepository,
   YearRecapRepository,
   RoutineRepository,
   AlbumRepository,
@@ -211,6 +213,7 @@ export class BaseService {
     protected bookDraftRepository: BookDraftRepository,
     protected collectionNoticeRepository: CollectionNoticeRepository,
     protected memoryExclusionRepository: MemoryExclusionRepository,
+    protected memoryNoticeRepository: MemoryNoticeRepository,
     protected yearRecapRepository: YearRecapRepository,
     protected routineRepository: RoutineRepository,
     protected albumRepository: AlbumRepository,
@@ -316,6 +319,7 @@ export class BaseService {
       ctx.bookDraftRepository,
       ctx.collectionNoticeRepository,
       ctx.memoryExclusionRepository,
+      ctx.memoryNoticeRepository,
       ctx.yearRecapRepository,
       ctx.routineRepository,
       ctx.albumRepository,

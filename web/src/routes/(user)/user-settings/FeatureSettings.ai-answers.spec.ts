@@ -29,36 +29,28 @@ describe('FeatureSettings component', () => {
     );
   });
 
-  it('should turn off the journal notifications', async () => {
+  it('should keep the answers of the assistant on for a user who never chose', async () => {
+    auth.preferences = { ...preferencesFactory.build(), aiAnswers: undefined } as never;
     renderWithTooltips(FeatureSettings, {});
 
-    await fireEvent.click(screen.getByText('journal_notifications_setting'));
-    const toggle = await screen.findByRole('switch', { name: 'enable' });
-    expect(toggle).toBeChecked();
-    await fireEvent.click(toggle);
     await fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
     await waitFor(() =>
       expect(sdkMock.updateMyPreferences).toHaveBeenCalledWith({
-        userPreferencesUpdateDto: expect.objectContaining({ collectionNotifications: { enabled: false } }),
+        userPreferencesUpdateDto: expect.objectContaining({ aiAnswers: { enabled: true } }),
       }),
     );
   });
 
-  it('should keep the notifications on for a user who never chose', async () => {
-    auth.preferences = { ...preferencesFactory.build(), collectionNotifications: undefined } as never;
+  it('should leave the journal notifications to the memory notifications (#6)', async () => {
     renderWithTooltips(FeatureSettings, {});
 
+    expect(screen.queryByText('journal_notifications_setting')).not.toBeInTheDocument();
     await fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
-    await waitFor(() =>
-      expect(sdkMock.updateMyPreferences).toHaveBeenCalledWith({
-        // beside the other preferences, such as the answers of the assistant
-        userPreferencesUpdateDto: expect.objectContaining({
-          collectionNotifications: { enabled: true },
-          aiAnswers: { enabled: true },
-        }),
-      }),
+    await waitFor(() => expect(sdkMock.updateMyPreferences).toHaveBeenCalled());
+    expect(sdkMock.updateMyPreferences.mock.calls[0][0].userPreferencesUpdateDto).not.toHaveProperty(
+      'collectionNotifications',
     );
   });
 });

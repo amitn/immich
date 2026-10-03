@@ -997,6 +997,10 @@ export enum JobName {
   RoutineTick = 'RoutineTick',
   /** one headless run of an assistant routine (#15) */
   RoutineRun = 'RoutineRun',
+  /** every hour and after the memories are made: the users whose time of day has come (#6) */
+  MemoryNoticesQueueAll = 'MemoryNoticesQueueAll',
+  /** the notification of the day (a memory or a waiting draft) and the weekly digest of a user (#6) */
+  MemoryNoticesSend = 'MemoryNoticesSend',
 
   OrientationCheckQueueAll = 'OrientationCheckQueueAll',
   OrientationCheck = 'OrientationCheck',
@@ -1178,6 +1182,8 @@ export enum DatabaseLock {
   VersionCheck = 800,
   HlsSessionCleanup = 850,
   PetRecognitionModelSwitch = 860,
+  /** Gallery fork (#6): the instance that schedules the hourly memory notifications */
+  MemoryNotices = 870,
 }
 
 export enum MaintenanceAction {
@@ -1484,6 +1490,8 @@ export enum CronJob {
   LibraryScan = 'LibraryScan',
   NightlyJobs = 'NightlyJobs',
   VersionCheck = 'VersionCheck',
+  /** Gallery fork (#6): every hour, the memory notifications of the users whose time of day has come */
+  MemoryNotices = 'MemoryNotices',
 }
 
 export enum ConfigVisibility {

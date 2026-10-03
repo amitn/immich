@@ -79,6 +79,15 @@ const getDefaultPreferences = (): UserPreferences => ({
   memoryExclusions: {
     documents: false,
   },
+  memoryNotifications: {
+    memories: true,
+    creations: true,
+    drafts: true,
+    hour: 9,
+    timeZone: '',
+    digest: false,
+    digestDay: 7,
+  },
 });
 
 describe('getPreferences', () => {

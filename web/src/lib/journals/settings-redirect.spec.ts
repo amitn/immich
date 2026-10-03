@@ -9,9 +9,13 @@ describe(getRenamedSettingsRedirect.name, () => {
     );
   });
 
-  it('should send the old notification setting of the user to the journal one, keeping the other keys', () => {
+  it('should send the old notification setting of the user to the memory notifications, keeping the other keys', () => {
     expect(getRenamedSettingsRedirect(url('/user-settings?isOpen=feature+collection-notifications&x=1#top'))).toBe(
-      '/user-settings?isOpen=feature+journal-notifications&x=1#top',
+      '/user-settings?isOpen=feature+memory-notifications&x=1#top',
+    );
+    // the journal notifications moved there too (#6)
+    expect(getRenamedSettingsRedirect(url('/user-settings?isOpen=feature+journal-notifications'))).toBe(
+      '/user-settings?isOpen=feature+memory-notifications',
     );
   });
 

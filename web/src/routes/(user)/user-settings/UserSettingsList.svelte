@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import MemoryExclusionsSettings from '$lib/components/memory-exclusions/MemoryExclusionsSettings.svelte';
+  import MemoryNotificationsSettings from '$lib/components/memory-notifications/MemoryNotificationsSettings.svelte';
   import GroupSettings from '$lib/components/user-settings-page/group-settings.svelte';
   import ChangePinCodeSettings from './PinCodeSettings.svelte';
   import DownloadSettings from './DownloadSettings.svelte';
@@ -19,6 +20,7 @@
     mdiAccountOutline,
     mdiApi,
     mdiBellOutline,
+    mdiBellRingOutline,
     mdiCogOutline,
     mdiDevices,
     mdiDownload,
@@ -121,6 +123,16 @@
   subtitle={$t('notifications_setting_description')}
 >
   <NotificationsSettings />
+</SettingAccordion>
+
+<!-- Gallery fork (#6): the memory of the day, waiting drafts, journal visits, ready creations and the weekly digest -->
+<SettingAccordion
+  icon={mdiBellRingOutline}
+  key="memory-notifications"
+  title={$t('memory_notifications_setting')}
+  subtitle={$t('memory_notifications_setting_description')}
+>
+  <MemoryNotificationsSettings />
 </SettingAccordion>
 
 {#if featureFlagsManager.value.oauth}

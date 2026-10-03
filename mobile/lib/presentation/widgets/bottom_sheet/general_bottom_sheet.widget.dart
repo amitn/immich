@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:immich_mobile/gallery/presentation/actions/ask_assistant.action.dart';
 import 'package:immich_mobile/presentation/actions/action.widget.dart';
 import 'package:immich_mobile/presentation/actions/archive.action.dart';
 import 'package:immich_mobile/presentation/actions/asset_debug.action.dart';
@@ -54,6 +55,8 @@ class _GeneralBottomSheetState extends ConsumerState<GeneralBottomSheet> {
       actions: const <ActionColumnButton>[
         .new(action: AssetDebugAction(source: .timeline)),
         .new(action: ShareAction(source: .timeline)),
+        // Gallery (#3): a new chat with the selected photos attached
+        .new(action: AskAssistantAction(source: .timeline)),
         .new(action: ShareLinkAction(source: .timeline)),
         .new(action: DownloadAction(source: .timeline)),
         .new(action: DeleteAction(source: .timeline)),

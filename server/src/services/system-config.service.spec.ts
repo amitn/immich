@@ -144,6 +144,10 @@ const updatedConfig = Object.freeze<SystemConfig>({
       overpassUrl: 'https://overpass-api.de/api/interpreter',
     },
   },
+  memoryNotifications: {
+    enabled: true,
+    digest: true,
+  },
   ffmpeg: {
     crf: 30,
     threads: 0,

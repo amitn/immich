@@ -39,6 +39,15 @@ export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
   memoryExclusions: {
     documents: false,
   },
+  memoryNotifications: {
+    memories: true,
+    creations: true,
+    drafts: true,
+    hour: 9,
+    timeZone: '',
+    digest: false,
+    digestDay: 7,
+  },
   people: {
     enabled: false,
     sidebarWeb: false,

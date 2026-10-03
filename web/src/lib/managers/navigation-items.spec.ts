@@ -85,8 +85,8 @@ function isOptionalParam(name: string): boolean {
 
 describe('NAVIGATION_ITEMS schema', () => {
   // 38 of noodle's, and the 4 settings of the AI assistant, books, journals and food
-  it('has exactly 42 items', () => {
-    expect(NAVIGATION_ITEMS).toHaveLength(42);
+  it('has exactly 43 items', () => {
+    expect(NAVIGATION_ITEMS).toHaveLength(43);
   });
 
   it('every item has non-empty required fields', () => {
@@ -121,7 +121,7 @@ describe('NAVIGATION_ITEMS schema', () => {
 
   it('system-settings routes match the /admin/system-settings?isOpen=<key> pattern', () => {
     const items = NAVIGATION_ITEMS.filter((i) => i.category === 'systemSettings');
-    expect(items).toHaveLength(26);
+    expect(items).toHaveLength(27);
     for (const item of items) {
       expect(item.route).toMatch(/^\/admin\/system-settings\?isOpen=[a-z-]+$/);
       expect(item.adminOnly).toBe(true);

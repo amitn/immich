@@ -31,6 +31,18 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'aiAnswers': AiAnswersResponse(enabled: false).toJson(),
     'bookDrafts': BookDraftsResponse(enabled: false).toJson(),
     'collectionNotifications': CollectionNotificationsResponse(enabled: false).toJson(),
+    // A server without memory exclusions shows every memory, documents included
+    'memoryExclusions': MemoryExclusionsResponse(documents: false).toJson(),
+    // A server without memory notifications sends none; the defaults keep them off
+    'memoryNotifications': MemoryNotificationsResponse(
+      creations: false,
+      digest: false,
+      digestDay: 7,
+      drafts: false,
+      hour: 9,
+      memories: false,
+      timeZone: '',
+    ).toJson(),
   },
   'AdminConfigDto': {
     'agent': {
@@ -54,6 +66,7 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'food': {
       'openStreetMap': {'enabled': false, 'overpassUrl': 'https://overpass-api.de/api/interpreter'},
     },
+    'memoryNotifications': {'digest': false, 'enabled': false},
   },
   // assistant routines (#15): a server without them has nothing to run
   'AdminConfigAgentDto': {
@@ -89,6 +102,8 @@ final Map<String, Map<String, Object?>> openApiPatches = {
     'restaurantLookup': false,
   },
   'SearchAssetResponseDto': {'nextCursor': null},
+  // A server without redaction never hides faces or text behind a shared link
+  'SharedLinkResponseDto': {'redactFaces': false, 'redactText': false},
   'MemoriesResponse': {'duration': 5, 'sidebarWeb': false},
   'WorkflowResponseDto': {'logging': false},
 };

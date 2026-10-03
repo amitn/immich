@@ -12,6 +12,7 @@ import {
   JobStatus,
   NotificationLevel,
   NotificationType,
+  UserMetadataKey,
 } from 'src/enum.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BookService } from 'src/services/book.service.js';
@@ -591,6 +592,24 @@ describe(HighlightService.name, () => {
       );
       expect(mocks.asset.create).not.toHaveBeenCalled();
       expect(mocks.storage.unlinkDir).toHaveBeenCalled();
+    });
+
+    it('should not tell an owner who turned the ready creations off, but still tell a failure (#6)', async () => {
+      const off = [{ key: UserMetadataKey.Preferences, value: { memoryNotifications: { creations: false } } }];
+      const { job } = setupRender();
+      mocks.user.getMetadata.mockResolvedValue(off);
+
+      await expect(sut.handleRender({ id: job.id })).resolves.toBe(JobStatus.Success);
+      expect(mocks.user.getMetadata).toHaveBeenCalledWith(job.ownerId);
+      expect(mocks.notification.create).not.toHaveBeenCalled();
+
+      const { job: failing } = setupRender();
+      mocks.user.getMetadata.mockResolvedValue(off);
+      mocks.media.runFfmpeg.mockRejectedValue(new Error('ffmpeg exited with code 1'));
+      await expect(sut.handleRender({ id: failing.id })).resolves.toBe(JobStatus.Failed);
+      expect(mocks.notification.create).toHaveBeenCalledWith(
+        expect.objectContaining({ level: NotificationLevel.Error }),
+      );
     });
 
     it('should fail when there is nothing to show', async () => {
