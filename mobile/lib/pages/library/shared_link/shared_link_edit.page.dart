@@ -145,7 +145,10 @@ class SharedLinkEditPage extends HookConsumerWidget {
         }
       }
 
-      return Text(context.t.create_link_to_share_description, style: const TextStyle(fontWeight: FontWeight.bold));
+      return Text(
+        isBook ? context.t.book_share_description : context.t.create_link_to_share_description,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      );
     }
 
     Widget buildDescriptionField() {
