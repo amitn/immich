@@ -79,4 +79,41 @@ describe('NotificationPanel component', () => {
     await waitFor(() => expect(store.markAsRead).toHaveBeenCalled());
     expect(modalManager.show).not.toHaveBeenCalled();
   });
+
+  it('should word a memory notification from its facts and open the memory (#6)', async () => {
+    store.notifications = [
+      notification({
+        title: 'On this day',
+        description: undefined,
+        data: JSON.stringify({
+          memoryId: 'memory-1',
+          memoryNotice: { type: 'on_this_day', data: { year: 2019 }, memoryAt: '2019-10-03T00:00:00.000Z' },
+        }) as never,
+      }),
+    ];
+    renderWithTooltips(NotificationPanel, { onClose });
+
+    // the web words it in the viewer's language (the messages are their keys in the tests)
+    await fireEvent.click(screen.getByText('memory_notice_on_this_day'));
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/memories/memory-1'));
+    expect(store.markAsRead).toHaveBeenCalledWith('notification-1');
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('should word a waiting draft and open its book (#6)', async () => {
+    store.notifications = [
+      notification({
+        title: 'Your trip book is ready',
+        description: 'Crete 2026',
+        data: { bookId: 'book-1', draftNotice: { draftId: 'draft-1', kind: 'trip', title: 'Crete 2026' } },
+      }),
+    ];
+    renderWithTooltips(NotificationPanel, { onClose });
+
+    expect(screen.getByText('Crete 2026')).toBeInTheDocument();
+    await fireEvent.click(screen.getByText('draft_notice_trip'));
+
+    await waitFor(() => expect(goto).toHaveBeenCalledWith('/books/book-1'));
+  });
 });
