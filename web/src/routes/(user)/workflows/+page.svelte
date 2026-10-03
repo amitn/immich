@@ -80,7 +80,7 @@
             {@const { ToggleEnabled, Duplicate, Logs, Edit, Delete } = getWorkflowActions($t, workflow)}
             {@const { Explain } = getWorkflowAssistantActions($t, workflow)}
 
-            <Card class="group hover:border-primary shadow-none transition-colors">
+            <Card class="group shadow-none transition-colors hover:border-primary">
               <CardHeader>
                 <a
                   href={Route.viewWorkflow({ id: workflow.id })}
@@ -99,7 +99,7 @@
 
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                      <CardTitle class="text-dark group-hover:text-primary truncate font-semibold">
+                      <CardTitle class="truncate font-semibold text-dark group-hover:text-primary">
                         {workflow.name || $t('workflow')}
                       </CardTitle>
 
