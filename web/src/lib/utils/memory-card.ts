@@ -130,6 +130,12 @@ const TITLE_BUILDERS: Record<string, Builder> = {
     const name = asString(context, 'personName');
     return name === undefined ? undefined : translate('memory_person_throwback_title', { values: { name } });
   },
+
+  // Gallery fork (#12): "2026 in review"
+  year_recap: (context, translate) => {
+    const year = asNumber(context, 'year');
+    return year === undefined ? undefined : translate('memory_year_recap_title', { values: { year: String(year) } });
+  },
 };
 
 /** "12 photos" — shared by every rule whose subtitle is nothing but a photo count. */
@@ -228,6 +234,15 @@ const SUBTITLE_BUILDERS: Record<string, Builder> = {
       ? undefined
       : translate('memory_person_throwback_subtitle', { values: { count, monthYear } });
   },
+
+  // Gallery fork (#12): "1,240 photos · 18 places"
+  year_recap: (context, translate) => {
+    const count = asNumber(context, 'count');
+    const places = asNumber(context, 'places');
+    return count === undefined || places === undefined
+      ? undefined
+      : translate('memory_year_recap_subtitle', { values: { count, places } });
+  },
 };
 
 const build = (
@@ -273,3 +288,78 @@ export const getMemorySubtitle = (memory: MemoryResponseDto, translate: MessageF
 
   return build(memory, SUBTITLE_BUILDERS, translate, locale) ?? '';
 };
+
+/** Gallery fork (#12): whether a memory is a year in review */
+export const isYearRecap = (memory: MemoryResponseDto) =>
+  memory.type === MemoryType.Rule && (memory.data as Record<string, unknown>).ruleId === 'year_recap';
+
+const asJournal = (context: RuleContext, pack: string) => {
+  const journals = context.journals;
+  const journal = journals && typeof journals === 'object' ? (journals as Record<string, unknown>)[pack] : undefined;
+  if (!journal || typeof journal !== 'object') {
+    return;
+  }
+  const { places, entries } = journal as Record<string, unknown>;
+  return { places: typeof places === 'number' ? places : 0, entries: typeof entries === 'number' ? entries : 0 };
+};
+
+const asNames = (context: RuleContext, key: string) => {
+  const list = context[key];
+  return Array.isArray(list)
+    ? list
+        .map((item) => (item && typeof item === 'object' ? (item as Record<string, unknown>).name : undefined))
+        .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+    : [];
+};
+
+/**
+ * The stats of a year in review, each a short phrase in the viewer's language, e.g. "12 people", "54 dishes at 6
+ * restaurants", "3 trips" — the facts the rule stored, the ones with nothing to tell left out
+ */
+export const getYearRecapStats = (memory: MemoryResponseDto, translate: MessageFormatter, locale?: string) => {
+  if (!isYearRecap(memory)) {
+    return [];
+  }
+  const context = ((memory.data as Record<string, unknown>).context ?? {}) as RuleContext;
+  const stats: string[] = [];
+  const counted = (key: string, message: MessageKey) => {
+    const count = asNumber(context, key);
+    if (count) {
+      stats.push(translate(message, { values: { count } }));
+    }
+  };
+
+  counted('people', 'year_recap_stat_people');
+  counted('pets', 'year_recap_stat_pets');
+  counted('trips', 'year_recap_stat_trips');
+  counted('countries', 'year_recap_stat_countries');
+
+  const food = asJournal(context, 'food');
+  if (food && food.entries > 0) {
+    stats.push(
+      translate('year_recap_stat_dishes', { values: { dishes: food.entries, restaurants: Math.max(food.places, 1) } }),
+    );
+  }
+  const museum = asJournal(context, 'museum');
+  if (museum && museum.places > 0) {
+    stats.push(translate('year_recap_stat_museums', { values: { count: museum.places } }));
+  }
+  const wine = asJournal(context, 'wine');
+  if (wine && wine.entries > 0) {
+    stats.push(translate('year_recap_stat_wines', { values: { count: wine.entries } }));
+  }
+
+  const people = asNames(context, 'topPeople');
+  if (people.length > 0) {
+    // the list is joined the way the viewer's language joins one
+    const names = new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(people);
+    stats.push(translate('year_recap_stat_top_people', { values: { names } }));
+  }
+  return stats;
+};
+
+/** the year of a year in review */
+export const getYearRecapYear = (memory: MemoryResponseDto) =>
+  isYearRecap(memory)
+    ? asNumber(((memory.data as Record<string, unknown>).context ?? {}) as RuleContext, 'year')
+    : undefined;

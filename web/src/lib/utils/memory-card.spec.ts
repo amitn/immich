@@ -2,7 +2,13 @@ import { MemoryType, type MemoryResponseDto } from '@immich/sdk';
 import { IntlMessageFormat } from 'intl-messageformat';
 import type { MessageFormatter } from 'svelte-i18n';
 import en from '$i18n/en.json';
-import { getMemorySubtitle, getMemoryTitle } from '$lib/utils/memory-card';
+import {
+  getMemorySubtitle,
+  getMemoryTitle,
+  getYearRecapStats,
+  getYearRecapYear,
+  isYearRecap,
+} from '$lib/utils/memory-card';
 
 /**
  * Formats the *real* `en.json` message for the key under test, so a renamed key or a
@@ -207,6 +213,56 @@ describe('memory card text', () => {
       const memory = ruleMemory('month_recap', { year: 2025, month: 9, count: 12 });
       expect(getMemoryTitle(memory, translate, now, 'de')).toBe('September 2025');
       expect(getMemoryTitle(memory, translate, now, 'fr')).toBe('septembre 2025');
+    });
+  });
+
+  // Gallery fork (#12)
+  describe('year in review', () => {
+    const recap = {
+      year: 2025,
+      count: 1240,
+      places: 18,
+      countries: 3,
+      people: 12,
+      topPeople: [
+        { id: 'p1', name: 'Dana' },
+        { id: 'p2', name: 'Eli' },
+      ],
+      pets: 1,
+      trips: 4,
+      journals: {
+        food: { places: 6, entries: 54 },
+        museum: { places: 3, entries: 20 },
+        wine: { places: 2, entries: 0 },
+      },
+    };
+
+    it('titles it after its year, and sums it up', () => {
+      expect(titleOf('year_recap', recap)).toBe('2025 in review');
+      expect(subtitleOf('year_recap', recap)).toBe('1,240 photos · 18 places');
+    });
+
+    it('tells its stats, leaving out what there is nothing to tell', () => {
+      expect(getYearRecapStats(ruleMemory('year_recap', recap), translate, 'en')).toEqual([
+        '12 people',
+        '1 pet',
+        '4 trips',
+        '3 countries',
+        '54 dishes at 6 restaurants',
+        '3 museums',
+        'Most often with Dana and Eli',
+      ]);
+      expect(
+        getYearRecapStats(ruleMemory('year_recap', { year: 2025, count: 40, places: 1 }), translate, 'en'),
+      ).toEqual([]);
+    });
+
+    it('tells a year recap from the other memories', () => {
+      expect(isYearRecap(ruleMemory('year_recap', recap))).toBe(true);
+      expect(getYearRecapYear(ruleMemory('year_recap', recap))).toBe(2025);
+      expect(isYearRecap(ruleMemory('month_recap', recap))).toBe(false);
+      expect(getYearRecapYear(ruleMemory('month_recap', recap))).toBeUndefined();
+      expect(getYearRecapStats(ruleMemory('month_recap', recap), translate, 'en')).toEqual([]);
     });
   });
 });

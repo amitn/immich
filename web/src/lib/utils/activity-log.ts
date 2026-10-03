@@ -5,6 +5,7 @@ import {
   mdiBrush,
   mdiCameraBurst,
   mdiContentCopy,
+  mdiEyeOffOutline,
   mdiImageAlbum,
   mdiImageMinus,
   mdiImagePlus,
@@ -33,6 +34,7 @@ const icons: Record<ActivityLogAction, string> = {
   [ActivityLogAction.BurstCleanup]: mdiCameraBurst,
   [ActivityLogAction.CollectionEntries]: mdiTagOutline,
   [ActivityLogAction.HighlightCreate]: mdiVideoOutline,
+  [ActivityLogAction.MemoryExclusionChange]: mdiEyeOffOutline,
   [ActivityLogAction.SharedLinkCreate]: mdiLinkVariant,
 };
 
@@ -54,6 +56,7 @@ const actionKeys: Record<ActivityLogAction, Translations> = {
   [ActivityLogAction.BurstCleanup]: 'activity_log_action_burst_cleanup',
   [ActivityLogAction.CollectionEntries]: 'activity_log_action_journal_entries',
   [ActivityLogAction.HighlightCreate]: 'activity_log_action_highlight_create',
+  [ActivityLogAction.MemoryExclusionChange]: 'activity_log_action_memory_exclusion_change',
   [ActivityLogAction.SharedLinkCreate]: 'activity_log_action_shared_link_create',
 };
 

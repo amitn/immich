@@ -278,6 +278,7 @@ Every night, Gallery looks for books your photos are enough for, and drafts them
 | Yearly journal | "2026 in food", "Museums we visited in 2025", "2025 in the kitchen", "Cellar notes 2025" | The year is over, and it has at least 3 visits (meals, museum visits, cooking sessions or tastings) and 15 named photos (dishes, artworks, bottles) of that [journal](#journals).                                                                                                       | The journal's book style     |
 | Trip           | "Crete, October 2016", "Our trip to Évora"                                               | A trip tagged `Travel/<Trip>`, a trip of a [memory](#videos-books-and-collages-of-a-memory) (a recent trip or a trip anniversary), or the days away from home (more than 80 km from the place you photograph most). The trip is over, spans at least 2 days and has at least 40 photos. | Travel, or Classic with maps |
 | Birthday       | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                                                                                                        | Soft                         |
+| Year in review | "2026 in review"                                                                         | The [year in review](/features/memories#year-in-review) memory is made, early in January.                                                                                                                                                                                               | Classic                      |
 
 When a draft is ready you get a notification, "A new photo book is ready to review: 2026 in food", which opens it. On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
 
@@ -285,6 +286,8 @@ When a draft is ready you get a notification, "A new photo book is ready to revi
 - **Discard** deletes the draft. It is never suggested again, and neither is a draft you delete from the book viewer.
 
 Open a draft to look at its pages. The viewer shows a banner with the same buttons, and **Polish with assistant**, which opens a chat to review the book, swap in better photos and write captions.
+
+Suggested books leave out what you [keep out of your memories](/features/memories#keeping-people-days-and-albums-out-of-your-memories): no birthday book of someone you left out, and none of the photos of the people, days and albums you left out. The book of the year is suggested once, with its own notification, "Your 2026 in review is ready".
 
 A trip that Gallery's memories found (a **Recent trip** or **Trip anniversary** memory) has one definition: its book covers the days of the memory, and replaces the trip found from the days away from home on the same days, so the trip is suggested once. A trip of the travel journal, which you named, comes first. A birthday book is linked to the birthday memory of the same day.
 
@@ -373,6 +376,7 @@ Every [memory](/features/memories) card, on the **Memories** page and in the mem
 | People together, times with   | The photos of those people in that month, or in that chapter of time |
 | A day years ago               | The photos and videos of that day                                    |
 | A theme, a place across years | The photos the memory shows                                          |
+| A year in review              | The photos and videos of the whole year                              |
 
 Each is named like the card, e.g. _Recent trip to Athens, Greece_, in your language.
 
@@ -380,9 +384,17 @@ Each is named like the card, e.g. _Recent trip to Athens, Greece_, in your langu
 - **Make a book** lays out a [photo book](#photo-books) and opens it: the dates on the cover, a map for every leg of a trip, and the Soft style for a birthday. It needs the assistant to be set up, like **Export as book**.
 - **Make a collage** picks the best photos of the moment (6 by default, one per burst, spread over its days) and opens the [collage](#collages) dialog with the memory's title, where you can change the shape, the layout and the style before you save it.
 
-Memories are private: only you can make something of your memories. Photos you don't own (e.g. of a space) are used as they are, like in any book or video.
+Memories are private: only you can make something of your memories. Photos you don't own (e.g. of a space) are used as they are, like in any book or video. What you [keep out of your memories](/features/memories#keeping-people-days-and-albums-out-of-your-memories) (people and pets, days, albums, screenshots and documents) is left out of all of them.
 
 You can also ask the assistant: _"make a video of our last trip"_. It finds the trip with `list_memories` (and `get_memory`, which tells how many photos the trip has), then passes its `memoryId` to `make_highlight_video`, `auto_layout_book` or `make_collage`.
+
+### The year in review
+
+The [year in review](/features/memories#year-in-review) card offers a **Video**, a **Vertical video** and the book of the year, a draft kept or discarded like the [suggested books](#suggested-books). Ask the assistant for one with exclusions of its own:
+
+- _"what did 2026 look like?"_ — `get_year_recap` gives the stats of the year (photos, places, people, pets, trips, dishes, museums…), and the draft waiting, if there is one.
+- _"make my 2026 recap without Dana"_, _"…without March"_ — `make_year_recap_video` (landscape or vertical) and `make_year_recap_book` leave those people, pets, days or albums out of that recap only.
+- _"never put Dana in my memories"_ — `set_memory_exclusions` adds an exclusion for good, the same as the settings (`get_memory_exclusions` lists them). It asks for approval and goes into the activity log, so it can be undone.
 
 ## Artistic styles
 

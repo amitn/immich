@@ -31,6 +31,12 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
     return Route.activityLog({ groupId: activityGroupId });
   }
 
+  // "Your 2026 in review is ready" (#12): the recap memory, which offers its video and its book
+  const memoryId = getId(values, 'memoryId');
+  if (memoryId) {
+    return Route.viewMemory({ id: memoryId });
+  }
+
   const albumId = getId(values, 'albumId');
   const bookId = getId(values, 'bookId');
   const assetId = getId(values, 'assetId') ?? getId(values, 'sourceAssetId');

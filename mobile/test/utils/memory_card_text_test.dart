@@ -122,6 +122,10 @@ void main() {
       );
     });
 
+    test('builds a year recap title from its year', () {
+      expect(_titleOf('year_recap', {'year': 2025, 'count': 1240, 'places': 18}), '2025 in review');
+    });
+
     test('falls back to the generic memory label for a rule it has no title for', () {
       expect(_titleOf('some_future_rule', const {}), 'Memory');
     });
