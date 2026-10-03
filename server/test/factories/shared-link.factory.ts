@@ -44,6 +44,8 @@ export class SharedLinkFactory {
       password: null,
       slug: null,
       spaceId: null,
+      redactFaces: false,
+      redactText: false,
       ...dto,
     });
   }

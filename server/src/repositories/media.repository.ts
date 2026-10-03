@@ -337,6 +337,88 @@ export class MediaRepository {
     return { data, info: info as RawImageInfo };
   }
 
+  /** The edits of an asset (crop, rotation, mirroring) applied to its decoded upright original */
+  applyBitmapEdits(image: Bitmap, edits: AssetEditActionItem[]): Promise<Bitmap> {
+    return this.transform(image, { edits });
+  }
+
+  /**
+   * Blurs or pixelates regions (in pixels) of a decoded image (#14). Each region is shrunk to a few pixels across
+   * before it is scaled back up, so nothing of what it covered can be recovered from the result, however it is
+   * sharpened.
+   */
+  async redactBitmap(image: Bitmap, regions: CropParameters[], style: 'blur' | 'pixelate'): Promise<Bitmap> {
+    const { width, height, channels } = image.info;
+    const overlays: OverlayOptions[] = [];
+    for (const region of regions) {
+      const left = Math.min(Math.max(Math.floor(region.x), 0), width - 1);
+      const top = Math.min(Math.max(Math.floor(region.y), 0), height - 1);
+      const w = Math.min(Math.ceil(region.x + region.width), width) - left;
+      const h = Math.min(Math.ceil(region.y + region.height), height) - top;
+      if (w < 2 || h < 2) {
+        continue;
+      }
+
+      const short = Math.min(w, h);
+      // about six samples across: as blocks when pixelated, smoothed when blurred
+      const cell = Math.max(style === 'pixelate' ? 4 : 1, short / 6);
+      const small = await this.raw(image)
+        .extract({ left, top, width: w, height: h })
+        .resize(Math.max(1, Math.round(w / cell)), Math.max(1, Math.round(h / cell)), { fit: 'fill' })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      let pipeline = this.raw({ data: small.data, info: small.info as RawImageInfo }).resize(w, h, {
+        fit: 'fill',
+        kernel: style === 'pixelate' ? 'nearest' : 'cubic',
+      });
+      if (style === 'blur') {
+        pipeline = pipeline.blur(Math.max(0.5, short / 12));
+      }
+      const data = await pipeline.raw().toBuffer();
+      overlays.push({ input: data, raw: { width: w, height: h, channels }, left, top });
+    }
+
+    if (overlays.length === 0) {
+      return image;
+    }
+    const { data, info } = await this.raw(image).composite(overlays).raw().toBuffer({ resolveWithObject: true });
+    return { data, info: info as RawImageInfo };
+  }
+
+  /**
+   * The image of a file (e.g. a preview or a thumbnail, turned upright) with regions (fractions of it) blurred or
+   * pixelated, as a JPEG that fits in `size` when given (#14)
+   */
+  async redactImage(
+    input: string | Buffer,
+    regions: NormalizedRect[],
+    { style = 'blur', quality = 85, size }: { style?: 'blur' | 'pixelate'; quality?: number; size?: number } = {},
+  ): Promise<Buffer> {
+    let pipeline = this.encoded(input, 'none').rotate();
+    if (size) {
+      pipeline = pipeline.resize(size, size, { fit: 'inside', withoutEnlargement: true });
+    }
+    const { data, info } = await pipeline
+      .flatten({ background: '#ffffff' })
+      .toColourspace('srgb')
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const image = { data, info: info as RawImageInfo };
+    const redacted = await this.redactBitmap(
+      image,
+      regions.map((region) => ({
+        x: region.x * info.width,
+        y: region.y * info.height,
+        width: region.width * info.width,
+        height: region.height * info.height,
+      })),
+      style,
+    );
+    return this.raw(redacted)
+      .jpeg({ quality, chromaSubsampling: quality >= 80 ? '4:4:4' : '4:2:0' })
+      .toBuffer();
+  }
+
   /** Encodes a decoded image as JPEG, tagged with its colourspace */
   async encodeJpeg(
     image: Bitmap,

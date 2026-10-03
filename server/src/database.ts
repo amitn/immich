@@ -175,6 +175,10 @@ export type AuthSharedLink = {
   allowUpload: boolean;
   allowDownload: boolean;
   password: string | null;
+  /** (#14) blur the faces of people who are not in what the link shares */
+  redactFaces: boolean;
+  /** (#14) blur the text and number plates of the photos */
+  redactText: boolean;
 };
 
 export type SharedLink = {
@@ -196,6 +200,8 @@ export type SharedLink = {
   userId: string;
   slug: string | null;
   spaceId: string | null;
+  redactFaces: boolean;
+  redactText: boolean;
 };
 
 /** what a shared link tells about its book: enough for the page that shows it, nothing about its owner or photos */

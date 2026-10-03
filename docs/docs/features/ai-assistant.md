@@ -20,6 +20,7 @@ With its tools, the assistant can:
 - choose photos: group bursts and near-duplicates, score sharpness, exposure and faces, and pick a balanced selection (for example _"the 30 best photos of last year, no more than 2 per event"_);
 - crop photos around faces, straighten tilted photos, enhance dull ones and [turn sideways ones upright](#sideways-and-upside-down-photos);
 - [clean up bursts](#burst-cleanup): keep the best photo of each group of near-identical photos and archive the others;
+- [redact photos](#redact-before-sharing) before they're shared: blur the faces of chosen people, or of everyone else, and personal text and number plates, into copies;
 - create albums, and add or remove photos;
 - set up [smart albums](#smart-albums) in plain words: workflows that sort your new photos into albums and shared spaces, and explain the workflows you have;
 - design, review, edit and export [photo books](#photo-books);
@@ -71,22 +72,22 @@ You can also ask the assistant, for example "undo what you just did" or "put the
 
 What undo does:
 
-| Change                                                                             | Undo                                                                                                                                                                     |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Photos added to or removed from an album                                           | Removes or puts back exactly those photos.                                                                                                                               |
-| A new album                                                                        | Deletes the album, but only if it's unchanged since it was created: same name, description and photos, and not shared. Albums have no trash, so a changed album is kept. |
-| A copy (crop, straighten, enhance, improve), an artwork or a style test, a collage | Moves the copy to the trash and takes it out of its stack, as the stack was before. You can restore it from the trash.                                                   |
-| Names of a journal (tags and descriptions)                                         | Gives the photos back the tags of the pack and the descriptions they had.                                                                                                |
-| A book edit (layout, photos, captions, maps, style, improved photos)               | Restores the book from a copy taken before the change. Improved copies the change placed in the book go to the trash.                                                    |
-| A new book                                                                         | Deletes the book, but only if it's unchanged since it was made and not shared.                                                                                           |
-| Keeping or discarding a suggested book                                             | Makes it a suggestion again. A discarded book is laid out again from its copy.                                                                                           |
-| A saved book or art style                                                          | Deletes the style, unless it was edited since. Books keep their copy of the style.                                                                                       |
-| A book link                                                                        | Deletes the link.                                                                                                                                                        |
-| A highlight video                                                                  | Stops it if it's still rendering; otherwise takes the video out of its album and moves it to the trash.                                                                  |
-| A burst cleanup                                                                    | Puts the photos it archived back on the timeline, and gives a stack its head back.                                                                                       |
-| A saved workflow                                                                   | Deletes the workflow, but only if it's unchanged since it was saved. A workflow you changed since is kept.                                                               |
-| A changed workflow                                                                 | Gives the workflow back the rule, name and state it had, unless it was changed again since.                                                                              |
-| Photos added to a shared space                                                     | Takes exactly those photos out of the space; photos that were in it before stay.                                                                                         |
+| Change                                                                                     | Undo                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Photos added to or removed from an album                                                   | Removes or puts back exactly those photos.                                                                                                                               |
+| A new album                                                                                | Deletes the album, but only if it's unchanged since it was created: same name, description and photos, and not shared. Albums have no trash, so a changed album is kept. |
+| A copy (crop, straighten, enhance, improve, redact), an artwork or a style test, a collage | Moves the copy to the trash and takes it out of its stack, as the stack was before. You can restore it from the trash.                                                   |
+| Names of a journal (tags and descriptions)                                                 | Gives the photos back the tags of the pack and the descriptions they had.                                                                                                |
+| A book edit (layout, photos, captions, maps, style, improved photos)                       | Restores the book from a copy taken before the change. Improved copies the change placed in the book go to the trash.                                                    |
+| A new book                                                                                 | Deletes the book, but only if it's unchanged since it was made and not shared.                                                                                           |
+| Keeping or discarding a suggested book                                                     | Makes it a suggestion again. A discarded book is laid out again from its copy.                                                                                           |
+| A saved book or art style                                                                  | Deletes the style, unless it was edited since. Books keep their copy of the style.                                                                                       |
+| A book link                                                                                | Deletes the link.                                                                                                                                                        |
+| A highlight video                                                                          | Stops it if it's still rendering; otherwise takes the video out of its album and moves it to the trash.                                                                  |
+| A burst cleanup                                                                            | Puts the photos it archived back on the timeline, and gives a stack its head back.                                                                                       |
+| A saved workflow                                                                           | Deletes the workflow, but only if it's unchanged since it was saved. A workflow you changed since is kept.                                                               |
+| A changed workflow                                                                         | Gives the workflow back the rule, name and state it had, unless it was changed again since.                                                                              |
+| Photos added to a shared space                                                             | Takes exactly those photos out of the space; photos that were in it before stay.                                                                                         |
 
 Undo never deletes photos or videos for good: new ones go to the trash.
 
@@ -259,7 +260,7 @@ Both exports run in the background and send a notification when they're done. Do
 
 ### Sharing a book
 
-Select **Share** in the book viewer to create a public link to the book, like a shared album link. Choose when the link expires, a password, a custom URL and whether visitors can download the PDF, then copy the link or show it as a QR code.
+Select **Share** in the book viewer to create a public link to the book, like a shared album link. Choose when the link expires, a password, a custom URL and whether visitors can download the PDF, then copy the link or show it as a QR code. A link can also [blur faces and text](#blurring-through-a-shared-link) for its visitors.
 
 People with the link see the title of the book and the page-turning web book, full screen and on phones too, with a **Download PDF** button when downloads are allowed and the PDF has been exported. The web book is built from the current pages, so later edits show up without a new link. Turn off **Show metadata** to leave out the file names of the photos and the dates of the book.
 
@@ -554,6 +555,42 @@ A smart album is a **workflow** (see the **Workflows** page) that sorts your new
 **Your photos only.** A workflow runs on the photos you upload, so the preview and `apply_workflow` only look at your own photos, never a partner's or other members' photos in a shared space. Adding photos to a shared space needs the **Editor** role in it.
 
 **Undo.** Saving or changing a workflow, its new album, and the photos `apply_workflow` added are changes in the [activity log](#undoing-the-assistants-changes) that you can undo.
+
+## Redact before sharing
+
+**Redact…** in the menu of the photo viewer blurs the faces, text and number plates of a photo before you share it. Only the owner of a photo can redact it, and the photo itself is never changed: the result is a **copy**, stacked with the original and tagged **Edits/Redacted**, which you can share instead.
+
+The dialog outlines what it suggests to blur, from what Gallery already knows about the photo:
+
+- **Faces**, from the face detection, with the name of the person when it's known. Pets are never suggested.
+- **Text that looks personal**, from the text recognition (OCR): names with a title, e-mail addresses, phone, card and account numbers, booking codes, and ticket and other long numbers, as the [travel journal](#travel-documents) recognizes them. Other text, such as a shop sign, is outlined but not selected.
+- **Number plates**: text in the shape and the format of a number plate (UK, EU, German, Spanish, Dutch, Israeli, US and others). When smart search (CLIP) is enabled, a plate in no known format counts only on a photo of a car or another vehicle, and a known format only on a photo where a vehicle is plausible.
+- **Screens and documents**: when CLIP sees a screen, a document, a receipt, a card or a form, all of its text is selected, and a screen gets one box around all of it.
+
+Select a box, or tick it in the list below the photo, to turn it on or off. **Draw a box** to blur anything else: drag over it on the photo; a box you drew can be removed. Choose **Blur** or **Pixelate**, check the result with **Preview** (drawn by the server as the copy will be), then **Save as copy**. The copy is made from the original at full resolution, with its edits (crop, rotation) applied, and is recorded in the [activity log](#undoing-the-assistants-changes), where undoing it moves it to the trash.
+
+A blurred region is first shrunk to about six pixels across, so nothing of what it covered can be recovered from the copy, however it is sharpened.
+
+:::note
+The suggestions are only as good as the face detection and the OCR: a face in profile, or small text, may be missed. Look at the preview, and draw a box over anything the suggestions left out.
+:::
+
+### Blurring through a shared link
+
+When you share an album, a photo book or a few photos with a link, two options blur them for the visitors of the link, without copies and without changing your photos:
+
+- **Blur faces of people not in this album** (or book, or these photos): the people "in" what the link shares are those you named who appear in at least two of its photos (in any of them when it shares three photos or fewer); everyone else, unnamed people and people who only pass through one photo, is blurred. The same person in someone else's library (a shared space) is recognized through their face identity. Pets are never blurred.
+- **Blur text and number plates**: all the text OCR found, which includes the plates.
+
+The photos are blurred when a visitor opens them: the thumbnails, the photo viewer, the original download and the photos of a download archive, which then get a blurred JPEG. A book link blurs the photos on its pages and in its web book. The options can be changed later under **Sharing → Shared links**; turn them on when you create the link, as a visitor's browser may keep what it saw before. Through such a link:
+
+- a **video** with something to blur (on its preview, or on the photo of a live photo) is not played or downloaded, as its frames can't be blurred;
+- a **book's PDF** is not offered while something in it is blurred, as it prints the photos as they are;
+- a link that blurs text can't be searched by text.
+
+### Ask the assistant
+
+_"Blur the kids' faces before sharing this album"_: the assistant finds the children with `find_people`, shows you what would be blurred with `suggest_redactions` (which changes nothing and never shows the text it read), then `redact_photos`, after you approve, makes a redacted copy of each of your photos that shows them and, with `replaceInAlbum`, puts the copies in the album instead of the originals, so that sharing the album shares the copies. It can also blur everyone except chosen people (_"blur everyone but us"_), and personal text, plates and screens. Undoing the reply puts the originals back in the album and moves the copies to the trash.
 
 ## Journals
 

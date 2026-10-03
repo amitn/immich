@@ -25,6 +25,8 @@
   let slug = $state(sharedLink.slug ?? '');
   let shareType = sharedLink.type;
   let expiresAt = $state(sharedLink.expiresAt);
+  let redactFaces = $state(sharedLink.redactFaces);
+  let redactText = $state(sharedLink.redactText);
 
   const onClose = async () => {
     await goto(Route.sharedLinks());
@@ -39,6 +41,8 @@
       allowDownload,
       showMetadata,
       slug: slug.trim() ?? null,
+      redactFaces,
+      redactText,
     });
     if (success) {
       await onClose();
@@ -78,6 +82,9 @@
     bind:allowUpload
     bind:showMetadata
     bind:expiresAt
+    bind:redactFaces
+    bind:redactText
+    {shareType}
     isBook={shareType === SharedLinkType.Book}
   />
 </FormModal>

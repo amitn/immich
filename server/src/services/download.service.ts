@@ -11,9 +11,10 @@ import {
   DownloadInfoDto,
   DownloadResponseDto,
 } from 'src/dtos/download.dto.js';
-import { Permission } from 'src/enum.js';
+import { AssetType, Permission } from 'src/enum.js';
 import { StorageBackend } from 'src/interfaces/storage-backend.interface.js';
 import { BaseService } from 'src/services/base.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
 import { StorageService } from 'src/services/storage.service.js';
 import { getAlbumSpaceIds } from 'src/utils/album-space-ids.js';
 import { HumanReadableSize } from 'src/utils/bytes.js';
@@ -159,6 +160,7 @@ export class DownloadService extends BaseService {
     const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
     const paths: Record<string, number> = {};
     const lazies: LazyS3Readable[] = [];
+    const redacted = await this.getRedactedEntries(auth, dto.assetIds);
 
     for (const assetId of dto.assetIds) {
       const asset = assetMap.get(assetId);
@@ -166,7 +168,13 @@ export class DownloadService extends BaseService {
         continue;
       }
 
-      const { originalPath, editedPath, originalFileName } = asset;
+      const { originalPath, editedPath } = asset;
+      const entry = redacted.get(assetId);
+      if (entry === null) {
+        // (#14) a video with faces or text a link blurs is left out
+        continue;
+      }
+      const originalFileName = entry ? entry.fileName : asset.originalFileName;
 
       let filename = sanitize(originalFileName) || 'unnamed';
       const count = paths[filename] || 0;
@@ -178,7 +186,17 @@ export class DownloadService extends BaseService {
 
       let filePath = dto.edited && editedPath ? editedPath : originalPath;
 
-      if (isAbsolute(filePath)) {
+      if (entry) {
+        // rendered when the archive reaches it, one at a time
+        zip.addFile(
+          Readable.from(
+            (async function* () {
+              yield await entry.render();
+            })(),
+          ),
+          filename,
+        );
+      } else if (isAbsolute(filePath)) {
         // Disk asset — resolve symlinks and add by path
         try {
           filePath = await this.storageRepository.realpath(filePath);
@@ -211,5 +229,49 @@ export class DownloadService extends BaseService {
       disposition: dto.archiveName && `attachment; filename*=UTF-8''${encodeURIComponent(dto.archiveName)}.zip`,
       abort,
     };
+  }
+
+  /**
+   * (#14) What a link that blurs faces or text puts in an archive instead of an original: a blurred JPEG of each photo
+   * with something to blur, and nothing (null) for such a video, whose frames can't be blurred
+   */
+  private async getRedactedEntries(auth: AuthDto, assetIds: string[]) {
+    const entries = new Map<string, { fileName: string; render: () => Promise<Buffer> } | null>();
+    const redactionService = BaseService.create(RedactionService, this);
+    const redaction = await redactionService.getLinkRedaction(auth.sharedLink);
+    if (!redaction) {
+      return entries;
+    }
+
+    const assets = await redactionService.getAssets(assetIds);
+    const stills = await this.assetJobRepository.getLivePhotoStillIds(
+      assets.filter(({ type }) => type === AssetType.Video).map(({ id }) => id),
+    );
+    const regions = await redactionService.getLinkRegions(redaction, [...assetIds, ...stills.map(({ id }) => id)]);
+    const stillOf = new Map(stills.map(({ id, livePhotoVideoId }) => [livePhotoVideoId!, id]));
+
+    for (const asset of assets) {
+      if (asset.type === AssetType.Video) {
+        const still = stillOf.get(asset.id);
+        if (regions.has(asset.id) || (still && regions.has(still))) {
+          entries.set(asset.id, null);
+        }
+        continue;
+      }
+      const rects = regions.get(asset.id);
+      const path = rects && redactionService.getLargestImage(asset, true);
+      if (!rects) {
+        continue;
+      }
+      if (!path) {
+        entries.set(asset.id, null);
+        continue;
+      }
+      entries.set(asset.id, {
+        fileName: `${parse(asset.originalFileName).name}.jpg`,
+        render: () => redactionService.renderAssetFile(asset.id, path, rects, { quality: 90 }),
+      });
+    }
+    return entries;
   }
 }

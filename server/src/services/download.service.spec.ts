@@ -1,13 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import { Readable } from 'node:stream';
+import { buffer } from 'node:stream/consumers';
 import { vitest } from 'vitest';
 import { DownloadResponseDto } from 'src/dtos/download.dto.js';
 import { AssetType, SharedSpaceRole } from 'src/enum.js';
 import { DownloadService } from 'src/services/download.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
 import { StorageService } from 'src/services/storage.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { authStub } from 'test/fixtures/auth.stub.js';
-import { newUuid } from 'test/small.factory.js';
+import { factory, newUuid } from 'test/small.factory.js';
 import { ServiceMocks, makeStream, newTestService } from 'test/utils.js';
 
 const downloadResponse: DownloadResponseDto = {
@@ -44,6 +46,42 @@ describe(DownloadService.name, () => {
   });
 
   describe('downloadArchive', () => {
+    it('should put blurred photos in the archive of a link that blurs, and leave such videos out (#14)', async () => {
+      const archiveMock = { addFile: vitest.fn(), finalize: vitest.fn(), stream: new Readable() };
+      const [photo, video, plain] = [AssetFactory.create(), AssetFactory.create(), AssetFactory.create()];
+      const auth = factory.auth({ sharedLink: { redactText: true } });
+      mocks.access.asset.checkSharedLinkAccess.mockResolvedValue(new Set([photo.id, video.id, plain.id]));
+      mocks.asset.getForOriginals.mockResolvedValue([photo, video, plain]);
+      mocks.storage.createZipStream.mockReturnValue(archiveMock);
+      mocks.storage.realpath.mockImplementation((path) => Promise.resolve(path));
+      mocks.assetJob.getLivePhotoStillIds.mockResolvedValue([]);
+      const rect = { x: 0.1, y: 0.1, width: 0.1, height: 0.1 };
+      vi.spyOn(RedactionService.prototype, 'getAssets').mockResolvedValue([
+        { id: photo.id, type: AssetType.Image, originalFileName: 'IMG_0001.HEIC' },
+        { id: video.id, type: AssetType.Video, originalFileName: 'VID.mp4' },
+        { id: plain.id, type: AssetType.Image, originalFileName: plain.originalFileName },
+      ] as never);
+      vi.spyOn(RedactionService.prototype, 'getLinkRegions').mockResolvedValue(
+        new Map([
+          [photo.id, [rect]],
+          [video.id, [rect]],
+        ]),
+      );
+      vi.spyOn(RedactionService.prototype, 'getLargestImage').mockReturnValue('/data/fullsize.jpeg');
+      const render = vi.spyOn(RedactionService.prototype, 'renderAssetFile').mockResolvedValue(Buffer.from('blurred'));
+
+      await sut.downloadArchive(auth, { assetIds: [photo.id, video.id, plain.id] });
+
+      expect(archiveMock.addFile).toHaveBeenCalledTimes(2);
+      expect(archiveMock.addFile).toHaveBeenNthCalledWith(1, expect.any(Readable), 'IMG_0001.jpg');
+      expect(archiveMock.addFile).toHaveBeenNthCalledWith(2, plain.originalPath, plain.originalFileName);
+      // rendered when the archive reads it
+      const [[stream]] = archiveMock.addFile.mock.calls;
+      await expect(buffer(stream as Readable)).resolves.toEqual(Buffer.from('blurred'));
+      expect(render).toHaveBeenCalledWith(photo.id, '/data/fullsize.jpeg', [rect], { quality: 90 });
+      vi.restoreAllMocks();
+    });
+
     it('should skip asset ids that could not be found', async () => {
       const archiveMock = {
         addFile: vitest.fn(),

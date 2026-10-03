@@ -1,5 +1,6 @@
 <script lang="ts">
   import SharedLinkExpiration from '$lib/components/SharedLinkExpiration.svelte';
+  import { SharedLinkType } from '@immich/sdk';
   import { Field, HelperText, Input, PasswordInput, Switch, Text } from '@immich/ui';
   import { t } from 'svelte-i18n';
 
@@ -13,6 +14,12 @@
     expiresAt: string | null;
     /** a link to a photo book: visitors can't upload, and download the PDF, which carries no photo metadata */
     isBook?: boolean;
+    /** (#14) blur, for visitors, the faces of people not in what the link shares */
+    redactFaces?: boolean;
+    /** (#14) blur, for visitors, the text and number plates of the photos */
+    redactText?: boolean;
+    /** what the link shares, for the wording of the redaction options */
+    shareType?: SharedLinkType;
   };
 
   let {
@@ -24,7 +31,18 @@
     showMetadata = $bindable(),
     expiresAt = $bindable(),
     isBook = false,
+    redactFaces = $bindable(false),
+    redactText = $bindable(false),
+    shareType,
   }: Props = $props();
+
+  const redactFacesLabel = $derived(
+    shareType === SharedLinkType.Book
+      ? $t('shared_link_redact_faces_book')
+      : shareType === SharedLinkType.Album
+        ? $t('shared_link_redact_faces_album')
+        : $t('shared_link_redact_faces'),
+  );
 
   $effect(() => {
     if (!isBook && !showMetadata && allowDownload) {
@@ -78,5 +96,20 @@
     <Field label={$t('allow_public_user_to_upload')}>
       <Switch bind:checked={allowUpload} />
     </Field>
+  {/if}
+
+  <!-- (#14) blurred when served through the link; the photos themselves are not changed -->
+  <Field label={redactFacesLabel} description={$t('shared_link_redact_faces_description')}>
+    <Switch bind:checked={redactFaces} />
+  </Field>
+
+  <Field label={$t('shared_link_redact_text')} description={$t('shared_link_redact_text_description')}>
+    <Switch bind:checked={redactText} />
+  </Field>
+
+  {#if redactFaces || redactText}
+    <Text size="small" color="muted" data-testid="shared-link-redact-note">
+      {isBook ? $t('shared_link_redact_note_book') : $t('shared_link_redact_note')}
+    </Text>
   {/if}
 </div>
