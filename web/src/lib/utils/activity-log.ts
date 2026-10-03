@@ -13,6 +13,7 @@ import {
   mdiLinkVariant,
   mdiPalette,
   mdiPencilOutline,
+  mdiCalendarSync,
   mdiTagOutline,
   mdiTrashCanOutline,
   mdiAccountMultiplePlusOutline,
@@ -42,6 +43,7 @@ const icons: Record<ActivityLogAction, string> = {
   [ActivityLogAction.SpaceAddAssets]: mdiAccountMultiplePlusOutline,
   [ActivityLogAction.WorkflowCreate]: mdiFlashOutline,
   [ActivityLogAction.WorkflowUpdate]: mdiPencilOutline,
+  [ActivityLogAction.RoutineCreate]: mdiCalendarSync,
 };
 
 export const getActivityIcon = (action: ActivityLogAction) => icons[action] ?? mdiContentCopy;
@@ -67,6 +69,7 @@ const actionKeys: Record<ActivityLogAction, Translations> = {
   [ActivityLogAction.SpaceAddAssets]: 'activity_log_action_space_add_assets',
   [ActivityLogAction.WorkflowCreate]: 'activity_log_action_workflow_create',
   [ActivityLogAction.WorkflowUpdate]: 'activity_log_action_workflow_update',
+  [ActivityLogAction.RoutineCreate]: 'activity_log_action_routine_create',
 };
 
 /** the i18n key of the name of a kind of change, e.g. "Photos added to an album" */
@@ -96,6 +99,9 @@ export const getActivityTargetRoute = ({ action, targetId, undoneAt }: ActivityL
     }
     case ActivityLogAction.BookDraftDiscard: {
       return undoneAt ? Route.viewBook({ id: targetId }) : undefined;
+    }
+    case ActivityLogAction.RoutineCreate: {
+      return undoneAt ? undefined : Route.viewRoutine({ id: targetId });
     }
     case ActivityLogAction.SpaceAddAssets: {
       return Route.viewSpace({ id: targetId });

@@ -671,6 +671,7 @@ features:
       - server/test/medium/specs/workflow/workflow-smart-album.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
+      - web/src/lib/components/SchemaRoutinePicker.svelte
       - web/src/lib/components/activity-log/**
       - web/src/lib/components/assistant/**
       - web/src/lib/components/books/**
@@ -680,6 +681,7 @@ features:
       - web/src/lib/components/memory-creations/**
       - web/src/lib/components/memory-exclusions/**
       - web/src/lib/components/orientation/**
+      - web/src/lib/components/routines/**
       - web/src/lib/components/pages/SharedLinkPage.spec.ts
       - web/src/lib/components/search/AskLibraryPanel.spec.ts
       - web/src/lib/components/search/AskLibraryPanel.svelte
@@ -741,6 +743,7 @@ features:
       - web/src/lib/services/journals.service.ts
       - web/src/lib/services/memory-creations.service.spec.ts
       - web/src/lib/services/memory-creations.service.ts
+      - web/src/lib/services/routine.service.ts
       - web/src/lib/services/workflow-assistant.service.spec.ts
       - web/src/lib/services/workflow-assistant.service.ts
       - web/src/lib/utils/activity-log.ts
@@ -775,6 +778,8 @@ features:
       - web/src/lib/utils/notification.ts
       - web/src/lib/utils/redaction.spec.ts
       - web/src/lib/utils/redaction.ts
+      - web/src/lib/utils/routines.spec.ts
+      - web/src/lib/utils/routines.ts
       - web/src/lib/utils/style-creator.spec.ts
       - web/src/lib/utils/style-creator.ts
       - web/src/lib/utils/workflow-explain.spec.ts
@@ -782,6 +787,7 @@ features:
       - web/src/routes/(user)/activity/**
       - web/src/routes/(user)/assistant/**
       - web/src/routes/(user)/books/**
+      - web/src/routes/(user)/routines/**
       - web/src/routes/(user)/shared-links/(list)/SharedLinkCard.spec.ts
       - web/src/routes/(user)/user-settings/FeatureSettings.ai-answers.spec.ts
       - web/src/routes/(user)/utilities/bursts/**
@@ -832,6 +838,7 @@ features:
       - server/src/repositories/search.repository.ts
       - server/src/repositories/shared-link.repository.ts
       - server/src/repositories/tag.repository.ts
+      - server/src/repositories/event.repository.ts
       - server/src/repositories/websocket.repository.ts
       - server/src/schema/index.ts
       - server/src/schema/tables/shared-link.table.ts
@@ -849,6 +856,7 @@ features:
       - server/src/services/shared-link.service.spec.ts
       - server/src/services/shared-link.service.ts
       - server/src/services/system-config.service.spec.ts
+      - server/src/services/tag.service.ts
       - server/src/types.ts
       - server/src/utils/access.ts
       - server/src/utils/preferences.spec.ts

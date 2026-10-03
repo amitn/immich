@@ -34,6 +34,7 @@
     mdiBookOpenPageVariantOutline,
     mdiCards,
     mdiCardsOutline,
+    mdiCalendarSync,
     mdiCreation,
     mdiCreationOutline,
     mdiDatabaseImportOutline,
@@ -129,6 +130,7 @@
       icon={mdiCreationOutline}
       activeIcon={mdiCreation}
     />
+    <SidebarNavItem title={$t('routines')} href={Route.routines()} icon={mdiCalendarSync} />
   {/if}
 
   <SidebarNavGroup title={$t('library')} />

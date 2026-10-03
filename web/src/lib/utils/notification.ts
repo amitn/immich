@@ -31,6 +31,12 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
     return Route.activityLog({ groupId: activityGroupId });
   }
 
+  // "Routine “Name dishes” ran: 12 changes · 2 need your OK" (#15): the run, with its changes to approve
+  const routineRunId = getId(values, 'routineRunId');
+  if (routineRunId) {
+    return Route.viewRoutineRun({ id: routineRunId });
+  }
+
   // "Your 2026 in review is ready" (#12): the recap memory, which offers its video and its book
   const memoryId = getId(values, 'memoryId');
   if (memoryId) {
