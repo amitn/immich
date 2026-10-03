@@ -2823,6 +2823,7 @@
   "jobs": "Jobs",
   "journal_matches": "From your journals",
   "journal_matches_count": "{count, plural, one {# visit in your journals} other {# visits in your journals}}",
+  "journal_name_action": "Name in a journal…",
   "journal_notifications_setting": "Journal notifications",
   "journal_notifications_setting_description": "Get a notification when new photos of a meal, a museum visit or a tasting are ready to name in your journals, e.g. \"Name the dishes from last night at Taormina?\"",
   "journal_read_only_photos": "{count, plural, one {# photo of this visit belongs} other {# photos of this visit belong}} to someone else, e.g. another member of a Space: they help to read the names, but only their owner can name them.",

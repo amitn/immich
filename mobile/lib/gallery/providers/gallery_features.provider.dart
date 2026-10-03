@@ -37,6 +37,16 @@ class GalleryFeatures {
   /// no book endpoints
   bool get books => assistant;
 
+  /// A Gallery server: the features with no flag of their own (journals, highlight videos, auto enhance) come with
+  /// it. Upstream Immich reports none of these flags; a Gallery server with every one of them off is taken for it
+  bool get gallery => assistant || artisticStyles || bookStadiaMaps || restaurantLookup;
+
+  /// The highlight videos (`/highlights`)
+  bool get highlights => gallery;
+
+  /// Auto enhance (`/assets/{id}/enhance`): local image processing, no AI
+  bool get autoEnhance => gallery;
+
   @override
   bool operator ==(Object other) =>
       other is GalleryFeatures &&
@@ -58,4 +68,12 @@ class GalleryFeatures {
 /// update over the websocket)
 final galleryFeaturesProvider = Provider<GalleryFeatures>(
   (ref) => ref.watch(serverInfoProvider.select((info) => info.serverFeatures.gallery)),
+);
+
+/// The journals ("Name the dishes…"): on a Gallery server with smart search, which finds the photos of the subjects,
+/// like the web's `isAvailable`
+final galleryJournalsProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(galleryFeaturesProvider.select((features) => features.gallery)) &&
+      ref.watch(serverInfoProvider.select((info) => info.serverFeatures.smartSearch)),
 );

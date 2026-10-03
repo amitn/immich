@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:immich_mobile/gallery/utils/journals.dart';
+
 /// What a notification is about, from the ids in its data: where tapping it leads
 sealed class NotificationTarget {
   const NotificationTarget();
@@ -56,6 +58,21 @@ final class MemoryNotificationTarget extends NotificationTarget {
   int get hashCode => memoryId.hashCode;
 }
 
+/// Photos with visits of a journal to name ("new meals found"): the naming page of the journal on them
+final class JournalNotificationTarget extends NotificationTarget {
+  final String pack;
+  final List<String> assetIds;
+
+  const JournalNotificationTarget(this.pack, this.assetIds);
+
+  @override
+  bool operator ==(Object other) =>
+      other is JournalNotificationTarget && other.pack == pack && other.assetIds.join(',') == assetIds.join(',');
+
+  @override
+  int get hashCode => Object.hash(pack, assetIds.join(','));
+}
+
 /// The data of a notification: an object, or the JSON string of one (how the server stores it)
 Map<String, dynamic>? parseNotificationData(Object? data) {
   if (data is String) {
@@ -79,11 +96,24 @@ String? _id(Map<String, dynamic>? data, String key) {
   return value is String && value.isNotEmpty ? value : null;
 }
 
-/// Where tapping a notification leads, with the precedence of the web app (`getNotificationRoute`). The changes of an
-/// assistant turn (`activityGroupId`) and the visits of a journal to name (`collectionPack`) have no screen in the app
-/// yet, so they lead nowhere.
+/// Where tapping a notification leads, with the precedence of the web app (`getNotificationRoute`): the visits of a
+/// journal to name (`collectionPack`) first, like the web's `openCollectionNotice`. The changes of an assistant turn
+/// (`activityGroupId`) have no screen in the app yet, so they lead nowhere.
 NotificationTarget? notificationTargetOf(Map<String, dynamic>? data) {
-  if (data == null || _id(data, 'activityGroupId') != null) {
+  if (data == null) {
+    return null;
+  }
+
+  final pack = _id(data, 'collectionPack');
+  final assetIds = data['assetIds'];
+  if (pack != null && journalPackOf(pack) != null && assetIds is List) {
+    final ids = assetIds.whereType<String>().where((id) => id.isNotEmpty).toList();
+    if (ids.isNotEmpty) {
+      return JournalNotificationTarget(pack, ids);
+    }
+  }
+
+  if (_id(data, 'activityGroupId') != null) {
     return null;
   }
 

@@ -2176,6 +2176,7 @@
   "iso": "ISO",
   "items_count": "{count, plural, one {# Eintrag} other {# Einträge}}",
   "jobs": "Aufgaben",
+  "journal_name_action": "In einem Tagebuch benennen…",
   "journal_read_only_photos": "{count, plural, one {# Foto dieses Besuchs gehört} other {# Fotos dieses Besuchs gehören}} jemand anderem, z. B. einem anderen Mitglied eines Space: Sie helfen beim Lesen der Namen, aber nur ihr Besitzer kann sie benennen.",
   "keep": "Behalten",
   "keep_albums": "Alben behalten",

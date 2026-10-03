@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:immich_mobile/constants/enums.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/gallery/presentation/actions/ask_assistant.action.dart';
+import 'package:immich_mobile/gallery/presentation/actions/name_journal.action.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/library/gallery_library_entries.widget.dart';
 import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
 import 'package:immich_mobile/presentation/actions/action.dart';
@@ -105,6 +106,49 @@ void main() {
 
       await pumpAction(tester, {RemoteAssetFactory.create(id: 'locked-1', visibility: AssetVisibility.locked)});
       expect(find.text('Ask assistant'), findsNothing);
+    });
+  });
+
+  group('Name in a journal on selected photos', () {
+    late List<String> cleared;
+
+    setUp(() => cleared = []);
+
+    Future<void> pumpAction(WidgetTester tester, Set<RemoteAsset> selection, {required Set<RemoteAsset> owned}) =>
+        tester.pumpConsumerWidget(
+          const ActionColumnButton(action: NameJournalAction(source: ActionSource.timeline)),
+          overrides: [
+            ...galleryOverrides(navigator: navigator),
+            assetsActionProvider.overrideWith((ref, source) => AssetFilter(selection)),
+            ownedAssetsActionProvider.overrideWith((ref, source) => AssetFilter(owned)),
+            clearSelectionProvider.overrideWith(
+              (ref, source) =>
+                  () => cleared.add('$source'),
+            ),
+          ],
+        );
+
+    testWidgets("looks in every selected photo, a friend's too, once a journal is chosen", (tester) async {
+      final mine = RemoteAssetFactory.create(id: 'mine-1');
+      final friends = RemoteAssetFactory.create(id: 'friend-1');
+      final trashed = RemoteAssetFactory.create(id: 'trashed-1', deletedAt: DateTime(2026));
+      await pumpAction(tester, {mine, friends, trashed}, owned: {mine});
+
+      await tester.tap(find.text('Name in a journal…'));
+      // the action runs until a journal is chosen
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(cleared, isEmpty);
+      await tester.tap(find.text('Name the wines…'));
+      await tester.pumpAndSettle();
+
+      expect(navigator.calls, ['journal wine assets=${mine.id},${friends.id}']);
+      expect(cleared, ['ActionSource.timeline']);
+    });
+
+    testWidgets("is not offered when no photo is the user's: only their owner names them (#21)", (tester) async {
+      await pumpAction(tester, {RemoteAssetFactory.create(id: 'friend-1')}, owned: {});
+      expect(find.text('Name in a journal…'), findsNothing);
     });
   });
 }

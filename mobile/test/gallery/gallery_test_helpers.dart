@@ -33,6 +33,12 @@ class FakeGalleryImages extends GalleryImages {
   }
 
   @override
+  ImageProvider assetPreview(String assetId, {String? cacheKey}) {
+    requested.add('preview:$assetId');
+    return MemoryImage(kTransparentPng);
+  }
+
+  @override
   ImageProvider bookPage(String bookId, String pageId, {required int size, DateTime? cacheKey}) {
     requested.add('page:$bookId/$pageId@$size');
     return MemoryImage(kTransparentPng);
@@ -68,6 +74,15 @@ class FakeGalleryNavigator implements GalleryNavigator {
   }) async => calls.add('export album $albumId as book${stylePreset == null ? '' : ' ($stylePreset)'}');
 
   @override
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  }) async => calls.add('journal $pack ${albumId == null ? 'assets=${assetIds.join(',')}' : 'album=$albumId'}');
+
+  @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');
 
   @override
@@ -100,6 +115,9 @@ class FakeGalleryNavigator implements GalleryNavigator {
         return openAlbum(albumId);
       case MemoryNotificationTarget(:final memoryId):
         return openMemory(memoryId);
+      case JournalNotificationTarget(:final pack, :final assetIds):
+        await nameInJournal(pack: pack, assetIds: assetIds);
+        return true;
     }
   }
 }
@@ -128,8 +146,10 @@ List<Override> galleryOverrides({
   FakeGalleryImages? images,
   FakeGalleryNavigator? navigator,
   FakeToastService? toast,
+  bool journals = true,
 }) => [
   galleryFeaturesProvider.overrideWithValue(features),
+  galleryJournalsProvider.overrideWithValue(journals && features.gallery),
   galleryImagesProvider.overrideWithValue(images ?? FakeGalleryImages()),
   galleryNavigatorProvider.overrideWithValue(navigator ?? FakeGalleryNavigator()),
   toastServiceProvider.overrideWithValue(toast ?? FakeToastService()),

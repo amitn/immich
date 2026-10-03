@@ -2160,6 +2160,7 @@
   "iso": "ISO",
   "items_count": "{count, plural, one {#个} other {#个}}项目",
   "jobs": "任务",
+  "journal_name_action": "在日志中命名…",
   "journal_read_only_photos": "此次到访有 {count} 张照片属于其他人（例如 Space 的其他成员）：它们有助于识别名称，但只有其所有者才能为其命名。",
   "keep": "保留",
   "keep_albums": "保留相册",

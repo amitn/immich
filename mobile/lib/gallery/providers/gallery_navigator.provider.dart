@@ -35,6 +35,15 @@ abstract interface class GalleryNavigator {
     BookStylePreset? stylePreset,
   });
 
+  /// "Name the …" of a journal, in an album or in photos
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  });
+
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
 
@@ -82,6 +91,23 @@ class RouterGalleryNavigator implements GalleryNavigator {
     BookStylePreset? stylePreset,
   }) => _router.push(
     BookExportRoute(albumId: albumId, albumName: albumName, assetCount: assetCount, stylePreset: stylePreset?.toJson()),
+  );
+
+  @override
+  Future<void> nameInJournal({
+    required String pack,
+    String? albumId,
+    String? albumName,
+    int albumAssetCount = 0,
+    List<String> assetIds = const [],
+  }) => _router.push(
+    JournalNameRoute(
+      pack: pack,
+      albumId: albumId,
+      albumName: albumName,
+      albumAssetCount: albumAssetCount,
+      assetIds: assetIds,
+    ),
   );
 
   @override
@@ -175,6 +201,9 @@ class RouterGalleryNavigator implements GalleryNavigator {
         return openAlbum(albumId);
       case MemoryNotificationTarget(:final memoryId):
         return openMemory(memoryId);
+      case JournalNotificationTarget(:final pack, :final assetIds):
+        unawaited(nameInJournal(pack: pack, assetIds: assetIds));
+        return true;
     }
   }
 }

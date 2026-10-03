@@ -42,11 +42,26 @@ void main() {
     expect(navigator.calls, ['export album album-1 as book']);
   });
 
-  testWidgets('offers nothing for an empty album, or on a server without photo books', (tester) async {
+  testWidgets('Name in a journal… lists the journals, and opens the one chosen on the album', (tester) async {
+    await pumpMenu(tester, album());
+
+    await tester.tap(find.text('Name in a journal…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Name the dishes…'), findsOneWidget);
+    expect(find.text('Name the artworks…'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('journal-pack-museum')));
+    await tester.pumpAndSettle();
+    expect(navigator.calls, ['journal museum album=album-1']);
+  });
+
+  testWidgets('offers nothing for an empty album, or on a server without them', (tester) async {
     await pumpMenu(tester, album(assetCount: 0));
     expect(find.text('Export as book…'), findsNothing);
+    expect(find.text('Name in a journal…'), findsNothing);
 
     await pumpMenu(tester, album(), features: const GalleryFeatures());
     expect(find.text('Export as book…'), findsNothing);
+    expect(find.text('Name in a journal…'), findsNothing);
   });
 }
