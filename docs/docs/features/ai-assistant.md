@@ -285,7 +285,7 @@ Every night, Gallery looks for books your photos are enough for, and drafts them
 | Birthday       | "Maya turns 7"                                                                           | A named person with a birth date has at least 30 photos in the year that ended on their latest birthday (the birthday included).                                                                                                                                                        | Soft                         |
 | Year in review | "2026 in review"                                                                         | The [year in review](/features/memories#year-in-review) memory is made, early in January.                                                                                                                                                                                               | Classic                      |
 
-When a draft is ready you get a notification, "A new photo book is ready to review: 2026 in food", which opens it. On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
+When a draft is ready you are told, at the time of day you choose and on a day without a memory to tell, with a notification such as "Your trip book is ready", which opens it (see [Memory notifications](/features/memories#memory-notifications)). On the **Photo books** page, drafts wait in a **Suggested for you** row with their cover, why they were suggested ("You visited 6 restaurants in 2026…") and two buttons:
 
 - **Keep** makes the draft one of your books. Until then, drafts aren't in the list of books or in the sidebar.
 - **Discard** deletes the draft. It is never suggested again, and neither is a draft you delete from the book viewer.
@@ -568,6 +568,44 @@ A smart album is a **workflow** (see the **Workflows** page) that sorts your new
 
 **Undo.** Saving or changing a workflow, its new album, and the photos `apply_workflow` added are changes in the [activity log](#undoing-the-assistants-changes) that you can undo.
 
+## Assistant routines
+
+A routine is an instruction in plain words that the assistant runs **on its own**, on a schedule or after an event, without a chat window. Workflows (above) are fast rules that sort each photo as it arrives; routines are for the work that needs looking and judging across many photos: naming dishes and artworks, choosing the best shots, laying out books, making videos, cleaning up bursts.
+
+**Examples.**
+
+- _"Every night, name the dishes of new restaurant visits and add them to my Food 2026 album."_
+- _"When I tag photos **print**, make a 20-page book in my Wedding style and tell me."_
+- _"After every trip, make a vertical highlight video and a book draft."_
+- _"Every Sunday, clean up the week's bursts: keep the best, ask before archiving the rest."_
+- _"When photos from a museum arrive, name the artworks."_
+
+**Making one.** Open **Routines** in the sidebar and choose **New routine**, or ask in a chat (_"do this every time I upload restaurant photos"_): the assistant proposes a routine with `create_routine`, which you approve like any change. After a chat turn that did what you want, **Make this a routine** under the turn opens the editor with what you asked. A routine has:
+
+| Part        | Options                                                                                                                                                                                                                                   |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Instruction | Plain words, complete on their own: a run has no chat history.                                                                                                                                                                            |
+| When        | A **schedule** (every day or every week at a time, or a cron expression), an **event** (new photos uploaded, a new journal visit, photos got a tag, a trip ended, a book draft was made, photos sent by a Workflow), or only **Run now**. |
+| Scope       | Albums, tags, a journal, only what is new since the last run, or the last days. The photos an event hands over are given to the run too.                                                                                                  |
+| Approval    | **Ask me**, **Auto-approve safe actions** or **Dry run** (below).                                                                                                                                                                         |
+| Limits      | Runs per day, minutes and tool calls per run, and the agent profile (for example a cheaper model for nightly naming).                                                                                                                     |
+
+**Events are batched.** A routine that runs after uploads starts once the photos stop arriving (10 minutes without a new one by default), with all of them in one run, never one run per photo. A long upload still gets a run every hour or so. The changes a routine run makes, such as the copies it creates or the tags it adds, never start a routine again.
+
+**From a Workflow.** The **Send to assistant routine** step of a Workflow hands the photo to one of your routines, so the Workflow's filters (place, type, tags, camera…) choose the photos a routine gets. The step only queues the photo: the routine runs on the batch later.
+
+**Approval modes.**
+
+- **Ask me** (the default, and where new routines start): every change the run wants to make waits for you in the **Inbox** of the Routines page, where you approve or deny it one by one or for a whole run. Approving a change makes the recorded tool call again, exactly as the assistant made it. Changes that wait for a week (set by the administrator) expire.
+- **Auto-approve safe actions**: reversible, low-risk changes are made right away: albums, journal names and descriptions, copies stacked with their originals (crops, straightened and enhanced photos), collages, highlight videos and book edits. Anything that archives, removes, shares, exports, makes artworks or changes settings still waits for you.
+- **Dry run**: nothing changes. The run looks and judges as for a real run, and reports what it would change. **Dry run** on a routine also runs it once this way, which is a good first step for a new routine.
+
+**Results.** Each run sends a notification, such as _"Routine “Name dishes” ran: 12 changes · 2 need your OK"_, which opens the run: its summary, the photos and events it started with, its changes, and the whole transcript, shown like a chat. Every change of a run, the approved ones included, is in the [activity log](#undoing-the-assistants-changes) as one group, which **Undo** undoes together.
+
+**Safety.** A run uses the same tools and the same access checks as a chat with you: it sees only what you can see, and changes only what you could. Nothing is ever deleted, only archived or moved to the trash. A routine that fails several times in a row is paused until you resume it, and the administrator sets how many routines and runs each user may have, how long a run may take and how many run at once, or turns routines off (**Administration > Settings > AI Assistant > Routines**).
+
+**Costs.** A run uses the assistant's agent like a chat: with a cloud model, every run costs about as much as a chat of the same work. Keep the runs per day low, and use a dry run to see what a routine does before it runs every night.
+
 ## Redact before sharing
 
 **Redact…** in the menu of the photo viewer blurs the faces, text and number plates of a photo before you share it. Only the owner of a photo can redact it, and the photo itself is never changed: the result is a **copy**, stacked with the original and tagged **Edits/Redacted**, which you can share instead.
@@ -786,7 +824,7 @@ A visit is notified when it has enough photos of its subjects: 3 dishes or cooki
 
 Several journals often find the same photos: the stage shots of a gig look like a trip, and the trees of a garden like a garden walk or a breakfast. The journals compete for them: smart search tells how well each journal's descriptions fit each photo (a peach tree fits _fruit on a tree_ better than _a plate of food_), and a visit is notified only when its journal fits most of its photos better than the others do. Photos that two journals both find all go, with the photos taken meanwhile, to the one whose descriptions fit them better, so that one occasion is offered once, in one journal; the other journal's visit is offered with the photos it kept, if it still has enough. Photos that surely belong to another journal (a dish among the photos of a garden) are left out of a journal's visits, and photos of a visit named in one journal, or taken during it and fitting it better, are never offered to another. At most 3 visits are notified per night, the newest first, and the others wait for the next night. Each visit is notified once: dismissing or deleting the notification never brings it back.
 
-The notifications are on by default. Administrators turn them off for everyone in **Administration > Settings > Journals**, where they can also change the number per night and the days of uploads looked at, and look for new visits now with **Look for new journal visits to name** under **Administration > Jobs > Create job**. Turn them off for yourself under **Account Settings > Features > Journal notifications**.
+The notifications are on by default. Administrators turn them off for everyone in **Administration > Settings > Journals**, where they can also change the number per night and the days of uploads looked at, and look for new visits now with **Look for new journal visits to name** under **Administration > Jobs > Create job**. Turn them off for yourself under **Account Settings > Memory notifications**, with the other [memory notifications](/features/memories#memory-notifications).
 
 ## Tags
 
@@ -955,6 +993,8 @@ Environment variables of the agent container (`gallery-agents`):
 | `collections.notifications.enabled`    | `true`                                               | **Journal notifications**: notify the users of new visits of the journals to name, with the nightly tasks (see [Journal notifications](#journal-notifications)). On by default. Users can turn it off in their settings.                                                                                                                                                                                                                                                  |
 | `collections.notifications.maxPerRun`  | `3`                                                  | **Notifications per night**: the most notifications sent to a user per run.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `collections.notifications.windowDays` | `14`                                                 | **Days of uploads**: only photos uploaded in this many days are looked at.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `memoryNotifications.enabled`          | `true`                                               | **Notification of the day**: at most one notification a day of a memory or a suggested book waiting for the user, at their time of day (see [Memory notifications](/features/memories#memory-notifications)).                                                                                                                                                                                                                                                             |
+| `memoryNotifications.digest`           | `true`                                               | **Weekly email digest** of the memories, waiting books and new journal visits, which users turn on in their settings. Needs email to be set up.                                                                                                                                                                                                                                                                                                                           |
 | `food.openStreetMap.enabled`           | `false`                                              | **Look up restaurants on OpenStreetMap**: lets the assistant look up the restaurants near a meal when their name can't be read on the photos. It sends the location of the meal to the Overpass API, only when the assistant asks and the user approves.                                                                                                                                                                                                                  |
 | `food.openStreetMap.overpassUrl`       | `https://overpass-api.de/api/interpreter`            | **Overpass API URL**: the Overpass API interpreter that is asked for the restaurants near a meal.                                                                                                                                                                                                                                                                                                                                                                         |
 

@@ -60,6 +60,7 @@ import { MachineLearningRepository } from 'src/repositories/machine-learning.rep
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { MemoryNoticeRepository } from 'src/repositories/memory-notice.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
@@ -70,6 +71,7 @@ import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -274,7 +276,9 @@ export type ServiceOverrides = {
   bookDraft: BookDraftRepository;
   collectionNotice: CollectionNoticeRepository;
   memoryExclusion: MemoryExclusionRepository;
+  memoryNotice: MemoryNoticeRepository;
   yearRecap: YearRecapRepository;
+  routine: RoutineRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -386,7 +390,9 @@ export const getMocks = () => {
     bookDraft: automock(BookDraftRepository),
     collectionNotice: automock(CollectionNoticeRepository),
     memoryExclusion: newMemoryExclusionRepositoryMock(),
+    memoryNotice: automock(MemoryNoticeRepository),
     yearRecap: automock(YearRecapRepository),
+    routine: automock(RoutineRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -479,7 +485,9 @@ export const newTestService = <T extends BaseService>(
     overrides.bookDraft || (mocks.bookDraft as As<BookDraftRepository>),
     overrides.collectionNotice || (mocks.collectionNotice as As<CollectionNoticeRepository>),
     overrides.memoryExclusion || (mocks.memoryExclusion as As<MemoryExclusionRepository>),
+    overrides.memoryNotice || (mocks.memoryNotice as As<MemoryNoticeRepository>),
     overrides.yearRecap || (mocks.yearRecap as As<YearRecapRepository>),
+    overrides.routine || (mocks.routine as As<RoutineRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

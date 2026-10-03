@@ -3,6 +3,7 @@ import z from 'zod';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { BaseService } from 'src/services/base.service.js';
+import { RoutineService } from 'src/services/routine.service.js';
 import { SharedSpaceService } from 'src/services/shared-space.service.js';
 
 export type GallerySkipReason = 'invalid-config' | 'no-access' | 'not-found' | 'unknown-method';
@@ -19,7 +20,14 @@ const AddToSpaceAlbumArgs = z.object({
   albumName: z.string().trim().min(1),
 });
 
+const SendToRoutineArgs = z.object({
+  assetId: z.uuidv4(),
+  routineId: z.uuidv4(),
+});
+
 type GalleryHandler = (auth: AuthDto, args: unknown) => Promise<GalleryDispatchResult>;
+
+type Collaborators = { sharedSpace: SharedSpaceService; album: AlbumService; routine: RoutineService };
 
 /** Returned by `runGuarded` when an expected, user-fixable failure was swallowed. */
 export const SKIPPED = Symbol('skipped');
@@ -31,7 +39,7 @@ export const SKIPPED = Symbol('skipped');
  * deliberately NOT registered in `services/index.ts` — it has no controller, jobs or events.
  */
 export class GalleryWorkflowHostService extends BaseService {
-  private services?: { sharedSpace: SharedSpaceService; album: AlbumService };
+  private services?: Collaborators;
 
   /**
    * The single seam that makes this service unit-testable. `newTestService` injects repositories,
@@ -39,10 +47,11 @@ export class GalleryWorkflowHostService extends BaseService {
    * observe collaborator calls at all. Specs subclass and override it. Memoised so a step does not
    * rebuild both services on every dispatch.
    */
-  protected collaborators(): { sharedSpace: SharedSpaceService; album: AlbumService } {
+  protected collaborators(): Collaborators {
     this.services ??= {
       sharedSpace: BaseService.create(SharedSpaceService, this),
       album: BaseService.create(AlbumService, this),
+      routine: BaseService.create(RoutineService, this),
     };
 
     return this.services;
@@ -72,6 +81,7 @@ export class GalleryWorkflowHostService extends BaseService {
   private readonly handlers: Record<string, GalleryHandler> = {
     addToSpace: (auth, args) => this.handleAddToSpace(auth, args),
     addToSpaceAlbum: (auth, args) => this.handleAddToSpaceAlbum(auth, args),
+    sendToRoutine: (auth, args) => this.handleSendToRoutine(auth, args),
   };
 
   get methodNames(): string[] {
@@ -127,6 +137,27 @@ export class GalleryWorkflowHostService extends BaseService {
     });
 
     return outcome === SKIPPED ? { ok: false, reason: 'no-access' } : { ok: true };
+  }
+
+  /**
+   * "Send to assistant routine" (#15): hands the asset to one of the owner's routines. It only queues the photo: the
+   * routine runs once the photos it was sent settle (or at its next run), never here and never once per photo.
+   */
+  private async handleSendToRoutine(auth: AuthDto, args: unknown): Promise<GalleryDispatchResult> {
+    const parsed = SendToRoutineArgs.safeParse(args);
+    if (!parsed.success) {
+      this.logger.warn(`sendToRoutine: invalid config — ${parsed.error.message}`);
+      return { ok: false, reason: 'invalid-config' };
+    }
+
+    const { assetId, routineId } = parsed.data;
+    const sent = await this.runGuarded(`sendToRoutine(${routineId})`, () =>
+      this.collaborators().routine.sendFromWorkflow(auth, routineId, assetId),
+    );
+    if (sent === SKIPPED) {
+      return { ok: false, reason: 'no-access' };
+    }
+    return sent ? { ok: true } : { ok: false, reason: 'not-found' };
   }
 
   /**

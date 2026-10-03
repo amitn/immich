@@ -42,6 +42,7 @@ import { MaintenanceService } from 'src/services/maintenance.service.js';
 import { MapService } from 'src/services/map.service.js';
 import { MediaService } from 'src/services/media.service.js';
 import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
+import { MemoryNoticeService } from 'src/services/memory-notice.service.js';
 import { MemoryService } from 'src/services/memory.service.js';
 import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
@@ -55,6 +56,7 @@ import { PetRecognitionService } from 'src/services/pet-recognition.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
 import { QueueService } from 'src/services/queue.service.js';
 import { RedactionService } from 'src/services/redaction.service.js';
+import { RoutineService } from 'src/services/routine.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { ServerService } from 'src/services/server.service.js';
 import { SessionService } from 'src/services/session.service.js';
@@ -128,6 +130,8 @@ export const services = [
   MediaService,
   MemoryService,
   MemoryExclusionService,
+  RoutineService,
+  MemoryNoticeService,
   MetadataService,
   NotificationService,
   NotificationAdminService,

@@ -529,7 +529,11 @@ describe(DerivedAssetService.name, () => {
 
       expect(mocks.tag.addAssetIds).toHaveBeenCalledWith('tag:AI Artwork/Watercolor', ['art-1']);
       expect(mocks.tag.addAssetIds).toHaveBeenCalledWith('tag:Edits/Cropped', ['crop-1']);
-      expect(mocks.event.emit).toHaveBeenCalledWith('AssetTag', { assetId: 'art-1', userId: user.id });
+      expect(mocks.event.emit).toHaveBeenCalledWith('AssetTag', {
+        assetId: 'art-1',
+        userId: user.id,
+        tagIds: ['tag:AI Artwork/Watercolor'],
+      });
     });
   });
 

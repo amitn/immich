@@ -292,6 +292,121 @@
           </div>
         </div>
       </SettingAccordion>
+
+      <!-- assistant routines (#15): the assistant run on its own, on a schedule or after an event -->
+      <SettingAccordion
+        key="agent-routines"
+        title={$t('admin.agent_routines_settings')}
+        subtitle={$t('admin.agent_routines_settings_description')}
+      >
+        <div class="ms-4 mt-4 flex flex-col gap-4">
+          <div class="mb-4">
+            <SettingSwitch
+              title={$t('admin.agent_routines_enabled')}
+              subtitle={$t('admin.agent_routines_enabled_description')}
+              {disabled}
+              bind:checked={configToEdit.agent.routines.enabled}
+              isEdited={configToEdit.agent.routines.enabled !== config.agent.routines.enabled}
+            />
+          </div>
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_max_routines')}
+            description={$t('admin.agent_routines_max_routines_description')}
+            min={1}
+            max={100}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.maxRoutinesPerUser}
+            isEdited={configToEdit.agent.routines.maxRoutinesPerUser !== config.agent.routines.maxRoutinesPerUser}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_max_runs_per_day')}
+            description={$t('admin.agent_routines_max_runs_per_day_description')}
+            min={1}
+            max={1000}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.maxRunsPerDay}
+            isEdited={configToEdit.agent.routines.maxRunsPerDay !== config.agent.routines.maxRunsPerDay}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_max_concurrent_runs')}
+            description={$t('admin.agent_routines_max_concurrent_runs_description')}
+            min={1}
+            max={20}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.maxConcurrentRuns}
+            isEdited={configToEdit.agent.routines.maxConcurrentRuns !== config.agent.routines.maxConcurrentRuns}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_max_run_minutes')}
+            description={$t('admin.agent_routines_max_run_minutes_description')}
+            min={1}
+            max={240}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.maxRunMinutes}
+            isEdited={configToEdit.agent.routines.maxRunMinutes !== config.agent.routines.maxRunMinutes}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_max_tool_calls')}
+            description={$t('admin.agent_routines_max_tool_calls_description')}
+            min={1}
+            max={2000}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.maxToolCalls}
+            isEdited={configToEdit.agent.routines.maxToolCalls !== config.agent.routines.maxToolCalls}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_pause_after_failures')}
+            description={$t('admin.agent_routines_pause_after_failures_description')}
+            min={1}
+            max={20}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.pauseAfterFailures}
+            isEdited={configToEdit.agent.routines.pauseAfterFailures !== config.agent.routines.pauseAfterFailures}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_approval_expiry_days')}
+            description={$t('admin.agent_routines_approval_expiry_days_description')}
+            min={1}
+            max={90}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.approvalExpiryDays}
+            isEdited={configToEdit.agent.routines.approvalExpiryDays !== config.agent.routines.approvalExpiryDays}
+          />
+
+          <SettingInputField
+            inputType={SettingInputFieldType.NUMBER}
+            label={$t('admin.agent_routines_event_settle_minutes')}
+            description={$t('admin.agent_routines_event_settle_minutes_description')}
+            min={1}
+            max={240}
+            required
+            disabled={disabled || !configToEdit.agent.routines.enabled}
+            bind:value={configToEdit.agent.routines.eventSettleMinutes}
+            isEdited={configToEdit.agent.routines.eventSettleMinutes !== config.agent.routines.eventSettleMinutes}
+          />
+        </div>
+      </SettingAccordion>
     </form>
   </div>
 

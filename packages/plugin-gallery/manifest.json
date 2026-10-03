@@ -2,7 +2,7 @@
   "name": "gallery-core",
   "version": "1.0.0",
   "title": "Gallery",
-  "description": "Gallery workflow filters, and actions for shared spaces",
+  "description": "Gallery workflow filters, actions for shared spaces, and assistant routines",
   "author": "Gallery",
   "wasmPath": "dist/plugin.wasm",
   "templates": [],
@@ -19,14 +19,18 @@
             "type": "string",
             "title": "Tag",
             "description": "The tag, e.g. Food or Food/Noma (not case-sensitive)",
-            "uiHint": { "order": 1 }
+            "uiHint": {
+              "order": 1
+            }
           },
           "inverse": {
             "type": "boolean",
             "title": "Inverse",
             "description": "Continue for assets without the tag and without any tag under it instead",
             "default": false,
-            "uiHint": { "order": 2 }
+            "uiHint": {
+              "order": 2
+            }
           }
         },
         "required": ["tag"]
@@ -47,7 +51,9 @@
             "array": true,
             "title": "Spaces",
             "description": "Target shared spaces",
-            "uiHint": { "type": "SpaceId" }
+            "uiHint": {
+              "type": "SpaceId"
+            }
           }
         },
         "required": ["spaceIds"]
@@ -66,16 +72,43 @@
             "type": "string",
             "title": "Space",
             "description": "The shared space that owns the album",
-            "uiHint": { "type": "SpaceId", "order": 1 }
+            "uiHint": {
+              "type": "SpaceId",
+              "order": 1
+            }
           },
           "albumName": {
             "type": "string",
             "title": "Album name",
             "description": "Uses this album if it exists in the space, otherwise creates and links it",
-            "uiHint": { "type": "SpaceAlbumName", "order": 2 }
+            "uiHint": {
+              "type": "SpaceAlbumName",
+              "order": 2
+            }
           }
         },
         "required": ["spaceId", "albumName"]
+      }
+    },
+    {
+      "name": "sendToRoutine",
+      "title": "Send to assistant routine",
+      "description": "Hand the asset to one of your assistant routines. The photos are batched: the routine runs on them once they settle (or at its next run), never once per photo",
+      "types": ["AssetV1"],
+      "hostFunctions": true,
+      "schema": {
+        "type": "object",
+        "properties": {
+          "routineId": {
+            "type": "string",
+            "title": "Routine",
+            "description": "The assistant routine that gets the photos",
+            "uiHint": {
+              "type": "RoutineId"
+            }
+          }
+        },
+        "required": ["routineId"]
       }
     }
   ]

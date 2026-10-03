@@ -40,6 +40,9 @@ import {
 import { findOrFail } from 'src/utils/misc.js';
 import { getPreferences } from 'src/utils/preferences.js';
 
+/** the memories of a trip that just ended (Gallery fork, #15: the routines that run after a trip) */
+const RECENT_TRIP_RULE_ID = 'recent_trip';
+
 const DAYS = 3;
 /**
  * Cap on rule memories *visible* on a given day, so a multi-day recap holds its slot for its
@@ -207,6 +210,14 @@ export class MemoryService extends BaseService {
         }
       }
     });
+
+    // Gallery fork (#6): the memory of the day, for the users whose time of day has already come. Fail soft like
+    // every phase above: the hourly run catches up.
+    try {
+      await this.jobRepository.queue({ name: JobName.MemoryNoticesQueueAll });
+    } catch (error) {
+      this.logger.warn(`Failed to queue the memory notifications: ${error}`);
+    }
   }
 
   private async createOnThisDayMemories(ownerId: string, target: DateTime) {
@@ -513,6 +524,15 @@ export class MemoryService extends BaseService {
       // Gallery fork (#12): a year recap tells its owner, and drafts its book, in the background
       if (candidate.ruleId === YEAR_RECAP_RULE_ID) {
         await this.jobRepository.queue({ name: JobName.YearRecapPrepare, data: { id: memory.id } });
+      }
+      // Gallery fork (#15): a trip that just ended starts the routines that run after a trip
+      if (candidate.ruleId === RECENT_TRIP_RULE_ID) {
+        await this.eventRepository.emit('TripEnded', {
+          userId: ownerId,
+          memoryId: memory.id,
+          title: candidate.title ?? '',
+          assetIds: candidate.assetIds,
+        });
       }
       inserted++;
     }

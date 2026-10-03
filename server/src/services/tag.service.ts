@@ -104,7 +104,8 @@ export class TagService extends BaseService {
     const results = await this.tagRepository.upsertAssetIds(items);
     for (const assetId of new Set(results.map((item) => item.assetId))) {
       await this.updateTags(assetId);
-      await this.eventRepository.emit('AssetTag', { assetId, userId: auth.user.id });
+      const added = results.filter((item) => item.assetId === assetId).map((item) => item.tagId);
+      await this.eventRepository.emit('AssetTag', { assetId, userId: auth.user.id, tagIds: added });
     }
 
     return { count: results.length };
@@ -127,7 +128,7 @@ export class TagService extends BaseService {
       }
 
       await this.updateTags(assetId);
-      await this.eventRepository.emit('AssetTag', { assetId, userId: auth.user.id });
+      await this.eventRepository.emit('AssetTag', { assetId, userId: auth.user.id, tagIds: [id] });
     }
 
     return results;

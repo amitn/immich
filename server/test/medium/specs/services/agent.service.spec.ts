@@ -19,6 +19,7 @@ import { AcpRepository } from 'src/repositories/acp.repository.js';
 import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SystemMetadataRepository } from 'src/repositories/system-metadata.repository.js';
 import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { DB } from 'src/schema/index.js';
@@ -81,7 +82,14 @@ const startMcpServer = async (sut: AgentService) => {
 const setup = async () => {
   const { sut, ctx } = newMediumService(AgentService, {
     database: defaultDatabase,
-    real: [AccessRepository, AcpRepository, AgentRepository, ConfigRepository, SystemMetadataRepository],
+    real: [
+      AccessRepository,
+      AcpRepository,
+      AgentRepository,
+      ConfigRepository,
+      RoutineRepository,
+      SystemMetadataRepository,
+    ],
     mock: [LoggingRepository, WebsocketRepository],
   });
 

@@ -125,6 +125,26 @@ export type AdminConfigAgentProfileDto = {
     /** Names of server environment variables forwarded to the agent process (e.g. API keys) */
     passEnv: string[];
 };
+export type AdminConfigRoutinesDto = {
+    /** Days a change of a routine run waits for approval in the Routines inbox before it expires */
+    approvalExpiryDays: number;
+    /** Let the users make assistant routines, which run the assistant on its own on a schedule or after an event */
+    enabled: boolean;
+    /** A routine that runs after uploads (or other events) starts once no new event came for this long */
+    eventSettleMinutes: number;
+    /** Most routine runs at the same time on this server */
+    maxConcurrentRuns: number;
+    /** Most routines a user can have */
+    maxRoutinesPerUser: number;
+    /** Longest a routine run may take, in minutes */
+    maxRunMinutes: number;
+    /** Most routine runs of a user in 24 hours, all their routines together */
+    maxRunsPerDay: number;
+    /** Most tool calls of a routine run */
+    maxToolCalls: number;
+    /** A routine is paused after this many failed runs in a row, until its owner resumes it */
+    pauseAfterFailures: number;
+};
 export type AdminConfigAgentDto = {
     /** Days the activity log keeps the changes made by the assistant, which can be undone until then */
     activityRetentionDays: number;
@@ -144,6 +164,7 @@ export type AdminConfigAgentDto = {
     mcpUrl: string;
     /** Available agent profiles */
     profiles: AdminConfigAgentProfileDto[];
+    routines: AdminConfigRoutinesDto;
 };
 export type AdminConfigDatabaseBackupDto = {
     /** Cron expression */
@@ -460,6 +481,12 @@ export type AdminConfigMemoriesDto = {
         [key: string]: boolean;
     };
 };
+export type AdminConfigMemoryNotificationsDto = {
+    /** Let the users get a weekly email of the week's memories, waiting drafts and new journal visits (off for each user until they turn it on; needs email to be set up) */
+    digest: boolean;
+    /** Send each user at most one notification a day of a memory (on this day, a trip anniversary) or a suggested photo book waiting for them, at the time of day they choose */
+    enabled: boolean;
+};
 export type AdminConfigFacesDto = {
     /** Import */
     "import": boolean;
@@ -630,6 +657,7 @@ export type AdminConfigDto = {
     machineLearning: AdminConfigMachineLearningDto;
     map: AdminConfigMapDto;
     memories: AdminConfigMemoriesDto;
+    memoryNotifications: AdminConfigMemoryNotificationsDto;
     metadata: AdminConfigMetadataDto;
     newVersionCheck: AdminConfigNewVersionCheckDto;
     nightlyTasks: AdminConfigNightlyTasksDto;
@@ -1215,6 +1243,22 @@ export type MemoryExclusionsResponse = {
     /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
     documents: boolean;
 };
+export type MemoryNotificationsResponse = {
+    /** Whether the user is notified when a video, a book or an artwork they asked for is ready */
+    creations: boolean;
+    /** Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits */
+    digest: boolean;
+    /** The day of the week of the digest, 1 (Monday) to 7 (Sunday) */
+    digestDay: number;
+    /** Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories) */
+    drafts: boolean;
+    /** The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent */
+    hour: number;
+    /** Whether the user is notified of a memory of the day (at most one notification a day, with the drafts) */
+    memories: boolean;
+    /** The IANA time zone of hour, e.g. Europe/London; the server's when empty */
+    timeZone: string;
+};
 export type PeopleResponse = {
     /** Whether people are enabled */
     enabled: boolean;
@@ -1260,6 +1304,7 @@ export type UserPreferencesResponseDto = {
     folders: FoldersResponse;
     memories: MemoriesResponse;
     memoryExclusions: MemoryExclusionsResponse;
+    memoryNotifications: MemoryNotificationsResponse;
     people: PeopleResponse;
     purchase: PurchaseResponse;
     ratings: RatingsResponse;
@@ -1325,6 +1370,22 @@ export type MemoryExclusionsUpdate = {
     /** Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them */
     documents?: boolean;
 };
+export type MemoryNotificationsUpdate = {
+    /** Whether the user is notified when a video, a book or an artwork they asked for is ready */
+    creations?: boolean;
+    /** Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits */
+    digest?: boolean;
+    /** The day of the week of the digest, 1 (Monday) to 7 (Sunday) */
+    digestDay?: number;
+    /** Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories) */
+    drafts?: boolean;
+    /** The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent */
+    hour?: number;
+    /** Whether the user is notified of a memory of the day (at most one notification a day, with the drafts) */
+    memories?: boolean;
+    /** The IANA time zone of hour, e.g. Europe/London; the server's when empty */
+    timeZone?: string;
+};
 export type PeopleUpdate = {
     /** Whether people are enabled */
     enabled?: boolean;
@@ -1371,6 +1432,7 @@ export type UserPreferencesUpdateDto = {
     folders?: FoldersUpdate;
     memories?: MemoriesUpdate;
     memoryExclusions?: MemoryExclusionsUpdate;
+    memoryNotifications?: MemoryNotificationsUpdate;
     people?: PeopleUpdate;
     purchase?: PurchaseUpdate;
     ratings?: RatingsUpdate;
@@ -4646,6 +4708,248 @@ export type QueueJobResponseDto = {
     name: JobName;
     /** Job creation timestamp */
     timestamp: number;
+};
+export type RoutineRunEventDto = {
+    /** When it happened */
+    at: string;
+    /** What the run is told about it */
+    data?: {
+        [key: string]: any;
+    };
+    /** The event */
+    kind: string;
+};
+export type RoutineRunResponseDto = {
+    approvalMode: RoutineApprovalMode;
+    /** The photos handed to the run */
+    assetIds: string[];
+    /** Changes the run made itself */
+    changes: number;
+    createdAt: string;
+    /** Why the run failed or was skipped */
+    error: string | null;
+    /** The events the run was started for */
+    events: RoutineRunEventDto[];
+    finishedAt: string | null;
+    /** Run ID */
+    id: string;
+    /** Photos handed to the run beyond assetIds */
+    moreAssets: number;
+    /** Changes that wait for approval */
+    pendingApprovals: number;
+    /** Routine ID */
+    routineId: string;
+    /** The assistant session of the run: its transcript */
+    sessionId: string | null;
+    startedAt: string | null;
+    status: RoutineRunStatus;
+    /** The agent's summary of the run */
+    summary: string | null;
+    /** Tool calls made */
+    toolCalls: number;
+    /** What started the run: manual, schedule or event */
+    trigger: string;
+};
+export type RoutineLimitsDto = {
+    /** Longest a run may take, in minutes */
+    minutes: number;
+    /** Most runs in 24 hours */
+    runsPerDay: number;
+    /** Most tool calls of a run */
+    toolCalls: number;
+};
+export type RoutineScopeDto = {
+    /** Only these albums */
+    albumIds?: string[];
+    /** Only the last days */
+    days?: number;
+    /** Only this journal, e.g. food */
+    pack?: string;
+    /** Only these people */
+    personIds?: string[];
+    /** Only what is new since the last run */
+    sinceLastRun?: boolean;
+    /** Only these tags */
+    tags?: string[];
+};
+export type RoutineTriggerDto = {
+    /** Schedule: a cron expression of 5 fields, e.g. "0 2 * * *" for every night at 2:00 */
+    cron?: string;
+    event?: RoutineEvent;
+    /** Journal visit event: only visits of this journal, e.g. food */
+    pack?: string;
+    /** Tag event: only this tag or a tag under it, e.g. print or Food/Noma */
+    tag?: string;
+    /** Schedule: the time zone of the cron expression */
+    timezone?: string;
+    "type": RoutineTriggerType;
+};
+export type RoutineResponseDto = {
+    approvalMode: RoutineApprovalMode;
+    consecutiveFailures: number;
+    createdAt: string;
+    enabled: boolean;
+    /** Routine ID */
+    id: string;
+    instruction: string;
+    lastRun: (RoutineRunResponseDto) | null;
+    lastRunAt: string | null;
+    limits: RoutineLimitsDto;
+    name: string;
+    /** When a scheduled routine runs next */
+    nextRunAt: string | null;
+    /** When it was paused after repeated failures */
+    pausedAt: string | null;
+    /** Changes of its runs that wait for approval */
+    pendingApprovals: number;
+    /** Events (photos, visits...) waiting for the next run */
+    pendingEvents: number;
+    /** Agent profile (null for the chat profile) */
+    profile: string | null;
+    scope: RoutineScopeDto;
+    trigger: RoutineTriggerDto;
+    updatedAt: string;
+};
+export type RoutineCreateDto = {
+    /** Defaults to ask: every change waits for approval */
+    approvalMode?: RoutineApprovalMode;
+    enabled?: boolean;
+    /** What to do, in plain words */
+    instruction: string;
+    limits?: {
+        /** Longest a run may take, in minutes */
+        minutes?: number;
+        /** Most runs in 24 hours */
+        runsPerDay?: number;
+        /** Most tool calls of a run */
+        toolCalls?: number;
+    };
+    /** Routine name */
+    name: string;
+    /** Agent profile (empty for the chat profile) */
+    profile?: string | null;
+    scope?: RoutineScopeDto;
+    trigger: RoutineTriggerDto;
+};
+export type RoutineApprovalDecisionDto = {
+    /** true applies the changes, false denies them */
+    approve: boolean;
+    /** The changes to decide */
+    ids?: string[];
+    /** Decide every pending change of this run */
+    runId?: string;
+};
+export type RoutineApprovalResponseDto = {
+    /** The activity log entries of the change, once applied */
+    activityIds: string[];
+    /** The photos of the arguments */
+    assetIds: string[];
+    createdAt: string;
+    decidedAt: string | null;
+    expiresAt: string;
+    /** Change ID */
+    id: string;
+    /** The arguments, applied as they are */
+    input: {
+        [key: string]: any;
+    };
+    /** What applying it returned, or why it failed */
+    result: string | null;
+    routineId?: string;
+    routineName?: string;
+    runId: string;
+    status: RoutineApprovalStatus;
+    /** A short summary of the arguments */
+    summary: string;
+    /** The title of the tool */
+    title: string;
+    /** The tool the change calls */
+    toolName: string;
+};
+export type RoutineApprovalDecisionResponseDto = {
+    applied: number;
+    denied: number;
+    failed: number;
+    /** The changes as decided */
+    results: RoutineApprovalResponseDto[];
+    /** Changes that were decided before, or expired */
+    skipped: number;
+};
+export type RoutineConfigResponseDto = {
+    approvalExpiryDays: number;
+    defaultLimits: RoutineLimitsDto;
+    /** The chat profile, used when a routine names none */
+    defaultProfile: string;
+    /** Whether routines can run: the assistant and routines are on */
+    enabled: boolean;
+    maxLimits: RoutineLimitsDto;
+    maxRoutines: number;
+    /** The agent profiles a routine can use */
+    profiles: string[];
+    /** The tools "Auto-approve safe actions" runs without asking */
+    safeTools: string[];
+};
+export type RoutineRunDetailResponseDto = {
+    approvalMode: RoutineApprovalMode;
+    /** The changes that waited for (or got) a decision */
+    approvals: RoutineApprovalResponseDto[];
+    /** The photos handed to the run */
+    assetIds: string[];
+    /** Changes the run made itself */
+    changes: number;
+    createdAt: string;
+    /** Why the run failed or was skipped */
+    error: string | null;
+    /** The events the run was started for */
+    events: RoutineRunEventDto[];
+    finishedAt: string | null;
+    /** Run ID */
+    id: string;
+    /** The transcript, oldest first */
+    messages: AgentMessageDto[];
+    /** Photos handed to the run beyond assetIds */
+    moreAssets: number;
+    /** Changes that wait for approval */
+    pendingApprovals: number;
+    /** Routine ID */
+    routineId: string;
+    routineName: string;
+    /** The assistant session of the run: its transcript */
+    sessionId: string | null;
+    startedAt: string | null;
+    status: RoutineRunStatus;
+    /** The agent's summary of the run */
+    summary: string | null;
+    /** Tool calls made */
+    toolCalls: number;
+    /** What started the run: manual, schedule or event */
+    trigger: string;
+};
+export type RoutineUpdateDto = {
+    approvalMode?: RoutineApprovalMode;
+    enabled?: boolean;
+    /** What to do, in plain words */
+    instruction?: string;
+    limits?: {
+        /** Longest a run may take, in minutes */
+        minutes?: number;
+        /** Most runs in 24 hours */
+        runsPerDay?: number;
+        /** Most tool calls of a run */
+        toolCalls?: number;
+    };
+    /** Routine name */
+    name?: string;
+    /** false resumes a routine that was paused after repeated failures */
+    paused?: false;
+    /** Agent profile (empty for the chat profile) */
+    profile?: string | null;
+    scope?: RoutineScopeDto;
+    trigger?: RoutineTriggerDto;
+};
+export type RoutineRunCreateDto = {
+    /** Only report what the run would change */
+    dryRun?: boolean;
 };
 export type SearchExploreItem = {
     data: AssetResponseDto;
@@ -11422,6 +11726,179 @@ export function getQueueJobs({ name, status }: {
     }));
 }
 /**
+ * Retrieve the routines
+ */
+export function getRoutines(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineResponseDto[];
+    }>("/routines", {
+        ...opts
+    }));
+}
+/**
+ * Create a routine
+ */
+export function createRoutine({ routineCreateDto }: {
+    routineCreateDto: RoutineCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RoutineResponseDto;
+    }>("/routines", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: routineCreateDto
+    })));
+}
+/**
+ * Approve or deny changes of routine runs
+ */
+export function decideRoutineApprovals({ routineApprovalDecisionDto }: {
+    routineApprovalDecisionDto: RoutineApprovalDecisionDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RoutineApprovalDecisionResponseDto;
+    }>("/routines/approvals", oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: routineApprovalDecisionDto
+    })));
+}
+/**
+ * Retrieve the routine settings
+ */
+export function getRoutineConfig(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineConfigResponseDto;
+    }>("/routines/config", {
+        ...opts
+    }));
+}
+/**
+ * Retrieve the Routines inbox
+ */
+export function getRoutineInbox(opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineApprovalResponseDto[];
+    }>("/routines/inbox", {
+        ...opts
+    }));
+}
+/**
+ * Retrieve a routine run
+ */
+export function getRoutineRun({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineRunDetailResponseDto;
+    }>(`/routines/runs/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Stop a routine run
+ */
+export function cancelRoutineRun({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineRunResponseDto;
+    }>(`/routines/runs/${encodeURIComponent(id)}/cancel`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Undo a routine run
+ */
+export function undoRoutineRun({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: ActivityUndoResponseDto;
+    }>(`/routines/runs/${encodeURIComponent(id)}/undo`, {
+        ...opts,
+        method: "POST"
+    }));
+}
+/**
+ * Delete a routine
+ */
+export function deleteRoutine({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchText(`/routines/${encodeURIComponent(id)}`, {
+        ...opts,
+        method: "DELETE"
+    }));
+}
+/**
+ * Retrieve a routine
+ */
+export function getRoutine({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineResponseDto;
+    }>(`/routines/${encodeURIComponent(id)}`, {
+        ...opts
+    }));
+}
+/**
+ * Update a routine
+ */
+export function updateRoutine({ id, routineUpdateDto }: {
+    id: string;
+    routineUpdateDto: RoutineUpdateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineResponseDto;
+    }>(`/routines/${encodeURIComponent(id)}`, oazapfts.json({
+        ...opts,
+        method: "PATCH",
+        body: routineUpdateDto
+    })));
+}
+/**
+ * Run a routine now
+ */
+export function runRoutine({ id, routineRunCreateDto }: {
+    id: string;
+    routineRunCreateDto: RoutineRunCreateDto;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 201;
+        data: RoutineRunResponseDto;
+    }>(`/routines/${encodeURIComponent(id)}/run`, oazapfts.json({
+        ...opts,
+        method: "POST",
+        body: routineRunCreateDto
+    })));
+}
+/**
+ * Retrieve the runs of a routine
+ */
+export function getRoutineRuns({ id }: {
+    id: string;
+}, opts?: Oazapfts.RequestOpts) {
+    return oazapfts.ok(oazapfts.fetchJson<{
+        status: 200;
+        data: RoutineRunResponseDto[];
+    }>(`/routines/${encodeURIComponent(id)}/runs`, {
+        ...opts
+    }));
+}
+/**
  * Retrieve assets by city
  */
 export function getAssetsByCity(opts?: Oazapfts.RequestOpts) {
@@ -14209,7 +14686,8 @@ export enum ActivityLogAction {
     SharedLinkCreate = "sharedLink.create",
     SpaceAddAssets = "space.addAssets",
     WorkflowCreate = "workflow.create",
-    WorkflowUpdate = "workflow.update"
+    WorkflowUpdate = "workflow.update",
+    RoutineCreate = "routine.create"
 }
 export enum ActivityLogSource {
     Assistant = "assistant",
@@ -15043,6 +15521,10 @@ export enum JobName {
     BookExportHtml = "BookExportHtml",
     HighlightRender = "HighlightRender",
     YearRecapPrepare = "YearRecapPrepare",
+    RoutineTick = "RoutineTick",
+    RoutineRun = "RoutineRun",
+    MemoryNoticesQueueAll = "MemoryNoticesQueueAll",
+    MemoryNoticesSend = "MemoryNoticesSend",
     OrientationCheckQueueAll = "OrientationCheckQueueAll",
     OrientationCheck = "OrientationCheck",
     DatabaseBackup = "DatabaseBackup",
@@ -15132,6 +15614,41 @@ export enum QueueJobStatus {
     Delayed = "delayed",
     Waiting = "waiting",
     Paused = "paused"
+}
+export enum RoutineApprovalMode {
+    Ask = "ask",
+    AutoSafe = "auto_safe",
+    DryRun = "dry_run"
+}
+export enum RoutineRunStatus {
+    Queued = "queued",
+    Running = "running",
+    Succeeded = "succeeded",
+    Failed = "failed",
+    Cancelled = "cancelled",
+    Skipped = "skipped"
+}
+export enum RoutineEvent {
+    Upload = "upload",
+    JournalVisit = "journal_visit",
+    Tag = "tag",
+    Trip = "trip",
+    BookDraft = "book_draft",
+    Workflow = "workflow"
+}
+export enum RoutineTriggerType {
+    Manual = "manual",
+    Schedule = "schedule",
+    Event = "event"
+}
+export enum RoutineApprovalStatus {
+    Pending = "pending",
+    Applying = "applying",
+    Applied = "applied",
+    Failed = "failed",
+    Denied = "denied",
+    Expired = "expired",
+    DryRun = "dry_run"
 }
 export enum SearchOrderField {
     FileCreatedAt = "fileCreatedAt",

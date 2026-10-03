@@ -993,6 +993,15 @@ export enum JobName {
   /** a new year recap memory: notify its owner and draft its book (#12) */
   YearRecapPrepare = 'YearRecapPrepare',
 
+  /** starts the assistant routines that are due, or whose new photos settled, and expires queued approvals (#15) */
+  RoutineTick = 'RoutineTick',
+  /** one headless run of an assistant routine (#15) */
+  RoutineRun = 'RoutineRun',
+  /** every hour and after the memories are made: the users whose time of day has come (#6) */
+  MemoryNoticesQueueAll = 'MemoryNoticesQueueAll',
+  /** the notification of the day (a memory or a waiting draft) and the weekly digest of a user (#6) */
+  MemoryNoticesSend = 'MemoryNoticesSend',
+
   OrientationCheckQueueAll = 'OrientationCheckQueueAll',
   OrientationCheck = 'OrientationCheck',
 
@@ -1173,6 +1182,8 @@ export enum DatabaseLock {
   VersionCheck = 800,
   HlsSessionCleanup = 850,
   PetRecognitionModelSwitch = 860,
+  /** Gallery fork (#6): the instance that schedules the hourly memory notifications */
+  MemoryNotices = 870,
 }
 
 export enum MaintenanceAction {
@@ -1479,6 +1490,8 @@ export enum CronJob {
   LibraryScan = 'LibraryScan',
   NightlyJobs = 'NightlyJobs',
   VersionCheck = 'VersionCheck',
+  /** Gallery fork (#6): every hour, the memory notifications of the users whose time of day has come */
+  MemoryNotices = 'MemoryNotices',
 }
 
 export enum ConfigVisibility {
@@ -1663,6 +1676,8 @@ export enum ActivityLogAction {
   /** a workflow (a smart album rule) saved by the assistant (#11) */
   WorkflowCreate = 'workflow.create',
   WorkflowUpdate = 'workflow.update',
+  /** an assistant routine made from a chat (#15) */
+  RoutineCreate = 'routine.create',
 }
 
 export const ActivityLogActionSchema = z
@@ -1836,3 +1851,90 @@ export const BookDraftStateSchema = z
   .enum(BookDraftState)
   .describe('What became of a suggested book')
   .meta({ id: 'BookDraftState' });
+
+/** when an assistant routine runs (#15) */
+export enum RoutineTriggerType {
+  /** only when the user starts it (Run now) */
+  Manual = 'manual',
+  /** on a schedule: a cron expression, e.g. every night at 2:00 */
+  Schedule = 'schedule',
+  /** after an event, batched: the photos of an upload once it settles, a new journal visit, a tag... */
+  Event = 'event',
+}
+
+export const RoutineTriggerTypeSchema = z
+  .enum(RoutineTriggerType)
+  .describe('When the routine runs')
+  .meta({ id: 'RoutineTriggerType' });
+
+/** the events an assistant routine can run after (#15) */
+export enum RoutineEvent {
+  /** new photos were uploaded (one run once the upload settles, never one per photo) */
+  Upload = 'upload',
+  /** a new journal visit was found (a meal, a museum visit...) */
+  JournalVisit = 'journal_visit',
+  /** photos got a tag (optionally a given tag, or a tag under it) */
+  Tag = 'tag',
+  /** a trip ended (its recent-trip memory was made) */
+  Trip = 'trip',
+  /** a photo book draft was made */
+  BookDraft = 'book_draft',
+  /** photos were sent to the routine by a Workflow step ("Send to assistant routine") */
+  Workflow = 'workflow',
+}
+
+export const RoutineEventSchema = z
+  .enum(RoutineEvent)
+  .describe('Event the routine runs after')
+  .meta({ id: 'RoutineEvent' });
+
+/** what happens to the changes a routine run makes (#15) */
+export enum RoutineApprovalMode {
+  /** every change waits in the Routines inbox for the user's approval (the default) */
+  Ask = 'ask',
+  /** reversible, low-risk changes (tags, descriptions, albums, drafts) are made; the others wait for approval */
+  AutoSafe = 'auto_safe',
+  /** nothing is changed: the run only reports what it would change */
+  DryRun = 'dry_run',
+}
+
+export const RoutineApprovalModeSchema = z
+  .enum(RoutineApprovalMode)
+  .describe('What happens to the changes of a run: ask, make the safe ones, or only report them')
+  .meta({ id: 'RoutineApprovalMode' });
+
+export enum RoutineRunStatus {
+  Queued = 'queued',
+  Running = 'running',
+  Succeeded = 'succeeded',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+  /** not run: a limit was reached, or the assistant or routines are off */
+  Skipped = 'skipped',
+}
+
+export const RoutineRunStatusSchema = z
+  .enum(RoutineRunStatus)
+  .describe('Status of a routine run')
+  .meta({ id: 'RoutineRunStatus' });
+
+/** a change of a routine run that waits for, or got, the user's decision (#15) */
+export enum RoutineApprovalStatus {
+  Pending = 'pending',
+  /** being applied right now */
+  Applying = 'applying',
+  /** approved and applied (the recorded tool call was made again) */
+  Applied = 'applied',
+  /** approved, but applying it failed */
+  Failed = 'failed',
+  Denied = 'denied',
+  /** nobody decided in time */
+  Expired = 'expired',
+  /** a dry run: only reported, never applied */
+  DryRun = 'dry_run',
+}
+
+export const RoutineApprovalStatusSchema = z
+  .enum(RoutineApprovalStatus)
+  .describe('Status of a change of a routine run')
+  .meta({ id: 'RoutineApprovalStatus' });

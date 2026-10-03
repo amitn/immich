@@ -2,10 +2,11 @@ import { NotificationType, type NotificationDto } from '@immich/sdk';
 import { OpenQueryParam } from '$lib/constants';
 import { Route } from '$lib/route';
 
-const parseData = (data: unknown): Record<string, unknown> | undefined => {
+/** the data of a notification, stored as an object or as JSON text */
+export const parseNotificationData = (data: unknown): Record<string, unknown> | undefined => {
   if (typeof data === 'string') {
     try {
-      return parseData(JSON.parse(data));
+      return parseNotificationData(JSON.parse(data));
     } catch {
       return undefined;
     }
@@ -24,11 +25,17 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
     return Route.userSettings({ isOpen: OpenQueryParam.SHARING });
   }
 
-  const values = parseData(data);
+  const values = parseNotificationData(data);
   // "The assistant made 12 changes": the changes of that chat turn
   const activityGroupId = getId(values, 'activityGroupId');
   if (activityGroupId) {
     return Route.activityLog({ groupId: activityGroupId });
+  }
+
+  // "Routine “Name dishes” ran: 12 changes · 2 need your OK" (#15): the run, with its changes to approve
+  const routineRunId = getId(values, 'routineRunId');
+  if (routineRunId) {
+    return Route.viewRoutineRun({ id: routineRunId });
   }
 
   // "Your 2026 in review is ready" (#12): the recap memory, which offers its video and its book
@@ -56,7 +63,7 @@ export const getNotificationRoute = ({ type, data }: { type: NotificationDto['ty
  * which the pack's naming dialog opens on
  */
 export const getCollectionNotice = ({ data }: { data?: unknown }) => {
-  const values = parseData(data);
+  const values = parseNotificationData(data);
   const pack = getId(values, 'collectionPack');
   const assetIds = values?.assetIds;
   if (!pack || !Array.isArray(assetIds)) {

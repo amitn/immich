@@ -57,6 +57,12 @@ import { AssetMetadataTable } from 'src/schema/tables/asset-metadata.table.js';
 import { AssetOcrAuditTable } from 'src/schema/tables/asset-ocr-audit.table.js';
 import { AssetOcrTable } from 'src/schema/tables/asset-ocr.table.js';
 import { AssetTable } from 'src/schema/tables/asset.table.js';
+import {
+  AssistantRoutineApprovalTable,
+  AssistantRoutineEventTable,
+  AssistantRoutineRunTable,
+  AssistantRoutineTable,
+} from 'src/schema/tables/assistant-routine.table.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { BookPageAssetTable } from 'src/schema/tables/book-page-asset.table.js';
 import { BookPageTable } from 'src/schema/tables/book-page.table.js';
@@ -84,6 +90,7 @@ import { MemoryAssetAuditTable } from 'src/schema/tables/memory-asset-audit.tabl
 import { MemoryAssetTable } from 'src/schema/tables/memory-asset.table.js';
 import { MemoryAuditTable } from 'src/schema/tables/memory-audit.table.js';
 import { MemoryExclusionTable } from 'src/schema/tables/memory-exclusion.table.js';
+import { MemoryNoticeTable } from 'src/schema/tables/memory-notice.table.js';
 import { MemoryTable } from 'src/schema/tables/memory.table.js';
 import { MoveTable } from 'src/schema/tables/move.table.js';
 import { NaturalEarthCountriesTable } from 'src/schema/tables/natural-earth-countries.table.js';
@@ -187,6 +194,11 @@ export class ImmichDatabase {
     CollectionNoticeTable,
     CollectionNoticeCheckTable,
     MemoryExclusionTable,
+    AssistantRoutineTable,
+    AssistantRoutineEventTable,
+    AssistantRoutineRunTable,
+    AssistantRoutineApprovalTable,
+    MemoryNoticeTable,
     BookPageTable,
     BookRevisionTable,
     BookStyleTable,
@@ -353,6 +365,11 @@ export interface DB {
   collection_notice: CollectionNoticeTable;
   collection_notice_check: CollectionNoticeCheckTable;
   memory_exclusion: MemoryExclusionTable;
+  assistant_routine: AssistantRoutineTable;
+  assistant_routine_event: AssistantRoutineEventTable;
+  assistant_routine_run: AssistantRoutineRunTable;
+  assistant_routine_approval: AssistantRoutineApprovalTable;
+  memory_notice: MemoryNoticeTable;
   book_page: BookPageTable;
   book_style: BookStyleTable;
   book_page_asset: BookPageAssetTable;

@@ -23,6 +23,14 @@ from
   "agent_session"
 where
   "agent_session"."userId" = $1
+  and not exists (
+    select
+      "assistant_routine_run"."id"
+    from
+      "assistant_routine_run"
+    where
+      "assistant_routine_run"."sessionId" = "agent_session"."id"
+  )
 order by
   "agent_session"."updatedAt" desc
 

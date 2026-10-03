@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { DateTime, Settings } from 'luxon';
 import type { OnThisDayData, RuleMemoryData } from 'src/types.js';
 import { defaults } from 'src/dtos/config.dto.js';
-import { MemoryType, SystemMetadataKey, UserMetadataKey } from 'src/enum.js';
+import { JobName, MemoryType, SystemMetadataKey, UserMetadataKey } from 'src/enum.js';
 import { MemoryService, RULE_DAILY_LIMIT } from 'src/services/memory.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { MemoryFactory } from 'test/factories/memory.factory.js';
@@ -182,6 +182,25 @@ describe(MemoryService.name, () => {
 
       expect(mocks.user.getList).toHaveBeenCalledWith({ withDeleted: false });
       expect(mocks.systemMetadata.set).toHaveBeenCalled();
+    });
+
+    it('should then look for the memory of the day of the users whose time of day has come (#6)', async () => {
+      mocks.user.getList.mockResolvedValue([factory.userAdmin()]);
+      mocks.systemMetadata.get.mockResolvedValue(null);
+      mocks.asset.getByDayOfYear.mockResolvedValue([]);
+
+      await sut.onMemoriesCreate();
+
+      expect(mocks.job.queue).toHaveBeenLastCalledWith({ name: JobName.MemoryNoticesQueueAll });
+    });
+
+    it('should not fail the memories when the notifier cannot be queued (#6)', async () => {
+      mocks.user.getList.mockResolvedValue([factory.userAdmin()]);
+      mocks.systemMetadata.get.mockResolvedValue(null);
+      mocks.asset.getByDayOfYear.mockResolvedValue([]);
+      mocks.job.queue.mockRejectedValue(new Error('redis down'));
+
+      await expect(sut.onMemoriesCreate()).resolves.toBeUndefined();
     });
 
     it('should skip dates that have already been processed', async () => {

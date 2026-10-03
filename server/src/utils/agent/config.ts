@@ -11,3 +11,6 @@ export const isAssistantEnabled = (config: AgentConfig) =>
 
 export const isArtEnabled = (config: AgentConfig) =>
   config.enabled && !!config.artProfile && !!getAgentProfile(config, config.artProfile);
+
+/** whether assistant routines can run (#15): the assistant and routines are on */
+export const isRoutinesEnabled = (config: AgentConfig) => isAssistantEnabled(config) && config.routines.enabled;

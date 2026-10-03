@@ -56,6 +56,7 @@ import { PersonController } from 'src/controllers/person.controller.js';
 import { PluginController } from 'src/controllers/plugin.controller.js';
 import { QueueController } from 'src/controllers/queue.controller.js';
 import { RedactionController } from 'src/controllers/redaction.controller.js';
+import { RoutineController } from 'src/controllers/routine.controller.js';
 import { SearchController } from 'src/controllers/search.controller.js';
 import { ServerController } from 'src/controllers/server.controller.js';
 import { SessionController } from 'src/controllers/session.controller.js';
@@ -121,6 +122,7 @@ export const controllers = [
   MapController,
   MemoryController,
   MemoryExclusionController,
+  RoutineController,
   NotificationController,
   NotificationAdminController,
   OAuthController,
