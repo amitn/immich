@@ -19,6 +19,24 @@ on conflict ("userId", "pack", "key") do nothing
 returning
   "collection_notice"."id"
 
+-- CollectionNoticeRepository.getUnreadSince
+select
+  "collection_notice"."pack",
+  "collection_notice"."assetIds",
+  "collection_notice"."createdAt",
+  "notification"."title",
+  "notification"."description"
+from
+  "collection_notice"
+  inner join "notification" on "notification"."id" = "collection_notice"."notificationId"
+where
+  "collection_notice"."userId" = $1
+  and "collection_notice"."createdAt" >= $2
+  and "notification"."readAt" is null
+  and "notification"."deletedAt" is null
+order by
+  "collection_notice"."createdAt" desc
+
 -- CollectionNoticeRepository.setNotification
 update "collection_notice"
 set

@@ -32267,6 +32267,9 @@
           "memories": {
             "$ref": "#/components/schemas/AdminConfigMemoriesDto"
           },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/AdminConfigMemoryNotificationsDto"
+          },
           "metadata": {
             "$ref": "#/components/schemas/AdminConfigMetadataDto"
           },
@@ -32326,6 +32329,7 @@
           "machineLearning",
           "map",
           "memories",
+          "memoryNotifications",
           "metadata",
           "newVersionCheck",
           "nightlyTasks",
@@ -33073,6 +33077,24 @@
         },
         "required": [
           "retentionDays"
+        ],
+        "type": "object"
+      },
+      "AdminConfigMemoryNotificationsDto": {
+        "description": "Memory notifications config",
+        "properties": {
+          "digest": {
+            "description": "Let the users get a weekly email of the week's memories, waiting drafts and new journal visits (off for each user until they turn it on; needs email to be set up)",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "Send each user at most one notification a day of a memory (on this day, a trip anniversary) or a suggested photo book waiting for them, at the time of day they choose",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "digest",
+          "enabled"
         ],
         "type": "object"
       },
@@ -43525,6 +43547,8 @@
           "BookExportHtml",
           "HighlightRender",
           "YearRecapPrepare",
+          "MemoryNoticesQueueAll",
+          "MemoryNoticesSend",
           "OrientationCheckQueueAll",
           "OrientationCheck",
           "DatabaseBackup",
@@ -44497,6 +44521,90 @@
           "documents": {
             "description": "Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them",
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MemoryNotificationsResponse": {
+        "properties": {
+          "creations": {
+            "description": "Whether the user is notified when a video, a book or an artwork they asked for is ready",
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits",
+            "type": "boolean"
+          },
+          "digestDay": {
+            "description": "The day of the week of the digest, 1 (Monday) to 7 (Sunday)",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "drafts": {
+            "description": "Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)",
+            "type": "boolean"
+          },
+          "hour": {
+            "description": "The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "memories": {
+            "description": "Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "The IANA time zone of hour, e.g. Europe/London; the server's when empty",
+            "type": "string"
+          }
+        },
+        "required": [
+          "creations",
+          "digest",
+          "digestDay",
+          "drafts",
+          "hour",
+          "memories",
+          "timeZone"
+        ],
+        "type": "object"
+      },
+      "MemoryNotificationsUpdate": {
+        "properties": {
+          "creations": {
+            "description": "Whether the user is notified when a video, a book or an artwork they asked for is ready",
+            "type": "boolean"
+          },
+          "digest": {
+            "description": "Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits",
+            "type": "boolean"
+          },
+          "digestDay": {
+            "description": "The day of the week of the digest, 1 (Monday) to 7 (Sunday)",
+            "maximum": 7,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "drafts": {
+            "description": "Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)",
+            "type": "boolean"
+          },
+          "hour": {
+            "description": "The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent",
+            "maximum": 23,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "memories": {
+            "description": "Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)",
+            "type": "boolean"
+          },
+          "timeZone": {
+            "description": "The IANA time zone of hour, e.g. Europe/London; the server's when empty",
+            "maxLength": 64,
+            "type": "string"
           }
         },
         "type": "object"
@@ -57705,6 +57813,9 @@
           "memoryExclusions": {
             "$ref": "#/components/schemas/MemoryExclusionsResponse"
           },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/MemoryNotificationsResponse"
+          },
           "people": {
             "$ref": "#/components/schemas/PeopleResponse"
           },
@@ -57735,6 +57846,7 @@
           "folders",
           "memories",
           "memoryExclusions",
+          "memoryNotifications",
           "people",
           "purchase",
           "ratings",
@@ -57778,6 +57890,9 @@
           },
           "memoryExclusions": {
             "$ref": "#/components/schemas/MemoryExclusionsUpdate"
+          },
+          "memoryNotifications": {
+            "$ref": "#/components/schemas/MemoryNotificationsUpdate"
           },
           "people": {
             "$ref": "#/components/schemas/PeopleUpdate"
