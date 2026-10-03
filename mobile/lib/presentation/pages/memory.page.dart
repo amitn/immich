@@ -8,6 +8,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/domain/models/memory.model.dart';
+import 'package:immich_mobile/gallery/presentation/widgets/memory/gallery_memory_video_button.widget.dart';
 import 'package:immich_mobile/presentation/widgets/images/image_provider.dart';
 import 'package:immich_mobile/presentation/widgets/memory/memory_bottom_info.widget.dart';
 import 'package:immich_mobile/presentation/widgets/memory/memory_card.widget.dart';
@@ -344,6 +345,8 @@ class MemoryPage extends HookConsumerWidget {
                             right: 32,
                             child: Icon(Icons.videocam_outlined, color: Colors.grey[200]),
                           ),
+                        // Gallery (#3): "Make a video" of the memory, landscape or vertical
+                        GalleryMemoryVideoButton(memory: memories[mIndex], title: title),
                       ],
                     ),
                   ),

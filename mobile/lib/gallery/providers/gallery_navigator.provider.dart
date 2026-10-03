@@ -50,6 +50,15 @@ abstract interface class GalleryNavigator {
   /// "Auto enhance" of a photo of the user's
   Future<void> openAutoEnhance(String assetId);
 
+  /// "Make a highlight video…" of an album, photos or a memory
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds,
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  });
+
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
 
@@ -121,6 +130,17 @@ class RouterGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openAutoEnhance(String assetId) => _router.push(AutoEnhanceRoute(assetId: assetId));
+
+  @override
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds = const [],
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  }) => _router.push(
+    HighlightVideoRoute(albumId: albumId, assetIds: assetIds, memoryId: memoryId, title: title, vertical: vertical),
+  );
 
   @override
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));

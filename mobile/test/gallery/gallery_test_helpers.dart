@@ -95,6 +95,22 @@ class FakeGalleryNavigator implements GalleryNavigator {
   Future<void> openAutoEnhance(String assetId) async => calls.add('enhance $assetId');
 
   @override
+  Future<void> makeHighlightVideo({
+    String? albumId,
+    List<String> assetIds = const [],
+    String? memoryId,
+    String? title,
+    bool vertical = false,
+  }) async => calls.add(
+    'highlight ${albumId != null
+        ? 'album=$albumId'
+        : memoryId != null
+        ? 'memory=$memoryId'
+        : 'assets=${assetIds.join(',')}'}'
+    '${title == null ? '' : ' "$title"'}${vertical ? ' vertical' : ''}',
+  );
+
+  @override
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');
 
   @override

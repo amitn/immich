@@ -42,6 +42,15 @@ void main() {
     expect(navigator.calls, ['export album album-1 as book']);
   });
 
+  testWidgets('Make a highlight video… opens the video page of the album', (tester) async {
+    await pumpMenu(tester, album());
+
+    await tester.tap(find.text('Make a highlight video…'));
+    await tester.pump();
+
+    expect(navigator.calls, ['highlight album=album-1 "Sicily"']);
+  });
+
   testWidgets('Name in a journal… lists the journals, and opens the one chosen on the album', (tester) async {
     await pumpMenu(tester, album());
 
@@ -63,5 +72,6 @@ void main() {
     await pumpMenu(tester, album(), features: const GalleryFeatures());
     expect(find.text('Export as book…'), findsNothing);
     expect(find.text('Name in a journal…'), findsNothing);
+    expect(find.text('Make a highlight video…'), findsNothing);
   });
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:immich_mobile/constants/enums.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
 import 'package:immich_mobile/gallery/presentation/actions/ask_assistant.action.dart';
+import 'package:immich_mobile/gallery/presentation/actions/make_highlight.action.dart';
 import 'package:immich_mobile/gallery/presentation/actions/name_journal.action.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/library/gallery_library_entries.widget.dart';
 import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
@@ -149,6 +150,43 @@ void main() {
     testWidgets("is not offered when no photo is the user's: only their owner names them (#21)", (tester) async {
       await pumpAction(tester, {RemoteAssetFactory.create(id: 'friend-1')}, owned: {});
       expect(find.text('Name in a journal…'), findsNothing);
+    });
+  });
+
+  group('Make a highlight video of selected photos', () {
+    late List<String> cleared;
+
+    setUp(() => cleared = []);
+
+    Future<void> pumpAction(WidgetTester tester, Set<BaseAsset> selection, {GalleryFeatures? features}) =>
+        tester.pumpConsumerWidget(
+          const ActionColumnButton(action: MakeHighlightAction(source: ActionSource.timeline)),
+          overrides: [
+            ...galleryOverrides(features: features ?? const GalleryFeatures(assistant: true), navigator: navigator),
+            assetsActionProvider.overrideWith((ref, source) => AssetFilter(selection)),
+            clearSelectionProvider.overrideWith(
+              (ref, source) =>
+                  () => cleared.add('$source'),
+            ),
+          ],
+        );
+
+    testWidgets('makes it of the photos and videos on the server', (tester) async {
+      final photo = RemoteAssetFactory.create(id: 'photo-1');
+      final video = RemoteAssetFactory.create(id: 'video-1', type: AssetType.video);
+      final locked = RemoteAssetFactory.create(id: 'locked-1', visibility: AssetVisibility.locked);
+      await pumpAction(tester, {photo, video, locked});
+
+      await tester.tap(find.text('Make a highlight video…'));
+      await tester.pump();
+
+      expect(navigator.calls, ['highlight assets=${photo.id},${video.id}']);
+      expect(cleared, ['ActionSource.timeline']);
+    });
+
+    testWidgets('is not offered on a server without highlight videos', (tester) async {
+      await pumpAction(tester, {RemoteAssetFactory.create(id: 'photo-1')}, features: const GalleryFeatures());
+      expect(find.text('Make a highlight video…'), findsNothing);
     });
   });
 }

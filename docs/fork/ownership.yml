@@ -800,6 +800,7 @@ features:
       - mobile/lib/pages/library/shared_link/shared_link_edit.page.dart
       - mobile/lib/presentation/pages/album.page.dart
       - mobile/lib/presentation/pages/library.page.dart
+      - mobile/lib/presentation/pages/memory.page.dart
       - mobile/lib/presentation/pages/remote_album.page.dart
       - mobile/lib/presentation/widgets/asset_viewer/viewer_kebab_menu.widget.dart
       - mobile/lib/presentation/widgets/bottom_sheet/general_bottom_sheet.widget.dart

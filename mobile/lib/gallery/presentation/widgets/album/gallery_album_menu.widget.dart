@@ -10,7 +10,7 @@ import 'package:immich_mobile/generated/translations.g.dart';
 import 'package:immich_mobile/presentation/widgets/action_buttons/base_action_button.widget.dart';
 
 /// The entries of the assistant work (#3) in the ⋮ menu of an album: "Export as book…" on a server with photo books,
-/// and "Name in a journal…" with the journals
+/// "Make a highlight video…", and "Name in a journal…" with the journals
 List<Widget> galleryAlbumMenuItems(BuildContext context, WidgetRef ref, RemoteAlbum album) {
   final features = ref.watch(galleryFeaturesProvider);
   final journals = ref.watch(galleryJournalsProvider);
@@ -29,6 +29,14 @@ List<Widget> galleryAlbumMenuItems(BuildContext context, WidgetRef ref, RemoteAl
         onPressed: () => unawaited(
           navigator.exportAlbumAsBook(albumId: album.id, albumName: album.name, assetCount: album.assetCount),
         ),
+      ),
+    if (features.highlights)
+      BaseActionButton(
+        key: const Key('album-highlight-video'),
+        label: context.t.highlight_video_make_action,
+        iconData: Icons.movie_creation_outlined,
+        menuItem: true,
+        onPressed: () => unawaited(navigator.makeHighlightVideo(albumId: album.id, title: album.name)),
       ),
     if (journals)
       BaseActionButton(
