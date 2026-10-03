@@ -559,7 +559,10 @@ export class WorkflowAgentTools extends BaseService {
     return toolJson({
       workflowId,
       matched: match.ids.length,
-      ...(match.truncated && { truncated: true, note: 'More photos may match: call apply_workflow again' }),
+      ...((match.truncated || match.count > match.ids.length) && {
+        truncated: true,
+        note: `Only the newest ${match.ids.length} matching photos were added; older ones may match too`,
+      }),
       results,
     });
   }

@@ -131,11 +131,7 @@ const newPhoto = async (
 };
 
 const albumAssetIds = async (albumId: string) => {
-  const rows = await ctx.database
-    .selectFrom('album_asset')
-    .select('assetId')
-    .where('albumId', '=', albumId)
-    .execute();
+  const rows = await ctx.database.selectFrom('album_asset').select('assetId').where('albumId', '=', albumId).execute();
   return rows.map(({ assetId }) => assetId).toSorted();
 };
 
@@ -162,7 +158,9 @@ describe('smart albums (#11)', () => {
     });
     expect(draft).toMatchObject({
       supported: true,
-      summary: expect.stringMatching(/if it was taken in 2025 and it was taken in Italy: add it to the album "Italy 2025"/),
+      summary: expect.stringMatching(
+        /if it was taken in 2025 and it was taken in Italy: add it to the album "Italy 2025"/,
+      ),
       workflow: { trigger: WorkflowTrigger.AssetMetadataExtraction },
       creates: { album: 'Italy 2025' },
       preview: { count: 1, sampleIds: [before.id] },
