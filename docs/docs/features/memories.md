@@ -89,6 +89,7 @@ The built-in types each have a stable key used in configuration:
 | `trip_anniversary`    | Trip anniversaries      | A past trip resurfaced on the anniversary of the day it began                 |
 | `themed`              | Themes                  | Photo themes like sunsets, food, and beach days, found automatically          |
 | `person_throwback`    | Times with someone      | A warm chapter with someone who has not appeared in your photos for a while   |
+| `year_recap`          | Year in review          | The year that just ended, with its stats, a video and a book to keep          |
 
 All default to **on**.
 
@@ -119,12 +120,44 @@ Once created, a memory stays in the memory lane on the home page for its visibil
 | `people_together`     | the 20th                                           | 7 days                       |
 | `themed`              | the 22nd                                           | 5 days                       |
 | `season_recap`        | the 1st of March, June, September, and December    | 10 days                      |
+| `year_recap`          | the 2nd of January (until the 8th, if no slot)     | until the 15th of January    |
 
 A type generates a memory only when your library has enough matching photos for it, so a qualifying day does not guarantee a card. The cap of 6 rule memories per day also applies, and it counts memories still inside their window from earlier days: when more qualify than there is room for, the highest-scoring cards win and the rest are skipped. **On this day** memories are not part of that cap.
 
 `on_this_day_place` is deliberately narrow, because it sits on top of what `on_this_day` already shows. A year counts towards it only if that year has at least 4 photos on this date and at least 60% of that year's geotagged photos for the day are in one place, and the memory is only created when **two or more** years qualify for the same place. One year in one city is what the plain **On this day** card already shows, so naming the city would add nothing. Two years in one place is something no other memory type tells you. The result is a single card covering all the qualifying years ("11 photos from 2021 and 2023"), with its photos drawn evenly from each year rather than from whichever year you shot most.
 
 Because it then describes the same days as the plain **On this day** cards, it replaces them: for each year it covers at least 75% of that year's photos for the day, that year's plain card is removed instead of sitting next to it holding the same photos. Below 75% that year's plain card is kept, because the place card only holds photos from the one dominant city and dropping it would hide the rest of that day. This is decided per year, so one card can replace one of its years and leave another. A **saved** memory is never replaced, and only newly generated memories are affected. Any duplicate pair already in your library stays until it ages out under `memories.retentionDays`.
+
+## Year in review
+
+Early in January, the `year_recap` memory recaps the year that just ended: **2026 in review**, with up to 30 photos (every month gets its share, its favorites first) and the stats of the year:
+
+- how many photos and videos, and the places (cities and countries) they were taken in;
+- the people and pets you photographed most;
+- the trips: those of your travel journal, or the days you spent away from home;
+- what your journals saw, e.g. **54 dishes at 6 restaurants**, **3 museums**, **12 wines**.
+
+It is made on the 2nd of January, so the photos of New Year's Eve are in it, and stays in the memory lane until the 15th. A year needs at least 30 photos and videos, taken in at least 3 months. It competes for the 6 daily rule slots like any other memory, ahead of the month and season recaps and behind a birthday; when the 2nd is full it is tried again each day until the 8th.
+
+Nothing is made without asking. You get a notification, **Your 2026 in review is ready**, which opens the memory. On the **Memories** page the card shows its stats and offers:
+
+- **Video** and **Vertical video**: a [highlight video](/features/ai-assistant#highlight-videos) of the whole year, landscape or 9:16 for phones;
+- the **book of the year**, drafted in the background when you have [suggested books](/features/ai-assistant#suggested-books) on, and kept or discarded with **Keep** and **Discard** like the other suggestions (with them off, **Make the book** drafts it when you ask).
+
+Turn the year in review off for yourself under **Account Settings → Memories and recaps**; an admin turns it off for everyone with the **Year in review** switch in **Administration → Settings → Memories**.
+
+## Keeping people, days and albums out of your memories
+
+Under **Account Settings → Memories and recaps** you choose what your memories leave out:
+
+- **People and pets**: their photos, the photos of them in [shared spaces](/features/shared-spaces) too (through their face identity).
+- **Days**: the photos taken from one day to another, both included, in the local time of the photos.
+- **Albums**: the photos of an album, e.g. a work album.
+- **No screenshots, receipts or documents**: the photos tagged by [auto-classification](/features/auto-classification) with a category whose name says screenshot, receipt or document (e.g. `Auto/Screenshots`), and the menus, wall labels, tickets and other photographed text of your journals.
+
+Every memory type leaves these photos out: a memory left with too few photos is not made, and a birthday or a throwback of someone you left out is never made. Memories made before are shown without them right away, and get them back if you remove the exclusion. Videos, books and collages of a memory, the suggested books and the year in review leave them out too. The rest of Gallery (the timeline, albums, search) is not affected.
+
+You can also ask the assistant: _"make my 2026 recap without Dana"_ leaves Dana out of that recap only, while _"never show me photos of Dana in my memories"_ adds an exclusion for good, after you approve it, and can be undone from the activity log.
 
 ### Per-user toggles
 

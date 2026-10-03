@@ -12,6 +12,15 @@ describe('getNotificationRoute', () => {
     expect(getNotificationRoute({ type: NotificationType.Custom, data: '{"bookId":"book-1"}' })).toBe('/books/book-1');
   });
 
+  it('should open the year in review of its notification, rather than its book (#12)', () => {
+    expect(
+      getNotificationRoute({
+        type: NotificationType.Custom,
+        data: '{"memoryId":"memory-1","year":2025,"bookId":"book-1"}',
+      }),
+    ).toBe('/memories/memory-1');
+  });
+
   it('should open the asset of a notification', () => {
     expect(
       getNotificationRoute({

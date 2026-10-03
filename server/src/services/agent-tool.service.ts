@@ -19,6 +19,7 @@ import { MemoryAgentTools } from 'src/services/agent-tools/memory.tools.js';
 import { OrientationAgentTools } from 'src/services/agent-tools/orientation.tools.js';
 import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { RedactionAgentTools } from 'src/services/agent-tools/redaction.tools.js';
+import { YearRecapAgentTools } from 'src/services/agent-tools/year-recap.tools.js';
 import { BaseService } from 'src/services/base.service.js';
 import { IMMICH_MCP_SERVER_NAME } from 'src/utils/agent/instructions.js';
 import { AgentTool, AgentToolResult } from 'src/utils/agent/tools.js';
@@ -90,6 +91,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(HighlightAgentTools, this),
         BaseService.create(CollageAgentTools, this),
         BaseService.create(MemoryAgentTools, this),
+        BaseService.create(YearRecapAgentTools, this),
         BaseService.create(OrientationAgentTools, this),
         BaseService.create(BurstAgentTools, this),
         BaseService.create(RedactionAgentTools, this),

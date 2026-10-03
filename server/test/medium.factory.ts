@@ -60,6 +60,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MachineLearningRepository } from 'src/repositories/machine-learning.repository.js';
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { NotificationRepository } from 'src/repositories/notification.repository.js';
@@ -84,6 +85,7 @@ import { VersionHistoryRepository } from 'src/repositories/version-history.repos
 import { ViewRepository } from 'src/repositories/view-repository.js';
 import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AlbumTable } from 'src/schema/tables/album.table.js';
 import { AssetExifTable } from 'src/schema/tables/asset-exif.table.js';
@@ -636,6 +638,8 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case BookRepository:
     case BookDraftRepository:
     case CollectionNoticeRepository:
+    case MemoryExclusionRepository:
+    case YearRecapRepository:
     case AlbumRepository:
     case AlbumUserRepository:
     case ActivityRepository:
@@ -745,6 +749,8 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
     case FacePersonVerdictRepository:
     case LibraryRepository:
     case MemoryRepository:
+    case MemoryExclusionRepository:
+    case YearRecapRepository:
     case IntegrityRepository:
     case NotificationRepository:
     case OcrRepository:

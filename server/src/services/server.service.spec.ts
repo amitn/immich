@@ -213,6 +213,7 @@ describe(ServerService.name, () => {
           'trip_anniversary',
           'themed',
           'person_throwback',
+          'year_recap',
         ],
       });
       expect(mocks.systemMetadata.get).toHaveBeenCalled();
@@ -253,6 +254,7 @@ describe(ServerService.name, () => {
         'trip_anniversary',
         'themed',
         'person_throwback',
+        'year_recap',
       ]);
     });
 

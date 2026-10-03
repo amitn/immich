@@ -229,6 +229,20 @@ const RULES: Record<string, (context: Context, memory: MemorySourceMemory) => Re
     };
   },
 
+  // the whole year in review (#12)
+  year_recap: (context) => {
+    const year = asNumber(context, 'year');
+    if (!year) {
+      return;
+    }
+    const start = DateTime.utc(year, 1, 1);
+    return {
+      kind: 'period',
+      title: `${year} in review`,
+      window: { from: start.toJSDate(), to: start.endOf('year').toJSDate() },
+    };
+  },
+
   // a theme and a place across years have no window: their own photos are the moment
   themed: (context) => {
     const theme = THEMES[asString(context, 'theme') ?? ''];

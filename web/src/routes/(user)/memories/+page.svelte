@@ -2,6 +2,7 @@
   import LoadingSpinner from '$lib/components/shared-components/LoadingSpinner.svelte';
   import ButtonContextMenu from '$lib/components/shared-components/context-menu/ButtonContextMenu.svelte';
   import MemoryCreationMenuOptions from '$lib/components/memory-creations/MemoryCreationMenuOptions.svelte';
+  import YearRecapActions from '$lib/components/memory-creations/YearRecapActions.svelte';
   import UserPageLayout from '$lib/components/layouts/UserPageLayout.svelte';
   import { memoryManager } from '$lib/managers/memory-manager.svelte';
   import { userPreferencesManager } from '$lib/managers/user-preferences-manager.svelte';
@@ -9,6 +10,7 @@
   import { Route } from '$lib/route';
   import { locale } from '$lib/stores/preferences.store';
   import { getAssetMediaUrl, getMemorySubtitle, memoryLaneTitle } from '$lib/utils';
+  import { isYearRecap } from '$lib/utils/memory-card';
   import { getAltText } from '$lib/utils/thumbnail-util';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
   import type { MemoryResponseDto } from '@immich/sdk';
@@ -81,6 +83,10 @@
         <MemoryCreationMenuOptions memory={item.memory} />
       </ButtonContextMenu>
     </div>
+    <!-- Gallery fork (#12): a year in review shows its stats, and offers its video and its book -->
+    {#if isYearRecap(item.memory)}
+      <YearRecapActions memory={item.memory} title={item.title} />
+    {/if}
   </div>
 {/snippet}
 

@@ -80,6 +80,20 @@ describe('FeatureSettings memory types', () => {
     });
   });
 
+  it('leaves the year recap to its own section, and never saves it from here (#12)', async () => {
+    mocks.serverConfig = { availableMemoryTypes: ['on_this_day', 'birthday', 'recent_trip', 'year_recap'] };
+    mocks.preferences = {
+      memories: { enabled: true, duration: 5, types: { on_this_day: true, birthday: false, year_recap: false } },
+    };
+    const user = userEvent.setup();
+    render(FeatureSettings);
+
+    expect(screen.queryByRole('switch', { name: 'memory_type_year_recap' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'save' }));
+    const payload = mocks.updateMyPreferences.mock.calls.at(-1)?.[0].userPreferencesUpdateDto;
+    expect(payload.memories.types).not.toHaveProperty('year_recap');
+  });
+
   it('does not render a toggle for an unavailable memory type', () => {
     mocks.serverConfig = { availableMemoryTypes: ['on_this_day', 'birthday'] };
     render(FeatureSettings);

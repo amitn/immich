@@ -20,13 +20,15 @@
   let memoriesEnabled = $state(authManager.preferences.memories?.enabled ?? true);
   let memoriesDuration = $state(authManager.preferences.memories?.duration ?? 5);
   let memoriesSidebar = $state(authManager.preferences.memories?.sidebarWeb ?? true);
-  const availableMemoryTypes = $derived(serverConfigManager.value.availableMemoryTypes ?? []);
+  // Gallery fork (#12): the year recap has its switch under "Memories and recaps", which saves it on its own
+  const availableMemoryTypes = $derived(
+    (serverConfigManager.value.availableMemoryTypes ?? []).filter((type) => type !== 'year_recap'),
+  );
   let memoryTypes = $state<Record<string, boolean>>(
     Object.fromEntries(
-      (serverConfigManager.value.availableMemoryTypes ?? []).map((key) => [
-        key,
-        authManager.preferences.memories?.types?.[key] ?? true,
-      ]),
+      (serverConfigManager.value.availableMemoryTypes ?? [])
+        .filter((key) => key !== 'year_recap')
+        .map((key) => [key, authManager.preferences.memories?.types?.[key] ?? true]),
     ),
   );
 

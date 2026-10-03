@@ -124,6 +124,21 @@ describe('HighlightVideoModal component', () => {
     });
   });
 
+  it('should start with the shape it is opened for, e.g. the vertical video of a year recap (#12)', async () => {
+    sdkMock.createHighlight.mockResolvedValue(job({ format: HighlightFormat.Vertical }));
+
+    render(HighlightVideoModal, {
+      props: { memoryId: 'memory-id', title: '2025 in review', format: HighlightFormat.Vertical, onClose },
+    });
+    expect((screen.getByLabelText('highlight_video_format_vertical') as HTMLInputElement).checked).toBe(true);
+    await fireEvent.click(screen.getByRole('button', { name: 'highlight_video_create' }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(sdkMock.createHighlight).toHaveBeenCalledWith({
+      highlightCreateDto: expect.objectContaining({ memoryId: 'memory-id', format: HighlightFormat.Vertical }),
+    });
+  });
+
   it('should upload an audio file and pick it as the music', async () => {
     sdkMock.uploadHighlightMusic.mockResolvedValue({ id: 'new-song', name: 'Waves.mp3', durationSeconds: 60 });
     sdkMock.createHighlight.mockResolvedValue(job());

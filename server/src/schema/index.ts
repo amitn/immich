@@ -83,6 +83,7 @@ import { LibraryTable } from 'src/schema/tables/library.table.js';
 import { MemoryAssetAuditTable } from 'src/schema/tables/memory-asset-audit.table.js';
 import { MemoryAssetTable } from 'src/schema/tables/memory-asset.table.js';
 import { MemoryAuditTable } from 'src/schema/tables/memory-audit.table.js';
+import { MemoryExclusionTable } from 'src/schema/tables/memory-exclusion.table.js';
 import { MemoryTable } from 'src/schema/tables/memory.table.js';
 import { MoveTable } from 'src/schema/tables/move.table.js';
 import { NaturalEarthCountriesTable } from 'src/schema/tables/natural-earth-countries.table.js';
@@ -185,6 +186,7 @@ export class ImmichDatabase {
     BookDraftTable,
     CollectionNoticeTable,
     CollectionNoticeCheckTable,
+    MemoryExclusionTable,
     BookPageTable,
     BookRevisionTable,
     BookStyleTable,
@@ -350,6 +352,7 @@ export interface DB {
   book_draft: BookDraftTable;
   collection_notice: CollectionNoticeTable;
   collection_notice_check: CollectionNoticeCheckTable;
+  memory_exclusion: MemoryExclusionTable;
   book_page: BookPageTable;
   book_style: BookStyleTable;
   book_page_asset: BookPageAssetTable;

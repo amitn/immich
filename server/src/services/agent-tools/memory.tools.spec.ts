@@ -71,7 +71,12 @@ describe(MemoryAgentTools.name, () => {
     ] as any);
 
     const all = parse(await call('list_memories', {}));
-    expect(mocks.memory.search).toHaveBeenCalledWith(auth.user.id, { size: 200 });
+    expect(mocks.memory.search).toHaveBeenCalledWith(auth.user.id, { size: 200 }, undefined, [], {
+      personIds: [],
+      dateRanges: [],
+      albumIds: [],
+      documents: false,
+    });
     expect(all.memories.map(({ memoryId }: { memoryId: string }) => memoryId)).toEqual(['last', 'older', 'month']);
     expect(all.memories[0]).toEqual({
       memoryId: 'last',

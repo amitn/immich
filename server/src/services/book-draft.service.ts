@@ -18,6 +18,7 @@ import {
 } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
 import { ActivityRecorder, quote, recordActivity, toBookSnapshot } from 'src/utils/activity-log.js';
 import {
   DraftCandidate,
@@ -131,6 +132,8 @@ export class BookDraftService extends BaseService {
     const candidates: DraftCandidate[] = [];
     // the trips and birthdays the memory engine found, so that a trip or a birthday has one definition (#5)
     const memories = await this.getMemorySources(ownerId, kinds, now);
+    // a suggestion is made of a user's memories, so it leaves out what they keep out of them (#12)
+    const exclusions = await BaseService.create(MemoryExclusionService, this).getExclusions(ownerId);
 
     if (kinds.yearly || kinds.trips) {
       const packs = [...(kinds.yearly ? Object.keys(YEARLY_BOOKS) : []), ...(kinds.trips ? ['travel'] : [])];
@@ -138,12 +141,12 @@ export class BookDraftService extends BaseService {
         const pack = getCollectionPack(id);
         return pack ? [`${pack.tagRoot}/`] : [];
       });
-      const tags = await this.bookDraftRepository.getCollectionTags(ownerId, prefixes);
+      const tags = await this.bookDraftRepository.getCollectionTags(ownerId, prefixes, exclusions);
       if (kinds.yearly) {
         candidates.push(...getYearlyDrafts(tags, now));
       }
       if (kinds.trips) {
-        const timeline = await this.bookDraftRepository.getTimeline(ownerId);
+        const timeline = await this.bookDraftRepository.getTimeline(ownerId, exclusions);
         const trips: DraftTripMemory[] = memories
           .filter((source) => source.kind === 'trip' && source.from && source.to)
           .map((source) => ({
@@ -158,6 +161,9 @@ export class BookDraftService extends BaseService {
 
     if (kinds.birthdays) {
       for (const person of await this.bookDraftRepository.getPeopleWithBirthdays(ownerId)) {
+        if (exclusions.personIds.includes(person.id)) {
+          continue;
+        }
         const year = getBirthdayYear(person.birthDate, now);
         if (!year) {
           continue;
@@ -167,6 +173,7 @@ export class BookDraftService extends BaseService {
           person.id,
           new Date(year.from),
           new Date(year.to + 1),
+          exclusions,
         );
         const draft = getBirthdayDraft(person, photos, now);
         if (draft) {
@@ -202,6 +209,19 @@ export class BookDraftService extends BaseService {
 
   /** claims the key, lays out the book and notifies the user; false when the key was taken or the layout failed */
   private async draftBook(auth: AuthDto, candidate: DraftCandidate): Promise<boolean> {
+    return !!(await this.draftCandidate(auth, candidate, { notify: true }));
+  }
+
+  /**
+   * Drafts one suggestion: claims its key, lays out the book, and notifies the user unless asked not to (the year
+   * recap sends its own notification, #12). Returns the id of the book, or undefined when the key was taken or the
+   * layout failed (the suggestion is then made again next time).
+   */
+  async draftCandidate(
+    auth: AuthDto,
+    candidate: DraftCandidate,
+    { notify = true }: { notify?: boolean } = {},
+  ): Promise<string | undefined> {
     const claimed = await this.bookDraftRepository.claim({
       ownerId: auth.user.id,
       key: candidate.key,
@@ -211,7 +231,7 @@ export class BookDraftService extends BaseService {
       memoryId: candidate.memoryId ?? null,
     });
     if (!claimed) {
-      return false;
+      return;
     }
 
     try {
@@ -224,15 +244,17 @@ export class BookDraftService extends BaseService {
         targetPageCount: getDraftPageCount(candidate.assetIds.length),
       });
       await this.bookDraftRepository.update(claimed.id, { bookId: book.id });
-      await this.notify(auth.user.id, book.id, candidate);
-      return true;
+      if (notify) {
+        await this.notify(auth.user.id, book.id, candidate);
+      }
+      return book.id;
     } catch (error: any) {
       // the suggestion is made again on the next run
       this.logger.warn(
         `Unable to draft the book ${candidate.key} for user ${auth.user.id}: ${error?.message ?? error}`,
       );
       await this.bookDraftRepository.delete(claimed.id);
-      return false;
+      return;
     }
   }
 

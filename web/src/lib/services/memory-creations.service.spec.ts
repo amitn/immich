@@ -1,11 +1,11 @@
-import { AssetTypeEnum, MemoryType, type MemoryResponseDto } from '@immich/sdk';
+import { AssetTypeEnum, HighlightFormat, MemoryType, type MemoryResponseDto } from '@immich/sdk';
 import { modalManager, toastManager } from '@immich/ui';
 import type { MessageFormatter } from 'svelte-i18n';
 import { goto } from '$app/navigation';
 import { sdkMock } from '$lib/__mocks__/sdk.mock';
 import CollageModal from '$lib/modals/CollageModal.svelte';
 import HighlightVideoModal from '$lib/modals/HighlightVideoModal.svelte';
-import { getMemoryCreations, makeMemoryBook } from '$lib/services/memory-creations.service';
+import { getMemoryCreations, makeMemoryBook, makeYearRecapBook } from '$lib/services/memory-creations.service';
 import { handleError } from '$lib/utils/handle-error';
 import { assetFactory } from '@test-data/factories/asset-factory';
 import { bookDetailFactory } from '@test-data/factories/book-factory';
@@ -91,5 +91,47 @@ describe('memory creations service', () => {
     await expect(makeMemoryBook($t, memory(), 'Recent trip')).resolves.toBeUndefined();
     expect(goto).not.toHaveBeenCalled();
     expect(handleError).toHaveBeenCalledWith(expect.any(Error), 'errors.unable_to_create_book');
+  });
+
+  // Gallery fork (#12)
+  describe('a year in review', () => {
+    const recap = (): MemoryResponseDto => ({
+      ...memory(),
+      data: { ruleId: 'year_recap', context: { year: 2025, count: 1200, places: 9 } },
+    });
+
+    it('should offer a vertical video too', async () => {
+      const creations = getMemoryCreations($t, recap(), '2025 in review');
+      expect(creations.map(({ id }) => id)).toEqual(['video', 'video-vertical', 'book', 'collage']);
+
+      await creations[1].onAction();
+      expect(modalManager.show).toHaveBeenCalledWith(HighlightVideoModal, {
+        memoryId: 'memory-1',
+        title: '2025 in review',
+        format: HighlightFormat.Vertical,
+      });
+    });
+
+    it('should draft the book of the year, to keep or discard, and open it', async () => {
+      const book = bookDetailFactory.build({ id: 'book-1', title: '2025 in review' });
+      sdkMock.createYearRecapBook.mockResolvedValue({ book } as never);
+
+      await getMemoryCreations($t, recap(), '2025 in review')[2].onAction();
+
+      expect(sdkMock.createYearRecapBook).toHaveBeenCalledWith({
+        year: 2025,
+        yearRecapBookDto: { title: '2025 in review' },
+      });
+      expect(sdkMock.createBookFromMemory).not.toHaveBeenCalled();
+      expect(goto).toHaveBeenCalledWith('/books/book-1');
+    });
+
+    it('should not open a book of the year that could not be made', async () => {
+      sdkMock.createYearRecapBook.mockRejectedValue(new Error('There are no photos of 2025'));
+
+      await expect(makeYearRecapBook($t, 2025, '2025 in review')).resolves.toBeUndefined();
+      expect(goto).not.toHaveBeenCalled();
+      expect(handleError).toHaveBeenCalledWith(expect.any(Error), 'errors.unable_to_make_year_recap_book');
+    });
   });
 });

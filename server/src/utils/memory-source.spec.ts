@@ -110,6 +110,20 @@ describe(getMemorySource.name, () => {
     expect(source.from).toBeInstanceOf(Date);
   });
 
+  it('should cover the whole year of a year recap (#12)', () => {
+    const source = getMemorySource(memory({ ruleId: 'year_recap', context: { year: 2025, count: 1200 } }));
+
+    expect(source).toMatchObject({
+      kind: 'period',
+      ruleId: 'year_recap',
+      title: '2025 in review',
+      from: new Date('2025-01-01T00:00:00.000Z'),
+      to: new Date('2025-12-31T23:59:59.999Z'),
+      personIds: [],
+      includeMaps: false,
+    });
+  });
+
   it('should use the photos of a theme or a place across years, which have no window', () => {
     for (const [ruleId, context, title] of [
       ['themed', { theme: 'sunset', year: 2024 }, 'Sunsets from 2024'],

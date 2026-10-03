@@ -558,6 +558,8 @@ export const selectDrafts = (
     [BookDraftKind.Yearly]: options.kinds.yearly,
     [BookDraftKind.Trip]: options.kinds.trips,
     [BookDraftKind.Birthday]: options.kinds.birthdays,
+    // a year recap is drafted from its memory (see `YearRecapService`), never from these candidates
+    [BookDraftKind.Recap]: false,
   };
   const seen = new Set(options.existingKeys);
   const selected: DraftCandidate[] = [];

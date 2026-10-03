@@ -116,6 +116,11 @@ String? _buildTitle(String ruleId, Map<String, dynamic> context, Translate trans
       final name = _string(context, 'personName');
       return name == null ? null : translate('memory_person_throwback_title', args: {'name': name});
 
+    // Gallery fork (#12): "2026 in review"
+    case 'year_recap':
+      final year = _int(context, 'year');
+      return year == null ? null : translate('memory_year_recap_title', args: {'year': _yearLabel(year)});
+
     default:
       return null;
   }

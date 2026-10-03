@@ -33,6 +33,7 @@ export const MEMORY_TYPE_METADATA: MemoryTypeMetadata[] = [
   { key: 'trip_anniversary', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 2 },
   { key: 'themed', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 5 },
   { key: 'person_throwback', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 4 },
+  { key: 'year_recap', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 20 },
 ];
 
 export const MEMORY_TYPE_KEYS = MEMORY_TYPE_METADATA.map((m) => m.key);

@@ -2,8 +2,10 @@ import { HttpException, Injectable } from '@nestjs/common';
 import z from 'zod';
 import { AssetType, MemoryType } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
 import { MemorySourceService } from 'src/services/memory-source.service.js';
 import { AgentTool, AgentToolResult, defineTool, toolError, toolJson } from 'src/utils/agent/tools.js';
+import { hasMemoryExclusions, isMemoryAboutExcludedPerson } from 'src/utils/memory-exclusions.js';
 import { MemorySource, MemorySourceKind, getMemorySource } from 'src/utils/memory-source.js';
 
 /** the memories looked through to list them, the newest first */
@@ -60,8 +62,24 @@ export class MemoryAgentTools extends BaseService {
         mutating: false,
         handler: ({ auth }, { kind, limit = DEFAULT_LIST_LIMIT }) =>
           this.run(async () => {
-            const memories = await this.memoryRepository.search(auth.user.id, { size: MAX_SCANNED_MEMORIES });
+            // what the user keeps out of their memories (#12) is left out here too
+            const exclusions = await BaseService.create(MemoryExclusionService, this).getExclusions(auth.user.id);
+            const memories = await this.memoryRepository.search(
+              auth.user.id,
+              { size: MAX_SCANNED_MEMORIES },
+              undefined,
+              [],
+              exclusions,
+            );
             const listed = memories
+              .filter(
+                (memory) =>
+                  (!hasMemoryExclusions(exclusions) || memory.assets.length > 0) &&
+                  !isMemoryAboutExcludedPerson(
+                    (memory.data as { context?: Record<string, unknown> } | null)?.context,
+                    exclusions,
+                  ),
+              )
               .map((memory) => ({
                 memory,
                 source: getMemorySource({

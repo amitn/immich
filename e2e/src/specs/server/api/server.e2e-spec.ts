@@ -163,6 +163,7 @@ describe('/server', () => {
           'trip_anniversary',
           'themed',
           'person_throwback',
+          'year_recap',
         ],
       });
     });

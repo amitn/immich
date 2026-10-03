@@ -66,6 +66,7 @@ describe(MemorySourceService.name, () => {
       personIds: [],
       favoritesOnly: false,
       videosOnly: false,
+      exclusions: { personIds: [], dateRanges: [], albumIds: [], documents: false },
     });
     expect(source).toMatchObject({ kind: 'trip', title: 'Recent trip to Athens, Greece' });
     expect(memory).toEqual({ memoryAt: new Date('2026-09-28T00:00:00.000Z'), isSaved: false });

@@ -39,6 +39,7 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MachineLearningRepository } from 'src/repositories/machine-learning.repository.js';
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
@@ -71,6 +72,7 @@ import { VideoStreamRepository } from 'src/repositories/video-stream.repository.
 import { ViewRepository } from 'src/repositories/view-repository.js';
 import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 
 export const repositories = [
   AccessRepository,
@@ -83,6 +85,8 @@ export const repositories = [
   BookRepository,
   BookDraftRepository,
   CollectionNoticeRepository,
+  MemoryExclusionRepository,
+  YearRecapRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,

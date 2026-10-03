@@ -1,5 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import MemoryExclusionsSettings from '$lib/components/memory-exclusions/MemoryExclusionsSettings.svelte';
   import GroupSettings from '$lib/components/user-settings-page/group-settings.svelte';
   import ChangePinCodeSettings from './PinCodeSettings.svelte';
   import DownloadSettings from './DownloadSettings.svelte';
@@ -21,6 +22,7 @@
     mdiCogOutline,
     mdiDevices,
     mdiDownload,
+    mdiEyeOffOutline,
     mdiFeatureSearchOutline,
     mdiFormTextboxPassword,
     mdiKeyOutline,
@@ -100,6 +102,16 @@
   subtitle={$t('features_setting_description')}
 >
   <FeatureSettings />
+</SettingAccordion>
+
+<!-- Gallery fork (#12): what is kept out of the memories, and the year in review -->
+<SettingAccordion
+  icon={mdiEyeOffOutline}
+  key="memory-exclusions"
+  title={$t('memory_exclusions_setting')}
+  subtitle={$t('memory_exclusions_setting_description')}
+>
+  <MemoryExclusionsSettings />
 </SettingAccordion>
 
 <SettingAccordion

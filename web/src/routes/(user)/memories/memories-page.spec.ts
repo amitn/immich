@@ -1,6 +1,6 @@
 import { AssetTypeEnum, MemoryType, type MemoryResponseDto } from '@immich/sdk';
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { fireEvent, render, screen, within } from '@testing-library/svelte';
 import type { Component } from 'svelte';
 import { getAnimateMock } from '$lib/__mocks__/animate.mock';
 import TestWrapper from '$lib/components/TestWrapper.svelte';
@@ -112,5 +112,24 @@ describe('Memories page', () => {
     await fireEvent.click(menus[0]);
     expect(screen.getAllByText('memory_make_video')).toHaveLength(2);
     expect(screen.getAllByText('memory_make_collage')).toHaveLength(2);
+  });
+
+  // #12: a year in review shows its stats and offers its videos and its book, the other cards do not
+  it('offers the videos of a year in review below its card', () => {
+    const { container } = renderPage([
+      memory({
+        id: 'recap',
+        type: MemoryType.Rule,
+        data: { ruleId: 'year_recap', context: { year: 2025, count: 1200, places: 9, trips: 3 } },
+      }),
+      memory({ id: 'other' }),
+    ]);
+
+    expect(screen.getByText('memory_year_recap_title')).toBeInTheDocument();
+    const actions = container.querySelectorAll<HTMLElement>('[data-testid="year-recap-actions"]');
+    expect(actions).toHaveLength(1);
+    expect(within(actions[0]).getByText('year_recap_stat_trips')).toBeInTheDocument();
+    expect(within(actions[0]).getByText('year_recap_video')).toBeInTheDocument();
+    expect(within(actions[0]).getByText('year_recap_video_vertical')).toBeInTheDocument();
   });
 });

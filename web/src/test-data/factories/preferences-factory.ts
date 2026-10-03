@@ -36,6 +36,9 @@ export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
     sidebarWeb: false,
     types: {},
   },
+  memoryExclusions: {
+    documents: false,
+  },
   people: {
     enabled: false,
     sidebarWeb: false,

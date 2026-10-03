@@ -14607,6 +14607,156 @@
         "x-immich-state": "Stable"
       }
     },
+    "/memory-exclusions": {
+      "get": {
+        "description": "List what the user keeps out of their memories: people and pets, albums and ranges of days, and whether screenshots, receipts and documents are left out. Every memory, and every video, book or collage made of one, leaves these photos out.",
+        "operationId": "getMemoryExclusions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryExclusionsResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "List the memory exclusions",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "userPreference.read",
+        "x-immich-state": "Alpha"
+      },
+      "post": {
+        "description": "Leave a person or a pet, an album or a range of days out of the memories, the memories already made included.",
+        "operationId": "createMemoryExclusion",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryExclusionCreateDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemoryExclusionResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Add a memory exclusion",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "userPreference.update",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/memory-exclusions/{id}": {
+      "delete": {
+        "description": "Let the photos of a memory exclusion back into the memories.",
+        "operationId": "deleteMemoryExclusion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Remove a memory exclusion",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "userPreference.update",
+        "x-immich-state": "Alpha"
+      }
+    },
     "/notifications": {
       "delete": {
         "description": "Delete a list of notifications at once.",
@@ -30917,6 +31067,200 @@
         ],
         "x-immich-permission": "workflow.read"
       }
+    },
+    "/year-recaps/{year}": {
+      "get": {
+        "description": "Get the stats of a year in review (photos, places, people and pets, trips, and what the journals saw), without what the user keeps out of their memories, with its year_recap memory and the book of the year waiting to be kept or discarded, when there are.",
+        "operationId": "getYearRecap",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "path",
+            "description": "The year, e.g. 2026",
+            "schema": {
+              "minimum": 1900,
+              "maximum": 2100,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YearRecapResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Get the recap of a year",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "memory.read",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/year-recaps/{year}/book": {
+      "post": {
+        "description": "Lay out a book of a year in review as a draft, to keep or discard like the suggested books. Without exclusions of its own, the draft waiting for the user is returned when there is one.",
+        "operationId": "createYearRecapBook",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "path",
+            "description": "The year, e.g. 2026",
+            "schema": {
+              "minimum": 1900,
+              "maximum": 2100,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YearRecapBookDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookDraftResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Draft the book of a year",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "book.create",
+        "x-immich-state": "Alpha"
+      }
+    },
+    "/year-recaps/{year}/video": {
+      "post": {
+        "description": "Start a highlight video of a year in review, landscape or vertical, of its photos and videos without what the user keeps out of their memories.",
+        "operationId": "createYearRecapVideo",
+        "parameters": [
+          {
+            "name": "year",
+            "required": true,
+            "in": "path",
+            "description": "The year, e.g. 2026",
+            "schema": {
+              "minimum": 1900,
+              "maximum": 2100,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/YearRecapVideoDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HighlightJobResponseDto"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          },
+          {
+            "cookie": []
+          },
+          {
+            "api_key": []
+          }
+        ],
+        "summary": "Make the highlight video of a year",
+        "tags": [
+          "Memories"
+        ],
+        "x-immich-history": [
+          {
+            "version": "v3.3.0",
+            "state": "Added"
+          },
+          {
+            "version": "v3.3.0",
+            "state": "Alpha"
+          }
+        ],
+        "x-immich-permission": "highlight.create",
+        "x-immich-state": "Alpha"
+      }
     }
   },
   "info": {
@@ -31223,6 +31567,7 @@
           "burst.cleanup",
           "collection.entries",
           "highlight.create",
+          "memoryExclusion.change",
           "sharedLink.create"
         ],
         "type": "string"
@@ -36293,7 +36638,8 @@
         "enum": [
           "yearly",
           "trip",
-          "birthday"
+          "birthday",
+          "recap"
         ],
         "type": "string"
       },
@@ -43178,6 +43524,7 @@
           "BookExport",
           "BookExportHtml",
           "HighlightRender",
+          "YearRecapPrepare",
           "OrientationCheckQueueAll",
           "OrientationCheck",
           "DatabaseBackup",
@@ -43990,6 +44337,168 @@
           "memoryAt",
           "type"
         ],
+        "type": "object"
+      },
+      "MemoryExclusionAlbum": {
+        "properties": {
+          "albumName": {
+            "description": "Album name",
+            "type": "string"
+          },
+          "id": {
+            "description": "Album ID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumName",
+          "id"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionCreateDto": {
+        "properties": {
+          "albumId": {
+            "description": "With type album: an album whose photos are left out",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "endDate": {
+            "description": "With type date_range: the last day left out, included (YYYY-MM-DD)",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          },
+          "personId": {
+            "description": "With type person: one of your people or pets to leave out",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "startDate": {
+            "description": "With type date_range: the first day left out (YYYY-MM-DD, the local time of the photos)",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MemoryExclusionType"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionPerson": {
+        "properties": {
+          "id": {
+            "description": "Person ID",
+            "type": "string"
+          },
+          "isPet": {
+            "description": "Whether it is a pet",
+            "type": "boolean"
+          },
+          "name": {
+            "description": "Name of the person or pet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "isPet",
+          "name"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionResponseDto": {
+        "properties": {
+          "album": {
+            "$ref": "#/components/schemas/MemoryExclusionAlbum",
+            "description": "The album left out"
+          },
+          "createdAt": {
+            "description": "When it was added",
+            "format": "date-time",
+            "type": "string"
+          },
+          "endDate": {
+            "description": "The last day left out, included (YYYY-MM-DD)",
+            "type": "string"
+          },
+          "id": {
+            "description": "Exclusion ID",
+            "type": "string"
+          },
+          "person": {
+            "$ref": "#/components/schemas/MemoryExclusionPerson",
+            "description": "The person or pet left out"
+          },
+          "startDate": {
+            "description": "The first day left out (YYYY-MM-DD)",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MemoryExclusionType"
+          }
+        },
+        "required": [
+          "createdAt",
+          "id",
+          "type"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionType": {
+        "description": "What a memory exclusion leaves out",
+        "enum": [
+          "person",
+          "album",
+          "date_range"
+        ],
+        "type": "string"
+      },
+      "MemoryExclusionsResponse": {
+        "properties": {
+          "documents": {
+            "description": "Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionsResponseDto": {
+        "properties": {
+          "documents": {
+            "description": "Whether screenshots, receipts and documents are left out (the memoryExclusions.documents preference)",
+            "type": "boolean"
+          },
+          "exclusions": {
+            "description": "The people, albums and days left out",
+            "items": {
+              "$ref": "#/components/schemas/MemoryExclusionResponseDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "documents",
+          "exclusions"
+        ],
+        "type": "object"
+      },
+      "MemoryExclusionsUpdate": {
+        "properties": {
+          "documents": {
+            "description": "Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them",
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "MemoryResponseDto": {
@@ -57193,6 +57702,9 @@
           "memories": {
             "$ref": "#/components/schemas/MemoriesResponse"
           },
+          "memoryExclusions": {
+            "$ref": "#/components/schemas/MemoryExclusionsResponse"
+          },
           "people": {
             "$ref": "#/components/schemas/PeopleResponse"
           },
@@ -57222,6 +57734,7 @@
           "emailNotifications",
           "folders",
           "memories",
+          "memoryExclusions",
           "people",
           "purchase",
           "ratings",
@@ -57262,6 +57775,9 @@
           },
           "memories": {
             "$ref": "#/components/schemas/MemoriesUpdate"
+          },
+          "memoryExclusions": {
+            "$ref": "#/components/schemas/MemoryExclusionsUpdate"
           },
           "people": {
             "$ref": "#/components/schemas/PeopleUpdate"
@@ -57768,6 +58284,309 @@
           "trigger": {
             "$ref": "#/components/schemas/WorkflowTrigger",
             "description": "Workflow trigger type"
+          }
+        },
+        "type": "object"
+      },
+      "YearRecapBookDto": {
+        "properties": {
+          "excludeAlbumIds": {
+            "description": "Albums to leave out of this recap",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "excludeDateRanges": {
+            "description": "Days to leave out of this recap",
+            "items": {
+              "$ref": "#/components/schemas/YearRecapDateRange"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "excludeDocuments": {
+            "description": "Leave screenshots, receipts and documents out of this recap, even when the memories keep them",
+            "type": "boolean"
+          },
+          "excludePersonIds": {
+            "description": "People or pets to leave out of this recap, besides the memory exclusions",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "title": {
+            "description": "Title of the book (default \"<year> in review\")",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "YearRecapDateRange": {
+        "properties": {
+          "endDate": {
+            "description": "Last day left out, included (YYYY-MM-DD)",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          },
+          "startDate": {
+            "description": "First day left out (YYYY-MM-DD)",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endDate",
+          "startDate"
+        ],
+        "type": "object"
+      },
+      "YearRecapJournalStats": {
+        "properties": {
+          "entries": {
+            "description": "Its entries, e.g. dishes or artworks",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "places": {
+            "description": "The places of the journal, e.g. restaurants or museums",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "topPlaces": {
+            "description": "The places with the most photos",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "places",
+          "topPlaces"
+        ],
+        "type": "object"
+      },
+      "YearRecapPerson": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "YearRecapResponseDto": {
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/BookDraftResponseDto",
+            "description": "The book of the year waiting to be kept or discarded"
+          },
+          "memoryId": {
+            "description": "The year_recap memory of the year, when there is one",
+            "type": "string"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/YearRecapStats"
+          },
+          "year": {
+            "description": "The year",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stats",
+          "year"
+        ],
+        "type": "object"
+      },
+      "YearRecapStats": {
+        "properties": {
+          "count": {
+            "description": "Photos and videos",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "countries": {
+            "description": "Distinct countries",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "journals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/YearRecapJournalStats"
+            },
+            "description": "What each journal saw, by journal pack id (food, museum, wine, concerts…)",
+            "type": "object"
+          },
+          "people": {
+            "description": "Named people in the photos",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "pets": {
+            "description": "Named pets in the photos",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "photoCount": {
+            "description": "Photos",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "places": {
+            "description": "Distinct cities",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "topPeople": {
+            "description": "The most photographed people",
+            "items": {
+              "$ref": "#/components/schemas/YearRecapPerson"
+            },
+            "type": "array"
+          },
+          "topPets": {
+            "description": "The most photographed pets",
+            "items": {
+              "$ref": "#/components/schemas/YearRecapPerson"
+            },
+            "type": "array"
+          },
+          "topPlaces": {
+            "description": "The most photographed cities",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "topTrips": {
+            "description": "Where the biggest trips went",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trips": {
+            "description": "Trips, from the travel journal or the days away from home",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "videoCount": {
+            "description": "Videos",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          },
+          "year": {
+            "description": "The year",
+            "maximum": 9007199254740991,
+            "minimum": -9007199254740991,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "countries",
+          "journals",
+          "people",
+          "pets",
+          "photoCount",
+          "places",
+          "topPeople",
+          "topPets",
+          "topPlaces",
+          "topTrips",
+          "trips",
+          "videoCount",
+          "year"
+        ],
+        "type": "object"
+      },
+      "YearRecapVideoDto": {
+        "properties": {
+          "durationSeconds": {
+            "description": "Length of the video in seconds",
+            "maximum": 180,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "excludeAlbumIds": {
+            "description": "Albums to leave out of this recap",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "excludeDateRanges": {
+            "description": "Days to leave out of this recap",
+            "items": {
+              "$ref": "#/components/schemas/YearRecapDateRange"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "excludeDocuments": {
+            "description": "Leave screenshots, receipts and documents out of this recap, even when the memories keep them",
+            "type": "boolean"
+          },
+          "excludePersonIds": {
+            "description": "People or pets to leave out of this recap, besides the memory exclusions",
+            "items": {
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "format": {
+            "$ref": "#/components/schemas/HighlightFormat",
+            "description": "Landscape (default) or vertical"
+          },
+          "music": {
+            "description": "An audio file of the user played under the video",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$",
+            "type": "string"
+          },
+          "title": {
+            "description": "Title of the video (default \"<year> in review\")",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
           }
         },
         "type": "object"

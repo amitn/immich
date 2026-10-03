@@ -25,15 +25,26 @@
     memoryId?: string;
     /** the title the dialog starts with, e.g. the name of the album */
     title?: string;
+    /** the shape the dialog starts with, e.g. vertical for the "vertical video" of a year recap (#12) */
+    format?: HighlightFormat;
     onClose: () => void;
   };
 
-  const { albumId, bookId, assetIds, memoryId, title: initialTitle = '', onClose }: Props = $props();
+  const {
+    albumId,
+    bookId,
+    assetIds,
+    memoryId,
+    title: initialTitle = '',
+    format: initialFormat = HighlightFormat.Landscape,
+    onClose,
+  }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let title = $state(initialTitle);
   let durationSeconds = $state<number>(60);
-  let format = $state<HighlightFormat>(HighlightFormat.Landscape);
+  // svelte-ignore state_referenced_locally
+  let format = $state<HighlightFormat>(initialFormat);
 
   const FORMAT_LABELS = {
     [HighlightFormat.Landscape]: { label: 'highlight_video_format_landscape', icon: mdiMonitor },

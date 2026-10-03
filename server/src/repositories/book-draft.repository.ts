@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { type Insertable, type Kysely, type Updateable, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetType, AssetVisibility, BookDraftState, MemoryType } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { BookDraftTable } from 'src/schema/tables/book-draft.table.js';
 import { asUuid } from 'src/utils/database.js';
+import { hasMemoryExclusions, notExcludedFromMemories } from 'src/utils/memory-exclusions.js';
 
 /** Books suggested to users (`book_draft`), and what the suggestions are made from */
 @Injectable()
@@ -66,7 +68,7 @@ export class BookDraftRepository {
 
   /** the collection tags under the prefixes (e.g. `Food/`) on the photos of a user's timeline, with their local time */
   @GenerateSql({ params: [DummyValue.UUID, ['Food/']] })
-  async getCollectionTags(ownerId: string, prefixes: string[]) {
+  async getCollectionTags(ownerId: string, prefixes: string[], exclusions?: MemoryExclusions) {
     if (prefixes.length === 0) {
       return [];
     }
@@ -81,6 +83,8 @@ export class BookDraftRepository {
       .where((eb) => eb.or(prefixes.map((prefix) => eb('tag.value', 'like', `${prefix}%`))))
       .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
       .where('asset.deletedAt', 'is', null)
+      // the photos the user keeps out of their memories (#12)
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime(), value: row.value }));
@@ -88,7 +92,7 @@ export class BookDraftRepository {
 
   /** the photos of a user's timeline with their local time and place, e.g. to find their trips */
   @GenerateSql({ params: [DummyValue.UUID] })
-  async getTimeline(ownerId: string) {
+  async getTimeline(ownerId: string, exclusions?: MemoryExclusions) {
     const rows = await this.db
       .selectFrom('asset')
       .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
@@ -105,6 +109,7 @@ export class BookDraftRepository {
       .where('asset.type', '=', sql.lit(AssetType.Image))
       .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
       .where('asset.deletedAt', 'is', null)
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map(({ localDateTime, ...row }) => ({ ...row, time: localDateTime.getTime() }));
@@ -128,7 +133,13 @@ export class BookDraftRepository {
 
   /** the photos of a user's timeline showing a person, taken between two local times */
   @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID, DummyValue.DATE, DummyValue.DATE] })
-  async getPersonPhotos(ownerId: string, personId: string, takenAfter: Date, takenBefore: Date) {
+  async getPersonPhotos(
+    ownerId: string,
+    personId: string,
+    takenAfter: Date,
+    takenBefore: Date,
+    exclusions?: MemoryExclusions,
+  ) {
     const rows = await this.db
       .selectFrom('asset')
       .select(['asset.id', 'asset.localDateTime'])
@@ -148,6 +159,7 @@ export class BookDraftRepository {
       .where('asset.deletedAt', 'is', null)
       .where('asset.localDateTime', '>=', takenAfter)
       .where('asset.localDateTime', '<', takenBefore)
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!))
       .orderBy('asset.localDateTime', 'asc')
       .execute();
     return rows.map((row) => ({ id: row.id, time: row.localDateTime.getTime() }));
@@ -186,7 +198,16 @@ export class BookDraftRepository {
       personIds = [],
       favoritesOnly = false,
       videosOnly = false,
-    }: { from: Date; to: Date; personIds?: string[]; favoritesOnly?: boolean; videosOnly?: boolean },
+      exclusions,
+    }: {
+      from: Date;
+      to: Date;
+      personIds?: string[];
+      favoritesOnly?: boolean;
+      videosOnly?: boolean;
+      /** what the user keeps out of their memories (#12) */
+      exclusions?: MemoryExclusions;
+    },
   ) {
     let query = this.db
       .selectFrom('asset')
@@ -197,7 +218,8 @@ export class BookDraftRepository {
       .where('asset.localDateTime', '>=', from)
       .where('asset.localDateTime', '<=', to)
       .where('asset.type', 'in', videosOnly ? [AssetType.Video] : [AssetType.Image, AssetType.Video])
-      .$if(favoritesOnly, (qb) => qb.where('asset.isFavorite', '=', true));
+      .$if(favoritesOnly, (qb) => qb.where('asset.isFavorite', '=', true))
+      .$if(hasMemoryExclusions(exclusions), (qb) => qb.where((eb) => notExcludedFromMemories(eb, exclusions)!));
     for (const personId of new Set(personIds)) {
       query = query.where((eb) =>
         eb.exists(

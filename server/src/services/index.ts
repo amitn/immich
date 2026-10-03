@@ -41,6 +41,7 @@ import { LibraryService } from 'src/services/library.service.js';
 import { MaintenanceService } from 'src/services/maintenance.service.js';
 import { MapService } from 'src/services/map.service.js';
 import { MediaService } from 'src/services/media.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
 import { MemoryService } from 'src/services/memory.service.js';
 import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
@@ -79,6 +80,7 @@ import { VersionService } from 'src/services/version.service.js';
 import { ViewService } from 'src/services/view.service.js';
 import { WorkflowExecutionService } from 'src/services/workflow-execution.service.js';
 import { WorkflowService } from 'src/services/workflow.service.js';
+import { YearRecapService } from 'src/services/year-recap.service.js';
 
 export const services = [
   ApiKeyService,
@@ -113,6 +115,7 @@ export const services = [
   FaceSuggestionService,
   EnhanceService,
   CollageService,
+  YearRecapService,
   OrientationService,
   FoodService,
   IntegrityService,
@@ -124,6 +127,7 @@ export const services = [
   MapService,
   MediaService,
   MemoryService,
+  MemoryExclusionService,
   MetadataService,
   NotificationService,
   NotificationAdminService,

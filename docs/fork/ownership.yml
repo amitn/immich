@@ -463,6 +463,8 @@ features:
       - burst-cleanup
       - memory-creations
       - redaction
+      - memory-exclusions
+      - year-recap
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -473,7 +475,6 @@ features:
       - docs/docs/features/ai-assistant.md
       - server/src/bin/agent-host.ts
       - server/src/bin/agent-mcp-stdio.ts
-      - server/src/gallery/assistant-config.dto.ts
       - server/src/controllers/activity-log.controller.spec.ts
       - server/src/controllers/activity-log.controller.ts
       - server/src/controllers/agent-mcp.controller.ts
@@ -497,10 +498,14 @@ features:
       - server/src/controllers/food.controller.ts
       - server/src/controllers/highlight.controller.spec.ts
       - server/src/controllers/highlight.controller.ts
+      - server/src/controllers/memory-exclusion.controller.spec.ts
+      - server/src/controllers/memory-exclusion.controller.ts
       - server/src/controllers/orientation.controller.spec.ts
       - server/src/controllers/orientation.controller.ts
       - server/src/controllers/redaction.controller.spec.ts
       - server/src/controllers/redaction.controller.ts
+      - server/src/controllers/year-recap.controller.spec.ts
+      - server/src/controllers/year-recap.controller.ts
       - server/src/dtos/activity-log.dto.ts
       - server/src/dtos/agent.dto.ts
       - server/src/dtos/art.dto.ts
@@ -511,8 +516,11 @@ features:
       - server/src/dtos/enhance.dto.ts
       - server/src/dtos/food.dto.ts
       - server/src/dtos/highlight.dto.ts
+      - server/src/dtos/memory-exclusion.dto.ts
       - server/src/dtos/orientation.dto.ts
       - server/src/dtos/redaction.dto.ts
+      - server/src/dtos/year-recap.dto.ts
+      - server/src/gallery/assistant-config.dto.ts
       - server/src/queries/activity.log.repository.sql
       - server/src/queries/agent.repository.sql
       - server/src/queries/art.job.repository.sql
@@ -520,6 +528,8 @@ features:
       - server/src/queries/book.repository.sql
       - server/src/queries/collection.notice.repository.sql
       - server/src/queries/highlight.job.repository.sql
+      - server/src/queries/memory.exclusion.repository.sql
+      - server/src/queries/year.recap.repository.sql
       - server/src/repositories/acp.repository.container.spec.ts
       - server/src/repositories/acp.repository.spec.ts
       - server/src/repositories/acp.repository.ts
@@ -536,6 +546,8 @@ features:
       - server/src/repositories/media.repository.enhance.spec.ts
       - server/src/repositories/media.repository.redact.spec.ts
       - server/src/repositories/media.repository.straighten.spec.ts
+      - server/src/repositories/memory-exclusion.repository.ts
+      - server/src/repositories/year-recap.repository.ts
       - server/src/schema/tables/activity-log.table.ts
       - server/src/schema/tables/agent-message.table.ts
       - server/src/schema/tables/agent-session.table.ts
@@ -549,6 +561,7 @@ features:
       - server/src/schema/tables/book.table.ts
       - server/src/schema/tables/collection-notice.table.ts
       - server/src/schema/tables/highlight-job.table.ts
+      - server/src/schema/tables/memory-exclusion.table.ts
       - server/src/services/activity-log.service.spec.ts
       - server/src/services/activity-log.service.ts
       - server/src/services/agent-tool.service.ts
@@ -582,12 +595,18 @@ features:
       - server/src/services/highlight.service.ts
       - server/src/services/improve.service.sharp.spec.ts
       - server/src/services/improve.service.ts
+      - server/src/services/memory-exclusion.service.spec.ts
+      - server/src/services/memory-exclusion.service.ts
+      - server/src/services/memory-rules/year-recap.rule.spec.ts
+      - server/src/services/memory-rules/year-recap.rule.ts
       - server/src/services/memory-source.service.spec.ts
       - server/src/services/memory-source.service.ts
       - server/src/services/orientation.service.spec.ts
       - server/src/services/orientation.service.ts
       - server/src/services/redaction.service.spec.ts
       - server/src/services/redaction.service.ts
+      - server/src/services/year-recap.service.spec.ts
+      - server/src/services/year-recap.service.ts
       - server/src/utils/access-book.spec.ts
       - server/src/utils/activity-log.spec.ts
       - server/src/utils/activity-log.ts
@@ -598,6 +617,8 @@ features:
       - server/src/utils/enhance.ts
       - server/src/utils/highlight/**
       - server/src/utils/image-decode.ts
+      - server/src/utils/memory-exclusions.spec.ts
+      - server/src/utils/memory-exclusions.ts
       - server/src/utils/memory-source.spec.ts
       - server/src/utils/memory-source.ts
       - server/src/utils/orientation.benchmark.spec.ts
@@ -608,6 +629,8 @@ features:
       - server/src/utils/redaction.ts
       - server/src/utils/shared-link.spec.ts
       - server/src/utils/shared-link.ts
+      - server/src/utils/year-recap.spec.ts
+      - server/src/utils/year-recap.ts
       - server/test/factories/book.factory.ts
       - server/test/fixtures/collections/**
       - server/test/fixtures/concerts/**
@@ -631,6 +654,7 @@ features:
       - server/test/medium/specs/services/crop-copy.service.spec.ts
       - server/test/medium/specs/services/memory-creations.service.spec.ts
       - server/test/medium/specs/services/redaction.service.spec.ts
+      - server/test/medium/specs/services/memory-exclusions.service.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte
       - web/src/lib/components/activity-log/**
@@ -640,6 +664,7 @@ features:
       - web/src/lib/components/journals/JournalEntryEditor.svelte
       - web/src/lib/components/layouts/UserPageLayout.spec.ts
       - web/src/lib/components/memory-creations/**
+      - web/src/lib/components/memory-exclusions/**
       - web/src/lib/components/orientation/**
       - web/src/lib/components/pages/SharedLinkPage.spec.ts
       - web/src/lib/components/search/AskLibraryPanel.spec.ts
@@ -726,6 +751,8 @@ features:
       - web/src/lib/utils/library-questions.ts
       - web/src/lib/utils/markdown.spec.ts
       - web/src/lib/utils/markdown.ts
+      - web/src/lib/utils/memory-exclusions.spec.ts
+      - web/src/lib/utils/memory-exclusions.ts
       - web/src/lib/utils/notification.spec.ts
       - web/src/lib/utils/notification.ts
       - web/src/lib/utils/redaction.spec.ts
@@ -876,6 +903,7 @@ features:
         - activity_log
         - collection_notice
         - collection_notice_check
+        - memory_exclusion
       migration_globs:
         - server/src/schema/migrations-gallery/1794000000000-AiAssistant.ts
         - server/src/schema/migrations-gallery/1794100000000-AgentSessionAutoApprove.ts
@@ -890,6 +918,7 @@ features:
         - server/src/schema/migrations-gallery/1795000000000-CollectionNotices.ts
         - server/src/schema/migrations-gallery/1795100000000-BookDraftMemory.ts
         - server/src/schema/migrations-gallery/1795300000000-SharedLinkRedaction.ts
+        - server/src/schema/migrations-gallery/1795400000000-MemoryExclusions.ts
     required_checks: [e2e-rebase-smoke]
 
 checks:

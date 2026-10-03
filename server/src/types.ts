@@ -570,6 +570,7 @@ export type JobItem =
   // Collections
   | { name: JobName.CollectionNoticesQueueAll; data?: IBaseJob }
   | { name: JobName.CollectionNoticesCheck; data: IEntityJob }
+  | { name: JobName.YearRecapPrepare; data: IEntityJob }
   | { name: JobName.BookExport; data: IEntityJob }
   | { name: JobName.BookExportHtml; data: IEntityJob }
 
@@ -851,6 +852,10 @@ export type UserPreferences = {
   };
   collectionNotifications: {
     enabled: boolean;
+  };
+  /** what is kept out of the memories besides the people, days and albums of `memory_exclusion` (#12) */
+  memoryExclusions: {
+    documents: boolean;
   };
 };
 
