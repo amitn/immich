@@ -4,18 +4,7 @@ import { OnJob } from 'src/decorators.js';
 import { AuthDto } from 'src/dtos/auth.dto.js';
 import { BookDraftResponseDto, BookResponseDto, mapBook } from 'src/dtos/book.dto.js';
 import { SystemConfig } from 'src/dtos/config.dto.js';
-import { mapNotification } from 'src/dtos/notification.dto.js';
-import {
-  ActivityLogAction,
-  BookDraftState,
-  BookStatus,
-  JobName,
-  JobStatus,
-  NotificationLevel,
-  NotificationType,
-  Permission,
-  QueueName,
-} from 'src/enum.js';
+import { ActivityLogAction, BookDraftState, BookStatus, JobName, JobStatus, Permission, QueueName } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
 import { BookService } from 'src/services/book.service.js';
 import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
@@ -207,21 +196,17 @@ export class BookDraftService extends BaseService {
     });
   }
 
-  /** claims the key, lays out the book and notifies the user; false when the key was taken or the layout failed */
+  /** claims the key and lays out the book; false when the key was taken or the layout failed */
   private async draftBook(auth: AuthDto, candidate: DraftCandidate): Promise<boolean> {
-    return !!(await this.draftCandidate(auth, candidate, { notify: true }));
+    return !!(await this.draftCandidate(auth, candidate));
   }
 
   /**
-   * Drafts one suggestion: claims its key, lays out the book, and notifies the user unless asked not to (the year
-   * recap sends its own notification, #12). Returns the id of the book, or undefined when the key was taken or the
-   * layout failed (the suggestion is then made again next time).
+   * Drafts one suggestion: claims its key and lays out the book. Returns the id of the book, or undefined when the key
+   * was taken or the layout failed (the suggestion is then made again next time). The user is told of a draft waiting
+   * for them by the memory notifier, at their time of day and at most one notification a day (#6).
    */
-  async draftCandidate(
-    auth: AuthDto,
-    candidate: DraftCandidate,
-    { notify = true }: { notify?: boolean } = {},
-  ): Promise<string | undefined> {
+  async draftCandidate(auth: AuthDto, candidate: DraftCandidate): Promise<string | undefined> {
     const claimed = await this.bookDraftRepository.claim({
       ownerId: auth.user.id,
       key: candidate.key,
@@ -244,9 +229,6 @@ export class BookDraftService extends BaseService {
         targetPageCount: getDraftPageCount(candidate.assetIds.length),
       });
       await this.bookDraftRepository.update(claimed.id, { bookId: book.id });
-      if (notify) {
-        await this.notify(auth.user.id, book.id, candidate);
-      }
       return book.id;
     } catch (error: any) {
       // the suggestion is made again on the next run
@@ -255,22 +237,6 @@ export class BookDraftService extends BaseService {
       );
       await this.bookDraftRepository.delete(claimed.id);
       return;
-    }
-  }
-
-  private async notify(userId: string, bookId: string, candidate: DraftCandidate) {
-    try {
-      const notification = await this.notificationRepository.create({
-        userId,
-        type: NotificationType.Custom,
-        level: NotificationLevel.Info,
-        title: `A new photo book is ready to review: ${candidate.title}`,
-        description: candidate.reason,
-        data: JSON.stringify({ bookId }),
-      });
-      this.websocketRepository.clientSend('on_notification', userId, mapNotification(notification));
-    } catch (error: any) {
-      this.logger.warn(`Unable to notify user ${userId} of the book ${bookId}: ${error?.message ?? error}`);
     }
   }
 

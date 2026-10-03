@@ -5,6 +5,7 @@ import React, { createElement } from 'react';
 import type { EmailImageAttachment } from 'src/types.js';
 import { AlbumInviteEmail } from 'src/emails/album-invite.email.js';
 import { AlbumUpdateEmail } from 'src/emails/album-update.email.js';
+import { MemoryDigestEmail } from 'src/emails/memory-digest.email.js';
 import { TestEmail } from 'src/emails/test.email.js';
 import { WelcomeEmail } from 'src/emails/welcome.email.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
@@ -39,6 +40,9 @@ export enum EmailTemplate {
   // ALBUM
   ALBUM_INVITE = 'album-invite',
   ALBUM_UPDATE = 'album-update',
+
+  // Gallery fork (#6): the weekly digest of the memories, the waiting drafts and the new journal visits
+  MEMORY_DIGEST = 'memory-digest',
 }
 
 interface BaseEmailProps {
@@ -71,6 +75,15 @@ export interface AlbumUpdateEmailProps extends BaseEmailProps {
   cid?: string;
 }
 
+export type MemoryDigestItem = { title: string; subtitle?: string; url: string };
+
+export interface MemoryDigestEmailProps extends BaseEmailProps {
+  recipientName: string;
+  memories: MemoryDigestItem[];
+  drafts: MemoryDigestItem[];
+  visits: MemoryDigestItem[];
+}
+
 export type EmailRenderRequest =
   | {
       template: EmailTemplate.TEST_EMAIL;
@@ -90,6 +103,11 @@ export type EmailRenderRequest =
   | {
       template: EmailTemplate.ALBUM_UPDATE;
       data: AlbumUpdateEmailProps;
+      customTemplate: string;
+    }
+  | {
+      template: EmailTemplate.MEMORY_DIGEST;
+      data: MemoryDigestEmailProps;
       customTemplate: string;
     };
 
@@ -153,6 +171,10 @@ export class EmailRepository {
 
       case EmailTemplate.ALBUM_UPDATE: {
         return createElement(AlbumUpdateEmail, { ...data, customTemplate });
+      }
+
+      case EmailTemplate.MEMORY_DIGEST: {
+        return createElement(MemoryDigestEmail, { ...data, customTemplate });
       }
     }
   }

@@ -42,6 +42,7 @@ import { MaintenanceService } from 'src/services/maintenance.service.js';
 import { MapService } from 'src/services/map.service.js';
 import { MediaService } from 'src/services/media.service.js';
 import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
+import { MemoryNoticeService } from 'src/services/memory-notice.service.js';
 import { MemoryService } from 'src/services/memory.service.js';
 import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
@@ -128,6 +129,7 @@ export const services = [
   MediaService,
   MemoryService,
   MemoryExclusionService,
+  MemoryNoticeService,
   MetadataService,
   NotificationService,
   NotificationAdminService,

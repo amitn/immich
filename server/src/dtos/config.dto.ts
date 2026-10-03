@@ -37,6 +37,7 @@ import {
   AssistantBooksSchema,
   AssistantCollectionsSchema,
   AssistantFoodSchema,
+  AssistantMemoryNotificationsSchema,
   assistantTopLevelDefaults,
 } from 'src/gallery/assistant-config.dto.js';
 import {
@@ -445,6 +446,7 @@ const AdminConfigSchemaWithVisibility = z
       .meta({ id: 'AdminConfigUserDto' }),
     classification: GalleryClassificationSchema,
     memories: GalleryMemoriesSchema,
+    memoryNotifications: AssistantMemoryNotificationsSchema,
     storageUsage: GalleryStorageUsageSchema,
   })
   .describe('Configuration properties that are visible to the admin')

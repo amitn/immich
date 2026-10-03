@@ -571,6 +571,8 @@ export type JobItem =
   | { name: JobName.CollectionNoticesQueueAll; data?: IBaseJob }
   | { name: JobName.CollectionNoticesCheck; data: IEntityJob }
   | { name: JobName.YearRecapPrepare; data: IEntityJob }
+  | { name: JobName.MemoryNoticesQueueAll; data?: IBaseJob }
+  | { name: JobName.MemoryNoticesSend; data: IEntityJob }
   | { name: JobName.BookExport; data: IEntityJob }
   | { name: JobName.BookExportHtml; data: IEntityJob }
 
@@ -856,6 +858,23 @@ export type UserPreferences = {
   /** what is kept out of the memories besides the people, days and albums of `memory_exclusion` (#12) */
   memoryExclusions: {
     documents: boolean;
+  };
+  /** the notifications of the memories, the creations and the drafts, and the weekly email digest (#6) */
+  memoryNotifications: {
+    /** a memory of the day (on this day, a trip anniversary…); at most one notification a day, with the drafts */
+    memories: boolean;
+    /** a video, a book or an artwork the user asked for is ready */
+    creations: boolean;
+    /** a suggested photo book is waiting to be kept or discarded; shares the one a day with the memories */
+    drafts: boolean;
+    /** the hour of the day (0–23, in `timeZone`) from which the notification of the day and the digest are sent */
+    hour: number;
+    /** the IANA time zone of `hour` (the web sends the browser's); the server's when empty */
+    timeZone: string;
+    /** a weekly email of the week's memories, waiting drafts and new journal visits */
+    digest: boolean;
+    /** the ISO weekday of the digest, 1 (Monday) to 7 (Sunday) */
+    digestDay: number;
   };
 };
 

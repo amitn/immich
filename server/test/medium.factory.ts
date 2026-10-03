@@ -61,6 +61,7 @@ import { MachineLearningRepository } from 'src/repositories/machine-learning.rep
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
 import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { MemoryNoticeRepository } from 'src/repositories/memory-notice.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { NotificationRepository } from 'src/repositories/notification.repository.js';
@@ -639,6 +640,7 @@ const newRealRepository = <T extends BaseServiceDeps[number]>(key: T, db: Kysely
     case BookDraftRepository:
     case CollectionNoticeRepository:
     case MemoryExclusionRepository:
+    case MemoryNoticeRepository:
     case YearRecapRepository:
     case AlbumRepository:
     case AlbumUserRepository:
@@ -750,6 +752,7 @@ const newMockRepository = <T>(key: ClassConstructor<T>) => {
     case LibraryRepository:
     case MemoryRepository:
     case MemoryExclusionRepository:
+    case MemoryNoticeRepository:
     case YearRecapRepository:
     case IntegrityRepository:
     case NotificationRepository:

@@ -75,7 +75,7 @@ export class YearRecapService extends BaseService {
       return JobStatus.Skipped;
     }
     const preferences = getPreferences(user.metadata ?? []);
-    const { books, memories } = await this.getConfig({ withCache: true });
+    const { books, memories, memoryNotifications } = await this.getConfig({ withCache: true });
     if (
       !getAdminAvailableMemoryTypeKeys(memories).has(YEAR_RECAP_RULE_ID) ||
       !isMemoryTypeEnabledForUser(preferences.memories.types, YEAR_RECAP_RULE_ID)
@@ -94,6 +94,10 @@ export class YearRecapService extends BaseService {
       }
     }
 
+    // the user's memory notifications (#6): this one is not limited to one a day, it comes once a year
+    if (!memoryNotifications.enabled || !preferences.memoryNotifications.memories) {
+      return JobStatus.Success;
+    }
     const stats = (memory.data as { context?: YearRecapStats }).context;
     try {
       const notification = await this.notificationRepository.create({
@@ -236,22 +240,18 @@ export class YearRecapService extends BaseService {
     const key = keys.has(baseKey) ? `${baseKey}:${Date.now()}` : baseKey;
     const stats = await this.getStats(auth.user.id, year, exclusions);
     const assetIds = pickSpread(photos, MAX_DRAFT_PHOTOS).map(({ id }) => id);
-    const bookId = await this.drafts.draftCandidate(
-      auth,
-      {
-        key,
-        kind: BookDraftKind.Recap,
-        title: dto.title ?? getYearRecapTitle(year),
-        subtitle: String(year),
-        reason: `Your ${year}: ${describeYearRecap(stats)}`,
-        stylePreset: 'classic',
-        includeMaps: false,
-        assetIds,
-        endsAt: Date.UTC(year, 11, 31, 23, 59, 59),
-        ...(memoryId && { memoryId }),
-      },
-      { notify: false },
-    );
+    const bookId = await this.drafts.draftCandidate(auth, {
+      key,
+      kind: BookDraftKind.Recap,
+      title: dto.title ?? getYearRecapTitle(year),
+      subtitle: String(year),
+      reason: `Your ${year}: ${describeYearRecap(stats)}`,
+      stylePreset: 'classic',
+      includeMaps: false,
+      assetIds,
+      endsAt: Date.UTC(year, 11, 31, 23, 59, 59),
+      ...(memoryId && { memoryId }),
+    });
     if (!bookId) {
       return;
     }
