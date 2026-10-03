@@ -31568,7 +31568,10 @@
           "collection.entries",
           "highlight.create",
           "memoryExclusion.change",
-          "sharedLink.create"
+          "sharedLink.create",
+          "space.addAssets",
+          "workflow.create",
+          "workflow.update"
         ],
         "type": "string"
       },
