@@ -84,7 +84,9 @@ export class WorkflowRepository {
               'plugin_method.types as types',
               'plugin_method.hostFunctions',
               'plugin_method.allowedHosts',
-            ]),
+            ])
+            // Gallery (#11): the steps run in their order, or an action could run before the filters meant to stop it
+            .orderBy('workflow_step.order', 'asc'),
         ).as('steps'),
       ])
       .where('id', '=', id)
