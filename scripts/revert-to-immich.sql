@@ -564,7 +564,7 @@ DELETE FROM "kysely_migrations"
   '1794900000000-ActivityLog',
   '1795000000000-CollectionNotices',
   '1795100000000-BookDraftMemory',
-  '1795300000000-MemoryExclusions',
+  '1795400000000-MemoryExclusions',
 
    -- Pre-rename names for two migrations that were renumbered off timestamp collisions
    -- ("renumber AddFaceRepairScanFlaggedFace off the #722 collision",
@@ -649,7 +649,7 @@ BEGIN
       OR "name" = '1794900000000-ActivityLog'
       OR "name" = '1795000000000-CollectionNotices'
       OR "name" = '1795100000000-BookDraftMemory'
-      OR "name" = '1795300000000-MemoryExclusions';
+      OR "name" = '1795400000000-MemoryExclusions';
   IF fork_rows_left > 0 THEN
     RAISE EXCEPTION 'revert-to-immich: % Gallery row(s) still present in kysely_migrations after cleanup — aborting.', fork_rows_left;
   END IF;
