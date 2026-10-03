@@ -56,6 +56,32 @@ describe(EmailRepository.name, () => {
       expect(result.text).toContain('Vacation');
     });
 
+    it('should render the weekly digest with its sections and links (#6)', async () => {
+      const request: EmailRenderRequest = {
+        template: EmailTemplate.MEMORY_DIGEST,
+        data: {
+          baseUrl: 'http://localhost',
+          recipientName: 'Jane',
+          memories: [
+            { title: 'Your trip to Lisbon', subtitle: '1–5 October 2023', url: 'http://localhost/memories/1' },
+          ],
+          drafts: [],
+          visits: [{ title: 'Name the dishes from last night?', url: 'http://localhost/photos/2' }],
+        },
+        customTemplate: '',
+      };
+
+      const result = await sut.renderEmail(request);
+
+      expect(result.html).toContain('<!DOCTYPE html PUBLIC');
+      expect(result.html).toContain('http://localhost/memories/1');
+      expect(result.text).toContain('Your trip to Lisbon');
+      expect(result.text).toContain('Name the dishes from last night?');
+      expect(result.text.toLowerCase()).toContain('new journal visits to name');
+      // an empty section is left out
+      expect(result.text.toLowerCase()).not.toContain('photo books waiting for you');
+    });
+
     it('should render the email correctly for ALBUM_UPDATE template', async () => {
       const request: EmailRenderRequest = {
         template: EmailTemplate.ALBUM_UPDATE,

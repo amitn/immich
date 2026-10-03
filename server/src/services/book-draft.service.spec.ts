@@ -9,8 +9,6 @@ import {
   JobName,
   JobStatus,
   MemoryType,
-  NotificationLevel,
-  NotificationType,
   UserMetadataKey,
 } from 'src/enum.js';
 import { BookDraftService, MAX_PENDING_DRAFTS } from 'src/services/book-draft.service.js';
@@ -93,7 +91,7 @@ describe(BookDraftService.name, () => {
   });
 
   describe('draftBooks', () => {
-    it('should draft a new book, record its key and notify the user', async () => {
+    it('should draft a new book and record its key, and leave telling the user to the memory notifier (#6)', async () => {
       mocks.bookDraft.getCollectionTags.mockResolvedValue(foodYear());
 
       await expect(sut.draftBooks(auth, drafts, NOW)).resolves.toEqual(['food:2025']);
@@ -112,15 +110,7 @@ describe(BookDraftService.name, () => {
       );
       const [{ book }] = await Promise.all(createDraft.mock.results.map((result) => result.value));
       expect(mocks.bookDraft.update).toHaveBeenCalledWith(expect.any(String), { bookId: book.id });
-      expect(mocks.notification.create).toHaveBeenCalledWith({
-        userId: auth.user.id,
-        type: NotificationType.Custom,
-        level: NotificationLevel.Info,
-        title: 'A new photo book is ready to review: 2025 in food',
-        description: 'You visited 3 restaurants in 2025 and photographed 15 dishes',
-        data: JSON.stringify({ bookId: book.id }),
-      });
-      expect(mocks.websocket.clientSend).toHaveBeenCalledWith('on_notification', auth.user.id, expect.anything());
+      expect(mocks.notification.create).not.toHaveBeenCalled();
     });
 
     it('should be idempotent: a key is never drafted twice', async () => {
