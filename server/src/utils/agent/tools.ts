@@ -16,6 +16,8 @@ export type AgentToolContext = {
   sessionId: string | null;
   /** records the changes the call makes in the activity log, so the user can undo them */
   activity?: ActivityRecorder;
+  /** the routine run that made the call, for a headless run of an assistant routine (#15) */
+  routineRunId?: string;
 };
 
 export type AgentTool<S extends z.ZodObject = z.ZodObject> = {

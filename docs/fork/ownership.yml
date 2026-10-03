@@ -466,6 +466,7 @@ features:
       - memory-exclusions
       - year-recap
       - smart-albums
+      - assistant-routines
     risk: high
     domains: [server, web, database]
     owned_paths:
@@ -505,6 +506,8 @@ features:
       - server/src/controllers/orientation.controller.ts
       - server/src/controllers/redaction.controller.spec.ts
       - server/src/controllers/redaction.controller.ts
+      - server/src/controllers/routine.controller.spec.ts
+      - server/src/controllers/routine.controller.ts
       - server/src/controllers/year-recap.controller.spec.ts
       - server/src/controllers/year-recap.controller.ts
       - server/src/dtos/activity-log.dto.ts
@@ -520,6 +523,7 @@ features:
       - server/src/dtos/memory-exclusion.dto.ts
       - server/src/dtos/orientation.dto.ts
       - server/src/dtos/redaction.dto.ts
+      - server/src/dtos/routine.dto.ts
       - server/src/dtos/year-recap.dto.ts
       - server/src/gallery/assistant-config.dto.ts
       - server/src/queries/activity.log.repository.sql
@@ -530,6 +534,7 @@ features:
       - server/src/queries/collection.notice.repository.sql
       - server/src/queries/highlight.job.repository.sql
       - server/src/queries/memory.exclusion.repository.sql
+      - server/src/queries/routine.repository.sql
       - server/src/queries/year.recap.repository.sql
       - server/src/repositories/acp.repository.container.spec.ts
       - server/src/repositories/acp.repository.spec.ts
@@ -548,12 +553,14 @@ features:
       - server/src/repositories/media.repository.redact.spec.ts
       - server/src/repositories/media.repository.straighten.spec.ts
       - server/src/repositories/memory-exclusion.repository.ts
+      - server/src/repositories/routine.repository.ts
       - server/src/repositories/year-recap.repository.ts
       - server/src/schema/tables/activity-log.table.ts
       - server/src/schema/tables/agent-message.table.ts
       - server/src/schema/tables/agent-session.table.ts
       - server/src/schema/tables/art-job.table.ts
       - server/src/schema/tables/art-style.table.ts
+      - server/src/schema/tables/assistant-routine.table.ts
       - server/src/schema/tables/book-draft.table.ts
       - server/src/schema/tables/book-page-asset.table.ts
       - server/src/schema/tables/book-page.table.ts
@@ -606,6 +613,8 @@ features:
       - server/src/services/orientation.service.ts
       - server/src/services/redaction.service.spec.ts
       - server/src/services/redaction.service.ts
+      - server/src/services/routine.service.spec.ts
+      - server/src/services/routine.service.ts
       - server/src/services/year-recap.service.spec.ts
       - server/src/services/year-recap.service.ts
       - server/src/utils/access-book.spec.ts
@@ -628,6 +637,8 @@ features:
       - server/src/utils/preferences-ai-answers.spec.ts
       - server/src/utils/redaction.spec.ts
       - server/src/utils/redaction.ts
+      - server/src/utils/routines.spec.ts
+      - server/src/utils/routines.ts
       - server/src/utils/shared-link.spec.ts
       - server/src/utils/shared-link.ts
       - server/src/utils/year-recap.spec.ts
@@ -656,6 +667,7 @@ features:
       - server/test/medium/specs/services/memory-creations.service.spec.ts
       - server/test/medium/specs/services/redaction.service.spec.ts
       - server/test/medium/specs/services/memory-exclusions.service.spec.ts
+      - server/test/medium/specs/services/routine.service.spec.ts
       - server/test/medium/specs/workflow/workflow-smart-album.spec.ts
       - web/src/lib/components/HighlightProgress.spec.ts
       - web/src/lib/components/HighlightProgress.svelte

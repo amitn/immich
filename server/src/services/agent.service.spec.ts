@@ -1,7 +1,14 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import z from 'zod';
 import { defaults } from 'src/dtos/config.dto.js';
-import { AgentMessageKind, AgentMessageRole, AgentSessionStatus } from 'src/enum.js';
+import {
+  AgentMessageKind,
+  AgentMessageRole,
+  AgentSessionStatus,
+  RoutineApprovalMode,
+  RoutineApprovalStatus,
+  RoutineRunStatus,
+} from 'src/enum.js';
 import {
   AcpAgent,
   AcpClientHandlers,
@@ -16,6 +23,7 @@ import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { ASSISTANT_INSTRUCTIONS, QUICK_ANSWER_INSTRUCTIONS } from 'src/utils/agent/instructions.js';
 import { defineTool, toolJson } from 'src/utils/agent/tools.js';
 import { clearConfigCache } from 'src/utils/config.js';
+import { hashRoutineToken } from 'src/utils/routines.js';
 import { factory } from 'test/small.factory.js';
 import { ServiceMocks, newTestService } from 'test/utils.js';
 
@@ -46,6 +54,10 @@ const writeTool = defineTool({
   mutating: true,
   handler: vi.fn(() => Promise.resolve(toolJson({ albumId: '1d7b2c4e-9f5a-4d3b-8e2c-7a6f5e4d3c2b' }))),
 });
+
+/** the JSON of a tool result */
+const textOf = (result: { content: Array<{ type: string; text?: string }> }) =>
+  JSON.parse(result.content[0].text ?? '{}');
 
 const deferred = <T>() => Promise.withResolvers<T>();
 
@@ -152,6 +164,17 @@ describe(AgentService.name, () => {
     await sut.prompt(auth, sessionId, { text });
     await settle();
   };
+
+  /** a headless run (#15) of the session */
+  const runHeadless = (session: ReturnType<typeof newSession>, options: Record<string, unknown> = {}) =>
+    sut.runHeadless({
+      session,
+      text: 'THE PROMPT',
+      displayText: 'Name the dishes',
+      token: 'routine-token',
+      timeoutMs: 60_000,
+      ...options,
+    });
 
   beforeEach(() => {
     ({ sut, mocks } = newTestService(AgentService));
@@ -894,8 +917,26 @@ describe(AgentService.name, () => {
   describe('authenticateMcp', () => {
     it('should reject a missing or unknown token', async () => {
       mocks.acp.getMcpToken.mockReturnValue(undefined);
+      mocks.routine.getRunByTokenHash.mockResolvedValue(undefined);
       await expect(sut.authenticateMcp(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
       await expect(sut.authenticateMcp('Bearer nope')).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(mocks.routine.getRunByTokenHash).toHaveBeenCalledWith(hashRoutineToken('nope'));
+    });
+
+    it('should resolve the token of a running routine run by its hash (#15)', async () => {
+      mocks.acp.getMcpToken.mockReturnValue(undefined);
+      mocks.routine.getRunByTokenHash.mockResolvedValue({
+        id: 'run-1',
+        ownerId: auth.user.id,
+        sessionId: 'session-1',
+      } as never);
+      mocks.agent.getAuthUser.mockResolvedValue(auth.user as never);
+      await expect(sut.authenticateMcp('Bearer routine-token')).resolves.toEqual({
+        auth: { user: auth.user },
+        sessionId: 'session-1',
+        routineRunId: 'run-1',
+      });
+      expect(mocks.routine.getRunByTokenHash).toHaveBeenCalledWith(hashRoutineToken('routine-token'));
     });
 
     it('should resolve the session owner', async () => {
@@ -923,6 +964,248 @@ describe(AgentService.name, () => {
       expect(fake.agent.kill).toHaveBeenCalled();
       expect(mocks.acp.revokeMcpToken).toHaveBeenCalledWith('token-1');
       expect(mocks.agent.deleteSession).toHaveBeenCalledWith(session.id);
+    });
+  });
+
+  describe('routine runs (#15)', () => {
+    const input = { name: 'Italy', assetIds: ['5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10'] };
+    const context = { auth, sessionId: 'session-1', routineRunId: 'run-1' };
+    const runRow = (overrides: Record<string, unknown> = {}) =>
+      ({
+        id: 'run-1',
+        ownerId: auth.user.id,
+        sessionId: 'session-1',
+        status: RoutineRunStatus.Running,
+        approvalMode: RoutineApprovalMode.Ask,
+        toolCalls: 1,
+        limits: { runsPerDay: 4, minutes: 15, toolCalls: 100 },
+        ...overrides,
+      }) as never;
+
+    const unsafeTool = defineTool({
+      name: 'clean_up_bursts',
+      title: 'Clean up bursts',
+      description: 'Archive the rest of each burst',
+      input: z.object({ assetIds: z.array(z.string()) }),
+      mutating: true,
+      handler: vi.fn(() => Promise.resolve(toolJson({ archived: 3 }))),
+    });
+    const draftTool = defineTool({
+      name: 'create_book',
+      title: 'Create book',
+      description: 'Create a book',
+      input: z.object({ title: z.string() }),
+      mutating: false,
+      handler: vi.fn(() => Promise.resolve(toolJson({ bookId: 'book-1' }))),
+    });
+
+    beforeEach(() => {
+      vi.mocked(writeTool.handler).mockClear();
+      vi.mocked(unsafeTool.handler).mockClear();
+      vi.mocked(draftTool.handler).mockClear();
+      mocks.routine.createApproval.mockImplementation((values) =>
+        Promise.resolve({ id: 'approval-1', ...values } as never),
+      );
+      mocks.routine.countChanges.mockResolvedValue();
+    });
+
+    it('should queue a change in Ask me without making it, until the approval expires', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow());
+      const before = Date.now();
+
+      const result = await sut.runTool(context, writeTool, input);
+
+      expect(writeTool.handler).not.toHaveBeenCalled();
+      expect(result.isError).toBeUndefined();
+      expect(textOf(result)).toMatchObject({ queued: true, changeId: 'approval-1' });
+      expect(mocks.routine.createApproval).toHaveBeenCalledWith({
+        runId: 'run-1',
+        ownerId: auth.user.id,
+        toolName: 'create_album',
+        title: 'Create album',
+        summary: 'Name: Italy · 1 photo',
+        input,
+        status: RoutineApprovalStatus.Pending,
+        expiresAt: expect.any(Date),
+      });
+      const { expiresAt } = mocks.routine.createApproval.mock.calls[0][0] as { expiresAt: Date };
+      expect(expiresAt.getTime() - before).toBeGreaterThanOrEqual(7 * 24 * 60 * 60 * 1000 - 1000);
+      // nothing is asked in a chat window
+      expect(messages().some((message) => message.kind === AgentMessageKind.Permission)).toBe(false);
+    });
+
+    it('should queue changes in Ask me even when the chat writes are auto-approved', async () => {
+      setConfig({ autoApproveWrites: true });
+      mocks.routine.countToolCall.mockResolvedValue(runRow());
+
+      await sut.runTool(context, writeTool, input);
+
+      expect(writeTool.handler).not.toHaveBeenCalled();
+      expect(mocks.routine.createApproval).toHaveBeenCalled();
+    });
+
+    it('should run read-only tools in every mode', async () => {
+      for (const approvalMode of Object.values(RoutineApprovalMode)) {
+        mocks.routine.countToolCall.mockResolvedValue(runRow({ approvalMode }));
+        const result = await sut.runTool(context, readTool, { query: 'beach' });
+        expect(textOf(result)).toEqual({ assets: [{ id: '5c3cbd27-5c0d-4f26-8b5a-3b1d6a8f3b10' }] });
+      }
+      expect(mocks.routine.createApproval).not.toHaveBeenCalled();
+    });
+
+    it('should make the safe changes right away in Auto-approve safe actions, in the run group', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow({ approvalMode: RoutineApprovalMode.AutoSafe }));
+      recordChanges('change-1', 'change-2');
+
+      const result = await sut.runTool(context, writeTool, input);
+
+      expect(textOf(result)).toEqual({ ok: true });
+      const [ctx] = vi.mocked(writeTool.handler).mock.calls[0];
+      expect(ctx.activity?.origin).toEqual({
+        source: 'assistant',
+        sessionId: 'session-1',
+        toolName: 'create_album',
+        groupId: 'run-1',
+      });
+      expect(mocks.routine.countChanges).toHaveBeenCalledWith('run-1', 2);
+      expect(mocks.routine.createApproval).not.toHaveBeenCalled();
+    });
+
+    it('should queue the changes outside the allow-list in Auto-approve safe actions', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow({ approvalMode: RoutineApprovalMode.AutoSafe }));
+
+      const result = await sut.runTool(context, unsafeTool, { assetIds: ['a'] });
+
+      expect(unsafeTool.handler).not.toHaveBeenCalled();
+      expect(textOf(result)).toMatchObject({ queued: true });
+      expect(mocks.routine.createApproval).toHaveBeenCalledWith(
+        expect.objectContaining({ toolName: 'clean_up_bursts', status: RoutineApprovalStatus.Pending }),
+      );
+    });
+
+    it('should only report the changes of a dry run, book drafts included', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow({ approvalMode: RoutineApprovalMode.DryRun }));
+
+      const album = await sut.runTool(context, writeTool, input);
+      const book = await sut.runTool(context, draftTool, { title: 'Wedding' });
+
+      expect(writeTool.handler).not.toHaveBeenCalled();
+      expect(draftTool.handler).not.toHaveBeenCalled();
+      expect(textOf(album)).toMatchObject({ dryRun: true });
+      expect(textOf(book)).toMatchObject({ dryRun: true });
+      expect(mocks.routine.createApproval).toHaveBeenCalledWith(
+        expect.objectContaining({ toolName: 'create_album', status: RoutineApprovalStatus.DryRun }),
+      );
+      expect(mocks.routine.createApproval).toHaveBeenCalledWith(
+        expect.objectContaining({ toolName: 'create_book', status: RoutineApprovalStatus.DryRun }),
+      );
+    });
+
+    it('should let a run of Ask me shape its own book drafts, like the chat', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow());
+      await sut.runTool(context, draftTool, { title: 'Wedding' });
+      expect(draftTool.handler).toHaveBeenCalled();
+    });
+
+    it('should stop at the limit of tool calls', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow({ toolCalls: 101 }));
+
+      const result = await sut.runTool(context, readTool, { query: 'beach' });
+
+      expect(result).toEqual({
+        isError: true,
+        content: [{ type: 'text', text: expect.stringContaining('limit of 100') }],
+      });
+    });
+
+    it('should refuse the calls of a run that ended', async () => {
+      mocks.routine.countToolCall.mockResolvedValue(runRow({ status: RoutineRunStatus.Succeeded }));
+      const result = await sut.runTool(context, readTool, { query: 'beach' });
+      expect(result.isError).toBe(true);
+
+      mocks.routine.countToolCall.mockResolvedValue(undefined);
+      await expect(sut.runTool(context, readTool, { query: 'beach' })).resolves.toMatchObject({ isError: true });
+    });
+
+    describe('runHeadless', () => {
+      it('should run one turn without a chat window, with the run token, and return the summary', async () => {
+        const session = newSession();
+        const pending = runHeadless(session);
+        await settle();
+
+        expect(mocks.acp.issueMcpToken).not.toHaveBeenCalled();
+        expect(fake.agent.newSession).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mcpServers: [
+              expect.objectContaining({ headers: [{ name: 'Authorization', value: 'Bearer routine-token' }] }),
+            ],
+          }),
+        );
+        expect(fake.agent.prompt).toHaveBeenCalledWith('acp-session', [
+          { type: 'text', text: expect.stringContaining('THE PROMPT') },
+        ]);
+        expect(messages()[0]).toMatchObject({ role: AgentMessageRole.User, content: { text: 'Name the dishes' } });
+
+        await send({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Named 3 dishes' } });
+        mocks.agent.getRecentTextMessages.mockResolvedValue([
+          { role: AgentMessageRole.Agent, content: { text: 'Named 3 dishes' } },
+        ] as never);
+        fake.endTurn();
+
+        await expect(pending).resolves.toEqual({ status: 'completed', summary: 'Named 3 dishes' });
+        expect(fake.agent.kill).toHaveBeenCalled();
+        // nothing goes to a chat window
+        expect(mocks.websocket.clientSend).not.toHaveBeenCalledWith(
+          'on_agent_update',
+          expect.anything(),
+          expect.anything(),
+        );
+        expect(mocks.agent.updateSession).toHaveBeenLastCalledWith(session.id, { status: AgentSessionStatus.Idle });
+      });
+
+      it('should fail when the agent fails', async () => {
+        fake.agent.prompt.mockRejectedValueOnce(new Error('rate limited'));
+        mocks.agent.getMessages.mockImplementation(() => Promise.resolve(messages() as never));
+        const session = newSession();
+
+        await expect(runHeadless(session)).resolves.toMatchObject({ status: 'failed', error: 'rate limited' });
+      });
+
+      it('should stop the agent at the time limit', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+        const session = newSession();
+        const pending = runHeadless(session, { timeoutMs: 120_000 });
+        await settle();
+
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(fake.agent.cancel).toHaveBeenCalledWith('acp-session');
+        fake.turns.at(-1)!.resolve({ stopReason: 'cancelled' });
+
+        await expect(pending).resolves.toMatchObject({
+          status: 'timeout',
+          error: expect.stringContaining('2 minutes'),
+        });
+        expect(fake.agent.kill).toHaveBeenCalled();
+      });
+
+      it('should stop the agent when the run is cancelled', async () => {
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+        const session = newSession();
+        let cancelled = false;
+        const pending = runHeadless(session, { isCancelled: () => Promise.resolve(cancelled) });
+        await settle();
+
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fake.agent.cancel).not.toHaveBeenCalled();
+        cancelled = true;
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(fake.agent.cancel).toHaveBeenCalled();
+        // an agent that does not stop is killed after the grace period
+        await vi.advanceTimersByTimeAsync(15_000);
+
+        await expect(pending).resolves.toMatchObject({ status: 'cancelled' });
+        expect(fake.agent.kill).toHaveBeenCalled();
+      });
     });
   });
 });

@@ -5,4 +5,5 @@ export type GalleryDispatchResult = { ok: true } | { ok: false; reason: GalleryS
 export type GalleryMethodArgs = {
   addToSpace: { assetId: string; spaceIds: string[] };
   addToSpaceAlbum: { assetId: string; spaceId: string; albumName: string };
+  sendToRoutine: { assetId: string; routineId: string };
 };

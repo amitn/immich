@@ -24,12 +24,25 @@ export class AgentRepository {
 
   @GenerateSql({ params: [DummyValue.UUID] })
   getSessions(userId: string) {
-    return this.db
-      .selectFrom('agent_session')
-      .selectAll()
-      .where('agent_session.userId', '=', userId)
-      .orderBy('agent_session.updatedAt', 'desc')
-      .execute();
+    return (
+      this.db
+        .selectFrom('agent_session')
+        .selectAll()
+        .where('agent_session.userId', '=', userId)
+        // the transcripts of routine runs (#15) open from the Routines page, not as chats
+        .where((eb) =>
+          eb.not(
+            eb.exists(
+              eb
+                .selectFrom('assistant_routine_run')
+                .select('assistant_routine_run.id')
+                .whereRef('assistant_routine_run.sessionId', '=', 'agent_session.id'),
+            ),
+          ),
+        )
+        .orderBy('agent_session.updatedAt', 'desc')
+        .execute()
+    );
   }
 
   @GenerateSql({ params: [DummyValue.UUID, { status: AgentSessionStatus.Running }] })

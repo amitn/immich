@@ -70,6 +70,7 @@ import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -275,6 +276,7 @@ export type ServiceOverrides = {
   collectionNotice: CollectionNoticeRepository;
   memoryExclusion: MemoryExclusionRepository;
   yearRecap: YearRecapRepository;
+  routine: RoutineRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -387,6 +389,7 @@ export const getMocks = () => {
     collectionNotice: automock(CollectionNoticeRepository),
     memoryExclusion: newMemoryExclusionRepositoryMock(),
     yearRecap: automock(YearRecapRepository),
+    routine: automock(RoutineRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -480,6 +483,7 @@ export const newTestService = <T extends BaseService>(
     overrides.collectionNotice || (mocks.collectionNotice as As<CollectionNoticeRepository>),
     overrides.memoryExclusion || (mocks.memoryExclusion as As<MemoryExclusionRepository>),
     overrides.yearRecap || (mocks.yearRecap as As<YearRecapRepository>),
+    overrides.routine || (mocks.routine as As<RoutineRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

@@ -19,6 +19,7 @@ import { MemoryAgentTools } from 'src/services/agent-tools/memory.tools.js';
 import { OrientationAgentTools } from 'src/services/agent-tools/orientation.tools.js';
 import { QuestionAgentTools } from 'src/services/agent-tools/question.tools.js';
 import { RedactionAgentTools } from 'src/services/agent-tools/redaction.tools.js';
+import { RoutineAgentTools } from 'src/services/agent-tools/routine.tools.js';
 import { WorkflowAgentTools } from 'src/services/agent-tools/workflow.tools.js';
 import { YearRecapAgentTools } from 'src/services/agent-tools/year-recap.tools.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -98,6 +99,7 @@ export class AgentToolService extends BaseService {
         BaseService.create(WorkflowAgentTools, this),
         BaseService.create(RedactionAgentTools, this),
         BaseService.create(ActivityAgentTools, this),
+        BaseService.create(RoutineAgentTools, this),
       ];
 
       this.tools = new Map();

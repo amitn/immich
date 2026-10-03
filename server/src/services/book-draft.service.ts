@@ -247,6 +247,14 @@ export class BookDraftService extends BaseService {
       if (notify) {
         await this.notify(auth.user.id, book.id, candidate);
       }
+      // the routines that run after a book draft is made (#15)
+      await this.eventRepository.emit('BookDraftCreate', {
+        userId: auth.user.id,
+        bookId: book.id,
+        kind: candidate.kind,
+        title: candidate.title,
+        assetIds: candidate.assetIds,
+      });
       return book.id;
     } catch (error: any) {
       // the suggestion is made again on the next run

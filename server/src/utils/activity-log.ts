@@ -106,6 +106,8 @@ export type ActivityUndoMap = {
   [ActivityLogAction.WorkflowCreate]: { workflowId: string; fingerprint: string };
   /** undoing restores `previous`, while the workflow is still as the change left it (`fingerprint`) */
   [ActivityLogAction.WorkflowUpdate]: { workflowId: string; previous: WorkflowSnapshot; fingerprint: string };
+  /** undoing deletes the routine, while nobody changed it since it was made (#15) */
+  [ActivityLogAction.RoutineCreate]: { routineId: string; updatedAt: string };
 };
 
 /** what makes up a workflow, as an update changes it */

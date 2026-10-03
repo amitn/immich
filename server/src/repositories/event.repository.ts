@@ -49,7 +49,8 @@ type EventMap = {
 
   // asset events
   AssetCreate: [{ asset: Pick<Asset, 'id' | 'ownerId'>; file?: UploadFile }];
-  AssetTag: [{ assetId: string; userId: string }];
+  /** `tagIds`: the tags just added (Gallery fork, #15: routines that run after a given tag) */
+  AssetTag: [{ assetId: string; userId: string; tagIds?: string[] }];
   AssetUntag: [{ assetId: string }];
   AssetHide: [{ assetId: string; userId: string }];
   AssetShow: [{ assetId: string; userId: string }];
@@ -108,6 +109,14 @@ type EventMap = {
 
   // websocket events
   WebsocketConnect: [{ userId: string }];
+
+  // Gallery fork (#15): what assistant routines can run after
+  /** a new journal visit was found and notified (a meal, a museum visit...) */
+  JournalVisitFound: [{ userId: string; pack: string; assetIds: string[]; title: string }];
+  /** a trip ended: its recent-trip memory was made */
+  TripEnded: [{ userId: string; memoryId: string; title: string; assetIds: string[] }];
+  /** a photo book draft was made */
+  BookDraftCreate: [{ userId: string; bookId: string; kind: string; title: string; assetIds: string[] }];
 };
 
 export type AppRestartEvent = {
