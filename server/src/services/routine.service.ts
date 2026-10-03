@@ -559,7 +559,7 @@ export class RoutineService extends BaseService {
         });
       }
       if (!manual) {
-        this.logger.log(`Routine ${routine.id} did not run: ${reason}`);
+        this.logger.debug(`Routine ${routine.id} did not run: ${reason}`);
       }
       return reason;
     }
