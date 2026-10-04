@@ -88,6 +88,7 @@ class _NotificationTile extends StatelessWidget {
       AlbumNotificationTarget() => (Icons.photo_album_outlined, colorScheme.primary),
       MemoryNotificationTarget() => (Icons.auto_awesome_outlined, colorScheme.primary),
       JournalNotificationTarget() => (Icons.edit_note_outlined, colorScheme.primary),
+      RoutineRunNotificationTarget() => (Icons.event_repeat_outlined, colorScheme.primary),
       null => switch (notification.level) {
         'error' => (Icons.error_outline, colorScheme.error),
         'warning' => (Icons.warning_amber_outlined, colorScheme.tertiary),

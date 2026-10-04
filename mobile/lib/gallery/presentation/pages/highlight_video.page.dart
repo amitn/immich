@@ -109,6 +109,22 @@ class _HighlightVideoPageState extends ConsumerState<HighlightVideoPage> {
     }
   }
 
+  Future<void> _uploadMusic(HighlightController controller) async {
+    final error = context.t.errors.unable_to_upload_highlight_music;
+    final file = await ref.read(highlightAudioPickerProvider)();
+    if (file == null) {
+      return;
+    }
+    try {
+      final track = await controller.uploadMusic(file);
+      if (mounted) {
+        _update(_with(music: () => track.id));
+      }
+    } catch (_) {
+      await ref.read(toastServiceProvider).error(error);
+    }
+  }
+
   Future<void> _cancel(HighlightController controller) async {
     final error = context.t.errors.unable_to_cancel_highlight_video;
     try {
@@ -258,20 +274,39 @@ class _HighlightVideoPageState extends ConsumerState<HighlightVideoPage> {
           ),
           section(
             t.highlight_video_music,
-            DropdownButtonFormField<String?>(
-              key: const Key('highlight-music'),
-              initialValue: _options.music,
-              isExpanded: true,
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-              items: [
-                DropdownMenuItem(value: null, child: Text(t.highlight_video_no_music)),
-                for (final track in music ?? const <HighlightMusicResponseDto>[])
-                  DropdownMenuItem(
-                    value: track.id,
-                    child: Text(_trackLabel(track), overflow: TextOverflow.ellipsis),
+            Row(
+              spacing: 8,
+              children: [
+                Expanded(
+                  // rebuilt when an upload chooses the new file
+                  child: KeyedSubtree(
+                    key: ValueKey('highlight-music-${_options.music}-${music?.length}'),
+                    child: DropdownButtonFormField<String?>(
+                      key: const Key('highlight-music'),
+                      initialValue: _options.music,
+                      isExpanded: true,
+                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      items: [
+                        DropdownMenuItem(value: null, child: Text(t.highlight_video_no_music)),
+                        for (final track in music ?? const <HighlightMusicResponseDto>[])
+                          DropdownMenuItem(
+                            value: track.id,
+                            child: Text(_trackLabel(track), overflow: TextOverflow.ellipsis),
+                          ),
+                      ],
+                      onChanged: music == null ? null : (value) => _update(_with(music: () => value)),
+                    ),
                   ),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('highlight-upload-music'),
+                  onPressed: music == null || state.uploadingMusic ? null : () => unawaited(_uploadMusic(controller)),
+                  icon: state.uploadingMusic
+                      ? const SizedBox.square(dimension: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.upload_file),
+                  label: Text(t.highlight_video_upload_music),
+                ),
               ],
-              onChanged: music == null ? null : (value) => _update(_with(music: () => value)),
             ),
           ),
         ],

@@ -5,9 +5,11 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_navigator.provider.dart';
 import 'package:immich_mobile/gallery/providers/notifications.provider.dart';
+import 'package:immich_mobile/gallery/providers/routines.provider.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
 
-/// The Library entries of the assistant work: the assistant and the photo books, on a server that has them
+/// The Library entries of the assistant work: the assistant, the Routines inbox and the photo books, on a server that
+/// has them
 class GalleryLibraryEntries extends ConsumerWidget {
   const GalleryLibraryEntries({super.key});
 
@@ -42,6 +44,7 @@ class GalleryLibraryEntries extends ConsumerWidget {
                   title: Text(context.t.assistant, style: style),
                   onTap: () => unawaited(navigator.openAssistant()),
                 ),
+              if (features.assistant) const _RoutinesInboxEntry(),
               if (features.books)
                 ListTile(
                   key: const Key('library-books'),
@@ -53,6 +56,29 @@ class GalleryLibraryEntries extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// The Routines inbox, with the number of changes waiting for approval
+class _RoutinesInboxEntry extends ConsumerWidget {
+  const _RoutinesInboxEntry();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final pending = ref.watch(routinesPendingCountProvider).valueOrNull ?? 0;
+    return ListTile(
+      key: const Key('library-routines'),
+      leading: const Icon(Icons.event_repeat_outlined, size: 26),
+      title: Text(context.t.routines, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500)),
+      trailing: pending > 0
+          ? Badge(key: const Key('library-routines-pending'), label: Text(pending > 99 ? '99+' : '$pending'))
+          : null,
+      onTap: () async {
+        await ref.read(galleryNavigatorProvider).openRoutinesInbox();
+        ref.invalidate(routinesPendingCountProvider);
+      },
     );
   }
 }

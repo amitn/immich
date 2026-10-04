@@ -73,6 +73,19 @@ final class JournalNotificationTarget extends NotificationTarget {
   int get hashCode => Object.hash(pack, assetIds.join(','));
 }
 
+/// A routine run ("Routine “Name dishes” ran: 12 changes · 2 need your OK"): its changes to approve
+final class RoutineRunNotificationTarget extends NotificationTarget {
+  final String runId;
+
+  const RoutineRunNotificationTarget(this.runId);
+
+  @override
+  bool operator ==(Object other) => other is RoutineRunNotificationTarget && other.runId == runId;
+
+  @override
+  int get hashCode => runId.hashCode;
+}
+
 /// The data of a notification: an object, or the JSON string of one (how the server stores it)
 Map<String, dynamic>? parseNotificationData(Object? data) {
   if (data is String) {
@@ -97,7 +110,7 @@ String? _id(Map<String, dynamic>? data, String key) {
 }
 
 /// Where tapping a notification leads, with the precedence of the web app (`getNotificationRoute`): the visits of a
-/// journal to name (`collectionPack`) first, like the web's `openCollectionNotice`. The changes of an assistant turn
+/// journal to name (`collectionPack`) first, like the web's `openCollectionNotice`, then a routine run. The changes of an assistant turn
 /// (`activityGroupId`) have no screen in the app yet, so they lead nowhere.
 NotificationTarget? notificationTargetOf(Map<String, dynamic>? data) {
   if (data == null) {
@@ -115,6 +128,11 @@ NotificationTarget? notificationTargetOf(Map<String, dynamic>? data) {
 
   if (_id(data, 'activityGroupId') != null) {
     return null;
+  }
+
+  final routineRunId = _id(data, 'routineRunId');
+  if (routineRunId != null) {
+    return RoutineRunNotificationTarget(routineRunId);
   }
 
   final memoryId = _id(data, 'memoryId');

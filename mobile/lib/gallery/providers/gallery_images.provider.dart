@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/store.model.dart';
 import 'package:immich_mobile/entities/store.entity.dart';
+import 'package:immich_mobile/gallery/repositories/book_api.repository.dart';
+import 'package:immich_mobile/gallery/repositories/book_offline_cache.repository.dart';
+import 'package:immich_mobile/gallery/utils/book_page_image.dart';
 import 'package:immich_mobile/presentation/widgets/images/remote_image_provider.dart';
 import 'package:immich_mobile/utils/image_url_builder.dart';
 import 'package:openapi/api.dart';
@@ -15,7 +18,11 @@ String bookPageRenderUrl(String bookId, String pageId, {int size = 1200, DateTim
 
 /// The images the assistant screens load from the server, behind a provider so tests can serve them from memory
 class GalleryImages {
-  const GalleryImages();
+  /// Where the page renders of the books are kept for offline viewing, and how they are rendered
+  final BookOfflineCache? bookCache;
+  final BookPageFetcher? fetchBookPage;
+
+  const GalleryImages({this.bookCache, this.fetchBookPage});
 
   ImageProvider assetThumbnail(String assetId) => RemoteImageProvider(url: getThumbnailUrlForRemoteId(assetId));
 
@@ -29,9 +36,43 @@ class GalleryImages {
     url: '${Store.get(StoreKey.serverEndpoint)}/assets/$assetId/enhance/preview.jpg?strength=$strength',
   );
 
-  ImageProvider bookPage(String bookId, String pageId, {required int size, DateTime? cacheKey}) => RemoteImageProvider(
-    url: bookPageRenderUrl(bookId, pageId, size: size, cacheKey: cacheKey),
-  );
+  /// A page of a book; with its [cacheKey] (the page's `updatedAt`) kept on the device, so the book opens offline
+  ImageProvider bookPage(String bookId, String pageId, {required int size, DateTime? cacheKey}) {
+    final cache = bookCache;
+    final fetch = fetchBookPage;
+    if (cache != null && fetch != null && cacheKey != null) {
+      return BookPageImage(bookId: bookId, pageId: pageId, version: cacheKey, size: size, cache: cache, fetch: fetch);
+    }
+    return RemoteImageProvider(
+      url: bookPageRenderUrl(bookId, pageId, size: size, cacheKey: cacheKey),
+    );
+  }
+
+  /// Keeps every page of [book] on the device at [size], one after the other, so a book viewed once opens offline;
+  /// stops at the first page the server can't render
+  Future<void> keepBookOffline(BookDetailResponseDto book, {required int size}) async {
+    final cache = bookCache;
+    final fetch = fetchBookPage;
+    if (cache == null || fetch == null || !await cache.isEnabled) {
+      return;
+    }
+    final pages = [...book.pages]..sort((a, b) => a.position.compareTo(b.position));
+    for (final page in pages) {
+      if (await cache.hasPage(book.id, page.id, page.updatedAt, size: size)) {
+        continue;
+      }
+      try {
+        await cache.writePage(book.id, page.id, page.updatedAt, size, await fetch(book.id, page.id, size));
+      } catch (_) {
+        return;
+      }
+    }
+  }
 }
 
-final galleryImagesProvider = Provider<GalleryImages>((ref) => const GalleryImages());
+final galleryImagesProvider = Provider<GalleryImages>(
+  (ref) => GalleryImages(
+    bookCache: ref.watch(bookOfflineCacheProvider),
+    fetchBookPage: (bookId, pageId, size) => ref.read(bookApiRepositoryProvider).renderPage(bookId, pageId, size: size),
+  ),
+);

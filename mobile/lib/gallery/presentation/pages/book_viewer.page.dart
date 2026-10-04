@@ -6,11 +6,13 @@ import 'package:auto_route/auto_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:immich_mobile/gallery/presentation/widgets/books/book_layout_picker.widget.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/books/book_page_view.widget.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/books/book_review_sheet.widget.dart';
 import 'package:immich_mobile/gallery/presentation/widgets/common/gallery_confirm_dialog.widget.dart';
 import 'package:immich_mobile/gallery/providers/books.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
+import 'package:immich_mobile/gallery/providers/gallery_images.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_navigator.provider.dart';
 import 'package:immich_mobile/gallery/repositories/book_api.repository.dart';
 import 'package:immich_mobile/generated/translations.g.dart';
@@ -33,7 +35,8 @@ final bookPdfSaverProvider = Provider<BookPdfSaver>(
   },
 );
 
-/// A photo book, page by page: its review, a link to share it, its PDF, and Keep or Discard for a draft
+/// A photo book, page by page: its review, a link to share it, its PDF, Keep or Discard for a draft, and the editor
+/// of the page shown. A book viewed once opens offline, read only.
 @RoutePage()
 class BookViewerPage extends HookConsumerWidget {
   final String bookId;
@@ -44,14 +47,42 @@ class BookViewerPage extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = context.t;
     final bookAsync = ref.watch(bookDetailProvider(bookId));
+    final offline = bookAsync.valueOrNull?.offline ?? false;
     final assistant = ref.watch(galleryFeaturesProvider.select((features) => features.assistant));
     final controller = usePageController();
     final pageIndex = useState(0);
     final exporting = useState(false);
     final draftBusy = useState(false);
     final navigator = ref.read(galleryNavigatorProvider);
-    final book = bookAsync.valueOrNull;
+    final book = bookAsync.valueOrNull?.book;
     final pageCount = book?.pages.length ?? 0;
+    final pagesKey = book?.pages.map((page) => '${page.id}@${page.updatedAt.millisecondsSinceEpoch}').join(',');
+
+    // a book viewed once opens offline: keep its pages on the device, at the size the viewer shows them
+    useEffect(() {
+      if (book != null && !offline) {
+        unawaited(ref.read(galleryImagesProvider).keepBookOffline(book, size: bookPageRenderSize(context)));
+      }
+      return null;
+    }, [book?.id, pagesKey, offline]);
+
+    String? currentPageId() {
+      final pages = bookAsync.valueOrNull?.pages ?? const <BookPageResponseDto>[];
+      return pages.isEmpty ? null : pages[pageIndex.value.clamp(0, pages.length - 1)].id;
+    }
+
+    Future<void> addFirstPage(BookDetailResponseDto book) async {
+      final layout = await showBookLayoutPicker(context, placedPhotos: 0);
+      if (layout == null) {
+        return;
+      }
+      try {
+        final pageId = await ref.read(bookDetailProvider(bookId).notifier).addPage(layout.id, position: 0);
+        await navigator.editBookPage(book.id, pageId);
+      } catch (_) {
+        await ref.read(toastServiceProvider).error(t.errors.unable_to_add_book_page);
+      }
+    }
 
     Future<void> goToPage(int index) async {
       if (!controller.hasClients) {
@@ -143,7 +174,31 @@ class BookViewerPage extends HookConsumerWidget {
             : null,
         actions: book == null
             ? null
+            : offline
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Chip(
+                    key: const Key('book-offline'),
+                    avatar: const Icon(Icons.cloud_off_outlined, size: 18),
+                    label: Text(t.offline),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ]
             : [
+                if (book.pages.isNotEmpty)
+                  IconButton(
+                    key: const Key('book-edit-button'),
+                    tooltip: t.book_edit_pages,
+                    onPressed: () {
+                      final pageId = currentPageId();
+                      if (pageId != null) {
+                        unawaited(navigator.editBookPage(book.id, pageId));
+                      }
+                    },
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
                 IconButton(
                   key: const Key('book-review-button'),
                   tooltip: t.book_review,
@@ -164,6 +219,8 @@ class BookViewerPage extends HookConsumerWidget {
                     switch (value) {
                       case 'pdf':
                         unawaited(downloadPdf(book));
+                      case 'web':
+                        unawaited(navigator.openBookOnWeb(book.id));
                       case 'assistant':
                         unawaited(
                           navigator.openAssistant(
@@ -181,6 +238,15 @@ class BookViewerPage extends HookConsumerWidget {
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.picture_as_pdf_outlined),
                         title: Text(t.book_download_pdf),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: const Key('book-open-on-web'),
+                      value: 'web',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.open_in_browser),
+                        title: Text(t.open_in_browser),
                       ),
                     ),
                     if (assistant)
@@ -209,29 +275,48 @@ class BookViewerPage extends HookConsumerWidget {
             ],
           ),
         ),
-        data: (book) => Column(
+        data: (view) => Column(
           children: [
-            if (book.status == BookStatus.draft)
+            if (view.book.status == BookStatus.draft && !offline)
               MaterialBanner(
                 key: const Key('book-draft-banner'),
                 leading: const Icon(Icons.auto_awesome_outlined),
                 content: Text(t.book_draft_banner),
                 actions: [
                   TextButton(
-                    onPressed: draftBusy.value ? null : () => unawaited(discardDraft(book)),
+                    onPressed: draftBusy.value ? null : () => unawaited(discardDraft(view.book)),
                     child: Text(t.book_draft_discard),
                   ),
                   FilledButton(
                     key: const Key('book-draft-banner-keep'),
-                    onPressed: draftBusy.value ? null : () => unawaited(keepDraft(book)),
+                    onPressed: draftBusy.value ? null : () => unawaited(keepDraft(view.book)),
                     child: Text(t.book_draft_keep),
                   ),
                 ],
               ),
             Expanded(
-              child: book.pages.isEmpty
-                  ? Center(child: Text(t.book_no_pages))
-                  : BookPageView(book: book, controller: controller, onPageChanged: (index) => pageIndex.value = index),
+              child: view.book.pages.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        spacing: 12,
+                        children: [
+                          Text(t.book_no_pages),
+                          if (!offline)
+                            FilledButton.icon(
+                              key: const Key('book-add-first-page'),
+                              onPressed: () => unawaited(addFirstPage(view.book)),
+                              icon: const Icon(Icons.add),
+                              label: Text(t.book_add_page),
+                            ),
+                        ],
+                      ),
+                    )
+                  : BookPageView(
+                      book: view.book,
+                      controller: controller,
+                      onPageChanged: (index) => pageIndex.value = index,
+                    ),
             ),
             if (pageCount > 0)
               SafeArea(

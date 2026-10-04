@@ -39,6 +39,8 @@ void main() {
 
   tearDown(() => bus.dispose());
 
+  PickedAudioFile? picked;
+
   Future<void> pumpPage(WidgetTester tester, HighlightVideoPage page) async {
     tester.view.physicalSize = const Size(1080, 4000);
     tester.view.devicePixelRatio = 2;
@@ -50,6 +52,7 @@ void main() {
         highlightApiRepositoryProvider.overrideWithValue(repository),
         galleryEventBusProvider.overrideWithValue(bus),
         highlightVideoSharerProvider.overrideWithValue((name, bytes) async => shared.add((name, bytes.length))),
+        highlightAudioPickerProvider.overrideWithValue(() async => picked),
       ],
     );
   }
@@ -165,5 +168,45 @@ void main() {
     await tester.tap(find.byKey(const Key('highlight-share')));
     await tester.pumpAndSettle();
     expect(toast.errors.last, 'Unable to share the video');
+  });
+
+  testWidgets('uploads an audio file picked on the phone and chooses it for the video', (tester) async {
+    picked = (path: '/cache/Road trip.m4a', name: 'Road trip.m4a');
+    when(() => repository.uploadMusic('/cache/Road trip.m4a', filename: 'Road trip.m4a')).thenAnswer(
+      (_) async =>
+          HighlightMusicResponseDto.fromJson({'id': 'music-2', 'name': 'Road trip.m4a', 'durationSeconds': 95})!,
+    );
+    HighlightCreateDto? sent;
+    when(() => repository.create(any())).thenAnswer((invocation) async {
+      sent = invocation.positionalArguments.first as HighlightCreateDto;
+      return highlightJob('job-1');
+    });
+    await pumpPage(tester, const HighlightVideoPage(albumId: 'album-1'));
+
+    await tester.tap(find.byKey(const Key('highlight-upload-music')));
+    await tester.pumpAndSettle();
+
+    verify(() => repository.uploadMusic('/cache/Road trip.m4a', filename: 'Road trip.m4a')).called(1);
+    expect(find.text('Road trip.m4a (1:35)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('highlight-create')));
+    await tester.pumpAndSettle();
+    expect(sent?.toJson()['music'], 'music-2');
+  });
+
+  testWidgets('a cancelled pick uploads nothing, a failed upload says so', (tester) async {
+    picked = null;
+    await pumpPage(tester, const HighlightVideoPage(albumId: 'album-1'));
+    await tester.tap(find.byKey(const Key('highlight-upload-music')));
+    await tester.pumpAndSettle();
+    verifyNever(() => repository.uploadMusic(any(), filename: any(named: 'filename')));
+
+    picked = (path: '/cache/notes.txt', name: 'notes.txt');
+    when(
+      () => repository.uploadMusic(any(), filename: any(named: 'filename')),
+    ).thenThrow(ApiException(400, 'Unsupported audio file'));
+    await tester.tap(find.byKey(const Key('highlight-upload-music')));
+    await tester.pumpAndSettle();
+    expect(toast.errors, ['Unable to upload the audio file']);
   });
 }

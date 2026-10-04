@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:openapi/api.dart';
 
 Map<String, Object?> bookJson(
@@ -122,4 +124,63 @@ BookUserStyleResponseDto userStyle(String id, {String name = 'Sepia'}) => BookUs
     'gutterMm': 4,
     'theme': 'plain',
   },
+})!;
+
+Map<String, Object?> slotJson(
+  int slot, {
+  String? assetId,
+  double aspectRatio = 1.5,
+  String? caption,
+  bool cropped = false,
+}) => {
+  'slot': slot,
+  'aspectRatio': aspectRatio,
+  'assetId': assetId,
+  'crop': cropped ? {'x': 0.1, 'y': 0.0, 'width': 0.8, 'height': 1.0} : null,
+  'caption': caption,
+};
+
+/// A page with photo slots, for the editor
+BookPageResponseDto editablePage(
+  String id,
+  int position, {
+  String layout = 'two-up',
+  List<Map<String, Object?>>? slots,
+  String? sectionTitle,
+  String? caption,
+  String updatedAt = '2026-09-27T09:58:05.491Z',
+}) => BookPageResponseDto.fromJson({
+  ...pageJson(id, position),
+  'layout': layout,
+  'sectionTitle': sectionTitle,
+  'caption': caption,
+  'updatedAt': updatedAt,
+  'slots': slots ?? [slotJson(0, assetId: 'asset-1'), slotJson(1)],
+})!;
+
+/// A book whose pages can be edited
+BookDetailResponseDto editableBook(List<BookPageResponseDto> pages, {String id = 'book-1'}) =>
+    BookDetailResponseDto.fromJson(
+      jsonDecode(
+        jsonEncode({
+          ...bookJson(id, pageCount: pages.length),
+          'pages': [for (final page in pages) page.toJson()],
+        }),
+      ),
+    )!;
+
+BookLayoutResponseDto layout(String id, String name, int slots, {bool map = false}) => BookLayoutResponseDto.fromJson({
+  'id': id,
+  'name': name,
+  'description': '$name layout',
+  'orientation': 'any',
+  'fullBleed': false,
+  'food': false,
+  'slots': [
+    for (var i = 0; i < slots; i++) {'x': i / slots, 'y': 0.0, 'width': 1 / slots, 'height': 0.8},
+  ],
+  'textAreas': [
+    {'kind': 'caption', 'x': 0.0, 'y': 0.85, 'width': 1.0, 'height': 0.1},
+  ],
+  if (map) 'mapArea': {'x': 0.0, 'y': 0.0, 'width': 1.0, 'height': 1.0},
 })!;
