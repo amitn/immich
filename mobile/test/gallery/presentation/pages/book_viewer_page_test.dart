@@ -311,4 +311,13 @@ void main() {
     expect(find.byKey(const Key('book-edit-button')), findsNothing);
     expect(find.byKey(const Key('book-share-button')), findsNothing);
   });
+
+  testWidgets('a book that is gone from the server is not shown from the device', (tester) async {
+    cache.books['book-1'] = bookDetail('book-1');
+    when(() => repository.getBook('book-1')).thenThrow(ApiException(404, 'Not found'));
+    await pumpPage(tester);
+
+    expect(find.text('Unable to load the photo book'), findsOneWidget);
+    expect(find.byKey(const Key('book-offline')), findsNothing);
+  });
 }

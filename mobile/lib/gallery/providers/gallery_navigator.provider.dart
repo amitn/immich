@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/domain/models/asset/base_asset.model.dart';
+import 'package:immich_mobile/domain/models/store.model.dart';
 import 'package:immich_mobile/domain/services/memory.service.dart';
 import 'package:immich_mobile/domain/services/timeline.service.dart';
+import 'package:immich_mobile/entities/store.entity.dart';
 import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
 import 'package:immich_mobile/providers/asset_viewer/asset_viewer.provider.dart';
 import 'package:immich_mobile/providers/background_sync.provider.dart';
@@ -188,9 +190,11 @@ class RouterGalleryNavigator implements GalleryNavigator {
 
   @override
   Future<void> openBookOnWeb(String bookId) async {
-    final server = getServerUrl();
-    if (server != null) {
-      await launchUrl(Uri.parse('$server/books/$bookId'), mode: LaunchMode.externalApplication);
+    // the web app is where the API is, without its /api (a server may sit under a path)
+    final endpoint = Store.tryGet(StoreKey.serverEndpoint);
+    final web = endpoint == null || endpoint.isEmpty ? getServerUrl() : endpoint.replaceFirst(RegExp(r'/api/?$'), '');
+    if (web != null && web.isNotEmpty) {
+      await launchUrl(Uri.parse('$web/books/$bookId'), mode: LaunchMode.externalApplication);
     }
   }
 

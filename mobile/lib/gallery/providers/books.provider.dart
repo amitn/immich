@@ -149,13 +149,25 @@ class BookDetailNotifier extends AutoDisposeFamilyAsyncNotifier<BookView, String
       final book = await repository.getBook(arg);
       unawaited(cache.saveBook(book));
       return BookView(book);
-    } catch (_) {
-      final kept = await cache.loadBook(arg);
-      if (kept == null) {
+    } on ApiException catch (error, stackTrace) {
+      // the book is gone or no longer the user's: no offline copy stands in for it
+      if (_answeredByServer.contains(error.code)) {
         rethrow;
       }
-      return BookView(kept, offline: true);
+      return _offline(cache, arg, error, stackTrace);
+    } catch (error, stackTrace) {
+      return _offline(cache, arg, error, stackTrace);
     }
+  }
+
+  static const _answeredByServer = {401, 403, 404};
+
+  Future<BookView> _offline(BookOfflineCache cache, String id, Object error, StackTrace stackTrace) async {
+    final kept = await cache.loadBook(id);
+    if (kept == null) {
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    return BookView(kept, offline: true);
   }
 
   BookDetailResponseDto? get _book => state.valueOrNull?.book;
