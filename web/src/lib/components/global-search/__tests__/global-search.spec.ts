@@ -87,6 +87,7 @@ vi.mock('@immich/sdk', async () => {
     searchPerson: vi.fn().mockResolvedValue([]),
     searchPlaces: vi.fn().mockResolvedValue([]),
     getAllTags: vi.fn().mockResolvedValue([]),
+    searchCollections: vi.fn().mockResolvedValue({ terms: {}, total: 0, visits: [] }),
     getFilterSuggestions: vi.fn().mockResolvedValue({
       people: [],
       countries: [],
@@ -1652,6 +1653,46 @@ describe('global-search root', () => {
     expect(entityOrder[3]).toMatch(/^cmdk_people_heading$|^People$/i);
     expect(entityOrder[4]).toMatch(/^cmdk_places_heading$|^Places$/i);
     expect(entityOrder[5]).toMatch(/^cmdk_tags_heading$|^Tags$/i);
+  });
+
+  // #23: the visits of the collections that match, and a row asking the assistant, after the tags
+  it('renders "From your journals" after Tags, and activates its rows', async () => {
+    mockUser.current = { id: 'test-user', isAdmin: false };
+    const m = new GlobalSearchManager();
+    stubAllEntitySections(m);
+    const providers = (m as unknown as { providers: Record<keyof Sections, Provider> }).providers;
+    providers.journals.run = () =>
+      Promise.resolve({
+        status: 'ok' as const,
+        items: [
+          {
+            id: 'Food/Noma|2016-03-23',
+            kind: 'visit',
+            visit: { pack: 'food', tag: 'Food/Noma', place: 'Noma', date: '2016-03-23', entries: [], photoIds: [] },
+          } as never,
+          { id: 'ask', kind: 'ask', question: 'what did we eat at noma' } as never,
+        ],
+        total: 2,
+      });
+    const activateJournal = vi.spyOn(m, 'activateJournal').mockResolvedValue();
+    m.open();
+    render(GlobalSearch, { props: { manager: m } });
+    await user.type(screen.getByRole('combobox'), 'noma');
+    await vi.waitFor(() => expect(m.sections.journals.status).toBe('ok'), { timeout: 2000 });
+    await vi.waitFor(() => expect(m.sections.tags.status).toBe('ok'));
+
+    const headings = [...document.querySelectorAll<HTMLElement>('[data-testid="section-heading"]')].map(
+      (h) => h.textContent?.trim() ?? '',
+    );
+    expect(headings.at(-1)).toBe('cmdk_section_journals');
+    expect(headings.at(-2)).toMatch(/^cmdk_tags_heading$|^Tags$/i);
+
+    const rows = screen.getAllByTestId('journal-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent('Noma');
+    expect(rows[1]).toHaveTextContent('ask_assistant');
+    await user.click(rows[1]);
+    expect(activateJournal).toHaveBeenCalledWith(expect.objectContaining({ kind: 'ask' }));
   });
 
   it('renders secondary selection commands before entity results when a command is promoted', async () => {

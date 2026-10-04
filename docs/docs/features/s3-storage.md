@@ -434,6 +434,14 @@ Profile images (both user-uploaded and OAuth-synced) follow the same pattern: th
 
 For operations that require filesystem access (ffmpeg transcoding, exiftool metadata extraction), the S3 backend provides a `downloadToTemp()` method that streams the object to a local temp file and returns a cleanup function.
 
+### AI Assistant Features
+
+The [AI assistant's](/features/ai-assistant) features work with both backends:
+
+- **Reads.** Enhance, crop and straighten, improve, artistic styles, collages, book pages and exports, journal OCR (naming dishes) and the orientation check read originals and previews through `ensureLocalFile`: an S3 object is downloaded to a temporary file for sharp or exiftool and removed right after, often after a single page or photo. Small files such as the preview sent to an art agent are read into memory. Highlight videos give ffmpeg a short-lived presigned URL of each clip (`getReadableUrl`), asked for right before its segment is rendered, and download the music, which the film loops.
+- **Writes.** Derived copies, collages, highlight videos and uploaded music are made in the upload folder, where their metadata is written, then uploaded under the same relative key an upload gets, and the local file is removed. PDF and HTML book exports are stored at `thumbs/<user>/books/` in the bucket and served with the configured serve mode. An export whose file is missing is made again on the next download.
+- **Local disk.** The tile cache of styled maps stays under the thumbnails folder on the server's disk, as do the temporary work folders of highlight videos and art jobs.
+
 ### Archive Downloads
 
 Album downloads, selection downloads and shared-link archives all work with both disk and S3-backed assets. For S3 assets, Gallery opens object streams lazily and serializes ZIP entry appends so large archives do not exhaust the S3 connection pool. This is most visible in `proxy` mode or when downloading many S3-only assets through the server.

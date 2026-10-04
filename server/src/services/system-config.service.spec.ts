@@ -60,6 +60,37 @@ const useMetadataStore = (mocks: ServiceMocks) => {
 };
 
 const updatedConfig = Object.freeze<SystemConfig>({
+  agent: {
+    enabled: false,
+    profiles: [
+      {
+        name: 'claude',
+        command: 'claude-agent-acp',
+        args: [],
+        env: [],
+        passEnv: ['ANTHROPIC_API_KEY', 'CLAUDE_CODE_EXECUTABLE'],
+      },
+      { name: 'codex', command: 'codex-acp', args: [], env: [], passEnv: ['OPENAI_API_KEY', 'CODEX_PATH'] },
+    ],
+    chatProfile: 'claude',
+    artProfile: '',
+    maxConcurrentSessions: 3,
+    idleTimeoutMinutes: 15,
+    autoApproveWrites: false,
+    activityRetentionDays: 90,
+    mcpUrl: '',
+    routines: {
+      enabled: true,
+      maxRoutinesPerUser: 20,
+      maxRunsPerDay: 24,
+      maxConcurrentRuns: 1,
+      maxRunMinutes: 30,
+      maxToolCalls: 200,
+      pauseAfterFailures: 3,
+      approvalExpiryDays: 7,
+      eventSettleMinutes: 10,
+    },
+  },
   job: {
     [QueueName.BackgroundTask]: { concurrency: 5 },
     [QueueName.PeopleBackfill]: { concurrency: 1 },
@@ -86,6 +117,36 @@ const updatedConfig = Object.freeze<SystemConfig>({
       cronExpression: '0 02 * * *',
       keepLastAmount: 14,
     },
+  },
+  books: {
+    maps: {
+      stadiaApiKey: '',
+      defaultStyle: 'styled',
+    },
+    drafts: {
+      enabled: true,
+      maxPerRun: 3,
+      yearly: true,
+      trips: true,
+      birthdays: true,
+    },
+  },
+  collections: {
+    notifications: {
+      enabled: true,
+      maxPerRun: 3,
+      windowDays: 14,
+    },
+  },
+  food: {
+    openStreetMap: {
+      enabled: false,
+      overpassUrl: 'https://overpass-api.de/api/interpreter',
+    },
+  },
+  memoryNotifications: {
+    enabled: true,
+    digest: true,
   },
   ffmpeg: {
     crf: 30,

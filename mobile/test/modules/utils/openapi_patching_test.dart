@@ -58,4 +58,40 @@ void main() {
       expect(value['download']['unknownKey'], isNull);
     });
   });
+
+  // The generated fromJson must run the patches: without them a response of an older server, which lacks a newly
+  // required field, fails to parse (a null check in release mode, an assert in debug mode)
+  group('Responses of an older server', () {
+    test('a shared link without the redaction fields parses', () {
+      final dto = SharedLinkResponseDto.fromJson(
+        jsonDecode('''
+{
+  "id": "link-1", "key": "abc", "userId": "user-1", "type": "ALBUM", "createdAt": "2026-01-01T00:00:00.000Z",
+  "allowDownload": true, "allowUpload": false, "showMetadata": true, "assets": [],
+  "description": null, "expiresAt": null, "password": null, "slug": null
+}
+'''),
+      );
+
+      expect(dto, isNotNull);
+      expect(dto!.redactFaces, isFalse);
+      expect(dto.redactText, isFalse);
+    });
+
+    test('server features without the assistant turn it off', () {
+      final value = jsonDecode('{"trash": true, "map": true}');
+      upgradeDto(value, 'ServerFeaturesDto');
+
+      expect(value['assistant'], isFalse);
+      expect(value['artisticStyles'], isFalse);
+      expect(value['restaurantLookup'], isFalse);
+    });
+
+    test('preferences without memory exclusions keep documents in memories', () {
+      final value = jsonDecode('{}');
+      upgradeDto(value, 'UserPreferencesResponseDto');
+
+      expect(value['memoryExclusions'], {'documents': false});
+    });
+  });
 }

@@ -1,6 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
-import { SharedLink } from 'src/database.js';
+import { SharedLink, SharedLinkBook } from 'src/database.js';
 import { HistoryBuilder } from 'src/decorators.js';
 import { AlbumResponseSchema, mapAlbum } from 'src/dtos/album.dto.js';
 import { type AssetResponseDto, AssetResponseSchema, mapAsset } from 'src/dtos/asset-response.dto.js';
@@ -15,6 +15,11 @@ const SharedLinkSearchSchema = z
       .optional()
       .describe('Filter by shared link ID')
       .meta(new HistoryBuilder().added('v2.5.0').getExtensions()),
+    bookId: z
+      .uuidv4()
+      .optional()
+      .describe('Filter by book ID')
+      .meta(new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions()),
   })
   .meta({ id: 'SharedLinkSearchDto' });
 
@@ -23,6 +28,11 @@ const SharedLinkCreateSchema = z
     type: SharedLinkTypeSchema,
     assetIds: z.array(z.uuidv4()).optional().describe('Asset IDs (for individual assets)'),
     albumId: z.uuidv4().optional().describe('Album ID (for album sharing)'),
+    bookId: z
+      .uuidv4()
+      .optional()
+      .describe('Book ID (for sharing a photo book)')
+      .meta(new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions()),
     description: z.string().nullable().optional().describe('Link description'),
     password: z.string().nullable().optional().describe('Link password'),
     slug: z.string().nullable().optional().describe('Custom URL slug'),
@@ -30,15 +40,32 @@ const SharedLinkCreateSchema = z
     allowUpload: z.boolean().optional().describe('Allow uploads'),
     allowDownload: z.boolean().default(true).optional().describe('Allow downloads'),
     showMetadata: z.boolean().default(true).optional().describe('Show metadata'),
+    redactFaces: z
+      .boolean()
+      .optional()
+      .describe(
+        'Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed',
+      )
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .optional()
+      .describe('Blur the text and number plates found in the photos when serving through the link')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
     spaceId: z
       .uuidv4()
       .optional()
       .describe(
         'Shared space this link is created from. Lets the link cover assets contributed by other ' +
-          'members, which requires the caller to be an Owner or Editor of the space.',
+          'members, which requires the caller to be an Owner or Editor of the space. For a book, the space ' +
+          "that holds the book's photos of others; when omitted, a space the caller edits that holds them all.",
       ),
   })
-  .superRefine(({ type, albumId, assetIds }, ctx) => {
+  .superRefine(({ type, albumId, assetIds, bookId }, ctx) => {
+    if (bookId && type !== SharedLinkType.Book) {
+      ctx.addIssue(`bookId can only be used with type ${SharedLinkType.Book}`);
+    }
+
     switch (type) {
       case SharedLinkType.Album: {
         if (!albumId) {
@@ -59,6 +86,18 @@ const SharedLinkCreateSchema = z
         }
         return;
       }
+      case SharedLinkType.Book: {
+        if (!bookId) {
+          ctx.addIssue(`bookId is required for type ${SharedLinkType.Book}`);
+        }
+        if (albumId) {
+          ctx.addIssue(`albumId can only be used with type ${SharedLinkType.Album}`);
+        }
+        if (assetIds && assetIds.length > 0) {
+          ctx.addIssue(`assetIds can only be used with type ${SharedLinkType.Individual}`);
+        }
+        return;
+      }
     }
   })
   .meta({ id: 'SharedLinkCreateDto' });
@@ -72,6 +111,18 @@ const SharedLinkEditSchema = z
     allowUpload: z.boolean().optional().describe('Allow uploads'),
     allowDownload: z.boolean().optional().describe('Allow downloads'),
     showMetadata: z.boolean().optional().describe('Show metadata'),
+    redactFaces: z
+      .boolean()
+      .optional()
+      .describe(
+        'Blur the faces of people who are not in what the link shares (unnamed people, and named people seen in only one of its photos) when serving through the link; the photos themselves are not changed',
+      )
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .optional()
+      .describe('Blur the text and number plates found in the photos when serving through the link')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
   })
   .meta({ id: 'SharedLinkEditDto' });
 
@@ -80,6 +131,17 @@ const SharedLinkLoginSchema = z
     password: z.string().describe('Shared link password').meta({ example: 'password' }),
   })
   .meta({ id: 'SharedLinkLoginDto' });
+
+const SharedLinkBookResponseSchema = z
+  .object({
+    id: z.uuidv4().describe('Book ID'),
+    title: z.string().describe('Book title'),
+    subtitle: z.string().nullable().describe('Book subtitle'),
+    pageCount: z.int().min(0).describe('Number of pages'),
+    hasPdf: z.boolean().describe('Whether the PDF has been exported'),
+  })
+  .describe('The shared photo book')
+  .meta({ id: 'SharedLinkBookResponseDto' });
 
 const SharedLinkResponseSchema = z
   .object({
@@ -93,10 +155,21 @@ const SharedLinkResponseSchema = z
     expiresAt: isoDatetimeToDate.nullable().describe('Expiration date'),
     assets: z.array(AssetResponseSchema),
     album: AlbumResponseSchema.optional(),
+    book: SharedLinkBookResponseSchema.optional().meta(
+      new HistoryBuilder().added('v3.0.0').alpha('v3.0.0').getExtensions(),
+    ),
     allowUpload: z.boolean().describe('Allow uploads'),
     allowDownload: z.boolean().describe('Allow downloads'),
     showMetadata: z.boolean().describe('Show metadata'),
     slug: z.string().nullable().describe('Custom URL slug'),
+    redactFaces: z
+      .boolean()
+      .describe('Blur the faces of people who are not in what the link shares')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
+    redactText: z
+      .boolean()
+      .describe('Blur the text and number plates of the photos')
+      .meta(new HistoryBuilder().added('v3.3.0').alpha('v3.3.0').getExtensions()),
   })
   .describe('Shared link response')
   .meta({ id: 'SharedLinkResponseDto' });
@@ -106,6 +179,14 @@ export class SharedLinkCreateDto extends createZodDto(SharedLinkCreateSchema) {}
 export class SharedLinkEditDto extends createZodDto(SharedLinkEditSchema) {}
 export class SharedLinkLoginDto extends createZodDto(SharedLinkLoginSchema) {}
 export class SharedLinkResponseDto extends createZodDto(SharedLinkResponseSchema) {}
+
+const mapSharedLinkBook = (book: SharedLinkBook) => ({
+  id: book.id,
+  title: book.title,
+  subtitle: book.subtitle,
+  pageCount: Number(book.pageCount ?? 0),
+  hasPdf: !!book.hasPdf,
+});
 
 export function mapSharedLink(
   sharedLink: SharedLink,
@@ -142,10 +223,13 @@ export function mapSharedLink(
       return mapped;
     }),
     album: sharedLink.album ? mapAlbum(sharedLink.album) : undefined,
+    book: sharedLink.book ? mapSharedLinkBook(sharedLink.book) : undefined,
     allowUpload: sharedLink.allowUpload,
     allowDownload: sharedLink.allowDownload,
     showMetadata: sharedLink.showExif,
     slug: sharedLink.slug,
+    redactFaces: sharedLink.redactFaces ?? false,
+    redactText: sharedLink.redactText ?? false,
   };
 
   // unless we select sharedLink.album.sharedLinks this will be wrong

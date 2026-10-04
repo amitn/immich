@@ -323,6 +323,12 @@ export class IntegrityService extends BaseService {
       untrackedFiles.delete(thumbnailPath);
     }
 
+    if (type === 'asset_file') {
+      for (const { path } of await this.integrityRepository.getBookExportPathsByPaths(paths)) {
+        untrackedFiles.delete(path);
+      }
+    }
+
     if (untrackedFiles.size > 0) {
       await this.integrityRepository.create(
         [...untrackedFiles].map((path) => ({

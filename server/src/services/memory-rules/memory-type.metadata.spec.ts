@@ -20,6 +20,7 @@ import * as themed from 'src/services/memory-rules/themed.rule.js';
 import * as tripAnniversary from 'src/services/memory-rules/trip-anniversary.rule.js';
 import { curateTripAssets } from 'src/services/memory-rules/trip.util.js';
 import * as videoMoments from 'src/services/memory-rules/video-moments.rule.js';
+import * as yearRecap from 'src/services/memory-rules/year-recap.rule.js';
 
 /**
  * The smallest asset count each rule can actually emit. This is NOT always its pool gate:
@@ -38,6 +39,7 @@ const SMALLEST_EMITTED_SAMPLE: Record<string, number> = {
   trip_anniversary: 2, // same burst-collapse as recent_trip
   themed: themed.MIN_ASSETS,
   person_throwback: personThrowback.MIN_CHAPTER_ASSETS,
+  year_recap: yearRecap.MIN_ASSETS, // at least MIN_ASSETS photos, and the card takes up to ASSET_CAP of them
 };
 
 /** Fixture helper: an asset at `day 2025-09-<day>` at the given minute past 12:00 UTC. */
@@ -67,6 +69,7 @@ describe('memory-type.metadata', () => {
         { key: 'trip_anniversary', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 2 },
         { key: 'themed', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 5 },
         { key: 'person_throwback', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 4 },
+        { key: 'year_recap', kind: 'rule', defaultEnabled: true, adminConfigurable: true, minAssets: 20 },
       ]);
     });
 
@@ -92,6 +95,7 @@ describe('memory-type.metadata', () => {
         'trip_anniversary',
         'themed',
         'person_throwback',
+        'year_recap',
       ]);
     });
   });
@@ -111,6 +115,7 @@ describe('memory-type.metadata', () => {
         trip_anniversary: true,
         themed: true,
         person_throwback: true,
+        year_recap: true,
       });
     });
   });
@@ -161,6 +166,7 @@ describe('memory-type.metadata', () => {
           'trip_anniversary',
           'themed',
           'person_throwback',
+          'year_recap',
         ]),
       );
     });
@@ -209,6 +215,7 @@ describe('memory-type.metadata', () => {
           'trip_anniversary',
           'themed',
           'person_throwback',
+          'year_recap',
         ]),
       );
     });
@@ -272,6 +279,7 @@ describe('memory-type.metadata', () => {
         trip_anniversary: tripAnniversary.ASSET_CAP,
         themed: themed.ASSET_CAP,
         person_throwback: personThrowback.ASSET_CAP,
+        year_recap: yearRecap.ASSET_CAP,
       };
 
       for (const [key, cap] of Object.entries(caps)) {

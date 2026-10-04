@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import type { MemoryExclusions } from 'src/utils/memory-exclusions.js';
 
 export interface MemoryRuleCandidate {
   ruleId: string;
@@ -42,6 +43,12 @@ export interface MemoryRuleCandidate {
 export interface MemoryRuleContext {
   ownerId: string;
   target: DateTime;
+  /**
+   * What the owner keeps out of their memories (#12): people and pets, days, albums, documents. The service removes
+   * these photos from every candidate afterwards (and drops a candidate left under its floor, or about an excluded
+   * person), so a rule only needs to read them when its own facts depend on them, e.g. the stats of `year_recap`.
+   */
+  exclusions?: MemoryExclusions;
 }
 
 export interface MemoryRule {

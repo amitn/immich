@@ -1,0 +1,55 @@
+import z from 'zod';
+import type { ActivityRecorder } from 'src/utils/activity-log.js';
+import { AuthDto } from 'src/dtos/auth.dto.js';
+
+export type AgentToolContent = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
+
+export type AgentToolResult = {
+  content: AgentToolContent[];
+  isError?: boolean;
+};
+
+export type AgentToolContext = {
+  /** the user the agent acts on behalf of; all access checks use this */
+  auth: AuthDto;
+  /** the assistant session that made the call, if any */
+  sessionId: string | null;
+  /** records the changes the call makes in the activity log, so the user can undo them */
+  activity?: ActivityRecorder;
+  /** the routine run that made the call, for a headless run of an assistant routine (#15) */
+  routineRunId?: string;
+};
+
+export type AgentTool<S extends z.ZodObject = z.ZodObject> = {
+  /** snake_case tool name exposed to the agent */
+  name: string;
+  /**
+   * old names of the tool, still registered for one release as deprecated aliases that run it, so that a resumed
+   * conversation calling the old name keeps working (see `AgentToolService`)
+   */
+  aliases?: string[];
+  title: string;
+  description: string;
+  input: S;
+  /** true when the tool changes the library; the user has to approve the call unless auto-approve is enabled */
+  mutating: boolean;
+  handler: (ctx: AgentToolContext, input: z.infer<S>) => Promise<AgentToolResult>;
+};
+
+export const defineTool = <S extends z.ZodObject>(tool: AgentTool<S>): AgentTool => tool as unknown as AgentTool;
+
+export const toolJson = (value: unknown): AgentToolResult => ({
+  content: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }],
+});
+
+export const toolImage = (image: Buffer, mimeType = 'image/jpeg', details?: unknown): AgentToolResult => ({
+  content: [
+    ...(details === undefined ? [] : toolJson(details).content),
+    { type: 'image', data: image.toString('base64'), mimeType },
+  ],
+});
+
+export const toolError = (message: string): AgentToolResult => ({
+  content: [{ type: 'text', text: message }],
+  isError: true,
+});

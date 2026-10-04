@@ -28,7 +28,8 @@ type SharedLinkAccessRequest = { sharedLink: AuthSharedLink; permission: Permiss
 type OtherAccessRequest = { auth: AuthDto; permission: Permission; ids: Set<string> };
 
 export const requireUploadAccess = (auth: AuthDto | null): AuthDto => {
-  if (!auth || (auth.sharedLink && !auth.sharedLink.allowUpload)) {
+  // a book link only shows the book
+  if (!auth || (auth.sharedLink && (!auth.sharedLink.allowUpload || auth.sharedLink.bookId))) {
     throw new UnauthorizedException();
   }
   return auth;
@@ -76,7 +77,7 @@ const checkSharedLinkAccess = async (
     }
 
     case Permission.AssetUpload: {
-      return sharedLink.allowUpload ? ids : new Set();
+      return sharedLink.allowUpload && !sharedLink.bookId ? ids : new Set();
     }
 
     case Permission.AlbumRead: {
@@ -89,6 +90,18 @@ const checkSharedLinkAccess = async (
 
     case Permission.AlbumAssetCreate: {
       return sharedLink.allowUpload ? await access.album.checkSharedLinkAccess(sharedLinkId, ids) : new Set();
+    }
+
+    // a book link reads its own book (the web book, the page images) and nothing else: the photos are rendered into
+    // the pages, and are not shared themselves
+    case Permission.BookRead: {
+      return sharedLink.bookId ? await access.book.checkSharedLinkAccess(sharedLinkId, ids) : new Set();
+    }
+
+    case Permission.BookDownload: {
+      return sharedLink.bookId && sharedLink.allowDownload
+        ? await access.book.checkSharedLinkAccess(sharedLinkId, ids)
+        : new Set();
     }
 
     default: {
@@ -344,6 +357,41 @@ const checkOtherAccess = async (access: AccessRepository, request: OtherAccessRe
       return access.person.checkFaceOwnerAccess(auth.user.id, ids);
     }
 
+    case Permission.AgentSessionRead:
+    case Permission.AgentSessionUpdate:
+    case Permission.AgentSessionDelete: {
+      return access.agentSession.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.ArtJobRead: {
+      return access.artJob.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.HighlightRead:
+    case Permission.HighlightDelete: {
+      return access.highlightJob.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.BookRead:
+    case Permission.BookUpdate:
+    case Permission.BookDelete:
+    case Permission.BookDownload:
+    case Permission.BookShare: {
+      return access.book.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.ArtStyleRead:
+    case Permission.ArtStyleUpdate:
+    case Permission.ArtStyleDelete: {
+      return access.artStyle.checkOwnerAccess(auth.user.id, ids);
+    }
+
+    case Permission.BookStyleRead:
+    case Permission.BookStyleUpdate:
+    case Permission.BookStyleDelete: {
+      return access.bookStyle.checkOwnerAccess(auth.user.id, ids);
+    }
+
     case Permission.ClusterGroupRead: {
       const isMember = await access.clusterGroup.checkOwnerAccess(auth.user.id, ids);
       const isInvited = await access.clusterGroup.checkInviteAccess(auth.user.id, setDifference(ids, isMember));
@@ -428,6 +476,15 @@ export const hasDirectAlbumReadAccess = async (
   const isShared = await access.album.checkSharedAlbumAccess(userId, ids, AlbumUserRole.Viewer);
   return isShared.has(albumId);
 };
+
+/**
+ * The assets the user owns, for the assistant's features that write to a photo: the copies stacked with it (crop,
+ * straighten, enhance, improve, artwork) and its naming (the collection tags and descriptions). A photo that is only
+ * shared with the user (a partner's, or another member's in a shared space) is read-only for them. Not
+ * `Permission.AssetUpdate`, which in this fork also admits space editors; the pure owner arm of `AssetCopy` instead.
+ */
+export const checkOwnedAssets = (access: AccessRepository, auth: AuthDto, ids: Set<string> | string[]) =>
+  checkAccess(access, { auth, permission: Permission.AssetCopy, ids });
 
 export const requireElevatedPermission = (auth: AuthDto) => {
   if (!auth.session?.hasElevatedPermission) {

@@ -917,3 +917,445 @@ from
   "asset"
 where
   "asset"."deletedAt" is null
+
+-- AssetJobRepository.getForAgent
+select
+  "asset"."id",
+  "asset"."type",
+  "asset"."localDateTime",
+  "asset"."fileCreatedAt",
+  "asset"."isFavorite",
+  "asset"."width",
+  "asset"."height",
+  "asset"."checksum",
+  "asset"."updatedAt",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."make",
+  "asset_exif"."model",
+  "asset_exif"."lensModel",
+  "asset_exif"."fNumber",
+  "asset_exif"."exposureTime",
+  "asset_exif"."iso",
+  "asset_exif"."focalLength",
+  "asset_exif"."latitude",
+  "asset_exif"."longitude",
+  "asset_exif"."city",
+  "asset_exif"."state",
+  "asset_exif"."country",
+  "asset_exif"."description",
+  "asset_exif"."rating",
+  "asset_exif"."timeZone",
+  (
+    select
+      "asset_file"."path"
+    from
+      "asset_file"
+    where
+      "asset_file"."assetId" = "asset"."id"
+      and "asset_file"."type" = 'preview'
+    order by
+      "asset_file"."isEdited" desc
+    limit
+      $1
+  ) as "previewPath",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_face"."personGroupId" as "personId",
+          "person"."name",
+          "asset_face"."imageWidth",
+          "asset_face"."imageHeight",
+          "asset_face"."boundingBoxX1",
+          "asset_face"."boundingBoxY1",
+          "asset_face"."boundingBoxX2",
+          "asset_face"."boundingBoxY2",
+          (
+            exists (
+              select
+                1 as "one"
+              from
+                "pet_search"
+              where
+                "pet_search"."faceId" = "asset_face"."id"
+            )
+            or exists (
+              select
+                1 as "one"
+              from
+                "person"
+              where
+                "person"."personGroupId" = "asset_face"."personGroupId"
+                and "person"."type" = $2
+            )
+          ) as "isPet"
+        from
+          "asset_face"
+          left join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+          and "person"."ownerId" = $3::uuid
+          and "person"."isHidden" = $4
+        where
+          "asset_face"."assetId" = "asset"."id"
+          and "asset_face"."deletedAt" is null
+          and "asset_face"."isVisible" is true
+      ) as agg
+  ) as "faces"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "asset"."id" = any ($5::uuid[])
+  and "asset"."deletedAt" is null
+
+-- AssetJobRepository.getForBurstScan
+select
+  "asset"."id",
+  "asset"."ownerId",
+  "asset"."type",
+  "asset"."fileCreatedAt",
+  "asset"."duplicateId",
+  "asset"."stackId",
+  "asset"."originalFileName",
+  "asset"."isEdited",
+  "asset"."width",
+  "asset"."height",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."fileSizeInByte",
+  exists (
+    select
+    from
+      "tag_asset"
+      inner join "tag" on "tag"."id" = "tag_asset"."tagId"
+    where
+      "tag_asset"."assetId" = "asset"."id"
+      and (
+        "tag"."value" like $1
+        or "tag"."value" like $2
+      )
+  ) as "isCopy"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  exists (
+    select
+    from
+      "album_asset"
+    where
+      "album_asset"."assetId" = "asset"."id"
+      and "album_asset"."albumId" = $3::uuid
+  )
+  and "asset"."fileCreatedAt" >= $4
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+  and "asset"."status" = 'active'
+order by
+  "asset"."fileCreatedAt" desc,
+  "asset"."id" asc
+limit
+  $5
+
+-- AssetJobRepository.getAlbumsForAgent
+select
+  "album_asset"."assetId",
+  "album"."id",
+  "album"."albumName"
+from
+  "album_asset"
+  inner join "album" on "album"."id" = "album_asset"."albumId"
+  and "album"."deletedAt" is null
+  inner join "album_user" on "album_user"."albumId" = "album"."id"
+  and "album_user"."userId" = $1::uuid
+where
+  "album_asset"."assetId" = any ($2::uuid[])
+order by
+  "album"."albumName"
+
+-- AssetJobRepository.getForAgentEvents
+select
+  "asset"."id",
+  "asset"."localDateTime",
+  "asset_exif"."latitude",
+  "asset_exif"."longitude",
+  "asset_exif"."city",
+  "asset_exif"."country",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "person"."name"
+        from
+          "asset_face"
+          inner join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+          and "person"."ownerId" = $1::uuid
+          and "person"."isHidden" = $2
+          and "person"."name" != $3
+          and "person"."type" != $4
+        where
+          "asset_face"."assetId" = "asset"."id"
+          and "asset_face"."deletedAt" is null
+          and "asset_face"."isVisible" is true
+      ) as agg
+  ) as "people"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+  inner join (
+    select
+      "assetId"
+    from
+      "asset_face"
+    where
+      "personGroupId" = any ($5::uuid[])
+      and "deletedAt" is null
+      and "isVisible" is true
+    group by
+      "assetId"
+    having
+      count(distinct "personGroupId") = $6
+  ) as "has_people" on "has_people"."assetId" = "asset"."id"
+where
+  "asset"."ownerId" = any ($7::uuid[])
+  and "asset"."fileCreatedAt" >= $8
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+order by
+  "asset"."localDateTime" asc,
+  "asset"."id" asc
+limit
+  $9
+
+-- AssetJobRepository.getPersonTimesForAgent
+select
+  "asset_face"."personGroupId" as "personId",
+  "asset"."localDateTime"
+from
+  "asset"
+  inner join "asset_face" on "asset_face"."assetId" = "asset"."id"
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+where
+  "asset_face"."personGroupId" = any ($1::uuid[])
+  and "asset"."ownerId" = $2::uuid
+  and "asset"."deletedAt" is null
+  and "asset"."visibility" in ('archive', 'timeline')
+  and "asset"."localDateTime" >= $3
+  and "asset"."localDateTime" < $4
+order by
+  "asset"."localDateTime" desc
+limit
+  $5
+
+-- AssetJobRepository.getPeopleForAgent
+select
+  "person"."personGroupId" as "id",
+  "person"."name",
+  count(distinct "asset"."id") as "count"
+from
+  "person"
+  inner join "asset_face" on "asset_face"."personGroupId" = "person"."personGroupId"
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+  inner join "asset" on "asset"."id" = "asset_face"."assetId"
+  and "asset"."visibility" = 'timeline'
+  and "asset"."deletedAt" is null
+  and "asset"."ownerId" = any ($1::uuid[])
+where
+  "person"."ownerId" = $2::uuid
+  and "person"."isHidden" = $3
+  and "person"."type" != $4
+  and "person"."name" != $5
+group by
+  "person"."ownerId",
+  "person"."personGroupId"
+order by
+  "count" desc,
+  "person"."name" asc
+limit
+  $6
+
+-- AssetJobRepository.getForRedaction
+select
+  "asset"."id",
+  "asset"."ownerId",
+  "asset"."type",
+  "asset"."isEdited",
+  "asset"."deletedAt",
+  "asset"."visibility",
+  "asset"."originalPath",
+  "asset"."originalFileName",
+  "asset"."livePhotoVideoId",
+  "asset_exif"."exifImageWidth",
+  "asset_exif"."exifImageHeight",
+  "asset_exif"."orientation",
+  "asset_exif"."colorspace",
+  "asset_exif"."profileDescription",
+  "asset_exif"."bitsPerSample",
+  "asset_exif"."projectionType",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_edit"."action",
+          "asset_edit"."parameters"
+        from
+          "asset_edit"
+        where
+          "asset_edit"."assetId" = "asset"."id"
+      ) as agg
+  ) as "edits",
+  (
+    select
+      coalesce(json_agg(agg), '[]')
+    from
+      (
+        select
+          "asset_file"."type",
+          "asset_file"."path",
+          "asset_file"."isEdited"
+        from
+          "asset_file"
+        where
+          "asset_file"."assetId" = "asset"."id"
+      ) as agg
+  ) as "files"
+from
+  "asset"
+  left join "asset_exif" on "asset_exif"."assetId" = "asset"."id"
+where
+  "asset"."id" = any ($1::uuid[])
+
+-- AssetJobRepository.getLivePhotoStillIds
+select
+  "asset"."id",
+  "asset"."livePhotoVideoId"
+from
+  "asset"
+where
+  "asset"."livePhotoVideoId" = any ($1::uuid[])
+  and "asset"."deletedAt" is null
+
+-- AssetJobRepository.getRedactionFaces
+select
+  "asset_face"."id",
+  "asset_face"."assetId",
+  "asset_face"."imageWidth",
+  "asset_face"."imageHeight",
+  "asset_face"."boundingBoxX1",
+  "asset_face"."boundingBoxY1",
+  "asset_face"."boundingBoxX2",
+  "asset_face"."boundingBoxY2",
+  "person"."personGroupId" as "personId",
+  "person"."name" as "personName",
+  "person"."identityId" as "personIdentityId",
+  (
+    exists (
+      select
+        1 as "one"
+      from
+        "pet_search"
+      where
+        "pet_search"."faceId" = "asset_face"."id"
+    )
+    or exists (
+      select
+        1 as "one"
+      from
+        "person"
+      where
+        "person"."personGroupId" = "asset_face"."personGroupId"
+        and "person"."type" = $1
+    )
+  ) as "isPet",
+  (
+    select
+      array_agg("face_identity_face"."identityId") as "ids"
+    from
+      "face_identity_face"
+    where
+      "face_identity_face"."assetFaceId" = "asset_face"."id"
+  ) as "faceIdentityIds"
+from
+  "asset_face"
+  left join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+where
+  "asset_face"."assetId" = any ($2::uuid[])
+  and "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+order by
+  "asset_face"."boundingBoxX1" asc
+
+-- AssetJobRepository.getRedactionOcr
+select
+  "asset_ocr"."id",
+  "asset_ocr"."assetId",
+  "asset_ocr"."x1",
+  "asset_ocr"."y1",
+  "asset_ocr"."x2",
+  "asset_ocr"."y2",
+  "asset_ocr"."x3",
+  "asset_ocr"."y3",
+  "asset_ocr"."x4",
+  "asset_ocr"."y4",
+  "asset_ocr"."text"
+from
+  "asset_ocr"
+where
+  "asset_ocr"."assetId" = any ($1::uuid[])
+  and "asset_ocr"."isVisible" is true
+order by
+  "asset_ocr"."y1" asc,
+  "asset_ocr"."x1" asc
+
+-- AssetJobRepository.getRedactionPeople
+select
+  "person"."personGroupId" as "id",
+  "person"."ownerId",
+  "person"."name",
+  "person"."type",
+  "person"."identityId"
+from
+  "person"
+where
+  "person"."personGroupId" = any ($1::uuid[])
+
+-- AssetJobRepository.getRedactionPeopleCounts
+select
+  coalesce("person"."identityId", "person"."personGroupId") as "key",
+  array_agg(distinct "person"."personGroupId") as "personIds",
+  array_agg(distinct "person"."identityId") as "identityIds",
+  count(distinct "asset_face"."assetId") as "photos"
+from
+  "asset_face"
+  inner join "person" on "person"."personGroupId" = "asset_face"."personGroupId"
+where
+  "asset_face"."deletedAt" is null
+  and "asset_face"."isVisible" is true
+  and "person"."type" != $1
+  and "person"."name" != $2
+  and exists (
+    select
+    from
+      "album_asset"
+    where
+      "album_asset"."assetId" = "asset_face"."assetId"
+      and "album_asset"."albumId" = $3::uuid
+  )
+group by
+  coalesce("person"."identityId", "person"."personGroupId")
+
+-- AssetJobRepository.countRedactionAssets
+select
+  count(*) as "count"
+from
+  "album_asset"
+where
+  "album_asset"."albumId" = $1::uuid

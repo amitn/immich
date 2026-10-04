@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { DateTime, Settings } from 'luxon';
 import type { OnThisDayData, RuleMemoryData } from 'src/types.js';
 import { defaults } from 'src/dtos/config.dto.js';
-import { MemoryType, SystemMetadataKey, UserMetadataKey } from 'src/enum.js';
+import { JobName, MemoryType, SystemMetadataKey, UserMetadataKey } from 'src/enum.js';
 import { MemoryService, RULE_DAILY_LIMIT } from 'src/services/memory.service.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { MemoryFactory } from 'test/factories/memory.factory.js';
@@ -45,6 +45,32 @@ const overlapRow = (overrides: {
   showAt: overrides.showAt === undefined ? day('2026-09-01T00:00:00Z') : overrides.showAt,
   hideAt: overrides.hideAt === undefined ? day('2026-09-01T23:59:59Z') : overrides.hideAt,
   assets: overrides.assets.map((id) => ({ id })),
+});
+
+/** a row of `memory_exclusion`, as `getAll` returns it (#12) */
+const exclusionRow = (overrides: Record<string, unknown>) => ({
+  id: newUuid(),
+  type: 'person',
+  personGroupId: null,
+  albumId: null,
+  startDate: null,
+  endDate: null,
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  personName: null,
+  personType: null,
+  albumName: null,
+  ...overrides,
+});
+
+/** a rule candidate of a month recap (#12) */
+const candidate = (overrides: Record<string, unknown> = {}) => ({
+  ruleId: 'month_recap',
+  dedupeKey: `month_recap:${newUuid()}`,
+  score: 100,
+  assetIds: ids('a', 12),
+  memoryAt: DateTime.fromISO('2026-04-23T00:00:00Z'),
+  context: { year: 2025, month: 4, count: 12 },
+  ...overrides,
 });
 
 describe(MemoryService.name, () => {
@@ -156,6 +182,25 @@ describe(MemoryService.name, () => {
 
       expect(mocks.user.getList).toHaveBeenCalledWith({ withDeleted: false });
       expect(mocks.systemMetadata.set).toHaveBeenCalled();
+    });
+
+    it('should then look for the memory of the day of the users whose time of day has come (#6)', async () => {
+      mocks.user.getList.mockResolvedValue([factory.userAdmin()]);
+      mocks.systemMetadata.get.mockResolvedValue(null);
+      mocks.asset.getByDayOfYear.mockResolvedValue([]);
+
+      await sut.onMemoriesCreate();
+
+      expect(mocks.job.queue).toHaveBeenLastCalledWith({ name: JobName.MemoryNoticesQueueAll });
+    });
+
+    it('should not fail the memories when the notifier cannot be queued (#6)', async () => {
+      mocks.user.getList.mockResolvedValue([factory.userAdmin()]);
+      mocks.systemMetadata.get.mockResolvedValue(null);
+      mocks.asset.getByDayOfYear.mockResolvedValue([]);
+      mocks.job.queue.mockRejectedValue(new Error('redis down'));
+
+      await expect(sut.onMemoriesCreate()).resolves.toBeUndefined();
     });
 
     it('should skip dates that have already been processed', async () => {
@@ -1193,8 +1238,8 @@ describe(MemoryService.name, () => {
 
       await sut.onMemoriesCreate();
 
-      expect(mocks.memory.getForOverlapReconcile).toHaveBeenCalledWith(first.id, expect.anything());
-      expect(mocks.memory.getForOverlapReconcile).toHaveBeenCalledWith(second.id, expect.anything());
+      expect(mocks.memory.getForOverlapReconcile).toHaveBeenCalledWith(first.id, expect.anything(), expect.anything());
+      expect(mocks.memory.getForOverlapReconcile).toHaveBeenCalledWith(second.id, expect.anything(), expect.anything());
       // The same rows came back for both owners and neither stripped the other.
       expect(mocks.memory.removeAssetIds).not.toHaveBeenCalled();
     });
@@ -1393,6 +1438,7 @@ describe(MemoryService.name, () => {
           hiddenLibraryIds: [],
         },
         [],
+        { personIds: [], dateRanges: [], albumIds: [], documents: false },
       );
     });
 
@@ -1601,6 +1647,7 @@ describe(MemoryService.name, () => {
           hiddenLibraryIds: [],
         },
         [],
+        { personIds: [], dateRanges: [], albumIds: [], documents: false },
       );
       expect(mocks.access.memory.checkOwnerAccess).toHaveBeenCalledWith(memory.ownerId, new Set([memory.id]));
     });
@@ -1945,6 +1992,229 @@ describe(MemoryService.name, () => {
       await sut.removeAssets(factory.auth(), memory.id, { ids: ['not-found'] });
 
       expect(mocks.memory.update).not.toHaveBeenCalled();
+    });
+  });
+
+  /** runs the nightly rule pass for one day, with the given candidates and exclusions */
+  const generate = async (
+    candidates: Array<ReturnType<typeof candidate>>,
+    rows: unknown[],
+    metadata: unknown[] = [],
+  ) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-23T12:00:00Z'));
+    const user = { ...factory.userAdmin(), metadata };
+    mocks.user.getList.mockResolvedValue([user as any]);
+    mocks.systemMetadata.get.mockResolvedValue({
+      lastOnThisDayDate: '2026-04-25T00:00:00.000Z',
+      lastRuleDate: '2026-04-22T00:00:00.000Z',
+    });
+    mocks.asset.getByDayOfYear.mockResolvedValue([]);
+    mocks.memory.hasRuleMemory.mockResolvedValue(false);
+    mocks.memory.create.mockResolvedValue(MemoryFactory.create() as any);
+    mocks.memoryExclusion.getAll.mockResolvedValue(rows as any);
+    const rule = { id: 'stub', evaluate: vi.fn().mockResolvedValue(candidates) };
+    vi.spyOn(sut as any, 'getMemoryRules').mockReturnValue([rule] as never);
+    await sut.onMemoriesCreate();
+    vi.useRealTimers();
+    return { user, rule };
+  };
+
+  // Gallery fork (#12): what a user keeps out of their memories, applied to every rule and to the memories served
+  describe('memory exclusions', () => {
+    const documentsOn = [{ key: UserMetadataKey.Preferences, value: { memoryExclusions: { documents: true } } }];
+
+    it.each([
+      [
+        'a person or a pet',
+        [exclusionRow({ type: 'person', personGroupId: 'person-1' })],
+        [],
+        { personIds: ['person-1'], dateRanges: [], albumIds: [], documents: false },
+      ],
+      [
+        'a range of days',
+        [exclusionRow({ type: 'date_range', startDate: '2025-04-01', endDate: '2025-04-14' })],
+        [],
+        { personIds: [], dateRanges: [{ from: '2025-04-01', to: '2025-04-14' }], albumIds: [], documents: false },
+      ],
+      [
+        'an album',
+        [exclusionRow({ type: 'album', albumId: 'album-1' })],
+        [],
+        { personIds: [], dateRanges: [], albumIds: ['album-1'], documents: false },
+      ],
+      [
+        'the screenshots, receipts and documents',
+        [],
+        documentsOn,
+        { personIds: [], dateRanges: [], albumIds: [], documents: true },
+      ],
+    ])('leaves %s out of every rule candidate', async (_, rows, metadata, expected) => {
+      mocks.memoryExclusion.getKeptAssetIds.mockResolvedValue(new Set(ids('a', 10)));
+
+      const { rule } = await generate([candidate()], rows, metadata);
+
+      // the rule sees them too, e.g. for the stats of a year recap
+      expect(rule.evaluate).toHaveBeenCalledWith(expect.objectContaining({ exclusions: expected }));
+      expect(mocks.memoryExclusion.getKeptAssetIds).toHaveBeenCalledWith(ids('a', 12), expected);
+      expect(mocks.memory.create).toHaveBeenCalledTimes(1);
+      expect(mocks.memory.create.mock.calls[0][1]).toEqual(new Set(ids('a', 10)));
+    });
+
+    it('does not look the photos up when nothing is left out', async () => {
+      await generate([candidate()], []);
+
+      expect(mocks.memoryExclusion.getKeptAssetIds).not.toHaveBeenCalled();
+      expect(mocks.memory.create.mock.calls[0][1]).toEqual(new Set(ids('a', 12)));
+    });
+
+    it('drops a candidate left under the floor of its type', async () => {
+      // month_recap keeps at least 8 photos
+      mocks.memoryExclusion.getKeptAssetIds.mockResolvedValue(new Set(ids('a', 7)));
+
+      await generate([candidate()], [exclusionRow({ type: 'album', albumId: 'album-1' })]);
+
+      expect(mocks.memory.create).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['birthday', { personId: 'person-1', personName: 'Dana' }],
+      ['person_throwback', { personId: 'person-1', personName: 'Dana' }],
+      ['people_together', { personAId: 'person-2', personBId: 'person-1' }],
+    ])('drops a %s memory about an excluded person', async (ruleId, context) => {
+      await generate(
+        [candidate({ ruleId, context }), candidate({ dedupeKey: 'kept' })],
+        [exclusionRow({ type: 'person', personGroupId: 'person-1' })],
+      );
+
+      expect(mocks.memory.create).toHaveBeenCalledTimes(1);
+      expect(mocks.memory.create.mock.calls[0][0].data).toMatchObject({ dedupeKey: 'kept' });
+    });
+
+    it('leaves an excluded person out of the people a year recap lists', async () => {
+      await generate(
+        [
+          candidate({
+            ruleId: 'year_recap',
+            assetIds: ids('a', 30),
+            context: {
+              year: 2025,
+              topPeople: [
+                { id: 'person-1', name: 'Dana' },
+                { id: 'person-2', name: 'Eli' },
+              ],
+            },
+          }),
+        ],
+        [exclusionRow({ type: 'person', personGroupId: 'person-1' })],
+      );
+
+      expect(mocks.memory.create.mock.calls[0][0].data).toMatchObject({
+        context: { year: 2025, topPeople: [{ id: 'person-2', name: 'Eli' }] },
+      });
+    });
+
+    it('prepares a new year recap in the background: its notification and its book', async () => {
+      const memory = MemoryFactory.create();
+      mocks.memory.create.mockResolvedValue(memory as any);
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-01-02T12:00:00Z'));
+      mocks.user.getList.mockResolvedValue([factory.userAdmin()]);
+      mocks.systemMetadata.get.mockResolvedValue({
+        lastOnThisDayDate: '2026-01-05T00:00:00.000Z',
+        lastRuleDate: '2026-01-01T00:00:00.000Z',
+      });
+      mocks.memory.hasRuleMemory.mockResolvedValue(false);
+      const rule = {
+        id: 'year_recap',
+        evaluate: vi.fn().mockResolvedValue([
+          candidate({
+            ruleId: 'year_recap',
+            dedupeKey: 'year_recap:2025',
+            assetIds: ids('y', 30),
+            visibleForDays: 14,
+          }),
+        ]),
+      };
+      vi.spyOn(sut as any, 'getMemoryRules').mockReturnValue([rule] as never);
+      mocks.memory.create.mockResolvedValueOnce({ ...memory, id: 'recap-memory' } as any);
+
+      await sut.onMemoriesCreate();
+      vi.useRealTimers();
+
+      expect(mocks.job.queue).toHaveBeenCalledWith({ name: 'YearRecapPrepare', data: { id: 'recap-memory' } });
+    });
+
+    it('passes the exclusions to the reconcile pass', async () => {
+      mocks.memoryExclusion.getAll.mockResolvedValue([exclusionRow({ type: 'album', albumId: 'album-1' })] as any);
+
+      await runJob();
+
+      expect(mocks.memory.getForOverlapReconcile).toHaveBeenCalledWith(expect.any(String), expect.anything(), {
+        personIds: [],
+        dateRanges: [],
+        albumIds: ['album-1'],
+        documents: false,
+      });
+    });
+
+    describe('when the memories are served', () => {
+      it('leaves the excluded photos out, and hides the memories about an excluded person', async () => {
+        const [userId] = newUuids();
+        const asset = AssetFactory.create();
+        const kept = MemoryFactory.from({
+          ownerId: userId,
+          type: MemoryType.Rule,
+          data: {
+            ruleId: 'year_recap',
+            dedupeKey: 'year_recap:2025',
+            context: {
+              year: 2025,
+              topPeople: [
+                { id: 'person-1', name: 'Dana' },
+                { id: 'person-2', name: 'Eli' },
+              ],
+            },
+          },
+        })
+          .asset(asset)
+          .build();
+        const birthday = MemoryFactory.from({
+          ownerId: userId,
+          type: MemoryType.Rule,
+          data: { ruleId: 'birthday', dedupeKey: 'birthday:x', context: { personId: 'person-1', personName: 'Dana' } },
+        })
+          .asset(asset)
+          .build();
+        mocks.memoryExclusion.getAll.mockResolvedValue([
+          exclusionRow({ type: 'person', personGroupId: 'person-1' }),
+        ] as any);
+        mocks.memory.searchAccessible.mockResolvedValue([getForMemory(kept), getForMemory(birthday)]);
+        mocks.access.asset.checkOwnerAccess.mockResolvedValue(new Set([asset.id]));
+
+        const result = await sut.search(factory.auth({ user: { id: userId } }), {});
+
+        expect(mocks.memory.searchAccessible).toHaveBeenCalledWith(userId, {}, expect.anything(), [], {
+          personIds: ['person-1'],
+          dateRanges: [],
+          albumIds: [],
+          documents: false,
+        });
+        expect(result.map(({ id }) => id)).toEqual([kept.id]);
+        expect((result[0].data as any).context.topPeople).toEqual([{ id: 'person-2', name: 'Eli' }]);
+      });
+
+      it('serves the memories as they are when the exclusions can not be read', async () => {
+        mocks.memoryExclusion.getAll.mockRejectedValue(new Error('down'));
+
+        await expect(sut.search(factory.auth(), {})).resolves.toEqual([]);
+        expect(mocks.memory.searchAccessible).toHaveBeenCalledWith(expect.any(String), {}, expect.anything(), [], {
+          personIds: [],
+          dateRanges: [],
+          albumIds: [],
+          documents: false,
+        });
+      });
     });
   });
 });

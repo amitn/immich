@@ -31,12 +31,12 @@ import { ApiTag, ImmichCookie, Permission } from 'src/enum.js';
 import { Auth, Authenticated, GetLoginDetails } from 'src/middleware/auth.guard.js';
 import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { respondWithCookie } from 'src/utils/response.js';
+import { getSharedLinkAuthTokens } from 'src/utils/shared-link.js';
 import { UUIDParamDto } from 'src/validation.js';
 
-const getAuthTokens = (cookies: Record<string, string> | undefined) => {
-  return cookies?.[ImmichCookie.SharedLinkToken]?.split(',') || [];
-};
+const getAuthTokens = getSharedLinkAuthTokens;
 
 const merge = (cookies: Record<string, string> | undefined, token: string) => {
   const authTokens = getAuthTokens(cookies);
@@ -118,7 +118,7 @@ export class SharedLinkController {
     history: new HistoryBuilder().added('v1').beta('v1').stable('v2'),
   })
   createSharedLink(@Auth() auth: AuthDto, @Body() dto: SharedLinkCreateDto) {
-    return this.service.create(auth, dto);
+    return this.service.create(auth, dto, ActivityRecorder.web());
   }
 
   @Patch(':id')

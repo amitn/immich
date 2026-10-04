@@ -21,6 +21,7 @@
   import { getAlbumAssetActions } from '$lib/services/album.service';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetActions } from '$lib/services/asset.service';
+  import { getAssistantAssetActions } from '$lib/services/assistant.service';
   import { getSharedLink, withoutIcons } from '$lib/utils';
   import type { OnUndoDelete } from '$lib/utils/actions';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
@@ -93,6 +94,7 @@
   });
 
   const Actions = $derived(getAssetActions($t, { ...asset, stackPrimaryAssetId: stack?.primaryAssetId }, { space }));
+  const AssistantActions = $derived(getAssistantAssetActions($t, asset));
   const sharedLink = getSharedLink();
 </script>
 
@@ -188,6 +190,10 @@
         {/if}
 
         <ActionMenuItem action={Actions.SetProfilePicture} />
+        <ActionMenuItem action={AssistantActions.AskAssistant} />
+        <ActionMenuItem action={AssistantActions.ArtisticStyle} />
+        <ActionMenuItem action={AssistantActions.AutoEnhance} />
+        <ActionMenuItem action={AssistantActions.Redact} />
 
         {#if isOwner && !isLocked}
           <ArchiveAction {asset} {onAction} {preAction} />

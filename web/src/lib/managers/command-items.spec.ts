@@ -19,6 +19,7 @@ import ShortcutsModal from '../modals/ShortcutsModal.svelte';
 import SpaceAddMemberModal from '../modals/SpaceAddMemberModal.svelte';
 import SpaceCreateModal from '../modals/SpaceCreateModal.svelte';
 import SpaceMembersModal from '../modals/SpaceMembersModal.svelte';
+import { ASSISTANT_COMMAND_ITEMS } from './assistant-command-items';
 import type { CommandContext } from './command-context-manager.svelte';
 import { COMMAND_ITEMS, isAlmostExactCommandMatch, type CommandItem } from './command-items';
 
@@ -110,8 +111,8 @@ describe('COMMAND_ITEMS', () => {
     expect(COMMAND_ITEMS.find((c) => c.id === 'cmd:theme')).toBeDefined();
   });
 
-  it('has 32 entries (7 v1.3.0 + 8 v1.3.1 + 5 v1.4 album + 6 v1.4 space + 6 v1.5A selection)', () => {
-    expect(COMMAND_ITEMS).toHaveLength(32);
+  it('has 32 entries (7 v1.3.0 + 8 v1.3.1 + 5 v1.4 album + 6 v1.4 space + 6 v1.5A selection) and the assistant ones', () => {
+    expect(COMMAND_ITEMS).toHaveLength(32 + ASSISTANT_COMMAND_ITEMS.length);
   });
 
   it('CommandItem type allows isAvailable and destructive', () => {

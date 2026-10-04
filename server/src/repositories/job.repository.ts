@@ -719,6 +719,22 @@ export class JobRepository {
         // partial unique index). removeOnComplete/Fail frees the id once the scan finishes so the next can run.
         return { jobId: JobName.FaceRepairScan, removeOnComplete: true, removeOnFail: true };
       }
+      case JobName.BookExport:
+      case JobName.BookExportHtml:
+      case JobName.HighlightRender: {
+        return { deduplication: { id: `${item.name}/${item.data.id}` } };
+      }
+      // Gallery fork (#15): one tick at a time, whichever worker queued it; a run waits its turn with a delay
+      case JobName.RoutineTick: {
+        return { jobId: JobName.RoutineTick, removeOnComplete: true, removeOnFail: true };
+      }
+      case JobName.RoutineRun: {
+        // a jobId, so that the delay is not lost to addBulk
+        const { id, delay } = item.data;
+        return delay
+          ? { jobId: `${JobName.RoutineRun}/${id}/${Date.now()}`, delay, removeOnComplete: true, removeOnFail: true }
+          : { jobId: `${JobName.RoutineRun}/${id}`, removeOnComplete: true, removeOnFail: true };
+      }
       default: {
         return null;
       }

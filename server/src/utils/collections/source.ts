@@ -1,0 +1,322 @@
+import { OcrBoxInput, toTextBoxes } from 'src/utils/collections/ocr.js';
+import { editDistance, stripAccents } from 'src/utils/collections/text.js';
+
+/**
+ * An entry of a text-source photo, as a pack's parser reads it: a menu item, the artwork of a wall label, the wine of
+ * a bottle label, the dish of a recipe card, the leg of a ticket.
+ */
+export type SourceEntry = {
+  /** the name as printed, in the language of the page */
+  name: string;
+  description?: string;
+  /** the price as printed, e.g. "12,50 €" or "8 / 12" */
+  price?: string;
+  /** the (first) amount of the price, e.g. 12.5 */
+  priceValue?: number;
+  /** the heading the entry is listed under, e.g. "Primi piatti" */
+  section?: string;
+  /** 0-based column of the page, left to right */
+  column: number;
+  /** where the entry is on the photo: [left, top, right, bottom], normalized 0..1 */
+  box: [number, number, number, number];
+  /** the place names in the name as printed (where a leg starts and ends), which the engine may correct */
+  places?: string[];
+  /** the name may be misspelled (Greek print read as Latin lookalikes): the user should check it */
+  check?: boolean;
+};
+
+export type ParsedSource = {
+  items: SourceEntry[];
+  /** the largest text at the top of the page, often the name of the place */
+  title?: string;
+  sections: string[];
+  columns: number;
+  /** text lines read from the photo */
+  lines: number;
+  /** what the parser could not read or found ambiguous, e.g. a date printed vertically */
+  warnings?: string[];
+  /**
+   * other readings of the photo that the parser can't choose from by the text alone, e.g. the neighbouring recipes of
+   * a cookbook page (see `chooseReading`)
+   */
+  alternatives?: Array<Omit<ParsedSource, 'alternatives'>>;
+};
+
+export type SourceParseOptions = { minScore?: number; aspectRatio?: number };
+
+/** reads the entries of a text-source photo from its OCR boxes */
+export type SourceParser = (ocr: OcrBoxInput[], options?: SourceParseOptions) => ParsedSource;
+
+const readText = (boxes: OcrBoxInput[]) =>
+  toTextBoxes(boxes).reduce((sum, box) => sum + box.text.replaceAll(/[^\p{L}\d]/gu, '').length, 0);
+
+/**
+ * Which OCR to read a source from: the tiled full-resolution reading, unless it somehow reads much less text than the
+ * OCR stored for the photo.
+ */
+export const chooseSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): 'tiles' | 'stored' =>
+  readText(detailed) >= 0.8 * readText(stored) ? 'tiles' : 'stored';
+
+/**
+ * The OCR of a photo whose every word counts (a bottle label): the tiled full-resolution reading, with the words of
+ * the stored OCR that it missed (the stored OCR runs on the whole preview, and sometimes reads a large script word
+ * that the tiles cut). A stored box whose center is in a tiled box with some of the same letters was read by the
+ * tiles too.
+ */
+export const combineSourceOcr = (stored: OcrBoxInput[], detailed: OcrBoxInput[]): OcrBoxInput[] => {
+  const tiled = toTextBoxes(detailed);
+  const missed = stored.filter((box) => {
+    const [read] = toTextBoxes([box]);
+    if (!read) {
+      return false;
+    }
+    const x = (read.left + read.right) / 2;
+    const y = (read.top + read.bottom) / 2;
+    return tiled.every(
+      (other) =>
+        !(
+          x >= other.left &&
+          x <= other.right &&
+          y >= other.top - 0.25 * other.height &&
+          y <= other.bottom + 0.25 * other.height &&
+          isSameText(read.text, other.text)
+        ),
+    );
+  });
+  return [...detailed, ...missed];
+};
+
+const letterPairs = (text: string) => new Set(Array.from({ length: text.length - 1 }, (_, i) => text.slice(i, i + 2)));
+
+/** the same text read twice, give or take the letters OCR read differently: one holds the other, or most pairs */
+const isSameText = (a: string, b: string) => {
+  const [x, y] = [entryKey(a), entryKey(b)];
+  if (x.includes(y) || y.includes(x)) {
+    return true;
+  }
+  const [p, q] = [letterPairs(x), letterPairs(y)];
+  const shared = p
+    .values()
+    .filter((pair) => q.has(pair))
+    .toArray().length;
+  return p.size > 0 && q.size > 0 && (2 * shared) / (p.size + q.size) >= 0.3;
+};
+
+/** a part of a photo, normalized 0..1 */
+export type FocusRect = { x: number; y: number; width: number; height: number };
+
+/**
+ * The part of a photo to zoom on to read its entries: where they were read (e.g. the text of a bottle's label), with
+ * room around it (a label is larger than the text OCR read on it), at least `min` of the photo on each side; undefined
+ * when nothing was read, or the entries have no place on the photo.
+ */
+export const getEntriesFocus = (items: Array<Pick<SourceEntry, 'box'>>, { pad = 0.4, min = 0.3 } = {}) => {
+  const boxes = items
+    .map(({ box }) => box)
+    .filter(([left, top, right, bottom]) => right - left < 1 || bottom - top < 1);
+  if (boxes.length === 0) {
+    return;
+  }
+  const left = Math.min(...boxes.map((box) => box[0]));
+  const top = Math.min(...boxes.map((box) => box[1]));
+  const right = Math.max(...boxes.map((box) => box[2]));
+  const bottom = Math.max(...boxes.map((box) => box[3]));
+  const side = (from: number, to: number) => {
+    const size = Math.min(1, Math.max(min, (to - from) * (1 + 2 * pad)));
+    const start = Math.min(Math.max(0, (from + to) / 2 - size / 2), 1 - size);
+    return [start, size] as const;
+  };
+  const [x, width] = side(left, right);
+  const [y, height] = side(top, bottom);
+  const round = (value: number) => Math.round(value * 10_000) / 10_000;
+  return { x: round(x), y: round(y), width: round(width), height: round(height) } satisfies FocusRect;
+};
+
+/**
+ * two consonants that end words of English, French, Italian or German titles ("Pork", "Tart", "Frosting", "Dahl"); a
+ * word torn at the edge of a photo ends in others ("Spinach Quiche Batl")
+ */
+const WORD_ENDINGS = new Set(
+  (
+    'bb bs ch ck ct dd ds dt ff ft gg gh gs gt hl hn ht ks lb ld lf lk ll lm lp ls lt mb mm mn mp ms nc nd ng nk nn ' +
+    'ns nt nz ph pp ps pt rb rc rd rf rg rk rl rm rn rp rr rs rt rz sh sk sp ss st th ts tt tz wd wk wl wn ws wt xt zz'
+  ).split(' '),
+);
+
+/** the last word of a title is torn: a short word OCR cut off at the edge of the photo, "Batl" */
+const isTornWord = (word: string) => {
+  const letters = stripAccents(word)
+    .toLowerCase()
+    .replaceAll(/[^a-z]/g, '');
+  const end = letters.slice(-2);
+  return letters.length >= 2 && letters.length <= 5 && /^[^aeiouy]{2}$/.test(end) && !WORD_ENDINGS.has(end);
+};
+
+/**
+ * The title of a reading as shown to the user: without a last word the OCR tore ("Spinach Quiche Batl" is "Spinach
+ * Quiche"), or none when what is left is not a title. The engine still chooses the readings by the titles as read.
+ */
+export const cleanReadTitle = (title: string, isGarbled: (text: string) => boolean = () => false) => {
+  const words = title.trim().split(/\s+/);
+  if (words.length > 1 && isTornWord(words.at(-1)!)) {
+    words.pop();
+  }
+  const cleaned = words.join(' ').replace(/[\s,;:.-]+$/, '');
+  return cleaned && /\p{L}/u.test(cleaned) && !isGarbled(cleaned) ? cleaned : undefined;
+};
+
+/** the CLIP text of the title of a reading, compared with the subject photos */
+export const getTitlePrompt = (title: string) => `a photo of ${title}`;
+
+/**
+ * The reading of a source photo that fits its subjects best: the parser's own (its main reading) or one of its
+ * alternatives (e.g. the neighbouring recipes of a cookbook page), by the `fit` of each title (e.g. the CLIP
+ * similarity of the subject photos with it), when it fits clearly better, by `margin`: CLIP tells two variants of a
+ * dish (a quiche and a spinach quiche) apart by less than that, and the main reading is the one with the most text.
+ * The others become its alternatives; a reading without alternatives is returned as it is.
+ */
+export const chooseReading = <T extends ParsedSource>(reading: T, fit: (title: string) => number, margin = 0.02): T => {
+  const candidates = [reading, ...(reading.alternatives ?? [])].filter(({ title }) => title);
+  if (!reading.alternatives?.length || candidates.length < 2) {
+    return reading;
+  }
+  const scored = candidates.map((candidate) => ({
+    candidate,
+    score: fit(candidate.title!) + (candidate === reading ? margin : 0),
+  }));
+  const best = scored.toSorted((a, b) => b.score - a.score)[0].candidate;
+  if (best === reading) {
+    return reading;
+  }
+  const { alternatives, ...main } = reading;
+  return {
+    ...reading,
+    ...best,
+    alternatives: [main, ...(alternatives ?? []).filter((alternative) => alternative !== best)],
+  };
+};
+
+const entryKey = (name: string) =>
+  stripAccents(name)
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/** the same name, give or take a few letters OCR read differently */
+const isSameKey = (a: string, b: string) =>
+  a === b || (Math.min(a.length, b.length) >= 8 && editDistance(a, b) <= 0.15 * Math.max(a.length, b.length));
+
+export type MergedSourceEntry = {
+  /** the source photo the entry was read on */
+  sourceId: string;
+  item: SourceEntry;
+  /** the place of the entry in the longest column of the sources, e.g. the courses in the order they are served */
+  course?: number;
+};
+
+/**
+ * The entries of the sources of a visit, without the entries another page (or photo) of it already listed, in source
+ * order. The longest column of any page is the sequence (e.g. the courses of a tasting menu): its entries, and the
+ * entries of other photos that name them again, get their place in it. With `repeats`, an entry read again on another
+ * photo is kept as an entry of that photo too (the same species labelled on two trees, each beside its own label).
+ */
+export const mergeSourceEntries = <T extends { items: SourceEntry[] }>(
+  readings: Array<T & { assetId: string }>,
+  { repeats = false }: { repeats?: boolean } = {},
+): MergedSourceEntry[] => {
+  let courses: string[] = [];
+  for (const reading of readings) {
+    const columns = Map.groupBy(reading.items, (item) => item.column);
+    for (const column of columns.values()) {
+      if (column.length > courses.length) {
+        courses = column.map((item) => entryKey(item.name));
+      }
+    }
+  }
+
+  const seen: string[] = [];
+  const items: MergedSourceEntry[] = [];
+  for (const reading of readings) {
+    // with repeats, only the entries this photo already listed are dropped
+    const read = repeats ? [] : seen;
+    for (const item of reading.items) {
+      const key = entryKey(item.name);
+      if (read.some((other) => isSameKey(other, key))) {
+        continue;
+      }
+      read.push(key);
+      const course = courses.findIndex((other) => isSameKey(other, key));
+      items.push({ sourceId: reading.assetId, item, ...(course !== -1 && { course }) });
+    }
+  }
+  return items;
+};
+
+const placeKey = (name: string) =>
+  stripAccents(name)
+    .toLowerCase()
+    .replaceAll(/[^\p{L}\d]/gu, '');
+
+/**
+ * The known place a misread place name is closest to, when it is close (a third of its letters at most) and no other
+ * is as close: "Soutia" is "Sougia", "Choa Akion" is "Chora Sfakion". The name itself when a place is spelled so (but
+ * for case and accents), undefined when none is close.
+ */
+export const snapPlaceName = (name: string, known: string[]): string | undefined => {
+  const key = placeKey(name);
+  if (key.length < 4) {
+    return;
+  }
+  if (known.some((place) => placeKey(place) === key)) {
+    return name;
+  }
+  let best: { place: string; key: string; distance: number } | undefined;
+  let tie = false;
+  for (const place of known) {
+    const other = placeKey(place);
+    if (other.length < 4) {
+      continue;
+    }
+    const distance = editDistance(key, other);
+    if (distance > Math.max(1, Math.floor(0.34 * Math.max(key.length, other.length)))) {
+      continue;
+    }
+    if (!best || distance < best.distance) {
+      best = { place, key: other, distance };
+      tie = false;
+    } else if (distance === best.distance && other !== best.key) {
+      tie = true;
+    }
+  }
+  return best && !tie ? best.place : undefined;
+};
+
+export type SnappedPlace = { from: string; to: string };
+
+/**
+ * The entries with the place names to check (`check`) corrected to the closest known place (the cities of the photos,
+ * the places read clearly on the other sources), in their name and description; they stay to check
+ */
+export const snapEntryPlaces = (
+  items: SourceEntry[],
+  known: string[],
+): { items: SourceEntry[]; snapped: SnappedPlace[] } => {
+  const snapped: SnappedPlace[] = [];
+  const result = items.map((item) => {
+    if (!item.check || !item.places?.length) {
+      return item;
+    }
+    let { name, description } = item;
+    const places = item.places.map((place) => {
+      const to = snapPlaceName(place, known);
+      if (!to || to === place) {
+        return place;
+      }
+      name = name.split(place).join(to);
+      description = description?.split(place).join(to);
+      snapped.push({ from: place, to });
+      return to;
+    });
+    return { ...item, name, ...(description !== undefined && { description }), places };
+  });
+  return { items: result, snapped };
+};

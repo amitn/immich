@@ -29,6 +29,7 @@ const getDefaultPreferences = (): UserPreferences => ({
       trip_anniversary: true,
       themed: true,
       person_throwback: true,
+      year_recap: true,
     },
   },
   people: {
@@ -65,6 +66,27 @@ const getDefaultPreferences = (): UserPreferences => ({
   },
   recentlyAdded: {
     sidebarWeb: false,
+  },
+  bookDrafts: {
+    enabled: true,
+  },
+  aiAnswers: {
+    enabled: true,
+  },
+  collectionNotifications: {
+    enabled: true,
+  },
+  memoryExclusions: {
+    documents: false,
+  },
+  memoryNotifications: {
+    memories: true,
+    creations: true,
+    drafts: true,
+    hour: 9,
+    timeZone: '',
+    digest: false,
+    digestDay: 7,
   },
 });
 
@@ -195,6 +217,7 @@ describe('getPreferences', () => {
       trip_anniversary: true,
       themed: true,
       person_throwback: true,
+      year_recap: true,
     });
   });
 

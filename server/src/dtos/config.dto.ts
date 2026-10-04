@@ -33,6 +33,14 @@ import {
   VideoContainerSchema,
 } from 'src/enum.js';
 import {
+  AssistantAgentSchema,
+  AssistantBooksSchema,
+  AssistantCollectionsSchema,
+  AssistantFoodSchema,
+  AssistantMemoryNotificationsSchema,
+  assistantTopLevelDefaults,
+} from 'src/gallery/assistant-config.dto.js';
+import {
   GalleryClassificationSchema,
   GalleryClipExtension,
   GalleryFaceSuggestionSchema,
@@ -163,6 +171,7 @@ const AdminConfigSmtpSchema = z
 
 const AdminConfigSchemaWithVisibility = z
   .object({
+    agent: AssistantAgentSchema,
     backup: z
       .object({
         database: z
@@ -174,7 +183,10 @@ const AdminConfigSchemaWithVisibility = z
           .meta({ id: 'AdminConfigDatabaseBackupDto' }),
       })
       .meta({ id: 'AdminConfigBackupsDto' }),
+    books: AssistantBooksSchema,
+    collections: AssistantCollectionsSchema,
     ffmpeg: AdminConfigFFmpegSchema,
+    food: AssistantFoodSchema,
     integrityChecks: z
       .object({
         missingFiles: AdminConfigIntegrityJobSchema,
@@ -434,6 +446,7 @@ const AdminConfigSchemaWithVisibility = z
       .meta({ id: 'AdminConfigUserDto' }),
     classification: GalleryClassificationSchema,
     memories: GalleryMemoriesSchema,
+    memoryNotifications: AssistantMemoryNotificationsSchema,
     storageUsage: GalleryStorageUsageSchema,
   })
   .describe('Configuration properties that are visible to the admin')
@@ -805,4 +818,5 @@ export const defaults = Object.freeze<SystemConfig>({
     deleteDelay: 7,
   },
   ...galleryTopLevelDefaults,
+  ...assistantTopLevelDefaults,
 });

@@ -35,6 +35,7 @@ import { createFilterState } from '$lib/components/filter-panel/filter-panel';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
 import { Route } from '$lib/route';
+import { openAssistant } from '$lib/services/assistant.service';
 import { addEntry, getEntries, makePlaceId, removeEntry, type RecentEntry } from '$lib/stores/cmdk-recent';
 import { getPhotosPersonFilterId, type PhotosPersonFilterReference } from '$lib/utils/photos-filter-options';
 import {
@@ -66,6 +67,7 @@ import { resolveTypedSearchFilters, type TypedSearchChoice } from '$lib/utils/ty
 import { parseScope, personSuggestionsComparator, type ParsedQuery, type Scope } from './cmdk-prefix';
 import { commandContextManager } from './command-context-manager.svelte';
 import { COMMAND_ITEMS, isAlmostExactCommandMatch, type CommandItem } from './command-items';
+import { runJournalsProvider, type JournalItem } from './global-search-journals';
 import { isAlmostExactNavMatch, NAVIGATION_ITEMS, type NavigationItem } from './navigation-items';
 
 export type SearchMode = 'smart' | 'metadata' | 'description' | 'ocr';
@@ -100,6 +102,8 @@ export type Sections = {
   tags: ProviderStatus<EntityItem>;
   albums: ProviderStatus<EntityItem>;
   spaces: ProviderStatus<EntityItem>;
+  /** the visits of the collections that match, and a row asking the assistant (global-search-journals.ts) */
+  journals: ProviderStatus<EntityItem>;
   navigation: ProviderStatus<NavigationItem>;
   commands: ProviderStatus<CommandItem>;
 };
@@ -118,6 +122,7 @@ export type ActiveItem =
   | { kind: 'tag'; data: unknown }
   | { kind: 'album'; data: AlbumNameDto }
   | { kind: 'space'; data: SharedSpaceResponseDto }
+  | { kind: 'journal'; data: JournalItem }
   | { kind: 'nav'; data: NavigationItem }
   | { kind: 'command'; data: CommandItem };
 
@@ -204,9 +209,10 @@ function getCurrentSpaceTimelineId(pathname: string): string | undefined {
 // union, which would otherwise force an awkward cast.
 // Commands, like navigation, use a distinct `ProviderStatus<CommandItem>` generic
 // and are intentionally also excluded from this key set.
-type EntitySectionKey = 'photos' | 'people' | 'places' | 'tags' | 'albums' | 'spaces';
+type EntitySectionKey = 'photos' | 'people' | 'places' | 'tags' | 'albums' | 'spaces' | 'journals';
+const ENTITY_SECTION_KEYS = ['photos', 'people', 'places', 'tags', 'albums', 'spaces', 'journals'] as const;
 const ENTITY_KEYS_BY_SCOPE: Record<Scope, ReadonlyArray<EntitySectionKey>> = {
-  all: ['photos', 'people', 'places', 'tags', 'albums', 'spaces'],
+  all: ['photos', 'people', 'places', 'tags', 'albums', 'spaces', 'journals'],
   people: ['people'],
   tags: ['tags'],
   collections: ['albums', 'spaces'],
@@ -224,7 +230,7 @@ const ENTITY_KEYS_BY_SCOPE: Record<Scope, ReadonlyArray<EntitySectionKey>> = {
 // The all-scope order matches render order (photos, albums, spaces, people,
 // places, tags, navigation) so the cursor lands on the first visible row.
 export const RECONCILE_ORDER_BY_SCOPE: Record<Scope, ReadonlyArray<keyof Sections>> = {
-  all: ['commands', 'photos', 'albums', 'spaces', 'people', 'places', 'tags', 'navigation'],
+  all: ['commands', 'photos', 'albums', 'spaces', 'people', 'places', 'tags', 'journals', 'navigation'],
   people: ['people'],
   tags: ['tags'],
   collections: ['albums', 'spaces'],
@@ -336,6 +342,7 @@ export class GlobalSearchManager {
     tags: idle,
     albums: idle,
     spaces: idle,
+    journals: idle,
     navigation: idle,
     commands: idle,
   });
@@ -1134,6 +1141,7 @@ export class GlobalSearchManager {
       tags: idle,
       albums: idle,
       spaces: idle,
+      journals: idle,
       navigation: idle,
       commands: idle,
     };
@@ -1236,7 +1244,7 @@ export class GlobalSearchManager {
     // carry their DTO types through to the ActiveItem union without forcing the
     // structural entity match through `as unknown`.
     return {
-      kind: kind as 'photo' | 'person' | 'place' | 'tag' | 'album' | 'space',
+      kind: kind as 'photo' | 'person' | 'place' | 'tag' | 'album' | 'space' | 'journal',
       data: match,
     } as ActiveItem;
   }
@@ -1336,6 +1344,9 @@ export class GlobalSearchManager {
       case 'space': {
         return this.sections.spaces;
       }
+      case 'journal': {
+        return this.sections.journals;
+      }
       case 'nav': {
         return this.sections.navigation;
       }
@@ -1366,6 +1377,7 @@ export class GlobalSearchManager {
       tags: 'tag',
       albums: 'album',
       spaces: 'space',
+      journals: 'journal',
       navigation: 'nav',
       commands: 'command',
     };
@@ -1724,6 +1736,39 @@ export class GlobalSearchManager {
           }
         }
       },
+    });
+  }
+
+  /**
+   * Activate a row of "From your journals": a visit opens the timeline filtered by the tag of its place (the user's
+   * own photos, so on /photos whatever the surface), and the last row asks the assistant the question in a new chat.
+   * A tag that is not (or no longer) in the tag list falls back to the Tags page of its path.
+   */
+  async activateJournal(item: JournalItem) {
+    this.close();
+    if (item.kind === 'ask') {
+      await openAssistant({ prompt: item.question });
+      return;
+    }
+    const { tag, place } = item.visit;
+    let tagId: string | undefined;
+    try {
+      tagId = (this.tagsCache ?? (await getAllTags())).find(({ value }) => value === tag)?.id;
+    } catch {
+      tagId = undefined;
+    }
+    if (!tagId) {
+      await goto(Route.tags({ path: tag }));
+      return;
+    }
+    this.navigateToFilteredResults({
+      // Ephemeral URL object for destination construction only; no reactive state is retained.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      target: new URL('/photos', page.url),
+      applyFilter: (filters) => ({ ...filters, tagIds: [tagId] }),
+      // Ephemeral map for the typed-search name cache: the chip reads the place, not a uuid.
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
+      names: { tagNames: new Map([[tagId, place]]) },
     });
   }
 
@@ -2483,6 +2528,7 @@ export class GlobalSearchManager {
         tags: idle,
         albums: idle,
         spaces: idle,
+        journals: idle,
         navigation: idle,
         commands: idle,
       };
@@ -2499,7 +2545,7 @@ export class GlobalSearchManager {
     // stale photo results under an @ scope. (`Array.includes` over a tiny tuple — not
     // a Set — to satisfy svelte/prefer-svelte-reactivity.)
     const inScope = ENTITY_KEYS_BY_SCOPE[this.scope];
-    for (const key of ['photos', 'people', 'places', 'tags', 'albums', 'spaces'] as const) {
+    for (const key of ENTITY_SECTION_KEYS) {
       if (!inScope.includes(key)) {
         this.sections[key] = idle;
         continue;
@@ -2567,7 +2613,7 @@ export class GlobalSearchManager {
     const payload = this.payload;
     const providerPayload = this.getSearchProviderPayload();
     const inScope = ENTITY_KEYS_BY_SCOPE[scope];
-    for (const key of ['photos', 'people', 'places', 'tags', 'albums', 'spaces'] as const) {
+    for (const key of ENTITY_SECTION_KEYS) {
       if (!inScope.includes(key)) {
         this.sections[key] = idle;
       }
@@ -2999,7 +3045,25 @@ export class GlobalSearchManager {
       },
     };
 
-    return { photos, people, places, tags, albums, spaces, navigation: navigationStub, commands: commandsStub };
+    // "From your journals": the visits of the collections that match (global-search-journals.ts)
+    const journals: Provider = {
+      key: 'journals',
+      topN: 5,
+      minQueryLength: 3,
+      run: (query, _mode, signal) => runJournalsProvider(query, signal),
+    };
+
+    return {
+      photos,
+      people,
+      places,
+      tags,
+      albums,
+      spaces,
+      journals,
+      navigation: navigationStub,
+      commands: commandsStub,
+    };
   }
 }
 

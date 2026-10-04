@@ -11,16 +11,21 @@ import {
   SharedLinkSearchDto,
   mapSharedLink,
 } from 'src/dtos/shared-link.dto.js';
-import { Permission, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
+import { ActivityLogAction, Permission, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { checkOwnedAssets } from 'src/utils/access.js';
+import { ActivityRecorder, quote, recordActivity } from 'src/utils/activity-log.js';
+import { getBookPhotoIds } from 'src/utils/book/map.js';
 import { OpenGraphTags, findOrFail, getExternalDomain } from 'src/utils/misc.js';
+import { setDifference } from 'src/utils/set.js';
 import { sharedLinkPublisherRoles } from 'src/utils/shared-link-space-tether.js';
+import { asSharedLinkToken } from 'src/utils/shared-link.js';
 
 @Injectable()
 export class SharedLinkService extends BaseService {
-  async getAll(auth: AuthDto, { id, albumId }: SharedLinkSearchDto): Promise<SharedLinkResponseDto[]> {
+  async getAll(auth: AuthDto, { id, albumId, bookId }: SharedLinkSearchDto): Promise<SharedLinkResponseDto[]> {
     return this.sharedLinkRepository
-      .getAll({ userId: auth.user.id, id, albumId })
+      .getAll({ userId: auth.user.id, id, albumId, bookId })
 
       .then((links) => links.map((link) => mapSharedLink(link, { stripAssetMetadata: false })));
   }
@@ -72,7 +77,8 @@ export class SharedLinkService extends BaseService {
     return mapSharedLink(sharedLink, { stripAssetMetadata: false });
   }
 
-  async create(auth: AuthDto, dto: SharedLinkCreateDto): Promise<SharedLinkResponseDto> {
+  /** Creates a shared link; with a recorder, a link to a book goes into the activity log (undo deletes it) */
+  async create(auth: AuthDto, dto: SharedLinkCreateDto, activity?: ActivityRecorder): Promise<SharedLinkResponseDto> {
     // #1018: a link created from inside a space is authorized against the SPACE, not against
     // asset ownership, so it can cover what the space shows rather than only the creator's own
     // photos. Both branches below require the caller to be an Owner/Editor of the space first —
@@ -81,6 +87,7 @@ export class SharedLinkService extends BaseService {
       await this.requireSpaceEditor(auth, dto.spaceId);
     }
 
+    let bookSpaceId: string | null = null;
     switch (dto.type) {
       case SharedLinkType.Album: {
         if (!dto.albumId) {
@@ -125,24 +132,51 @@ export class SharedLinkService extends BaseService {
 
         break;
       }
+
+      case SharedLinkType.Book: {
+        if (!dto.bookId) {
+          throw new BadRequestException('Invalid bookId');
+        }
+        await this.requireAccess({ auth, permission: Permission.BookShare, ids: [dto.bookId] });
+        bookSpaceId = await this.getBookLinkSpaceId(auth, dto.bookId, dto.spaceId);
+        break;
+      }
     }
+
+    const isBook = dto.type === SharedLinkType.Book;
 
     try {
       const sharedLink = await this.sharedLinkRepository.create({
         key: this.cryptoRepository.randomBytes(50),
         userId: auth.user.id,
         type: dto.type,
-        albumId: dto.albumId || null,
-        assetIds: dto.assetIds,
+        albumId: isBook ? null : dto.albumId || null,
+        bookId: isBook ? dto.bookId : undefined,
+        assetIds: isBook ? undefined : dto.assetIds,
         description: dto.description || null,
         password: dto.password,
         expiresAt: dto.expiresAt || null,
-        allowUpload: dto.allowUpload ?? true,
-        allowDownload: dto.showMetadata === false ? false : (dto.allowDownload ?? true),
+        // nobody uploads to a book; and its PDF is rendered from the pages, without the photos' metadata
+        allowUpload: isBook ? false : (dto.allowUpload ?? true),
+        allowDownload: dto.showMetadata === false && !isBook ? false : (dto.allowDownload ?? true),
         showExif: dto.showMetadata ?? true,
         slug: dto.slug || null,
-        spaceId: dto.spaceId || null,
+        // (#14) off unless asked for
+        ...(dto.redactFaces && { redactFaces: true }),
+        ...(dto.redactText && { redactText: true }),
+        // a book's photos of others are shown through the space they are in (see `getBookLinkSpaceId`)
+        spaceId: isBook ? bookSpaceId : dto.spaceId || null,
       });
+
+      if (isBook && activity) {
+        const book = await this.bookRepository.get(dto.bookId!);
+        await recordActivity({ repository: this.activityLogRepository, logger: this.logger }, auth.user.id, activity, {
+          action: ActivityLogAction.SharedLinkCreate,
+          summary: `Shared the book ${quote(book?.title ?? '')} with a link`,
+          targetId: sharedLink.id,
+          undo: { sharedLinkId: sharedLink.id },
+        });
+      }
 
       return mapSharedLink(sharedLink, { stripAssetMetadata: false });
     } catch (error) {
@@ -162,6 +196,50 @@ export class SharedLinkService extends BaseService {
     }
   }
 
+  /**
+   * A book link shows the photos of the book, rendered. Photos of others in it (e.g. other members' photos in a shared
+   * space, or a partner's) are read-only for the user: the link shows them only through a space tether, exactly as an
+   * individual link does (#1018). It records the space they are all in, of which the user must be an Owner or Editor,
+   * and its pages, web book and PDF show them only while the tether holds (see `BookService`). Without `spaceId`, the
+   * space the user may publish from that holds all of them is found; a book of the user's own photos needs none.
+   */
+  private async getBookLinkSpaceId(auth: AuthDto, bookId: string, spaceId?: string): Promise<string | null> {
+    const book = await findOrFail(() => this.bookRepository.get(bookId), 'Book');
+    const ids = getBookPhotoIds(book, await this.bookRepository.getPages(bookId));
+    const owned = ids.size > 0 ? await checkOwnedAssets(this.accessRepository, auth, ids) : new Set<string>();
+    const others = setDifference(ids, owned);
+    if (others.size === 0) {
+      return spaceId ?? null;
+    }
+
+    const candidates = spaceId ? [spaceId] : await this.getPublisherSpaceIds(auth);
+    for (const candidate of candidates) {
+      const visible = await this.accessRepository.asset.checkSpaceAccessForSpace(auth.user.id, candidate, others);
+      if (visible.size === others.size) {
+        return candidate;
+      }
+    }
+
+    throw new BadRequestException(
+      spaceId
+        ? `This book shows ${others.size} photos of others that are not in this space, so it can't be shared from it`
+        : `This book shows ${others.size} photos of others, and no shared space you can edit holds them all, so it ` +
+            `can't be shared with a link`,
+    );
+  }
+
+  /** the spaces the user may publish other members' photos from: Owner or Editor */
+  private async getPublisherSpaceIds(auth: AuthDto): Promise<string[]> {
+    const spaceIds: string[] = [];
+    for (const space of await this.sharedSpaceRepository.getAllByUserId(auth.user.id)) {
+      const member = await this.sharedSpaceRepository.getMember(space.id, auth.user.id);
+      if (member && sharedLinkPublisherRoles.includes(member.role as SharedSpaceRole)) {
+        spaceIds.push(space.id);
+      }
+    }
+    return spaceIds;
+  }
+
   private handleError(error: unknown): never {
     if ((error as PostgresError).constraint_name === 'shared_link_slug_uq') {
       this.logger.debug('Shared link with this slug already exists');
@@ -171,7 +249,7 @@ export class SharedLinkService extends BaseService {
   }
 
   async update(auth: AuthDto, id: string, dto: SharedLinkEditDto) {
-    await this.findOrFail(auth.user.id, id);
+    const { type } = await this.findOrFail(auth.user.id, id);
     try {
       const sharedLink = await this.sharedLinkRepository.update({
         id,
@@ -179,10 +257,12 @@ export class SharedLinkService extends BaseService {
         description: dto.description,
         password: dto.password,
         expiresAt: dto.expiresAt,
-        allowUpload: dto.allowUpload,
+        allowUpload: type === SharedLinkType.Book ? false : dto.allowUpload,
         allowDownload: dto.allowDownload,
         showExif: dto.showMetadata,
         slug: dto.slug || null,
+        redactFaces: dto.redactFaces,
+        redactText: dto.redactText,
       });
       return mapSharedLink(sharedLink, { stripAssetMetadata: false });
     } catch (error) {
@@ -272,6 +352,24 @@ export class SharedLinkService extends BaseService {
 
     const config = await this.getConfig({ withCache: true });
     const sharedLink = await this.findOrFail(auth.sharedLink.userId, auth.sharedLink.id);
+    if (sharedLink.book) {
+      const { book } = sharedLink;
+      // the cover is a render of the first page, which only the book link itself can read
+      const bookWithPages = await this.bookRepository.get(book.id);
+      const firstPageId = bookWithPages?.firstPageId;
+      const imagePath = firstPageId
+        ? `/api/books/${book.id}/pages/${firstPageId}/render?size=1200&key=${sharedLink.key.toString('base64url')}`
+        : '/feature-panel.png';
+      return {
+        title: book.title,
+        description:
+          sharedLink.description ||
+          book.subtitle ||
+          `A photo book of ${book.pageCount} ${book.pageCount === 1 ? 'page' : 'pages'}`,
+        imageUrl: new URL(imagePath, getExternalDomain(config.server, defaultDomain)).href,
+      };
+    }
+
     const assetId = sharedLink.album?.albumThumbnailAssetId || sharedLink.assets[0]?.id;
     const assetCount = sharedLink.assets.length > 0 ? sharedLink.assets.length : sharedLink.album?.assets?.length || 0;
     const imagePath = assetId
@@ -286,6 +384,6 @@ export class SharedLinkService extends BaseService {
   }
 
   private asToken(sharedLink: { id: string; password: string }) {
-    return this.cryptoRepository.hashSha256(`${sharedLink.id}-${sharedLink.password}`).toString('base64');
+    return asSharedLinkToken(this.cryptoRepository, sharedLink);
   }
 }

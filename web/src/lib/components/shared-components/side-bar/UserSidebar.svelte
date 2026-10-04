@@ -4,13 +4,22 @@
   import RailStorage from '$lib/components/shared-components/side-bar/rail-storage.svelte';
   import RecentAlbums from '$lib/components/shared-components/side-bar/RecentAlbums.svelte';
   import RecentSpaces from '$lib/components/shared-components/side-bar/recent-spaces.svelte';
+  import RecentBooks from '$lib/components/shared-components/side-bar/RecentBooks.svelte';
+  import SidebarTags from '$lib/components/shared-components/side-bar/SidebarTags.svelte';
+  import OnEvents from '$lib/components/OnEvents.svelte';
+  import { sidebarTagsManager } from '$lib/managers/sidebar-tags-manager.svelte';
   import SidebarNavGroup from '$lib/components/sidebar/sidebar-nav-group.svelte';
   import SidebarNavItem from '$lib/components/sidebar/sidebar-nav-item.svelte';
   import Sidebar from '$lib/components/sidebar/sidebar-shell.svelte';
   import { authManager } from '$lib/managers/auth-manager.svelte';
   import { featureFlagsManager } from '$lib/managers/feature-flags-manager.svelte';
   import { Route } from '$lib/route';
-  import { recentAlbumsDropdown, recentSpacesDropdown } from '$lib/stores/preferences.store';
+  import {
+    booksSidebarDropdown,
+    recentAlbumsDropdown,
+    recentSpacesDropdown,
+    tagsSidebarDropdown,
+  } from '$lib/stores/preferences.store';
   import { sidebarModeStore } from '$lib/stores/sidebar-mode.svelte';
   import {
     mdiAccount,
@@ -21,8 +30,13 @@
     mdiAccountOutline,
     mdiArchiveArrowDown,
     mdiArchiveArrowDownOutline,
+    mdiBookOpenPageVariant,
+    mdiBookOpenPageVariantOutline,
     mdiCards,
     mdiCardsOutline,
+    mdiCalendarSync,
+    mdiCreation,
+    mdiCreationOutline,
     mdiDatabaseImportOutline,
     mdiFolderOutline,
     mdiHeart,
@@ -47,7 +61,15 @@
   import { fly } from 'svelte/transition';
 
   const collapsed = $derived(sidebarModeStore.layout === 'rail' && !sidebarModeStore.railExpanded);
+
+  $effect(() => {
+    void sidebarTagsManager.load();
+  });
+
+  const refreshTags = () => sidebarTagsManager.load({ force: true });
 </script>
+
+<OnEvents onTagCreate={refreshTags} onTagUpdate={refreshTags} onTagDelete={refreshTags} />
 
 <Sidebar ariaLabel={$t('primary')}>
   <SidebarNavItem
@@ -101,6 +123,16 @@
     activeIcon={mdiAccountMultiple}
   />
 
+  {#if featureFlagsManager.value.assistant}
+    <SidebarNavItem
+      title={$t('assistant')}
+      href={Route.assistant()}
+      icon={mdiCreationOutline}
+      activeIcon={mdiCreation}
+    />
+    <SidebarNavItem title={$t('routines')} href={Route.routines()} icon={mdiCalendarSync} />
+  {/if}
+
   <SidebarNavGroup title={$t('library')} />
 
   <SidebarNavItem title={$t('favorites')} href={Route.favorites()} icon={mdiHeartOutline} activeIcon={mdiHeart} />
@@ -118,8 +150,36 @@
     {/snippet}
   </SidebarNavItem>
 
-  {#if authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb}
-    <SidebarNavItem title={$t('tags')} href={Route.tags()} icon={{ icon: mdiTagMultipleOutline, flipped: true }} />
+  {#if featureFlagsManager.value.assistant}
+    <SidebarNavItem
+      title={$t('photo_books')}
+      href={Route.books()}
+      icon={mdiBookOpenPageVariantOutline}
+      activeIcon={mdiBookOpenPageVariant}
+      bind:expanded={$booksSidebarDropdown}
+    >
+      {#snippet items()}
+        <span in:fly={{ y: -20 }} class="hidden md:block">
+          <RecentBooks />
+        </span>
+      {/snippet}
+    </SidebarNavItem>
+  {/if}
+
+  <!-- shown whenever there are tags, e.g. the ones the assistant adds, even with the tags feature off -->
+  {#if (authManager.preferences.tags.enabled && authManager.preferences.tags.sidebarWeb) || sidebarTagsManager.hasTags}
+    <SidebarNavItem
+      title={$t('tags')}
+      href={Route.tags()}
+      icon={{ icon: mdiTagMultipleOutline, flipped: true }}
+      bind:expanded={$tagsSidebarDropdown}
+    >
+      {#snippet items()}
+        <span in:fly={{ y: -20 }} class="hidden md:block">
+          <SidebarTags />
+        </span>
+      {/snippet}
+    </SidebarNavItem>
   {/if}
 
   {#if authManager.preferences.recentlyAdded.sidebarWeb}

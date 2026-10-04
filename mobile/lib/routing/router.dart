@@ -11,6 +11,7 @@ import 'package:immich_mobile/domain/models/memory.model.dart';
 import 'package:immich_mobile/domain/models/person.model.dart';
 import 'package:immich_mobile/domain/models/user.model.dart';
 import 'package:immich_mobile/domain/services/timeline.service.dart';
+import 'package:immich_mobile/gallery/routing/gallery_routes.dart';
 import 'package:immich_mobile/models/folder/recursive_folder.model.dart';
 import 'package:immich_mobile/models/shared_link/shared_link.model.dart';
 import 'package:immich_mobile/models/upload/share_intent_attachment.model.dart';
@@ -260,6 +261,8 @@ class AppRouter extends RootStackRouter {
     AutoRoute(page: CleanupPreviewRoute.page, guards: [_authGuard, _duplicateGuard]),
     AutoRoute(page: SlideshowRoute.page, guards: [_authGuard, _duplicateGuard]),
     AutoRoute(page: MemoryListRoute.page, guards: [_authGuard, _duplicateGuard]),
+    // Gallery (#3): the assistant, photo books and notifications
+    ...galleryRoutes([_authGuard, _duplicateGuard]),
     // required to handle all deeplinks in deep_link.service.dart
     // auto_route_library#1722
     RedirectRoute(path: '*', redirectTo: '/'),

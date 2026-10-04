@@ -5,6 +5,7 @@ import { DummyValue, GenerateSql } from 'src/decorators.js';
 import { AssetOcrResponseDto } from 'src/dtos/ocr.dto.js';
 import { DB } from 'src/schema/index.js';
 import { AssetOcrTable } from 'src/schema/tables/asset-ocr.table.js';
+import { anyUuid } from 'src/utils/database.js';
 
 @Injectable()
 export class OcrRepository {
@@ -24,6 +25,34 @@ export class OcrRepository {
       .selectAll('asset_ocr')
       .where('asset_ocr.assetId', '=', id)
       .$if(isVisible !== undefined, (qb) => qb.where('asset_ocr.isVisible', '=', isVisible!))
+      .execute();
+  }
+
+  /** the visible text boxes of several assets, e.g. to find menus among the photos of a trip */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getByAssetIds(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset_ocr')
+      .select([
+        'asset_ocr.assetId',
+        'asset_ocr.x1',
+        'asset_ocr.y1',
+        'asset_ocr.x2',
+        'asset_ocr.y2',
+        'asset_ocr.x3',
+        'asset_ocr.y3',
+        'asset_ocr.x4',
+        'asset_ocr.y4',
+        'asset_ocr.text',
+        'asset_ocr.boxScore',
+        'asset_ocr.textScore',
+      ])
+      .where('asset_ocr.assetId', '=', anyUuid(ids))
+      .where('asset_ocr.isVisible', '=', true)
       .execute();
   }
 

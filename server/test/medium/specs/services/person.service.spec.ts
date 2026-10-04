@@ -1142,7 +1142,7 @@ describe(PersonService.name, () => {
 
       // Path-aware on purpose: the two renders disagree about where the same face is, so this test
       // goes red if detection ever runs against the edited render again.
-      ctx.getMock(MachineLearningRepository).detectFaces.mockImplementation((path: string) =>
+      ctx.getMock(MachineLearningRepository).detectFaces.mockImplementation((path: string | Buffer) =>
         Promise.resolve(
           path === 'unedited_file.jpg'
             ? {

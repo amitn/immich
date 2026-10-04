@@ -1,6 +1,9 @@
 import {
   MaintenanceAction,
+  type AgentUpdateDto,
+  type ArtJobResponseDto,
   type AssetResponseDto,
+  type HighlightJobResponseDto,
   type MaintenanceStatusResponseDto,
   type NotificationDto,
   type ReleaseEventV1,
@@ -11,8 +14,10 @@ import {
 import { io, type Socket } from 'socket.io-client';
 import { get, writable } from 'svelte/store';
 import { page } from '$app/state';
+import { artJobManager } from '$lib/managers/art-job-manager.svelte';
 import { authManager } from '$lib/managers/auth-manager.svelte';
 import { eventManager } from '$lib/managers/event-manager.svelte';
+import { highlightManager } from '$lib/managers/highlight-manager.svelte';
 import { Route } from '$lib/route';
 import { maintenanceStore } from '$lib/stores/maintenance.store';
 import { notificationManager } from '$lib/stores/notification-manager.svelte';
@@ -37,6 +42,9 @@ export interface Events {
   on_new_release: (event: ReleaseEventV1) => void;
   on_session_delete: (sessionId: string) => void;
   on_notification: (notification: NotificationDto) => void;
+  on_agent_update: (update: AgentUpdateDto) => void;
+  on_art_job_update: (job: ArtJobResponseDto) => void;
+  on_highlight_update: (job: HighlightJobResponseDto) => void;
 
   AppRestartV1: (event: AppRestartEvent) => void;
 
@@ -86,6 +94,8 @@ websocket
   .on('on_asset_update', (asset) => eventManager.emit('AssetUpdate', asset))
   .on('on_person_thumbnail', (id) => eventManager.emit('PersonThumbnailReady', { id }))
   .on('on_notification', () => notificationManager.refresh())
+  .on('on_art_job_update', (job) => void artJobManager.onUpdate(job))
+  .on('on_highlight_update', (job) => highlightManager.onUpdate(job))
   .on('connect_error', (e) => console.log('Websocket Connect Error', e));
 
 export const openWebsocketConnection = () => {

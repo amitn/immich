@@ -1,5 +1,6 @@
 <script lang="ts">
   import SharedLinkExpiration from '$lib/components/SharedLinkExpiration.svelte';
+  import { SharedLinkType } from '@immich/sdk';
   import { Field, HelperText, Input, PasswordInput, Switch, Text } from '@immich/ui';
   import { t } from 'svelte-i18n';
 
@@ -11,6 +12,14 @@
     allowUpload: boolean;
     showMetadata: boolean;
     expiresAt: string | null;
+    /** a link to a photo book: visitors can't upload, and download the PDF, which carries no photo metadata */
+    isBook?: boolean;
+    /** (#14) blur, for visitors, the faces of people not in what the link shares */
+    redactFaces?: boolean;
+    /** (#14) blur, for visitors, the text and number plates of the photos */
+    redactText?: boolean;
+    /** what the link shares, for the wording of the redaction options */
+    shareType?: SharedLinkType;
   };
 
   let {
@@ -21,10 +30,22 @@
     allowUpload = $bindable(),
     showMetadata = $bindable(),
     expiresAt = $bindable(),
+    isBook = false,
+    redactFaces = $bindable(false),
+    redactText = $bindable(false),
+    shareType,
   }: Props = $props();
 
+  const redactFacesLabel = $derived(
+    shareType === SharedLinkType.Book
+      ? $t('shared_link_redact_faces_book')
+      : shareType === SharedLinkType.Album
+        ? $t('shared_link_redact_faces_album')
+        : $t('shared_link_redact_faces'),
+  );
+
   $effect(() => {
-    if (!showMetadata && allowDownload) {
+    if (!isBook && !showMetadata && allowDownload) {
       allowDownload = false;
     }
   });
@@ -52,15 +73,43 @@
   </Field>
 
   <SharedLinkExpiration bind:expiresAt />
-  <Field label={$t('show_metadata')}>
-    <Switch bind:checked={showMetadata} />
+  {#if isBook}
+    <!-- what a book's web book tells of its photos: their file names (as the images' text) and the dates -->
+    <Field label={$t('book_share_show_photo_details')} description={$t('book_share_show_photo_details_description')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {:else}
+    <Field label={$t('show_metadata')}>
+      <Switch bind:checked={showMetadata} />
+    </Field>
+  {/if}
+
+  {#if isBook}
+    <Field label={$t('book_share_allow_pdf_download')}>
+      <Switch bind:checked={allowDownload} />
+    </Field>
+  {:else}
+    <Field label={$t('allow_public_user_to_download')} disabled={!showMetadata}>
+      <Switch bind:checked={allowDownload} />
+    </Field>
+
+    <Field label={$t('allow_public_user_to_upload')}>
+      <Switch bind:checked={allowUpload} />
+    </Field>
+  {/if}
+
+  <!-- (#14) blurred when served through the link; the photos themselves are not changed -->
+  <Field label={redactFacesLabel} description={$t('shared_link_redact_faces_description')}>
+    <Switch bind:checked={redactFaces} />
   </Field>
 
-  <Field label={$t('allow_public_user_to_download')} disabled={!showMetadata}>
-    <Switch bind:checked={allowDownload} />
+  <Field label={$t('shared_link_redact_text')} description={$t('shared_link_redact_text_description')}>
+    <Switch bind:checked={redactText} />
   </Field>
 
-  <Field label={$t('allow_public_user_to_upload')}>
-    <Switch bind:checked={allowUpload} />
-  </Field>
+  {#if redactFaces || redactText}
+    <Text size="small" color="muted" data-testid="shared-link-redact-note">
+      {isBook ? $t('shared_link_redact_note_book') : $t('shared_link_redact_note')}
+    </Text>
+  {/if}
 </div>

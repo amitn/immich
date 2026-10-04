@@ -152,6 +152,7 @@ describe('MemoriesSettings', () => {
     'trip_anniversary',
     'themed',
     'person_throwback',
+    'year_recap',
   ];
 
   it('renders a switch for every server-registered memory type', () => {
@@ -205,6 +206,7 @@ describe('MemoriesSettings', () => {
           trip_anniversary: true,
           themed: true,
           person_throwback: true,
+          year_recap: true,
         },
       },
     });

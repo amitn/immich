@@ -170,16 +170,23 @@ export type AuthSharedLink = {
   albumId: string | null;
   /** #1018: the space this link was created from; the tether for non-owned assets. */
   spaceId: string | null;
+  bookId: string | null;
   showExif: boolean;
   allowUpload: boolean;
   allowDownload: boolean;
   password: string | null;
+  /** (#14) blur the faces of people who are not in what the link shares */
+  redactFaces: boolean;
+  /** (#14) blur the text and number plates of the photos */
+  redactText: boolean;
 };
 
 export type SharedLink = {
   id: string;
   album?: ShallowDehydrateObject<Album> | null;
   albumId: string | null;
+  book?: SharedLinkBook | null;
+  bookId: string | null;
   allowDownload: boolean;
   allowUpload: boolean;
   assets: ShallowDehydrateObject<MapAsset>[];
@@ -193,6 +200,18 @@ export type SharedLink = {
   userId: string;
   slug: string | null;
   spaceId: string | null;
+  redactFaces: boolean;
+  redactText: boolean;
+};
+
+/** what a shared link tells about its book: enough for the page that shows it, nothing about its owner or photos */
+export type SharedLinkBook = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  pageCount: number;
+  /** the PDF has been exported and can be downloaded */
+  hasPdf: boolean;
 };
 
 export type Album = Selectable<AlbumTable> & {

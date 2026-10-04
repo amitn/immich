@@ -63,6 +63,10 @@ const SHARED_LINK_ROUTES = new Set([
   'GET assets/:id/video/stream/:sessionId/:variantIndex/:filename',
   'GET assets/:id/video/stream/:sessionId/:variantIndex/playlist.m3u8',
   'GET assets/:id/video/stream/main.m3u8',
+  // a link to a book: the web book, its page images and the PDF
+  'GET books/:id/pages/:pageId/render',
+  'GET books/:id/pdf',
+  'GET books/:id/preview',
   'GET shared-links/me',
   'GET timeline/bucket',
   // fork-only: same auth as its upstream siblings above (AssetRead + sharedLink)

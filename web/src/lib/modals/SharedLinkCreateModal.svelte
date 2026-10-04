@@ -2,7 +2,7 @@
   import SharedLinkFormFields from '$lib/components/SharedLinkFormFields.svelte';
   import { handleCreateSharedLink } from '$lib/services/shared-link.service';
   import { SharedLinkType } from '@immich/sdk';
-  import { FormModal } from '@immich/ui';
+  import { FormModal, Text } from '@immich/ui';
   import { mdiLink } from '@mdi/js';
   import { t } from 'svelte-i18n';
 
@@ -29,9 +29,11 @@
      * before the link exists rather than after.
      */
     contributedCount?: number;
+    /** share a photo book; `hasPdf` tells whether visitors could download its PDF yet */
+    book?: { id: string; hasPdf: boolean };
   }
 
-  let { onClose, albumId, assetIds, excludedCount = 0, spaceId, contributedCount = 0 }: Props = $props();
+  let { onClose, albumId, assetIds, excludedCount = 0, spaceId, contributedCount = 0, book }: Props = $props();
 
   let description = $state('');
   let allowDownload = $state(true);
@@ -40,8 +42,10 @@
   let password = $state('');
   let slug = $state('');
   let expiresAt = $state<string | null>(null);
+  let redactFaces = $state(false);
+  let redactText = $state(false);
 
-  let type = $derived(albumId ? SharedLinkType.Album : SharedLinkType.Individual);
+  let type = $derived(book ? SharedLinkType.Book : albumId ? SharedLinkType.Album : SharedLinkType.Individual);
 
   // For a selection the caller already knows how many photos are someone else's. For an album link
   // they do not — the album's contributed share is only known server-side — so a space-scoped album
@@ -51,19 +55,21 @@
   );
 
   const onSubmit = async () => {
-    const success = await handleCreateSharedLink({
+    const common = {
       type,
-      albumId,
-      assetIds,
       expiresAt,
-      allowUpload,
       description,
       password,
       allowDownload,
       showMetadata,
       slug,
-      spaceId,
-    });
+      redactFaces,
+      redactText,
+    };
+    const success = await handleCreateSharedLink(
+      // nobody uploads to a book, and a book is not tethered to a space
+      book ? { ...common, bookId: book.id } : { ...common, albumId, assetIds, allowUpload, spaceId },
+    );
     if (success) {
       onClose();
     }
@@ -111,6 +117,10 @@
     </div>
   {/if}
 
+  {#if type === SharedLinkType.Book}
+    <div>{$t('book_share_description')}</div>
+  {/if}
+
   <SharedLinkFormFields
     bind:slug
     bind:password
@@ -119,5 +129,13 @@
     bind:allowUpload
     bind:showMetadata
     bind:expiresAt
+    bind:redactFaces
+    bind:redactText
+    shareType={type}
+    isBook={type === SharedLinkType.Book}
   />
+
+  {#if book && allowDownload && !book.hasPdf}
+    <Text size="small" color="muted" class="mt-2">{$t('book_share_export_pdf_hint')}</Text>
+  {/if}
 </FormModal>

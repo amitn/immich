@@ -9,6 +9,7 @@ import { DB } from 'src/schema/index.js';
 import {
   anyUuid,
   asUuid,
+  hasPeople,
   petFacePredicate,
   withAudioStream,
   withDefaultVisibility,
@@ -524,5 +525,560 @@ export class AssetJobRepository {
   @GenerateSql({ params: [DummyValue.DATE], stream: true })
   streamForMigrationJob() {
     return this.db.selectFrom('asset').select(['id']).where('asset.deletedAt', 'is', null).stream();
+  }
+
+  /**
+   * compact metadata, faces and preview path for the assistant tools; callers must check access. Pet faces (see
+   * `petFacePredicate`) keep their boxes, so that crops and scores still see them, but not a person: pets and the
+   * species buckets of pet detection are not the people of a photo.
+   */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
+  async getForAgent(ids: string[], viewingUserId: string) {
+    if (ids.length === 0) {
+      return [];
+    }
+
+    const rows = await this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.type',
+        'asset.localDateTime',
+        'asset.fileCreatedAt',
+        'asset.isFavorite',
+        'asset.width',
+        'asset.height',
+        'asset.checksum',
+        'asset.updatedAt',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.make',
+        'asset_exif.model',
+        'asset_exif.lensModel',
+        'asset_exif.fNumber',
+        'asset_exif.exposureTime',
+        'asset_exif.iso',
+        'asset_exif.focalLength',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.state',
+        'asset_exif.country',
+        'asset_exif.description',
+        'asset_exif.rating',
+        'asset_exif.timeZone',
+      ])
+      .select((eb) =>
+        eb
+          .selectFrom('asset_file')
+          .select('asset_file.path')
+          .whereRef('asset_file.assetId', '=', 'asset.id')
+          .where('asset_file.type', '=', sql.lit(AssetFileType.Preview))
+          .orderBy('asset_file.isEdited', 'desc')
+          .limit(1)
+          .as('previewPath'),
+      )
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_face')
+            .leftJoin('person', (join) =>
+              join
+                .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
+                .on('person.ownerId', '=', asUuid(viewingUserId))
+                .on('person.isHidden', '=', false),
+            )
+            .select([
+              'asset_face.personGroupId as personId',
+              'person.name',
+              'asset_face.imageWidth',
+              'asset_face.imageHeight',
+              'asset_face.boundingBoxX1',
+              'asset_face.boundingBoxY1',
+              'asset_face.boundingBoxX2',
+              'asset_face.boundingBoxY2',
+            ])
+            .select((inner) => petFacePredicate(inner).as('isPet'))
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ).as('faces'),
+      )
+      .where('asset.id', '=', anyUuid(ids))
+      .where('asset.deletedAt', 'is', null)
+      .execute();
+
+    return rows.map((row) => ({
+      ...row,
+      faces: row.faces.map(({ isPet, ...face }) => (isPet ? { ...face, personId: null, name: null } : face)),
+    }));
+  }
+
+  /**
+   * The photos and videos on the timeline that burst cleanup (#9) looks at, newest taken first: the user's own, or
+   * every photo of an album (access to it was checked), with what groups them (duplicate group, stack) and what its
+   * rules need. `isCopy` marks the assistant's copies (crops, improved photos, artworks), which are tagged.
+   */
+  @GenerateSql({
+    params: [{ userId: DummyValue.UUID, albumId: DummyValue.UUID, takenAfter: DummyValue.DATE, limit: 50_000 }],
+  })
+  getForBurstScan(options: { userId: string; albumId?: string; takenAfter?: Date; takenBefore?: Date; limit: number }) {
+    const { userId, albumId, takenAfter, takenBefore, limit } = options;
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.ownerId',
+        'asset.type',
+        'asset.fileCreatedAt',
+        'asset.duplicateId',
+        'asset.stackId',
+        'asset.originalFileName',
+        'asset.isEdited',
+        'asset.width',
+        'asset.height',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.fileSizeInByte',
+      ])
+      .select((eb) =>
+        eb
+          .exists(
+            eb
+              .selectFrom('tag_asset')
+              .innerJoin('tag', 'tag.id', 'tag_asset.tagId')
+              .whereRef('tag_asset.assetId', '=', 'asset.id')
+              .where((where) =>
+                where.or([where('tag.value', 'like', 'Edits/%'), where('tag.value', 'like', 'AI Artwork/%')]),
+              ),
+          )
+          .as('isCopy'),
+      )
+      .$if(!albumId, (qb) => qb.where('asset.ownerId', '=', asUuid(userId)))
+      .$if(!!albumId, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset.id')
+              .where('album_asset.albumId', '=', asUuid(albumId!)),
+          ),
+        ),
+      )
+      .$if(!!takenAfter, (qb) => qb.where('asset.fileCreatedAt', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.fileCreatedAt', '<', takenBefore!))
+      .where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+      .where('asset.deletedAt', 'is', null)
+      .where('asset.status', '=', sql.lit(AssetStatus.Active))
+      .orderBy('asset.fileCreatedAt', 'desc')
+      .orderBy('asset.id', 'asc')
+      .limit(limit)
+      .execute();
+  }
+
+  /** albums of the given assets that the user owns or is a member of */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID] })
+  getAlbumsForAgent(ids: string[], userId: string) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('album_asset')
+      .innerJoin('album', (join) =>
+        join.onRef('album.id', '=', 'album_asset.albumId').on('album.deletedAt', 'is', null),
+      )
+      .innerJoin('album_user', (join) =>
+        join.onRef('album_user.albumId', '=', 'album.id').on('album_user.userId', '=', asUuid(userId)),
+      )
+      .select(['album_asset.assetId', 'album.id', 'album.albumName'])
+      .where('album_asset.assetId', '=', anyUuid(ids))
+      .orderBy('album.albumName')
+      .execute();
+  }
+
+  /** time, place and named people of candidate assets for event splitting, ordered by local time */
+  @GenerateSql({
+    params: [
+      {
+        userIds: [DummyValue.UUID],
+        viewingUserId: DummyValue.UUID,
+        personIds: [DummyValue.UUID],
+        takenAfter: DummyValue.DATE,
+        limit: 5000,
+      },
+    ],
+  })
+  getForAgentEvents(options: {
+    /** owners to search; omit only when `albumId` is set and access to it was checked */
+    userIds?: string[];
+    viewingUserId: string;
+    albumId?: string;
+    personIds?: string[];
+    takenAfter?: Date;
+    takenBefore?: Date;
+    limit: number;
+  }) {
+    const { userIds, viewingUserId, albumId, personIds, takenAfter, takenBefore, limit } = options;
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.localDateTime',
+        'asset_exif.latitude',
+        'asset_exif.longitude',
+        'asset_exif.city',
+        'asset_exif.country',
+      ])
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_face')
+            .innerJoin('person', (join) =>
+              join
+                .onRef('person.personGroupId', '=', 'asset_face.personGroupId')
+                .on('person.ownerId', '=', asUuid(viewingUserId))
+                .on('person.isHidden', '=', false)
+                .on('person.name', '!=', '')
+                .on('person.type', '!=', 'pet'),
+            )
+            .select('person.name')
+            .whereRef('asset_face.assetId', '=', 'asset.id')
+            .where('asset_face.deletedAt', 'is', null)
+            .where('asset_face.isVisible', 'is', true),
+        ).as('people'),
+      )
+      .$if(!!userIds, (qb) => qb.where('asset.ownerId', '=', anyUuid(userIds!)))
+      .$if(!!albumId, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset.id')
+              .where('album_asset.albumId', '=', asUuid(albumId!)),
+          ),
+        ),
+      )
+      .$if(!!personIds && personIds.length > 0, (qb) => hasPeople(qb, personIds!))
+      .$if(!!takenAfter, (qb) => qb.where('asset.fileCreatedAt', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.fileCreatedAt', '<=', takenBefore!))
+      .$if(!!albumId, withDefaultVisibility)
+      .$if(!albumId, (qb) => qb.where('asset.visibility', '=', sql.lit(AssetVisibility.Timeline)))
+      .where('asset.deletedAt', 'is', null)
+      .orderBy('asset.localDateTime', 'asc')
+      .orderBy('asset.id', 'asc')
+      .limit(limit)
+      .execute();
+  }
+
+  /**
+   * when the given people were photographed: the local time of every photo of the user (timeline and archive) that
+   * shows one of them, newest first, e.g. to tell which visits of a collection they were at
+   */
+  @GenerateSql({
+    params: [
+      {
+        userId: DummyValue.UUID,
+        personIds: [DummyValue.UUID],
+        takenAfter: DummyValue.DATE,
+        takenBefore: DummyValue.DATE,
+        limit: 20_000,
+      },
+    ],
+  })
+  getPersonTimesForAgent(options: {
+    userId: string;
+    personIds: string[];
+    /** local time, inclusive */
+    takenAfter?: Date;
+    /** local time, exclusive */
+    takenBefore?: Date;
+    limit: number;
+  }) {
+    const { userId, personIds, takenAfter, takenBefore, limit } = options;
+    if (personIds.length === 0) {
+      return Promise.resolve([]);
+    }
+
+    return this.db
+      .selectFrom('asset')
+      .innerJoin('asset_face', (join) =>
+        join
+          .onRef('asset_face.assetId', '=', 'asset.id')
+          .on('asset_face.deletedAt', 'is', null)
+          .on('asset_face.isVisible', 'is', true),
+      )
+      .select(['asset_face.personGroupId as personId', 'asset.localDateTime'])
+      .where('asset_face.personGroupId', '=', anyUuid(personIds))
+      .where('asset.ownerId', '=', asUuid(userId))
+      .where('asset.deletedAt', 'is', null)
+      .$call(withDefaultVisibility)
+      .$if(!!takenAfter, (qb) => qb.where('asset.localDateTime', '>=', takenAfter!))
+      .$if(!!takenBefore, (qb) => qb.where('asset.localDateTime', '<', takenBefore!))
+      .orderBy('asset.localDateTime', 'desc')
+      .limit(limit)
+      .execute();
+  }
+
+  /** people of the viewing user with the number of assets they appear in, most photographed first */
+  @GenerateSql({ params: [[DummyValue.UUID], DummyValue.UUID, { limit: 20 }] })
+  async getPeopleForAgent(
+    userIds: string[],
+    viewingUserId: string,
+    { personIds, limit }: { personIds?: string[]; limit: number },
+  ) {
+    const people = await this.db
+      .selectFrom('person')
+      .innerJoin('asset_face', (join) =>
+        join
+          .onRef('asset_face.personGroupId', '=', 'person.personGroupId')
+          .on('asset_face.deletedAt', 'is', null)
+          .on('asset_face.isVisible', 'is', true),
+      )
+      .innerJoin('asset', (join) =>
+        join
+          .onRef('asset.id', '=', 'asset_face.assetId')
+          .on('asset.visibility', '=', sql.lit(AssetVisibility.Timeline))
+          .on('asset.deletedAt', 'is', null)
+          .on('asset.ownerId', '=', anyUuid(userIds)),
+      )
+      .select(['person.personGroupId as id', 'person.name'])
+      .select((eb) => eb.fn.count<number>('asset.id').distinct().as('count'))
+      .where('person.ownerId', '=', asUuid(viewingUserId))
+      .where('person.isHidden', '=', false)
+      // pets and the unnamed species buckets of pet detection are not people
+      .where('person.type', '!=', 'pet')
+      .$if(!!personIds, (qb) => qb.where('person.personGroupId', '=', anyUuid(personIds!)))
+      .$if(!personIds, (qb) => qb.where('person.name', '!=', ''))
+      .groupBy(['person.ownerId', 'person.personGroupId'])
+      .orderBy('count', 'desc')
+      .orderBy('person.name', 'asc')
+      .limit(limit)
+      .execute();
+
+    return people.map((person) => ({ ...person, count: Number(person.count) }));
+  }
+
+  /**
+   * What redaction (#14) needs of photos: their owner and type, the original and its renditions, the edits and the
+   * metadata that tells their size, orientation and colours
+   */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getForRedaction(ids: string[]) {
+    if (ids.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset')
+      .leftJoin('asset_exif', 'asset_exif.assetId', 'asset.id')
+      .select([
+        'asset.id',
+        'asset.ownerId',
+        'asset.type',
+        'asset.isEdited',
+        'asset.deletedAt',
+        'asset.visibility',
+        'asset.originalPath',
+        'asset.originalFileName',
+        'asset.livePhotoVideoId',
+        'asset_exif.exifImageWidth',
+        'asset_exif.exifImageHeight',
+        'asset_exif.orientation',
+        'asset_exif.colorspace',
+        'asset_exif.profileDescription',
+        'asset_exif.bitsPerSample',
+        'asset_exif.projectionType',
+      ])
+      .select(withEdits)
+      .select((eb) =>
+        jsonArrayFrom(
+          eb
+            .selectFrom('asset_file')
+            .select(['asset_file.type', 'asset_file.path', 'asset_file.isEdited'])
+            .whereRef('asset_file.assetId', '=', 'asset.id'),
+        ).as('files'),
+      )
+      .where('asset.id', '=', anyUuid(ids))
+      .execute();
+  }
+
+  /** the still photos whose live photo video these videos are, e.g. to redact a live photo's motion with its still */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getLivePhotoStillIds(videoIds: string[]) {
+    if (videoIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset')
+      .select(['asset.id', 'asset.livePhotoVideoId'])
+      .where('asset.livePhotoVideoId', '=', anyUuid(videoIds))
+      .where('asset.deletedAt', 'is', null)
+      .execute();
+  }
+
+  /**
+   * The visible faces of photos with what redaction (#14) needs to decide on them: the person (id, name) and the face
+   * identities of the face and of its person (which tell the same person across libraries), and whether it is a pet
+   */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  async getRedactionFaces(assetIds: string[]) {
+    if (assetIds.length === 0) {
+      return [];
+    }
+    const rows = await this.db
+      .selectFrom('asset_face')
+      .leftJoin('person', 'person.personGroupId', 'asset_face.personGroupId')
+      .select([
+        'asset_face.id',
+        'asset_face.assetId',
+        'asset_face.imageWidth',
+        'asset_face.imageHeight',
+        'asset_face.boundingBoxX1',
+        'asset_face.boundingBoxY1',
+        'asset_face.boundingBoxX2',
+        'asset_face.boundingBoxY2',
+        'person.personGroupId as personId',
+        'person.name as personName',
+        'person.identityId as personIdentityId',
+      ])
+      .select((eb) => petFacePredicate(eb).as('isPet'))
+      .select((eb) =>
+        eb
+          .selectFrom('face_identity_face')
+          .select((sub) => sub.fn.agg<string[]>('array_agg', ['face_identity_face.identityId']).as('ids'))
+          .whereRef('face_identity_face.assetFaceId', '=', 'asset_face.id')
+          .as('faceIdentityIds'),
+      )
+      .where('asset_face.assetId', '=', anyUuid(assetIds))
+      .where('asset_face.deletedAt', 'is', null)
+      .where('asset_face.isVisible', 'is', true)
+      .orderBy('asset_face.boundingBoxX1', 'asc')
+      .execute();
+
+    return rows.map(({ personIdentityId, faceIdentityIds, isPet, ...row }) => ({
+      ...row,
+      isPet: !!isPet,
+      identityIds: [...new Set([...(faceIdentityIds ?? []), ...(personIdentityId ? [personIdentityId] : [])])],
+    }));
+  }
+
+  /** the visible OCR boxes of photos (fractions of the unedited upright preview) */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getRedactionOcr(assetIds: string[]) {
+    if (assetIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('asset_ocr')
+      .select([
+        'asset_ocr.id',
+        'asset_ocr.assetId',
+        'asset_ocr.x1',
+        'asset_ocr.y1',
+        'asset_ocr.x2',
+        'asset_ocr.y2',
+        'asset_ocr.x3',
+        'asset_ocr.y3',
+        'asset_ocr.x4',
+        'asset_ocr.y4',
+        'asset_ocr.text',
+      ])
+      .where('asset_ocr.assetId', '=', anyUuid(assetIds))
+      .where('asset_ocr.isVisible', 'is', true)
+      .orderBy('asset_ocr.y1', 'asc')
+      .orderBy('asset_ocr.x1', 'asc')
+      .execute();
+  }
+
+  /** people by person id, with their face identity: their faces in other libraries are theirs too */
+  @GenerateSql({ params: [[DummyValue.UUID]] })
+  getRedactionPeople(personIds: string[]) {
+    if (personIds.length === 0) {
+      return Promise.resolve([]);
+    }
+    return this.db
+      .selectFrom('person')
+      .select(['person.personGroupId as id', 'person.ownerId', 'person.name', 'person.type', 'person.identityId'])
+      .where('person.personGroupId', '=', anyUuid(personIds))
+      .execute();
+  }
+
+  /**
+   * The named people (not pets) of a set of photos, with the number of its photos each is in: the people "in" what a
+   * shared link shares (#14). A person is counted by face identity when it has one, so the same person in two
+   * libraries counts once. The photos are an album's, a link's own, or given.
+   */
+  @GenerateSql({ params: [{ albumId: DummyValue.UUID }] })
+  async getRedactionPeopleCounts(source: { albumId: string } | { sharedLinkId: string } | { assetIds: string[] }) {
+    if ('assetIds' in source && source.assetIds.length === 0) {
+      return [];
+    }
+    const key = sql<string>`coalesce("person"."identityId", "person"."personGroupId")`;
+    const rows = await this.db
+      .selectFrom('asset_face')
+      .innerJoin('person', 'person.personGroupId', 'asset_face.personGroupId')
+      .select([
+        key.as('key'),
+        sql<string[]>`array_agg(distinct "person"."personGroupId")`.as('personIds'),
+        sql<Array<string | null>>`array_agg(distinct "person"."identityId")`.as('identityIds'),
+        sql<number>`count(distinct "asset_face"."assetId")`.as('photos'),
+      ])
+      .where('asset_face.deletedAt', 'is', null)
+      .where('asset_face.isVisible', 'is', true)
+      .where('person.type', '!=', 'pet')
+      .where('person.name', '!=', '')
+      .$if('albumId' in source, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('album_asset')
+              .whereRef('album_asset.assetId', '=', 'asset_face.assetId')
+              .where('album_asset.albumId', '=', asUuid((source as { albumId: string }).albumId)),
+          ),
+        ),
+      )
+      .$if('sharedLinkId' in source, (qb) =>
+        qb.where((eb) =>
+          eb.exists(
+            eb
+              .selectFrom('shared_link_asset')
+              .whereRef('shared_link_asset.assetId', '=', 'asset_face.assetId')
+              .where('shared_link_asset.sharedLinkId', '=', asUuid((source as { sharedLinkId: string }).sharedLinkId)),
+          ),
+        ),
+      )
+      .$if('assetIds' in source, (qb) =>
+        qb.where('asset_face.assetId', '=', anyUuid((source as { assetIds: string[] }).assetIds)),
+      )
+      .groupBy(key)
+      .execute();
+
+    return rows.map((row) => ({
+      key: row.key,
+      personIds: row.personIds,
+      identityIds: row.identityIds.filter((id): id is string => !!id),
+      photos: Number(row.photos),
+    }));
+  }
+
+  /** how many photos and videos a shared link shares: an album's, or its own */
+  @GenerateSql({ params: [{ albumId: DummyValue.UUID }] })
+  async countRedactionAssets(source: { albumId: string } | { sharedLinkId: string }) {
+    const row =
+      'albumId' in source
+        ? await this.db
+            .selectFrom('album_asset')
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('album_asset.albumId', '=', asUuid(source.albumId))
+            .executeTakeFirst()
+        : await this.db
+            .selectFrom('shared_link_asset')
+            .select((eb) => eb.fn.countAll<number>().as('count'))
+            .where('shared_link_asset.sharedLinkId', '=', asUuid(source.sharedLinkId))
+            .executeTakeFirst();
+    return Number(row?.count ?? 0);
   }
 }

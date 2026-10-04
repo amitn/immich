@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/constants/enums.dart';
+import 'package:immich_mobile/gallery/presentation/actions/gallery_actions.dart';
 import 'package:immich_mobile/presentation/actions/action.widget.dart';
 import 'package:immich_mobile/presentation/actions/asset_debug.action.dart';
 import 'package:immich_mobile/presentation/actions/download.action.dart';
@@ -66,6 +67,8 @@ class _SpaceBottomSheetState extends ConsumerState<SpaceBottomSheet> {
         if (multiselect.hasRemote) ...[
           const ActionColumnButton(action: DownloadAction(source: ActionSource.timeline)),
           const ActionColumnButton(action: FavoriteAction(source: ActionSource.timeline)),
+          // Gallery (#3): Ask assistant, Name in a journal, Make a highlight video
+          ...galleryTimelineActions,
           // #1018: a link covering what the SPACE shows, contributions included. Same gate as
           // remove-from-space — the server authorizes a space-scoped link against Owner/Editor, so
           // offering it to a Viewer would only ever produce a rejected request.

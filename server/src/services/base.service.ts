@@ -4,8 +4,10 @@ import { createReadStream } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
+import { buffer } from 'node:stream/consumers';
 import sanitize from 'sanitize-filename';
 import type { ClassConstructor, GenerateThumbnailOptions, ImageDimensions } from 'src/types.js';
+import { DiskStorageBackend } from 'src/backends/disk-storage.backend.js';
 import { FACE_THUMBNAIL_SIZE, SALT_ROUNDS } from 'src/constants.js';
 import { StorageCore } from 'src/cores/storage.core.js';
 import { AssetFace, UserAdmin } from 'src/database.js';
@@ -15,17 +17,24 @@ import { AssetFileType, CacheControl, ImageFormat } from 'src/enum.js';
 import { computePhysicalUsage } from 'src/gallery/storage-usage.js';
 import { RangeNotSatisfiableError, ServeStrategy } from 'src/interfaces/storage-backend.interface.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClassificationRepository } from 'src/repositories/classification.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -39,6 +48,7 @@ import { FacePersonVerdictRepository } from 'src/repositories/face-person-verdic
 import { FaceRepairDeclineRepository } from 'src/repositories/face-repair-decline.repository.js';
 import { FaceRepairScanRepository } from 'src/repositories/face-repair-scan.repository.js';
 import { FaceRepairRepository } from 'src/repositories/face-repair.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
@@ -46,6 +56,8 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MachineLearningRepository } from 'src/repositories/machine-learning.repository.js';
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { MemoryNoticeRepository } from 'src/repositories/memory-notice.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
@@ -56,6 +68,7 @@ import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -78,6 +91,7 @@ import { VideoStreamRepository } from 'src/repositories/video-stream.repository.
 import { ViewRepository } from 'src/repositories/view-repository.js';
 import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { UserTable } from 'src/schema/tables/user.table.js';
 import { FaceVerdictService } from 'src/services/face-verdict.service.js';
 import { IdentityMergePropagationService } from 'src/services/identity-merge-propagation.service.js';
@@ -90,6 +104,8 @@ import {
   ImmichRedirectResponse,
   ImmichStreamResponse,
 } from 'src/utils/file.js';
+import { DecodableAsset, DecodedImage, decodeOriginal } from 'src/utils/image-decode.js';
+import { LocalFiles } from 'src/utils/local-files.js';
 import { clamp } from 'src/utils/misc.js';
 
 type FaceThumbnailBounds = {
@@ -103,6 +119,18 @@ export const BASE_SERVICE_DEPENDENCIES = [
   LoggingRepository,
   AccessRepository,
   ActivityRepository,
+  ActivityLogRepository,
+  AgentRepository,
+  AcpRepository,
+  ArtJobRepository,
+  HighlightJobRepository,
+  BookRepository,
+  BookDraftRepository,
+  CollectionNoticeRepository,
+  MemoryExclusionRepository,
+  MemoryNoticeRepository,
+  YearRecapRepository,
+  RoutineRepository,
   AlbumRepository,
   AlbumUserRepository,
   ApiKeyRepository,
@@ -176,6 +204,18 @@ export class BaseService {
     protected logger: LoggingRepository,
     protected accessRepository: AccessRepository,
     protected activityRepository: ActivityRepository,
+    protected activityLogRepository: ActivityLogRepository,
+    protected agentRepository: AgentRepository,
+    protected acpRepository: AcpRepository,
+    protected artJobRepository: ArtJobRepository,
+    protected highlightJobRepository: HighlightJobRepository,
+    protected bookRepository: BookRepository,
+    protected bookDraftRepository: BookDraftRepository,
+    protected collectionNoticeRepository: CollectionNoticeRepository,
+    protected memoryExclusionRepository: MemoryExclusionRepository,
+    protected memoryNoticeRepository: MemoryNoticeRepository,
+    protected yearRecapRepository: YearRecapRepository,
+    protected routineRepository: RoutineRepository,
     protected albumRepository: AlbumRepository,
     protected albumUserRepository: AlbumUserRepository,
     protected apiKeyRepository: ApiKeyRepository,
@@ -270,6 +310,18 @@ export class BaseService {
       LoggingRepository.create(),
       ctx.accessRepository,
       ctx.activityRepository,
+      ctx.activityLogRepository,
+      ctx.agentRepository,
+      ctx.acpRepository,
+      ctx.artJobRepository,
+      ctx.highlightJobRepository,
+      ctx.bookRepository,
+      ctx.bookDraftRepository,
+      ctx.collectionNoticeRepository,
+      ctx.memoryExclusionRepository,
+      ctx.memoryNoticeRepository,
+      ctx.yearRecapRepository,
+      ctx.routineRepository,
       ctx.albumRepository,
       ctx.albumUserRepository,
       ctx.apiKeyRepository,
@@ -478,6 +530,96 @@ export class BaseService {
     // lazy import to avoid circular dependency (StorageService extends BaseService)
     const { StorageService } = await import('./storage.service.js');
     return StorageService.resolveBackendForKey(filePath).getReadableUrl(filePath);
+  }
+
+  /** Runs `fn` with a local path of a file (see `ensureLocalFile`), and removes the temporary copy afterwards */
+  protected async withLocalFile<T>(filePath: string, fn: (localPath: string) => Promise<T>): Promise<T> {
+    const { localPath, cleanup } = await this.ensureLocalFile(filePath);
+    try {
+      return await fn(localPath);
+    } finally {
+      await cleanup();
+    }
+  }
+
+  /**
+   * Runs `fn` with local copies of the files it asks for (see `LocalFiles`), e.g. the photos of a book page, and
+   * removes the temporary copies afterwards
+   */
+  protected async withLocalFiles<T>(fn: (files: LocalFiles) => Promise<T>): Promise<T> {
+    const files = new LocalFiles((filePath) => this.ensureLocalFile(filePath));
+    try {
+      return await fn(files);
+    } finally {
+      await files.cleanup();
+    }
+  }
+
+  /** `decodeOriginal` of an asset whose original may be in a storage backend (see `withLocalFile`) */
+  protected decodeAssetOriginal(
+    asset: DecodableAsset,
+    image: SystemConfig['image'],
+    options?: Parameters<typeof decodeOriginal>[3],
+  ): Promise<DecodedImage> {
+    return this.withLocalFile(asset.originalPath, (originalPath) =>
+      decodeOriginal(this.mediaRepository, { ...asset, originalPath }, image, options),
+    );
+  }
+
+  /** The content of a file on disk (an absolute path) or in a storage backend (a key) */
+  protected async readStoredFile(filePath: string): Promise<Buffer> {
+    if (isAbsolute(filePath)) {
+      return this.storageRepository.readFile(filePath);
+    }
+    // lazy import to avoid circular dependency (StorageService extends BaseService)
+    const { StorageService } = await import('./storage.service.js');
+    const { stream } = await StorageService.resolveBackendForKey(filePath).get(filePath);
+    return buffer(stream);
+  }
+
+  /** Whether a file exists on disk (an absolute path) or in a storage backend (a key) */
+  protected async storedFileExists(filePath: string): Promise<boolean> {
+    if (isAbsolute(filePath)) {
+      return this.storageRepository.checkFileExists(filePath);
+    }
+    // lazy import to avoid circular dependency (StorageService extends BaseService)
+    const { StorageService } = await import('./storage.service.js');
+    return StorageService.resolveBackendForKey(filePath).exists(filePath);
+  }
+
+  /**
+   * Stores a file the server made in memory (an export) in the write backend: with the disk backend at `path`, replaced
+   * at once; with S3 as `key`. Returns where it was stored.
+   */
+  protected async storeBuffer(path: string, key: string, data: Buffer, contentType?: string): Promise<string> {
+    // lazy import to avoid circular dependency (StorageService extends BaseService)
+    const { StorageService } = await import('./storage.service.js');
+    const backend = StorageService.getWriteBackend();
+    if (!backend || backend instanceof DiskStorageBackend) {
+      this.storageCore.ensureFolders(path);
+      await this.storageRepository.createOrOverwriteFile(`${path}.tmp`, data);
+      await this.storageRepository.rename(`${path}.tmp`, path);
+      return path;
+    }
+    await backend.put(key, data, { contentType });
+    return key;
+  }
+
+  /**
+   * Stores a file the server made on disk (a copy of a photo, a video, an export) in the write backend. With the disk
+   * backend the file is already where it belongs, and its path is returned; with S3 it is uploaded as `key`, the local
+   * file is removed, and the key is returned.
+   */
+  protected async storeLocalFile(localPath: string, key: string, contentType?: string): Promise<string> {
+    // lazy import to avoid circular dependency (StorageService extends BaseService)
+    const { StorageService } = await import('./storage.service.js');
+    const backend = StorageService.getWriteBackend();
+    if (!backend || backend instanceof DiskStorageBackend) {
+      return localPath;
+    }
+    await backend.put(key, this.storageRepository.createPlainReadStream(localPath), { contentType });
+    await this.storageRepository.unlink(localPath).catch(() => {});
+    return key;
   }
 
   protected async getFaceThumbnailSource(assetId: string): Promise<string | null> {

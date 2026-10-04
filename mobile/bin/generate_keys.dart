@@ -101,6 +101,12 @@ const _kParamTypeOverrides = <String, String>{
   'advanced_settings_clear_image_cache_success.size': 'String',
   'backup_controller_page_storage_format.total': 'String',
   'backup_controller_page_storage_format.used': 'String',
+  // Gallery (#3): the id of a photo book is a UUID
+  'book_draft_polish_prompt.id': 'String',
+  'book_edit_prompt.id': 'String',
+  // Gallery (#3): a length in centimetres, e.g. 29.7
+  'book_page_size_cm.height': 'String',
+  'book_page_size_cm.width': 'String',
   'cleanup_found_assets_with_size.size': 'String',
 };
 
@@ -362,7 +368,7 @@ String _toNestedClassName(String prefix, String key) {
 
   final result = StringBuffer('_');
   for (final part in parts) {
-    final words = part.split('_');
+    final words = part.split(RegExp('[_-]'));
     for (final word in words) {
       if (word.isNotEmpty) {
         result.write(word[0].toUpperCase());
@@ -377,7 +383,9 @@ String _toNestedClassName(String prefix, String key) {
   return result.toString();
 }
 
-String _escapeName(String name) {
+String _escapeName(String key) {
+  // a key may hold a hyphen (`collections.kids-art`, named after the pack's id), which no Dart identifier can
+  final name = key.replaceAll('-', '_');
   if (_kReservedWords.contains(name)) {
     return '$name\$';
   }

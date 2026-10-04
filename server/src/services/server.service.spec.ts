@@ -142,6 +142,10 @@ describe(ServerService.name, () => {
         smartSearchHasCutoff: false,
         duplicateDetection: true,
         facialRecognition: true,
+        assistant: false,
+        artisticStyles: false,
+        bookStadiaMaps: false,
+        restaurantLookup: false,
         importFaces: false,
         map: true,
         reverseGeocoding: true,
@@ -209,6 +213,7 @@ describe(ServerService.name, () => {
           'trip_anniversary',
           'themed',
           'person_throwback',
+          'year_recap',
         ],
       });
       expect(mocks.systemMetadata.get).toHaveBeenCalled();
@@ -249,6 +254,7 @@ describe(ServerService.name, () => {
         'trip_anniversary',
         'themed',
         'person_throwback',
+        'year_recap',
       ]);
     });
 

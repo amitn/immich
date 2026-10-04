@@ -1,3 +1,4 @@
+import { IANAZone } from 'luxon';
 import { createZodDto } from 'nestjs-zod';
 import z from 'zod';
 import type { UserPreferences } from 'src/types.js';
@@ -110,15 +111,103 @@ const RecentlyAddedUpdateSchema = z
   .optional()
   .meta({ id: 'RecentlyAddedUpdate' });
 
+const BookDraftsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .optional()
+  .meta({ id: 'BookDraftsUpdate' });
+
+const AiAnswersUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .optional()
+  .meta({ id: 'AiAnswersUpdate' });
+
+const CollectionNotificationsUpdateSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .optional()
+  .meta({ id: 'CollectionNotificationsUpdate' });
+
+const MemoryExclusionsUpdateSchema = z
+  .object({
+    documents: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them',
+      ),
+  })
+  .optional()
+  .meta({ id: 'MemoryExclusionsUpdate' });
+
+const MemoryNotificationsUpdateSchema = z
+  .object({
+    memories: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)',
+      ),
+    creations: z
+      .boolean()
+      .optional()
+      .describe('Whether the user is notified when a video, a book or an artwork they asked for is ready'),
+    drafts: z
+      .boolean()
+      .optional()
+      .describe(
+        'Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)',
+      ),
+    hour: z
+      .int()
+      .min(0)
+      .max(23)
+      .optional()
+      .describe(
+        'The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent',
+      ),
+    timeZone: z
+      .string()
+      .max(64)
+      .refine((zone) => zone === '' || IANAZone.isValidZone(zone), { error: 'Unknown time zone' })
+      .optional()
+      .describe("The IANA time zone of hour, e.g. Europe/London; the server's when empty"),
+    digest: z
+      .boolean()
+      .optional()
+      .describe("Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits"),
+    digestDay: z.int().min(1).max(7).optional().describe('The day of the week of the digest, 1 (Monday) to 7 (Sunday)'),
+  })
+  .optional()
+  .meta({ id: 'MemoryNotificationsUpdate' });
+
 const UserPreferencesUpdateSchema = z
   .object({
+    aiAnswers: AiAnswersUpdateSchema,
     albums: AlbumsUpdateSchema,
     avatar: AvatarUpdateSchema,
+    bookDrafts: BookDraftsUpdateSchema,
     cast: CastUpdateSchema,
+    collectionNotifications: CollectionNotificationsUpdateSchema,
     download: DownloadUpdateSchema,
     emailNotifications: EmailNotificationsUpdateSchema,
     folders: FoldersUpdateSchema,
     memories: MemoriesUpdateSchema,
+    memoryExclusions: MemoryExclusionsUpdateSchema,
+    memoryNotifications: MemoryNotificationsUpdateSchema,
     people: PeopleUpdateSchema,
     purchase: PurchaseUpdateSchema,
     ratings: RatingsUpdateSchema,
@@ -212,8 +301,69 @@ const RecentlyAddedResponseSchema = z
   })
   .meta({ id: 'RecentlyAddedResponse' });
 
+const BookDraftsResponseSchema = z
+  .object({
+    enabled: z.boolean().describe('Whether photo books are drafted for the user in the background, to keep or discard'),
+  })
+  .meta({ id: 'BookDraftsResponse' });
+
+const CollectionNotificationsResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the user is notified of new visits of the collections (meals, museum visits) to name'),
+  })
+  .meta({ id: 'CollectionNotificationsResponse' });
+
+const MemoryExclusionsResponseSchema = z
+  .object({
+    documents: z
+      .boolean()
+      .describe(
+        'Whether screenshots, receipts and documents (the classification and journal tags that mark them) are left out of the memories and of what is made of them',
+      ),
+  })
+  .meta({ id: 'MemoryExclusionsResponse' });
+
+const MemoryNotificationsResponseSchema = z
+  .object({
+    memories: z
+      .boolean()
+      .describe(
+        'Whether the user is notified of a memory of the day (at most one notification a day, with the drafts)',
+      ),
+    creations: z
+      .boolean()
+      .describe('Whether the user is notified when a video, a book or an artwork they asked for is ready'),
+    drafts: z
+      .boolean()
+      .describe(
+        'Whether the user is notified of a suggested photo book waiting to be kept or discarded (at most one notification a day, with the memories)',
+      ),
+    hour: z
+      .int()
+      .describe(
+        'The hour of the day (0-23, in timeZone) from which the notification of the day and the digest are sent',
+      ),
+    timeZone: z.string().describe("The IANA time zone of hour, e.g. Europe/London; the server's when empty"),
+    digest: z
+      .boolean()
+      .describe("Whether the user gets a weekly email of the week's memories, waiting drafts and new journal visits"),
+    digestDay: z.int().describe('The day of the week of the digest, 1 (Monday) to 7 (Sunday)'),
+  })
+  .meta({ id: 'MemoryNotificationsResponse' });
+
+const AiAnswersResponseSchema = z
+  .object({
+    enabled: z
+      .boolean()
+      .describe('Whether the assistant answers the questions typed in the search bar, beside the results'),
+  })
+  .meta({ id: 'AiAnswersResponse' });
+
 const UserPreferencesResponseSchema = z
   .object({
+    aiAnswers: AiAnswersResponseSchema,
     albums: AlbumsResponseSchema,
     folders: FoldersResponseSchema,
     memories: MemoriesResponseSchema,
@@ -226,6 +376,10 @@ const UserPreferencesResponseSchema = z
     purchase: PurchaseResponseSchema,
     cast: CastResponseSchema,
     recentlyAdded: RecentlyAddedResponseSchema,
+    bookDrafts: BookDraftsResponseSchema,
+    collectionNotifications: CollectionNotificationsResponseSchema,
+    memoryExclusions: MemoryExclusionsResponseSchema,
+    memoryNotifications: MemoryNotificationsResponseSchema,
   })
   .meta({ id: 'UserPreferencesResponseDto' });
 

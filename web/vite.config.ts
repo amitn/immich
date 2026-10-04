@@ -68,5 +68,16 @@ export default defineConfig({
       TZ: 'UTC',
     },
     clearMocks: true,
+    // bits-ui's dismissible layers start a timer that can fire after a test file's DOM environment is torn down
+    // ("Element is not defined" inside bits-ui); every test of the file has passed by then. Any other unhandled error
+    // still fails the run.
+    onUnhandledError(error) {
+      const stack = `${error?.stack ?? ''}`;
+      return !(
+        error?.name === 'ReferenceError' &&
+        error?.message === 'Element is not defined' &&
+        stack.includes('bits-ui')
+      );
+    },
   },
 } as UserConfig);

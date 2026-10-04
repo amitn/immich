@@ -1,23 +1,38 @@
 import { StorageUsageService } from 'src/gallery/storage-usage.service.js';
+import { ActivityLogService } from 'src/services/activity-log.service.js';
 import { ActivityService } from 'src/services/activity.service.js';
+import { AgentToolService } from 'src/services/agent-tool.service.js';
+import { AgentService } from 'src/services/agent.service.js';
 import { AlbumService } from 'src/services/album.service.js';
 import { ApiKeyService } from 'src/services/api-key.service.js';
 import { ApiService } from 'src/services/api.service.js';
 import { AppMetricsService } from 'src/services/app-metrics.service.js';
+import { ArtService } from 'src/services/art.service.js';
 import { AssetFileService } from 'src/services/asset-file.service.js';
 import { AssetMediaService } from 'src/services/asset-media.service.js';
 import { AssetService } from 'src/services/asset.service.js';
 import { AuthAdminService } from 'src/services/auth-admin.service.js';
 import { AuthService } from 'src/services/auth.service.js';
+import { BookDraftService } from 'src/services/book-draft.service.js';
+import { BookStyleService } from 'src/services/book-style.service.js';
+import { BookService } from 'src/services/book.service.js';
+import { BurstService } from 'src/services/burst.service.js';
 import { ClassificationService } from 'src/services/classification.service.js';
 import { CliService } from 'src/services/cli.service.js';
 import { ClusterGroupService } from 'src/services/cluster-group.service.js';
+import { CollageService } from 'src/services/collage.service.js';
+import { CollectionNoticeService } from 'src/services/collection-notice.service.js';
+import { CollectionService } from 'src/services/collection.service.js';
 import { DatabaseBackupService } from 'src/services/database-backup.service.js';
 import { DatabaseService } from 'src/services/database.service.js';
+import { DerivedAssetService } from 'src/services/derived-asset.service.js';
 import { DownloadService } from 'src/services/download.service.js';
 import { DuplicateService } from 'src/services/duplicate.service.js';
+import { EnhanceService } from 'src/services/enhance.service.js';
 import { FaceRepairService } from 'src/services/face-repair.service.js';
 import { FaceSuggestionService } from 'src/services/face-suggestion.service.js';
+import { FoodService } from 'src/services/food.service.js';
+import { HighlightService } from 'src/services/highlight.service.js';
 import { HlsService } from 'src/services/hls.service.js';
 import { IntegrityService } from 'src/services/integrity.service.js';
 import { JobService } from 'src/services/job.service.js';
@@ -26,17 +41,22 @@ import { LibraryService } from 'src/services/library.service.js';
 import { MaintenanceService } from 'src/services/maintenance.service.js';
 import { MapService } from 'src/services/map.service.js';
 import { MediaService } from 'src/services/media.service.js';
+import { MemoryExclusionService } from 'src/services/memory-exclusion.service.js';
+import { MemoryNoticeService } from 'src/services/memory-notice.service.js';
 import { MemoryService } from 'src/services/memory.service.js';
 import { MetadataService } from 'src/services/metadata.service.js';
 import { NotificationAdminService } from 'src/services/notification-admin.service.js';
 import { NotificationService } from 'src/services/notification.service.js';
 import { OcrService } from 'src/services/ocr.service.js';
+import { OrientationService } from 'src/services/orientation.service.js';
 import { PartnerService } from 'src/services/partner.service.js';
 import { PersonService } from 'src/services/person.service.js';
 import { PetDetectionService } from 'src/services/pet-detection.service.js';
 import { PetRecognitionService } from 'src/services/pet-recognition.service.js';
 import { PluginService } from 'src/services/plugin.service.js';
 import { QueueService } from 'src/services/queue.service.js';
+import { RedactionService } from 'src/services/redaction.service.js';
+import { RoutineService } from 'src/services/routine.service.js';
 import { SearchService } from 'src/services/search.service.js';
 import { ServerService } from 'src/services/server.service.js';
 import { SessionService } from 'src/services/session.service.js';
@@ -62,11 +82,22 @@ import { VersionService } from 'src/services/version.service.js';
 import { ViewService } from 'src/services/view.service.js';
 import { WorkflowExecutionService } from 'src/services/workflow-execution.service.js';
 import { WorkflowService } from 'src/services/workflow.service.js';
+import { YearRecapService } from 'src/services/year-recap.service.js';
 
 export const services = [
   ApiKeyService,
   ActivityService,
+  ActivityLogService,
+  AgentService,
+  AgentToolService,
   AlbumService,
+  ArtService,
+  BookService,
+  BookDraftService,
+  CollectionNoticeService,
+  BookStyleService,
+  BurstService,
+  HighlightService,
   ApiService,
   AssetFileService,
   AppMetricsService,
@@ -76,12 +107,19 @@ export const services = [
   AuthAdminService,
   ClassificationService,
   CliService,
+  CollectionService,
   DatabaseBackupService,
   DatabaseService,
+  DerivedAssetService,
   DownloadService,
   DuplicateService,
   FaceRepairService,
   FaceSuggestionService,
+  EnhanceService,
+  CollageService,
+  YearRecapService,
+  OrientationService,
+  FoodService,
   IntegrityService,
   HlsService,
   JobService,
@@ -91,6 +129,9 @@ export const services = [
   MapService,
   MediaService,
   MemoryService,
+  MemoryExclusionService,
+  RoutineService,
+  MemoryNoticeService,
   MetadataService,
   NotificationService,
   NotificationAdminService,
@@ -102,6 +143,7 @@ export const services = [
   PersonService,
   PluginService,
   QueueService,
+  RedactionService,
   SearchService,
   ServerService,
   SessionService,

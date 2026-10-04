@@ -151,6 +151,22 @@ export enum Permission {
   ActivityDelete = 'activity.delete',
   ActivityStatistics = 'activity.statistics',
 
+  ActivityLogRead = 'activityLog.read',
+  ActivityLogUndo = 'activityLog.undo',
+
+  AgentSessionCreate = 'agentSession.create',
+  AgentSessionRead = 'agentSession.read',
+  AgentSessionUpdate = 'agentSession.update',
+  AgentSessionDelete = 'agentSession.delete',
+
+  ArtJobCreate = 'artJob.create',
+  ArtJobRead = 'artJob.read',
+
+  ArtStyleCreate = 'artStyle.create',
+  ArtStyleRead = 'artStyle.read',
+  ArtStyleUpdate = 'artStyle.update',
+  ArtStyleDelete = 'artStyle.delete',
+
   ApiKeyCreate = 'apiKey.create',
   ApiKeyRead = 'apiKey.read',
   ApiKeyUpdate = 'apiKey.update',
@@ -202,6 +218,21 @@ export enum Permission {
   BackupDownload = 'backup.download',
   BackupUpload = 'backup.upload',
   BackupDelete = 'backup.delete',
+
+  BookCreate = 'book.create',
+  BookRead = 'book.read',
+  BookUpdate = 'book.update',
+  BookDelete = 'book.delete',
+  BookDownload = 'book.download',
+  BookShare = 'book.share',
+
+  BookStyleCreate = 'bookStyle.create',
+  BookStyleRead = 'bookStyle.read',
+  BookStyleUpdate = 'bookStyle.update',
+  BookStyleDelete = 'bookStyle.delete',
+  HighlightCreate = 'highlight.create',
+  HighlightRead = 'highlight.read',
+  HighlightDelete = 'highlight.delete',
 
   ClusterGroupRead = 'clusterGroup.read',
   ClusterGroupLeave = 'clusterGroup.leave',
@@ -400,6 +431,9 @@ export enum SharedLinkType {
    * or group of assets that are not in an album
    */
   Individual = 'INDIVIDUAL',
+
+  /** a photo book, shown as its page-turning web version */
+  Book = 'BOOK',
 }
 
 export const SharedLinkTypeSchema = z.enum(SharedLinkType).describe('Shared link type').meta({ id: 'SharedLinkType' });
@@ -432,6 +466,7 @@ export enum SystemMetadataKey {
   SharedSpaceFaceJobCleanupState = 'shared-space-face-job-cleanup-state',
   FaceSuggestionDefaultOnState = 'face-suggestion-default-on-state',
   PersonSuggestionScanJobCleanupState = 'person-suggestion-scan-job-cleanup-state',
+  OrientationCheckState = 'orientation-check-state',
 }
 
 export enum UserMetadataKey {
@@ -447,6 +482,8 @@ export const UserMetadataKeySchema = z
 
 export enum AssetMetadataKey {
   MobileApp = 'mobile-app',
+  /** a suggested orientation fix and its review, see `OrientationService` */
+  Orientation = 'immich.orientation',
 }
 
 export enum UserAvatarColor {
@@ -506,6 +543,8 @@ export enum ManualJobName {
   UserCleanup = 'user-cleanup',
   MemoryCleanup = 'memory-cleanup',
   MemoryCreate = 'memory-create',
+  BookDraftsCreate = 'book-drafts-create',
+  CollectionNoticesCreate = 'collection-notices-create',
   BackupDatabase = 'backup-database',
   IntegrityMissingFiles = `integrity-missing-files`,
   IntegrityUntrackedFiles = `integrity-untracked-files`,
@@ -940,6 +979,31 @@ export enum JobName {
   AssetGenerateThumbnails = 'AssetGenerateThumbnails',
 
   AuditTableCleanup = 'AuditTableCleanup',
+  ActivityLogCleanup = 'ActivityLogCleanup',
+
+  BookDraftsQueueAll = 'BookDraftsQueueAll',
+  BookDraftsGenerate = 'BookDraftsGenerate',
+  CollectionNoticesQueueAll = 'CollectionNoticesQueueAll',
+  CollectionNoticesCheck = 'CollectionNoticesCheck',
+  BookExport = 'BookExport',
+  BookExportHtml = 'BookExportHtml',
+
+  HighlightRender = 'HighlightRender',
+
+  /** a new year recap memory: notify its owner and draft its book (#12) */
+  YearRecapPrepare = 'YearRecapPrepare',
+
+  /** starts the assistant routines that are due, or whose new photos settled, and expires queued approvals (#15) */
+  RoutineTick = 'RoutineTick',
+  /** one headless run of an assistant routine (#15) */
+  RoutineRun = 'RoutineRun',
+  /** every hour and after the memories are made: the users whose time of day has come (#6) */
+  MemoryNoticesQueueAll = 'MemoryNoticesQueueAll',
+  /** the notification of the day (a memory or a waiting draft) and the weekly digest of a user (#6) */
+  MemoryNoticesSend = 'MemoryNoticesSend',
+
+  OrientationCheckQueueAll = 'OrientationCheckQueueAll',
+  OrientationCheck = 'OrientationCheck',
 
   DatabaseBackup = 'DatabaseBackup',
 
@@ -1118,6 +1182,8 @@ export enum DatabaseLock {
   VersionCheck = 800,
   HlsSessionCleanup = 850,
   PetRecognitionModelSwitch = 860,
+  /** Gallery fork (#6): the instance that schedules the hourly memory notifications */
+  MemoryNotices = 870,
 }
 
 export enum MaintenanceAction {
@@ -1424,6 +1490,8 @@ export enum CronJob {
   LibraryScan = 'LibraryScan',
   NightlyJobs = 'NightlyJobs',
   VersionCheck = 'VersionCheck',
+  /** Gallery fork (#6): every hour, the memory notifications of the users whose time of day has come */
+  MemoryNotices = 'MemoryNotices',
 }
 
 export enum ConfigVisibility {
@@ -1434,13 +1502,19 @@ export enum ConfigVisibility {
 
 export enum ApiTag {
   Activities = 'Activities',
+  ActivityLog = 'Activity log',
   Albums = 'Albums',
+  Bursts = 'Bursts',
+  Assistant = 'Assistant',
   ApiKeys = 'API keys',
   Authentication = 'Authentication',
   AuthenticationAdmin = 'Authentication (admin)',
   Assets = 'Assets',
   AssetFiles = 'Asset files',
+  Books = 'Books',
   Classification = 'Classification',
+  Collages = 'Collages',
+  Collections = 'Collections',
   ConfigUser = 'Config (user)',
   ConfigAdmin = 'Config (admin)',
   ConfigPublic = 'Config (public)',
@@ -1449,6 +1523,8 @@ export enum ApiTag {
   Download = 'Download',
   Duplicates = 'Duplicates',
   Faces = 'Faces',
+  Food = 'Food',
+  Highlights = 'Highlights',
   Integrity = 'Integrity (admin)',
   Jobs = 'Jobs',
   Libraries = 'Libraries',
@@ -1457,6 +1533,7 @@ export enum ApiTag {
   Memories = 'Memories',
   Notifications = 'Notifications',
   NotificationsAdmin = 'Notifications (admin)',
+  Orientation = 'Orientation',
   ClusterGroups = 'Cluster groups',
   Partners = 'Partners',
   People = 'People',
@@ -1518,3 +1595,346 @@ export enum SearchOrderField {
 }
 
 export const SearchOrderFieldSchema = z.enum(SearchOrderField).meta({ id: 'SearchOrderField' });
+
+export enum AgentSessionStatus {
+  Idle = 'idle',
+  Running = 'running',
+  Error = 'error',
+}
+
+export const AgentSessionStatusSchema = z
+  .enum(AgentSessionStatus)
+  .describe('Agent session status')
+  .meta({ id: 'AgentSessionStatus' });
+
+export enum AgentMessageRole {
+  User = 'user',
+  Agent = 'agent',
+}
+
+export const AgentMessageRoleSchema = z
+  .enum(AgentMessageRole)
+  .describe('Agent message author')
+  .meta({ id: 'AgentMessageRole' });
+
+export enum AgentMessageKind {
+  Text = 'text',
+  Thought = 'thought',
+  ToolCall = 'tool_call',
+  Permission = 'permission',
+  Plan = 'plan',
+  Error = 'error',
+}
+
+export const AgentMessageKindSchema = z
+  .enum(AgentMessageKind)
+  .describe('Agent message kind')
+  .meta({ id: 'AgentMessageKind' });
+
+/** who made a change recorded in the activity log */
+export enum ActivityLogSource {
+  /** a tool call of the AI assistant */
+  Assistant = 'assistant',
+  /** the user, in the web app */
+  Web = 'web',
+}
+
+export const ActivityLogSourceSchema = z
+  .enum(ActivityLogSource)
+  .describe('Who made the change: the assistant, or the user in the web app')
+  .meta({ id: 'ActivityLogSource' });
+
+/**
+ * The kinds of change the activity log records, each with its own inverse (see `ActivityLogService`).
+ * New features that create assets (e.g. collages) record `AssetCreate`, whose undo moves the assets to the trash.
+ */
+export enum ActivityLogAction {
+  AlbumCreate = 'album.create',
+  AlbumAddAssets = 'album.addAssets',
+  AlbumRemoveAssets = 'album.removeAssets',
+  /** copies stacked with their originals: crops, straightened, enhanced and improved photos */
+  AssetCopy = 'asset.copy',
+  /** new assets that are not copies, e.g. collages */
+  AssetCreate = 'asset.create',
+  /** an artwork made by the art agent in the background */
+  Artwork = 'artwork.create',
+  ArtStyleCreate = 'artStyle.create',
+  BookCreate = 'book.create',
+  BookEdit = 'book.edit',
+  BookDraftKeep = 'bookDraft.keep',
+  BookDraftDiscard = 'bookDraft.discard',
+  BookStyleCreate = 'bookStyle.create',
+  /** photos archived by burst cleanup, keeping the best of each group (#9) */
+  BurstCleanup = 'burst.cleanup',
+  CollectionEntries = 'collection.entries',
+  HighlightCreate = 'highlight.create',
+  /** people, albums or days left out of the memories, or let back in (#12) */
+  MemoryExclusionChange = 'memoryExclusion.change',
+  SharedLinkCreate = 'sharedLink.create',
+  /** photos added to a shared space, e.g. when a smart album rule is applied to the photos it matches (#11) */
+  SpaceAddAssets = 'space.addAssets',
+  /** a workflow (a smart album rule) saved by the assistant (#11) */
+  WorkflowCreate = 'workflow.create',
+  WorkflowUpdate = 'workflow.update',
+  /** an assistant routine made from a chat (#15) */
+  RoutineCreate = 'routine.create',
+}
+
+export const ActivityLogActionSchema = z
+  .enum(ActivityLogAction)
+  .describe('Kind of change')
+  .meta({ id: 'ActivityLogAction' });
+
+export enum ActivityUndoStatus {
+  /** the change was undone */
+  Undone = 'undone',
+  /** the change was undone, but not all of it (see the warnings) */
+  Partial = 'partial',
+  /** the change can't be undone safely, e.g. later changes depend on it (see the message) */
+  Refused = 'refused',
+  /** the change was undone before */
+  AlreadyUndone = 'alreadyUndone',
+  /** undoing failed */
+  Failed = 'failed',
+}
+
+export const ActivityUndoStatusSchema = z
+  .enum(ActivityUndoStatus)
+  .describe('Outcome of undoing a change')
+  .meta({ id: 'ActivityUndoStatus' });
+
+export enum ArtJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const ArtJobStatusSchema = z.enum(ArtJobStatus).describe('Art job status').meta({ id: 'ArtJobStatus' });
+
+/** where a group of burst cleanup comes from (#9) */
+export enum BurstGroupSource {
+  /** a duplicate group of the duplicate detection */
+  Duplicate = 'duplicate',
+  /** a stack */
+  Stack = 'stack',
+  /** photos taken within seconds of each other that look the same, found by burst cleanup */
+  Burst = 'burst',
+}
+
+export const BurstGroupSourceSchema = z
+  .enum(BurstGroupSource)
+  .describe('Where a group of near-identical photos comes from')
+  .meta({ id: 'BurstGroupSource' });
+
+/** why burst cleanup keeps a photo (#9) */
+export enum BurstKeepReason {
+  /** a rule: RAW is preferred */
+  Raw = 'raw',
+  /** a rule: edited is preferred */
+  Edited = 'edited',
+  /** the largest (a rule, or the tie-breaker) */
+  Largest = 'largest',
+  Sharpest = 'sharpest',
+  BestExposed = 'bestExposed',
+  MostFaces = 'mostFaces',
+  LargestFaces = 'largestFaces',
+  Favorite = 'favorite',
+  HighestRated = 'highestRated',
+  /** better on the overall quality score only */
+  BestOverall = 'bestOverall',
+}
+
+export const BurstKeepReasonSchema = z
+  .enum(BurstKeepReason)
+  .describe('Why a photo is the one to keep')
+  .meta({ id: 'BurstKeepReason' });
+
+export enum OrientationStatus {
+  /** found by the check, waiting for the user */
+  Suggested = 'suggested',
+  /** turned with an edit (reversible) */
+  Fixed = 'fixed',
+  /** the user kept the photo as it is; it is not suggested again */
+  Rejected = 'rejected',
+}
+
+export const OrientationStatusSchema = z
+  .enum(OrientationStatus)
+  .describe('Review status of an orientation suggestion')
+  .meta({ id: 'OrientationStatus' });
+
+export enum HighlightJobStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export const HighlightJobStatusSchema = z
+  .enum(HighlightJobStatus)
+  .describe('Highlight video status')
+  .meta({ id: 'HighlightJobStatus' });
+
+export enum BookExportStatus {
+  Pending = 'pending',
+  Running = 'running',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export const BookExportStatusSchema = z
+  .enum(BookExportStatus)
+  .describe('Book export status')
+  .meta({ id: 'BookExportStatus' });
+
+export enum BookExportFormat {
+  Pdf = 'pdf',
+  Html = 'html',
+}
+
+export const BookExportFormatSchema = z
+  .enum(BookExportFormat)
+  .describe('Book export format: a print-ready PDF or a single self-contained HTML file')
+  .meta({ id: 'BookExportFormat' });
+
+export enum BookStatus {
+  /** suggested and laid out in the background, waiting for the user to keep or discard it */
+  Draft = 'draft',
+  Active = 'active',
+}
+
+export const BookStatusSchema = z
+  .enum(BookStatus)
+  .describe('Book status: a draft made for the user in the background, or a book of theirs')
+  .meta({ id: 'BookStatus' });
+
+export enum BookDraftKind {
+  /** a year of a collection pack, e.g. "2026 in food" */
+  Yearly = 'yearly',
+  /** a trip: a Travel/<Trip> tag, or days away from home */
+  Trip = 'trip',
+  /** the year of a person's life that ended on their latest birthday */
+  Birthday = 'birthday',
+  /** the year in review of a `year_recap` memory (#12) */
+  Recap = 'recap',
+}
+
+export const BookDraftKindSchema = z
+  .enum(BookDraftKind)
+  .describe('Kind of suggested book')
+  .meta({ id: 'BookDraftKind' });
+
+/** what a memory exclusion leaves out of the memories and what is made of them (#12) */
+export enum MemoryExclusionType {
+  /** the photos of a person or a pet */
+  Person = 'person',
+  /** the photos of an album */
+  Album = 'album',
+  /** the photos taken in a range of days */
+  DateRange = 'date_range',
+}
+
+export const MemoryExclusionTypeSchema = z
+  .enum(MemoryExclusionType)
+  .describe('What a memory exclusion leaves out')
+  .meta({ id: 'MemoryExclusionType' });
+
+export enum BookDraftState {
+  Drafted = 'drafted',
+  Kept = 'kept',
+  Discarded = 'discarded',
+}
+
+export const BookDraftStateSchema = z
+  .enum(BookDraftState)
+  .describe('What became of a suggested book')
+  .meta({ id: 'BookDraftState' });
+
+/** when an assistant routine runs (#15) */
+export enum RoutineTriggerType {
+  /** only when the user starts it (Run now) */
+  Manual = 'manual',
+  /** on a schedule: a cron expression, e.g. every night at 2:00 */
+  Schedule = 'schedule',
+  /** after an event, batched: the photos of an upload once it settles, a new journal visit, a tag... */
+  Event = 'event',
+}
+
+export const RoutineTriggerTypeSchema = z
+  .enum(RoutineTriggerType)
+  .describe('When the routine runs')
+  .meta({ id: 'RoutineTriggerType' });
+
+/** the events an assistant routine can run after (#15) */
+export enum RoutineEvent {
+  /** new photos were uploaded (one run once the upload settles, never one per photo) */
+  Upload = 'upload',
+  /** a new journal visit was found (a meal, a museum visit...) */
+  JournalVisit = 'journal_visit',
+  /** photos got a tag (optionally a given tag, or a tag under it) */
+  Tag = 'tag',
+  /** a trip ended (its recent-trip memory was made) */
+  Trip = 'trip',
+  /** a photo book draft was made */
+  BookDraft = 'book_draft',
+  /** photos were sent to the routine by a Workflow step ("Send to assistant routine") */
+  Workflow = 'workflow',
+}
+
+export const RoutineEventSchema = z
+  .enum(RoutineEvent)
+  .describe('Event the routine runs after')
+  .meta({ id: 'RoutineEvent' });
+
+/** what happens to the changes a routine run makes (#15) */
+export enum RoutineApprovalMode {
+  /** every change waits in the Routines inbox for the user's approval (the default) */
+  Ask = 'ask',
+  /** reversible, low-risk changes (tags, descriptions, albums, drafts) are made; the others wait for approval */
+  AutoSafe = 'auto_safe',
+  /** nothing is changed: the run only reports what it would change */
+  DryRun = 'dry_run',
+}
+
+export const RoutineApprovalModeSchema = z
+  .enum(RoutineApprovalMode)
+  .describe('What happens to the changes of a run: ask, make the safe ones, or only report them')
+  .meta({ id: 'RoutineApprovalMode' });
+
+export enum RoutineRunStatus {
+  Queued = 'queued',
+  Running = 'running',
+  Succeeded = 'succeeded',
+  Failed = 'failed',
+  Cancelled = 'cancelled',
+  /** not run: a limit was reached, or the assistant or routines are off */
+  Skipped = 'skipped',
+}
+
+export const RoutineRunStatusSchema = z
+  .enum(RoutineRunStatus)
+  .describe('Status of a routine run')
+  .meta({ id: 'RoutineRunStatus' });
+
+/** a change of a routine run that waits for, or got, the user's decision (#15) */
+export enum RoutineApprovalStatus {
+  Pending = 'pending',
+  /** being applied right now */
+  Applying = 'applying',
+  /** approved and applied (the recorded tool call was made again) */
+  Applied = 'applied',
+  /** approved, but applying it failed */
+  Failed = 'failed',
+  Denied = 'denied',
+  /** nobody decided in time */
+  Expired = 'expired',
+  /** a dry run: only reported, never applied */
+  DryRun = 'dry_run',
+}
+
+export const RoutineApprovalStatusSchema = z
+  .enum(RoutineApprovalStatus)
+  .describe('Status of a change of a routine run')
+  .meta({ id: 'RoutineApprovalStatus' });

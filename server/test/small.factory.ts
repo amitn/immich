@@ -88,21 +88,27 @@ const authSharedLinkFactory = (sharedLink: Partial<AuthSharedLink> = {}) => {
     showExif = true,
     albumId = null,
     spaceId = null,
+    bookId = null,
     allowUpload = false,
     allowDownload = true,
     password = null,
+    redactFaces = false,
+    redactText = false,
   } = sharedLink;
 
   return {
     id,
     albumId,
     spaceId,
+    bookId,
     expiresAt,
     userId,
     showExif,
     allowUpload,
     allowDownload,
     password,
+    redactFaces,
+    redactText,
   };
 };
 

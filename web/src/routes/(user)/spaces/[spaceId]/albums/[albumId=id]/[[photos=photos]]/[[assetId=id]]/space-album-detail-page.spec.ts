@@ -98,8 +98,9 @@ vi.mock('$lib/utils/timeline-zoom-navigation', () => ({
 // DeleteAssetsAction — its `force` derivation reads featureFlagsManager.value.trash, which
 // throws until the (real, module-singleton) manager is initialized. Mirrors the mock already
 // used by SelectionToolbar.spec.ts and the space-person-detail-page spec.
+// #23: the assistant's actions read `assistant` and `smartSearch` too; off, so only what needs neither is offered.
 vi.mock('$lib/managers/feature-flags-manager.svelte', () => ({
-  featureFlagsManager: { value: { trash: true } },
+  featureFlagsManager: { value: { trash: true, assistant: false, smartSearch: false } },
 }));
 
 const { mockAssetMultiSelectManager, pickerMultiSelectClear, pickerSelectedAssets, mockOpenSearchPalette } = vi.hoisted(
@@ -366,6 +367,31 @@ describe('Space album detail page', () => {
   it('editor sees the "Add photos" button', () => {
     renderPage({ members: [makeMember(SharedSpaceRole.Editor)] });
     expect(screen.getByTestId('add-photos-button')).toBeInTheDocument();
+  });
+
+  // #23: the album's ⋮ menu of a regular album, for everyone who can read the album — a viewer too, whose book and
+  // video take the photos of others as they are
+  it('a space viewer gets the ⋮ menu of the album, with its highlight video', () => {
+    renderPage({
+      members: [makeMember(SharedSpaceRole.Viewer)],
+      album: makeAlbum({
+        albumUsers: [
+          {
+            user: { id: 'current-user-id', email: 'user@example.com', name: 'Current User' } as never,
+            role: AlbumUserRole.Viewer,
+          },
+        ],
+      }),
+    });
+    expect(screen.getByLabelText('Album options')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Make a highlight video…' })).toBeInTheDocument();
+    // the assistant is off, so no book
+    expect(screen.queryByRole('menuitem', { name: 'Export as book…' })).not.toBeInTheDocument();
+  });
+
+  it('has no ⋮ menu of the album when the album is empty and nothing else is offered', () => {
+    renderPage({ album: makeAlbum({ assetCount: 0 }) });
+    expect(screen.queryByLabelText('Album options')).not.toBeInTheDocument();
   });
 
   it('owner sees the "Add photos" button', () => {

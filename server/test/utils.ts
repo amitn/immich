@@ -20,17 +20,24 @@ import { AuthGuard } from 'src/middleware/auth.guard.js';
 import { FileUploadInterceptor } from 'src/middleware/file-upload.interceptor.js';
 import { GlobalExceptionFilter } from 'src/middleware/global-exception.filter.js';
 import { AccessRepository } from 'src/repositories/access.repository.js';
+import { AcpRepository } from 'src/repositories/acp.repository.js';
+import { ActivityLogRepository } from 'src/repositories/activity-log.repository.js';
 import { ActivityRepository } from 'src/repositories/activity.repository.js';
+import { AgentRepository } from 'src/repositories/agent.repository.js';
 import { AlbumUserRepository } from 'src/repositories/album-user.repository.js';
 import { AlbumRepository } from 'src/repositories/album.repository.js';
 import { ApiKeyRepository } from 'src/repositories/api-key.repository.js';
 import { AppRepository } from 'src/repositories/app.repository.js';
+import { ArtJobRepository } from 'src/repositories/art-job.repository.js';
 import { AssetEditRepository } from 'src/repositories/asset-edit.repository.js';
 import { AssetFileRepository } from 'src/repositories/asset-file.repository.js';
 import { AssetJobRepository } from 'src/repositories/asset-job.repository.js';
 import { AssetRepository } from 'src/repositories/asset.repository.js';
+import { BookDraftRepository } from 'src/repositories/book-draft.repository.js';
+import { BookRepository } from 'src/repositories/book.repository.js';
 import { ClassificationRepository } from 'src/repositories/classification.repository.js';
 import { ClusterGroupRepository } from 'src/repositories/cluster-group.repository.js';
+import { CollectionNoticeRepository } from 'src/repositories/collection-notice.repository.js';
 import { ConfigRepository } from 'src/repositories/config.repository.js';
 import { CronRepository } from 'src/repositories/cron.repository.js';
 import { CryptoRepository } from 'src/repositories/crypto.repository.js';
@@ -44,6 +51,7 @@ import { FacePersonVerdictRepository } from 'src/repositories/face-person-verdic
 import { FaceRepairDeclineRepository } from 'src/repositories/face-repair-decline.repository.js';
 import { FaceRepairScanRepository } from 'src/repositories/face-repair-scan.repository.js';
 import { FaceRepairRepository } from 'src/repositories/face-repair.repository.js';
+import { HighlightJobRepository } from 'src/repositories/highlight-job.repository.js';
 import { IntegrityRepository } from 'src/repositories/integrity.repository.js';
 import { JobRepository } from 'src/repositories/job.repository.js';
 import { LibraryRepository } from 'src/repositories/library.repository.js';
@@ -51,6 +59,8 @@ import { LoggingRepository } from 'src/repositories/logging.repository.js';
 import { MachineLearningRepository } from 'src/repositories/machine-learning.repository.js';
 import { MapRepository } from 'src/repositories/map.repository.js';
 import { MediaRepository } from 'src/repositories/media.repository.js';
+import { MemoryExclusionRepository } from 'src/repositories/memory-exclusion.repository.js';
+import { MemoryNoticeRepository } from 'src/repositories/memory-notice.repository.js';
 import { MemoryRepository } from 'src/repositories/memory.repository.js';
 import { MetadataRepository } from 'src/repositories/metadata.repository.js';
 import { MoveRepository } from 'src/repositories/move.repository.js';
@@ -61,6 +71,7 @@ import { PartnerRepository } from 'src/repositories/partner.repository.js';
 import { PersonRepository } from 'src/repositories/person.repository.js';
 import { PluginRepository } from 'src/repositories/plugin.repository.js';
 import { ProcessRepository } from 'src/repositories/process.repository.js';
+import { RoutineRepository } from 'src/repositories/routine.repository.js';
 import { SearchRepository } from 'src/repositories/search.repository.js';
 import { ServerInfoRepository } from 'src/repositories/server-info.repository.js';
 import { SessionRepository } from 'src/repositories/session.repository.js';
@@ -83,6 +94,7 @@ import { VideoStreamRepository } from 'src/repositories/video-stream.repository.
 import { ViewRepository } from 'src/repositories/view-repository.js';
 import { WebsocketRepository } from 'src/repositories/websocket.repository.js';
 import { WorkflowRepository } from 'src/repositories/workflow.repository.js';
+import { YearRecapRepository } from 'src/repositories/year-recap.repository.js';
 import { DB } from 'src/schema/index.js';
 import { AuthService } from 'src/services/auth.service.js';
 import { BaseService } from 'src/services/base.service.js';
@@ -185,6 +197,18 @@ const mockFn = (label: string, { strict }: { strict: boolean }) => {
   });
 };
 
+/**
+ * The memory exclusions of #12 are read by the memory engine, the memory creations and the suggested books: by
+ * default a user keeps nothing out of their memories, so specs that are not about exclusions need not mock them.
+ */
+const newMemoryExclusionRepositoryMock = () => {
+  const mock = automock(MemoryExclusionRepository);
+  mock.getAll.mockResolvedValue([]);
+  mock.findPeopleByName.mockResolvedValue([]);
+  mock.getKeptAssetIds.mockImplementation((ids: string[]) => Promise.resolve(new Set(ids)));
+  return mock;
+};
+
 export const mockBaseService = <T extends BaseService>(service: new (...args: any[]) => T) => {
   return automock(service, { args: [{ setContext: () => {} }], strict: false });
 };
@@ -243,6 +267,18 @@ export const automock = <T>(
 export type ServiceOverrides = {
   access: AccessRepository;
   activity: ActivityRepository;
+  activityLog: ActivityLogRepository;
+  agent: AgentRepository;
+  acp: AcpRepository;
+  artJob: ArtJobRepository;
+  highlightJob: HighlightJobRepository;
+  book: BookRepository;
+  bookDraft: BookDraftRepository;
+  collectionNotice: CollectionNoticeRepository;
+  memoryExclusion: MemoryExclusionRepository;
+  memoryNotice: MemoryNoticeRepository;
+  yearRecap: YearRecapRepository;
+  routine: RoutineRepository;
   album: AlbumRepository;
   albumUser: AlbumUserRepository;
   apiKey: ApiKeyRepository;
@@ -345,6 +381,18 @@ export const getMocks = () => {
     cron: automock(CronRepository, { args: [, loggerMock] }),
     crypto: newCryptoRepositoryMock(),
     activity: automock(ActivityRepository),
+    activityLog: automock(ActivityLogRepository),
+    agent: automock(AgentRepository),
+    acp: automock(AcpRepository, { args: [loggerMock] }),
+    artJob: automock(ArtJobRepository),
+    highlightJob: automock(HighlightJobRepository),
+    book: automock(BookRepository),
+    bookDraft: automock(BookDraftRepository),
+    collectionNotice: automock(CollectionNoticeRepository),
+    memoryExclusion: newMemoryExclusionRepositoryMock(),
+    memoryNotice: automock(MemoryNoticeRepository),
+    yearRecap: automock(YearRecapRepository),
+    routine: automock(RoutineRepository),
     album: automock(AlbumRepository, { strict: false }),
     albumUser: automock(AlbumUserRepository),
     asset: newAssetRepositoryMock(),
@@ -428,6 +476,18 @@ export const newTestService = <T extends BaseService>(
     overrides.logger || (mocks.logger as As<LoggingRepository>),
     overrides.access || (mocks.access as IAccessRepository as AccessRepository),
     overrides.activity || (mocks.activity as As<ActivityRepository>),
+    overrides.activityLog || (mocks.activityLog as As<ActivityLogRepository>),
+    overrides.agent || (mocks.agent as As<AgentRepository>),
+    overrides.acp || (mocks.acp as As<AcpRepository>),
+    overrides.artJob || (mocks.artJob as As<ArtJobRepository>),
+    overrides.highlightJob || (mocks.highlightJob as As<HighlightJobRepository>),
+    overrides.book || (mocks.book as As<BookRepository>),
+    overrides.bookDraft || (mocks.bookDraft as As<BookDraftRepository>),
+    overrides.collectionNotice || (mocks.collectionNotice as As<CollectionNoticeRepository>),
+    overrides.memoryExclusion || (mocks.memoryExclusion as As<MemoryExclusionRepository>),
+    overrides.memoryNotice || (mocks.memoryNotice as As<MemoryNoticeRepository>),
+    overrides.yearRecap || (mocks.yearRecap as As<YearRecapRepository>),
+    overrides.routine || (mocks.routine as As<RoutineRepository>),
     overrides.album || (mocks.album as As<AlbumRepository>),
     overrides.albumUser || (mocks.albumUser as As<AlbumUserRepository>),
     overrides.apiKey || (mocks.apiKey as As<ApiKeyRepository>),

@@ -1,4 +1,5 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:immich_mobile/gallery/utils/book_shared_link.dart';
 import 'package:immich_mobile/models/shared_link/shared_link.model.dart';
 import 'package:immich_mobile/providers/api.provider.dart';
 import 'package:immich_mobile/services/api.service.dart';
@@ -46,11 +47,23 @@ class SharedLinkService {
     // against the space rather than against asset ownership, so it can cover photos other members
     // contributed — which requires the caller to be an Owner or Editor of that space.
     String? spaceId,
+    // Gallery (#3): a link to a photo book
+    String? bookId,
   }) async {
     try {
       final type = albumId != null ? SharedLinkType.ALBUM : SharedLinkType.INDIVIDUAL;
       SharedLinkCreateDto? dto;
-      if (type == SharedLinkType.ALBUM) {
+      if (bookId != null) {
+        dto = bookSharedLinkCreateDto(
+          bookId: bookId,
+          showMetadata: showMeta,
+          allowDownload: allowDownload,
+          description: description,
+          password: password,
+          slug: slug,
+          expiresAt: expiresAt,
+        );
+      } else if (type == SharedLinkType.ALBUM) {
         dto = SharedLinkCreateDto(
           type: type,
           albumId: albumId == null ? const Optional.absent() : Optional.present(albumId),

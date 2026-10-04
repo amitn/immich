@@ -17,6 +17,7 @@ import {
 } from 'src/dtos/memory.dto.js';
 import { DatabaseLock, JobName, MemoryType, Permission, QueueName, SystemMetadataKey } from 'src/enum.js';
 import { BaseService } from 'src/services/base.service.js';
+import { toMemoryExclusions } from 'src/services/memory-exclusion.service.js';
 import {
   getAdminAvailableMemoryTypeKeys,
   getMemoryTypeFloor,
@@ -27,9 +28,20 @@ import {
 import { createMemoryRules } from 'src/services/memory-rules/memory-type.registry.js';
 import { type ReservableMemory, planReservation } from 'src/services/memory-rules/reservation.util.js';
 import { MemoryThemeSearchAdapter } from 'src/services/memory-rules/theme-search.adapter.js';
+import { YEAR_RECAP_RULE_ID } from 'src/services/memory-rules/year-recap.rule.js';
 import { addAssets, removeAssets } from 'src/utils/asset.util.js';
+import {
+  type MemoryExclusions,
+  NO_MEMORY_EXCLUSIONS,
+  hasMemoryExclusions,
+  isMemoryAboutExcludedPerson,
+  withoutExcludedPeople,
+} from 'src/utils/memory-exclusions.js';
 import { findOrFail } from 'src/utils/misc.js';
 import { getPreferences } from 'src/utils/preferences.js';
+
+/** the memories of a trip that just ended (Gallery fork, #15: the routines that run after a trip) */
+const RECENT_TRIP_RULE_ID = 'recent_trip';
 
 const DAYS = 3;
 /**
@@ -67,6 +79,18 @@ const isVisibleOn = (row: Pick<MemoryOverlapRow, 'showAt' | 'hideAt'>, target: D
   return (row.showAt === null || row.showAt <= end) && (row.hideAt === null || row.hideAt >= start);
 };
 
+/** the context a rule stored in a memory's data */
+const getRuleContext = (data: unknown) =>
+  ((data as { context?: Record<string, unknown> } | null | undefined)?.context ?? undefined) as
+    Record<string, unknown> | undefined;
+
+/** Gallery fork (#12): a memory without the excluded people its context lists, e.g. the top people of a recap */
+const withoutExcludedPeopleInData = <T extends { data: unknown }>(memory: T, exclusions: MemoryExclusions): T => {
+  const context = getRuleContext(memory.data);
+  const kept = withoutExcludedPeople(context, exclusions);
+  return kept === context ? memory : { ...memory, data: { ...(memory.data as object), context: kept } };
+};
+
 @Injectable()
 export class MemoryService extends BaseService {
   @OnJob({ name: JobName.MemoryGenerate, queue: QueueName.BackgroundTask })
@@ -85,6 +109,18 @@ export class MemoryService extends BaseService {
         ),
       ]),
     );
+    // Gallery fork (#12): what each user keeps out of their memories, for the rules and the reconcile pass
+    const exclusionsById = new Map<string, MemoryExclusions>();
+    for (const user of users) {
+      try {
+        exclusionsById.set(
+          user.id,
+          toMemoryExclusions(await this.memoryExclusionRepository.getAll(user.id), user.metadata ?? []),
+        );
+      } catch (error) {
+        this.logger.error(`Failed to load the memory exclusions of ${user.id}: ${error}`);
+      }
+    }
     const onThisDayUsers = availableTypes.has('on_this_day')
       ? users.filter((user) => isMemoryTypeEnabledForUser(userTypesById.get(user.id), 'on_this_day'))
       : [];
@@ -124,7 +160,14 @@ export class MemoryService extends BaseService {
         this.logger.log(`Creating rule memories for ${target.toISO()}`);
         try {
           await Promise.all(
-            users.map((owner) => this.createRuleMemories(owner.id, target, enabledRuleKeysById.get(owner.id) ?? [])),
+            users.map((owner) =>
+              this.createRuleMemories(
+                owner.id,
+                target,
+                enabledRuleKeysById.get(owner.id) ?? [],
+                exclusionsById.get(owner.id),
+              ),
+            ),
           );
           nextState.lastRuleDate = target.toISO()!;
           await this.systemMetadataRepository.set(SystemMetadataKey.MemoriesState, {
@@ -145,6 +188,7 @@ export class MemoryService extends BaseService {
           nextState,
           availableTypes,
           userTypesById,
+          exclusionsById,
         );
       } catch (error) {
         this.logger.error(`Failed to backfill memory overlap: ${error}`);
@@ -159,12 +203,21 @@ export class MemoryService extends BaseService {
             reconcileTo,
             availableTypes,
             userTypesById.get(owner.id) ?? {},
+            exclusionsById.get(owner.id),
           );
         } catch (error) {
           this.logger.error(`Failed to reconcile memory overlap for ${owner.id}: ${error}`);
         }
       }
     });
+
+    // Gallery fork (#6): the memory of the day, for the users whose time of day has already come. Fail soft like
+    // every phase above: the hourly run catches up.
+    try {
+      await this.jobRepository.queue({ name: JobName.MemoryNoticesQueueAll });
+    } catch (error) {
+      this.logger.warn(`Failed to queue the memory notifications: ${error}`);
+    }
   }
 
   private async createOnThisDayMemories(ownerId: string, target: DateTime) {
@@ -230,6 +283,7 @@ export class MemoryService extends BaseService {
     state: MemoriesState,
     availableTypes: Set<string>,
     userTypesById: Map<string, Record<string, boolean>>,
+    exclusionsById: Map<string, MemoryExclusions> = new Map(),
   ) {
     if (
       state.overlapBackfilledAt &&
@@ -255,7 +309,14 @@ export class MemoryService extends BaseService {
     for (let target = start; target <= today; target = target.plus({ days: 1 })) {
       for (const ownerId of ownerIds) {
         try {
-          await this.reconcileMemoryOverlap(ownerId, target, target, availableTypes, userTypesById.get(ownerId) ?? {});
+          await this.reconcileMemoryOverlap(
+            ownerId,
+            target,
+            target,
+            availableTypes,
+            userTypesById.get(ownerId) ?? {},
+            exclusionsById.get(ownerId),
+          );
         } catch (error) {
           this.logger.error(`Failed to backfill memory overlap for ${ownerId} on ${target.toISO()}: ${error}`);
         }
@@ -277,11 +338,18 @@ export class MemoryService extends BaseService {
     to: DateTime,
     availableTypes: Set<string>,
     userTypes: Record<string, boolean>,
+    exclusions?: MemoryExclusions,
   ) {
-    const allRows = (await this.memoryRepository.getForOverlapReconcile(ownerId, {
-      from: from.startOf('day').toJSDate(),
-      to: to.endOf('day').toJSDate(),
-    })) as MemoryOverlapRow[];
+    // Gallery fork (#12): the photos the owner keeps out are not shown, so they neither count towards a floor nor
+    // claim anything; they stay in the memory, and come back if the exclusion is removed
+    const allRows = (await this.memoryRepository.getForOverlapReconcile(
+      ownerId,
+      {
+        from: from.startOf('day').toJSDate(),
+        to: to.endOf('day').toJSDate(),
+      },
+      exclusions,
+    )) as MemoryOverlapRow[];
 
     // A memory whose type is currently invisible to this owner (admin-disabled or user-disabled)
     // must be dropped from consideration entirely — it can neither claim assets nor be stripped
@@ -362,11 +430,17 @@ export class MemoryService extends BaseService {
       assetRepository: this.assetRepository,
       memoryRepository: this.memoryRepository,
       themeSearchPort: this.getThemeSearchPort(),
+      yearRecapRepository: this.yearRecapRepository,
       memories,
     });
   }
 
-  private async createRuleMemories(ownerId: string, target: DateTime, enabledRuleKeys: Iterable<string>) {
+  private async createRuleMemories(
+    ownerId: string,
+    target: DateTime,
+    enabledRuleKeys: Iterable<string>,
+    exclusions: MemoryExclusions = NO_MEMORY_EXCLUSIONS,
+  ) {
     const existingRuleMemories = await this.memoryRepository.search(ownerId, {
       type: MemoryType.Rule,
       for: target.toJSDate(),
@@ -385,7 +459,10 @@ export class MemoryService extends BaseService {
     // hold them for its whole 7–10-day window, monthly starving the 1-day rules. 1-day rules
     // are unaffected and may still fill every remaining slot on their own day.
     const insertedMultiDayRuleIds = new Set<string>();
-    const evaluatedCandidates = await this.evaluateRuleCandidates(ownerId, target, enabledRuleKeys);
+    const evaluatedCandidates = await this.applyExclusions(
+      await this.evaluateRuleCandidates(ownerId, target, enabledRuleKeys, exclusions),
+      exclusions,
+    );
     const candidates = evaluatedCandidates.toSorted((left, right) => right.score - left.score);
     let inserted = 0;
 
@@ -414,7 +491,7 @@ export class MemoryService extends BaseService {
         .endOf('day')
         .toJSDate();
 
-      await this.memoryRepository.create(
+      const memory = await this.memoryRepository.create(
         {
           ownerId,
           type: MemoryType.Rule,
@@ -444,21 +521,64 @@ export class MemoryService extends BaseService {
       if (isMultiDay) {
         insertedMultiDayRuleIds.add(candidate.ruleId);
       }
+      // Gallery fork (#12): a year recap tells its owner, and drafts its book, in the background
+      if (candidate.ruleId === YEAR_RECAP_RULE_ID) {
+        await this.jobRepository.queue({ name: JobName.YearRecapPrepare, data: { id: memory.id } });
+      }
+      // Gallery fork (#15): a trip that just ended starts the routines that run after a trip
+      if (candidate.ruleId === RECENT_TRIP_RULE_ID) {
+        await this.eventRepository.emit('TripEnded', {
+          userId: ownerId,
+          memoryId: memory.id,
+          title: candidate.title ?? '',
+          assetIds: candidate.assetIds,
+        });
+      }
       inserted++;
     }
+  }
+
+  /**
+   * Gallery fork (#12): leaves what the owner keeps out of their memories out of every rule's candidates: their
+   * photos are removed, and a candidate is dropped when it is about an excluded person (a birthday, a throwback) or is
+   * left under its type's floor.
+   */
+  private async applyExclusions(
+    candidates: MemoryRuleCandidate[],
+    exclusions: MemoryExclusions,
+  ): Promise<MemoryRuleCandidate[]> {
+    if (!hasMemoryExclusions(exclusions) || candidates.length === 0) {
+      return candidates;
+    }
+    const kept = await this.memoryExclusionRepository.getKeptAssetIds(
+      [...new Set(candidates.flatMap((candidate) => candidate.assetIds))],
+      exclusions,
+    );
+    return candidates
+      .filter((candidate) => !isMemoryAboutExcludedPerson(candidate.context, exclusions))
+      .map((candidate) => ({
+        ...candidate,
+        assetIds: candidate.assetIds.filter((id) => kept.has(id)),
+        context: withoutExcludedPeople(candidate.context, exclusions),
+      }))
+      .filter(
+        (candidate) =>
+          candidate.assetIds.length > 0 && candidate.assetIds.length >= getMemoryTypeFloor(candidate.ruleId),
+      );
   }
 
   private async evaluateRuleCandidates(
     ownerId: string,
     target: DateTime,
     enabledRuleKeys: Iterable<string>,
+    exclusions?: MemoryExclusions,
   ): Promise<MemoryRuleCandidate[]> {
     const candidates: MemoryRuleCandidate[] = [];
     const { memories } = await this.getConfig({ withCache: true });
 
     for (const rule of this.getMemoryRules(enabledRuleKeys, memories)) {
       try {
-        candidates.push(...(await rule.evaluate({ ownerId, target })));
+        candidates.push(...(await rule.evaluate({ ownerId, target, exclusions })));
       } catch (error) {
         this.logger.error(`Failed to evaluate memory rule ${rule.id} for ${ownerId} on ${target.toISO()}: ${error}`);
       }
@@ -476,7 +596,16 @@ export class MemoryService extends BaseService {
   async search(auth: AuthDto, dto: MemorySearchDto) {
     // #1041 §6.2: resolved once per request, same as timeline.service.ts / view.service.ts.
     const [hiddenScope, visibleSpaceIds] = await this.resolveHiddenScopeAndVisibleSpaces(auth.user.id);
-    const memories = await this.memoryRepository.searchAccessible(auth.user.id, dto, hiddenScope, visibleSpaceIds);
+    // Gallery fork (#12): what the viewer keeps out of their memories, the memories made before included
+    const exclusions = await this.getExclusions(auth.user.id);
+    const found = await this.memoryRepository.searchAccessible(
+      auth.user.id,
+      dto,
+      hiddenScope,
+      visibleSpaceIds,
+      exclusions,
+    );
+    const memories = found.filter((memory) => !isMemoryAboutExcludedPerson(getRuleContext(memory.data), exclusions));
     const assetIds = memories.flatMap((memory) => memory.assets.map((asset) => asset.id));
     const allowedAssetIds = await this.checkAccess({ auth, permission: Permission.AssetView, ids: assetIds });
 
@@ -491,7 +620,7 @@ export class MemoryService extends BaseService {
         assets: memory.assets.filter((asset) => allowedAssetIds.has(asset.id)),
       }))
       .filter((memory: Memory) => memory.assets.length > 0)
-      .map((memory: Memory) => mapMemory(memory, auth));
+      .map((memory: Memory) => mapMemory(withoutExcludedPeopleInData(memory, exclusions), auth));
   }
 
   /**
@@ -522,6 +651,20 @@ export class MemoryService extends BaseService {
     await this.requireAccess({ auth, permission: Permission.MemoryRead, ids: [id] });
     const memory = await this.findOrFail(id, auth.user.id);
     return mapMemory(memory, auth);
+  }
+
+  /** Gallery fork (#12): what a user keeps out of their memories; none when they cannot be read */
+  private async getExclusions(userId: string): Promise<MemoryExclusions> {
+    try {
+      const [rows, metadata] = await Promise.all([
+        this.memoryExclusionRepository.getAll(userId),
+        this.userRepository.getMetadata(userId),
+      ]);
+      return toMemoryExclusions(rows, metadata ?? []);
+    } catch (error) {
+      this.logger.warn(`Unable to read the memory exclusions of ${userId}: ${error}`);
+      return NO_MEMORY_EXCLUSIONS;
+    }
   }
 
   async create(auth: AuthDto, dto: MemoryCreateDto) {
@@ -623,6 +766,11 @@ export class MemoryService extends BaseService {
     // #1041 §4: leave the memory's assets hidden from a viewer's own timeline immediately, not just
     // after the next generation pass — see the repository doc comment.
     const resolved = viewerId ? await this.resolveHiddenScopeAndVisibleSpaces(viewerId) : undefined;
-    return findOrFail(() => this.memoryRepository.get(id, viewerId, resolved?.[0], resolved?.[1]), 'Memory');
+    const exclusions = viewerId ? await this.getExclusions(viewerId) : undefined;
+    const memory = await findOrFail(
+      () => this.memoryRepository.get(id, viewerId, resolved?.[0], resolved?.[1], exclusions),
+      'Memory',
+    );
+    return exclusions ? withoutExcludedPeopleInData(memory, exclusions) : memory;
   }
 }

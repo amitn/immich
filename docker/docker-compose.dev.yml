@@ -10,6 +10,9 @@
 # For development see:
 # - https://docs.immich.app/developer/setup
 # - https://docs.immich.app/developer/troubleshooting
+#
+# For the AI assistant, add docker-compose.dev.assistant.yml, which runs the ACP agents in a gallery-agents container:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev.assistant.yml up --build --remove-orphans
 
 name: immich-dev
 

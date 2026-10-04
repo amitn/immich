@@ -2,8 +2,17 @@ import { AssetOrder, type UserPreferencesResponseDto } from '@immich/sdk';
 import { Sync } from 'factory.ts';
 
 export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
+  aiAnswers: {
+    enabled: true,
+  },
   albums: {
     defaultAssetOrder: AssetOrder.Desc,
+  },
+  bookDrafts: {
+    enabled: true,
+  },
+  collectionNotifications: {
+    enabled: true,
   },
   cast: {
     gCastEnabled: false,
@@ -26,6 +35,18 @@ export const preferencesFactory = Sync.makeFactory<UserPreferencesResponseDto>({
     duration: 5,
     sidebarWeb: false,
     types: {},
+  },
+  memoryExclusions: {
+    documents: false,
+  },
+  memoryNotifications: {
+    memories: true,
+    creations: true,
+    drafts: true,
+    hour: 9,
+    timeZone: '',
+    digest: false,
+    digestDay: 7,
   },
   people: {
     enabled: false,

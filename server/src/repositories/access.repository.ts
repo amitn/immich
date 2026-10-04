@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { type Kysely, type NotNull, sql } from 'kysely';
 import { InjectKysely } from 'nestjs-kysely';
 import { ChunkedSet, DummyValue, GenerateSql } from 'src/decorators.js';
-import { AlbumUserRole, AssetVisibility, SharedSpaceRole } from 'src/enum.js';
+import { AlbumUserRole, AssetVisibility, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
 import { DB } from 'src/schema/index.js';
 import { asUuid } from 'src/utils/database.js';
 import {
@@ -1114,14 +1114,157 @@ class SharedSpaceAccess {
   }
 }
 
+class AgentSessionAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, sessionIds: Set<string>) {
+    if (sessionIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('agent_session')
+      .select('agent_session.id')
+      .where('agent_session.id', 'in', [...sessionIds])
+      .where('agent_session.userId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class ArtJobAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, jobIds: Set<string>) {
+    if (jobIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('art_job')
+      .select('art_job.id')
+      .where('art_job.id', 'in', [...jobIds])
+      .where('art_job.userId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class ArtStyleAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, styleIds: Set<string>) {
+    if (styleIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('art_style')
+      .select('art_style.id')
+      .where('art_style.id', 'in', [...styleIds])
+      .where('art_style.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class HighlightJobAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, jobIds: Set<string>) {
+    if (jobIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('highlight_job')
+      .select('highlight_job.id')
+      .where('highlight_job.id', 'in', [...jobIds])
+      .where('highlight_job.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class BookStyleAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, styleIds: Set<string>) {
+    if (styleIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('book_style')
+      .select('book_style.id')
+      .where('book_style.id', 'in', [...styleIds])
+      .where('book_style.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
+class BookAccess {
+  constructor(private db: Kysely<DB>) {}
+
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkOwnerAccess(userId: string, bookIds: Set<string>) {
+    if (bookIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('book')
+      .select('book.id')
+      .where('book.id', 'in', [...bookIds])
+      .where('book.ownerId', '=', userId)
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+  @GenerateSql({ params: [DummyValue.UUID, DummyValue.UUID_SET] })
+  @ChunkedSet({ paramIndex: 1 })
+  async checkSharedLinkAccess(sharedLinkId: string, bookIds: Set<string>) {
+    if (bookIds.size === 0) {
+      return new Set<string>();
+    }
+
+    return this.db
+      .selectFrom('shared_link')
+      .innerJoin('book', 'book.id', 'shared_link.bookId')
+      .select('book.id')
+      .where('shared_link.id', '=', sharedLinkId)
+      .where('shared_link.type', '=', SharedLinkType.Book)
+      .where('book.id', 'in', [...bookIds])
+      .execute()
+      .then((rows) => new Set(rows.map((row) => row.id)));
+  }
+}
+
 @Injectable()
 export class AccessRepository {
   activity: ActivityAccess;
+  agentSession: AgentSessionAccess;
   album: AlbumAccess;
+  artJob: ArtJobAccess;
+  artStyle: ArtStyleAccess;
   asset: AssetAccess;
   assetFile: AssetFileAccess;
   authDevice: AuthDeviceAccess;
+  book: BookAccess;
+  bookStyle: BookStyleAccess;
   duplicate: DuplicateAccess;
+  highlightJob: HighlightJobAccess;
   memory: MemoryAccess;
   notification: NotificationAccess;
   clusterGroup: ClusterGroupAccess;
@@ -1137,11 +1280,17 @@ export class AccessRepository {
 
   constructor(@InjectKysely() db: Kysely<DB>) {
     this.activity = new ActivityAccess(db);
+    this.agentSession = new AgentSessionAccess(db);
     this.album = new AlbumAccess(db);
+    this.artJob = new ArtJobAccess(db);
+    this.artStyle = new ArtStyleAccess(db);
     this.asset = new AssetAccess(db);
     this.assetFile = new AssetFileAccess(db);
     this.authDevice = new AuthDeviceAccess(db);
+    this.book = new BookAccess(db);
+    this.bookStyle = new BookStyleAccess(db);
     this.duplicate = new DuplicateAccess(db);
+    this.highlightJob = new HighlightJobAccess(db);
     this.memory = new MemoryAccess(db);
     this.notification = new NotificationAccess(db);
     this.clusterGroup = new ClusterGroupAccess(db);

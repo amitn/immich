@@ -22,6 +22,7 @@
     'trip_anniversary',
     'themed',
     'person_throwback',
+    'year_recap',
   ];
 
   const disabled = $derived(featureFlagsManager.value.configFile);

@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { AssetIdErrorReason } from 'src/dtos/asset-ids.response.dto.js';
 import { mapSharedLink } from 'src/dtos/shared-link.dto.js';
-import { SharedLinkType, SharedSpaceRole } from 'src/enum.js';
+import { ActivityLogAction, SharedLinkType, SharedSpaceRole } from 'src/enum.js';
 import { SharedLinkService } from 'src/services/shared-link.service.js';
+import { ActivityRecorder } from 'src/utils/activity-log.js';
 import { AlbumFactory } from 'test/factories/album.factory.js';
 import { AssetFactory } from 'test/factories/asset.factory.js';
 import { SharedLinkFactory } from 'test/factories/shared-link.factory.js';
@@ -829,6 +830,214 @@ describe(SharedLinkService.name, () => {
       const result = await sut.getMetadataTags(authStub.adminSharedLink, 'https://custom.domain.com');
 
       expect(result?.imageUrl).toContain('custom.domain.com');
+    });
+  });
+
+  describe('book links', () => {
+    const bookId = '6c7c7a8a-1f2b-4c3d-8e9f-0a1b2c3d4e5f';
+    const mine = '0e5a7b1c-2d3e-4f5a-8b6c-7d8e9f0a1b2c';
+    const theirs = '1f6b8c2d-3e4f-4a6b-9c7d-8e9f0a1b2c3d';
+    const spaceId = '2a7c9d3e-4f5a-4b7c-8d8e-9f0a1b2c3d4e';
+
+    beforeEach(() => {
+      // a book of one photo of the user, unless a test adds others
+      mocks.book.get.mockResolvedValue({ id: bookId, title: 'Rome', coverAssetId: null } as never);
+      mocks.book.getPages.mockResolvedValue([{ layout: 'single', assets: [{ assetId: mine }] }] as never);
+      mocks.access.asset.checkOwnerAccess.mockImplementation((_, ids) =>
+        Promise.resolve(new Set([...ids].filter((id) => id === mine))),
+      );
+    });
+
+    const withTheirPhoto = () =>
+      mocks.book.getPages.mockResolvedValue([
+        { layout: 'two-vertical', assets: [{ assetId: mine }, { assetId: theirs }] },
+      ] as never);
+
+    it('should require a bookId', async () => {
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should only let the owner share a book', async () => {
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      expect(mocks.access.book.checkOwnerAccess).toHaveBeenCalledWith(authStub.admin.user.id, new Set([bookId]));
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should record a link to a book, to delete it on undo', async () => {
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedLink.create.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.book.get.mockResolvedValue({ title: 'Rome' } as never);
+      mocks.activityLog.create.mockResolvedValue({ id: 'change' } as never);
+
+      await sut.create(authStub.admin, { type: SharedLinkType.Book, bookId }, ActivityRecorder.web());
+
+      expect(mocks.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: ActivityLogAction.SharedLinkCreate,
+          summary: 'Shared the book “Rome” with a link',
+          targetId: sharedLink.id,
+          undo: { sharedLinkId: sharedLink.id },
+        }),
+      );
+    });
+
+    it('should create a link to a book, with a password and an expiry', async () => {
+      const expiresAt = new Date('2030-01-01T00:00:00.000Z');
+      const sharedLink = SharedLinkFactory.from({ password: 'secret', expiresAt, slug: 'rome' })
+        .book({ id: bookId })
+        .build();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedLink.create.mockResolvedValue(getForSharedLink(sharedLink));
+
+      const response = await sut.create(authStub.admin, {
+        type: SharedLinkType.Book,
+        bookId,
+        password: 'secret',
+        expiresAt,
+        slug: 'rome',
+        allowUpload: true,
+        allowDownload: true,
+        showMetadata: false,
+      });
+
+      expect(mocks.sharedLink.create).toHaveBeenCalledWith({
+        type: SharedLinkType.Book,
+        userId: authStub.admin.user.id,
+        albumId: null,
+        bookId,
+        password: 'secret',
+        expiresAt,
+        slug: 'rome',
+        description: null,
+        // nobody uploads to a book, and its PDF carries no photo metadata
+        allowUpload: false,
+        allowDownload: true,
+        showExif: false,
+        key: Buffer.from('random-bytes', 'utf8'),
+        // a book of the user's own photos is not tethered to a space
+        spaceId: null,
+      });
+      expect(response).toMatchObject({
+        type: SharedLinkType.Book,
+        assets: [],
+        book: { id: bookId, title: 'Summer in Rome', subtitle: null, pageCount: 12, hasPdf: true },
+      });
+      expect(response.album).toBeUndefined();
+    });
+
+    it("should tether a book with another member's photo to the space it is in", async () => {
+      withTheirPhoto();
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedLink.create.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.sharedSpace.getAllByUserId.mockResolvedValue([{ id: newUuid() }, { id: spaceId }] as never);
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Editor } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockImplementation((_, space, ids) =>
+        Promise.resolve(space === spaceId ? new Set(ids) : new Set()),
+      );
+
+      await sut.create(authStub.admin, { type: SharedLinkType.Book, bookId });
+
+      expect(mocks.access.asset.checkSpaceAccessForSpace).toHaveBeenCalledWith(
+        authStub.admin.user.id,
+        spaceId,
+        new Set([theirs]),
+      );
+      expect(mocks.sharedLink.create).toHaveBeenCalledWith(expect.objectContaining({ bookId, spaceId }));
+    });
+
+    it("should not share a book with another member's photo from a space the user only views", async () => {
+      withTheirPhoto();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedSpace.getAllByUserId.mockResolvedValue([{ id: spaceId }] as never);
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Viewer } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockResolvedValue(new Set([theirs]));
+
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId })).rejects.toThrow(
+        'no shared space you can edit holds them all',
+      );
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId, spaceId })).rejects.toThrow(
+        'no shared space editor access',
+      );
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should not share a book from a space that does not hold its photos of others', async () => {
+      withTheirPhoto();
+      mocks.access.book.checkOwnerAccess.mockResolvedValue(new Set([bookId]));
+      mocks.sharedSpace.getMember.mockResolvedValue({ role: SharedSpaceRole.Owner } as never);
+      mocks.access.asset.checkSpaceAccessForSpace.mockResolvedValue(new Set());
+
+      await expect(sut.create(authStub.admin, { type: SharedLinkType.Book, bookId, spaceId })).rejects.toThrow(
+        'not in this space',
+      );
+      expect(mocks.sharedLink.create).not.toHaveBeenCalled();
+    });
+
+    it('should list the links to a book', async () => {
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.sharedLink.getAll.mockResolvedValue([getForSharedLink(sharedLink)]);
+
+      const [response] = await sut.getAll(authStub.admin, { bookId });
+
+      expect(mocks.sharedLink.getAll).toHaveBeenCalledWith({ userId: authStub.admin.user.id, bookId });
+      expect(response.book).toEqual(expect.objectContaining({ id: bookId, title: 'Summer in Rome' }));
+    });
+
+    it('should get and remove a link to a book', async () => {
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.sharedLink.get.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.sharedLink.remove.mockResolvedValue();
+
+      await expect(sut.get(authStub.admin, sharedLink.id)).resolves.toMatchObject({ book: { id: bookId } });
+      await sut.remove(authStub.admin, sharedLink.id);
+
+      expect(mocks.sharedLink.remove).toHaveBeenCalledWith(sharedLink.id);
+    });
+
+    it('should never allow uploads to a book link', async () => {
+      const sharedLink = SharedLinkFactory.from().book({ id: bookId }).build();
+      mocks.sharedLink.get.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.sharedLink.update.mockResolvedValue(getForSharedLink(sharedLink));
+
+      await sut.update(authStub.admin, sharedLink.id, { allowUpload: true, password: 'secret' });
+
+      expect(mocks.sharedLink.update).toHaveBeenCalledWith(
+        expect.objectContaining({ id: sharedLink.id, allowUpload: false, password: 'secret' }),
+      );
+    });
+
+    it('should require the password to see a protected book link', async () => {
+      const sharedLink = SharedLinkFactory.from({ password: 'secret' }).book({ id: bookId }).build();
+      const auth = factory.auth({ sharedLink: { id: sharedLink.id, bookId, password: 'secret' } });
+      mocks.sharedLink.get.mockResolvedValue(getForSharedLink(sharedLink));
+
+      await expect(sut.getMine(auth, [])).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(sut.login(auth, { password: 'wrong' })).rejects.toBeInstanceOf(UnauthorizedException);
+
+      const { token } = await sut.login(auth, { password: 'secret' });
+      await expect(sut.getMine(auth, [token])).resolves.toMatchObject({ book: { id: bookId } });
+    });
+
+    it('should use the book for the metadata tags', async () => {
+      const sharedLink = SharedLinkFactory.from({ description: null })
+        .book({ id: bookId, subtitle: 'Italy 2025' })
+        .build();
+      const firstPageId = newUuid();
+      mocks.sharedLink.get.mockResolvedValue(getForSharedLink(sharedLink));
+      mocks.book.get.mockResolvedValue({ firstPageId } as never);
+
+      await expect(sut.getMetadataTags(factory.auth({ sharedLink: { bookId } }))).resolves.toEqual({
+        title: 'Summer in Rome',
+        description: 'Italy 2025',
+        imageUrl: `https://my.immich.app/api/books/${bookId}/pages/${firstPageId}/render?size=1200&key=${sharedLink.key.toString('base64url')}`,
+      });
     });
   });
 });
