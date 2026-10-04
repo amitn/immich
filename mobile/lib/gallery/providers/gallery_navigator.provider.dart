@@ -14,8 +14,10 @@ import 'package:immich_mobile/providers/infrastructure/timeline.provider.dart';
 import 'package:immich_mobile/providers/photos_filter/photos_filter.provider.dart';
 import 'package:immich_mobile/repositories/memory_api.repository.dart';
 import 'package:immich_mobile/routing/router.dart';
+import 'package:immich_mobile/utils/url_helper.dart';
 import 'package:logging/logging.dart';
 import 'package:openapi/api.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Where the assistant screens lead: behind a provider, so widget tests can follow the navigation without a router
 abstract interface class GalleryNavigator {
@@ -68,6 +70,22 @@ abstract interface class GalleryNavigator {
 
   /// The link page of a photo book, to create a link with a password and an expiry date
   Future<void> shareBook(String bookId);
+
+  /// The editor of a page of a photo book
+  Future<void> editBookPage(String bookId, String pageId);
+
+  /// The web app's editor of a photo book, in the browser, for edits a phone does poorly (dragging photos between
+  /// pages, the style, the maps)
+  Future<void> openBookOnWeb(String bookId);
+
+  /// One photo chosen from the timeline (e.g. for a slot of a book), or null; only photos on the server count
+  Future<String?> pickPhoto();
+
+  /// The Routines inbox: the changes of routine runs that wait for approval
+  Future<void> openRoutinesInbox();
+
+  /// A routine run: its summary, its changes and its transcript
+  Future<void> openRoutineRun(String runId);
 
   /// The asset viewer on [assetIds], at [index]; false when the photo is not on this device (yet)
   Future<bool> openAssets(List<String> assetIds, {int index = 0});
@@ -165,6 +183,30 @@ class RouterGalleryNavigator implements GalleryNavigator {
   Future<void> shareBook(String bookId) => _router.push(SharedLinkEditRoute(bookId: bookId));
 
   @override
+  Future<void> editBookPage(String bookId, String pageId) =>
+      _router.push(BookEditorRoute(bookId: bookId, pageId: pageId));
+
+  @override
+  Future<void> openBookOnWeb(String bookId) async {
+    final server = getServerUrl();
+    if (server != null) {
+      await launchUrl(Uri.parse('$server/books/$bookId'), mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Future<String?> pickPhoto() async {
+    final picked = await _router.push<Set<BaseAsset>>(AssetSelectionTimelineRoute());
+    return picked?.map((asset) => asset.remoteId).nonNulls.firstOrNull;
+  }
+
+  @override
+  Future<void> openRoutinesInbox() => _router.push(const RoutinesInboxRoute());
+
+  @override
+  Future<void> openRoutineRun(String runId) => _router.push(RoutineRunRoute(runId: runId));
+
+  @override
   Future<bool> openAssets(List<String> assetIds, {int index = 0}) async {
     if (assetIds.isEmpty) {
       return false;
@@ -254,6 +296,9 @@ class RouterGalleryNavigator implements GalleryNavigator {
         return openMemory(memoryId);
       case JournalNotificationTarget(:final pack, :final assetIds):
         unawaited(nameInJournal(pack: pack, assetIds: assetIds));
+        return true;
+      case RoutineRunNotificationTarget(:final runId):
+        unawaited(openRoutineRun(runId));
         return true;
     }
   }

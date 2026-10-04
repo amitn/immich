@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
 import 'package:immich_mobile/gallery/providers/gallery_events.provider.dart';
 import 'package:immich_mobile/gallery/repositories/book_api.repository.dart';
+import 'package:immich_mobile/gallery/repositories/book_offline_cache.repository.dart';
 import 'package:openapi/api.dart';
 
 /// The photo books page: the user's books, and the books drafted for them
@@ -118,9 +120,125 @@ final booksProvider = StateNotifierProvider.autoDispose<BooksNotifier, AsyncValu
   (ref) => BooksNotifier(ref.watch(bookApiRepositoryProvider), ref.watch(galleryEventBusProvider)),
 );
 
-/// A book with its pages
-final bookDetailProvider = FutureProvider.autoDispose.family<BookDetailResponseDto, String>(
-  (ref, id) => ref.watch(bookApiRepositoryProvider).getBook(id),
+/// A book as the viewer shows it: from the server, or the copy kept on the device when the server can't be reached
+class BookView {
+  final BookDetailResponseDto book;
+
+  /// Shown from the copy kept on the device: read only
+  final bool offline;
+
+  const BookView(this.book, {this.offline = false});
+
+  /// The pages in book order
+  List<BookPageResponseDto> get pages => [...book.pages]..sort((a, b) => a.position.compareTo(b.position));
+}
+
+/// A book with its pages, kept on the device for offline viewing, and the page edits of the phone: each edit goes to
+/// the server and the page it answers replaces the one shown (a move, an added or a removed page reloads the book,
+/// since the other pages shift)
+class BookDetailNotifier extends AutoDisposeFamilyAsyncNotifier<BookView, String> {
+  BookApiRepository get _repository => ref.read(bookApiRepositoryProvider);
+
+  BookOfflineCache get _cache => ref.read(bookOfflineCacheProvider);
+
+  @override
+  Future<BookView> build(String arg) async {
+    final repository = ref.watch(bookApiRepositoryProvider);
+    final cache = ref.watch(bookOfflineCacheProvider);
+    try {
+      final book = await repository.getBook(arg);
+      unawaited(cache.saveBook(book));
+      return BookView(book);
+    } catch (_) {
+      final kept = await cache.loadBook(arg);
+      if (kept == null) {
+        rethrow;
+      }
+      return BookView(kept, offline: true);
+    }
+  }
+
+  BookDetailResponseDto? get _book => state.valueOrNull?.book;
+
+  void _set(BookDetailResponseDto book) {
+    state = AsyncValue.data(BookView(book));
+    unawaited(_cache.saveBook(book));
+  }
+
+  /// Shows the page the server answered for an edit
+  void _apply(BookPageResponseDto page) {
+    final book = _book;
+    if (book == null) {
+      return;
+    }
+    final json = book.toJson()
+      ..['pages'] = [for (final other in book.pages) other.id == page.id ? page.toJson() : other.toJson()];
+    final updated = BookDetailResponseDto.fromJson(jsonDecode(jsonEncode(json)));
+    if (updated != null) {
+      _set(updated);
+    }
+  }
+
+  /// Loads the book again, without showing a spinner in between
+  Future<void> refresh() async => _set(await _repository.getBook(arg));
+
+  Future<void> setLayout(String pageId, String layout) async =>
+      _apply(await _repository.updatePage(arg, pageId, layout: layout));
+
+  /// Sets the section title of a page; empty clears it
+  Future<void> setSectionTitle(String pageId, String text) async =>
+      _apply(await _repository.updatePage(arg, pageId, sectionTitle: Optional.present(_text(text))));
+
+  /// Sets the caption of a page; empty clears it
+  Future<void> setPageCaption(String pageId, String text) async =>
+      _apply(await _repository.updatePage(arg, pageId, caption: Optional.present(_text(text))));
+
+  Future<void> placePhoto(String pageId, int slot, String assetId) async =>
+      _apply(await _repository.placePhoto(arg, pageId, slot, assetId));
+
+  /// Sets the crop of a placed photo; null goes back to the crop the server chooses
+  Future<void> setCrop(String pageId, int slot, NormalizedRect? crop) async =>
+      _apply(await _repository.updateSlot(arg, pageId, slot, crop: Optional.present(crop)));
+
+  /// Sets the caption of a placed photo; empty clears it
+  Future<void> setPhotoCaption(String pageId, int slot, String text) async =>
+      _apply(await _repository.updateSlot(arg, pageId, slot, caption: Optional.present(_text(text))));
+
+  Future<void> removePhoto(String pageId, int slot) async => _apply(await _repository.clearSlot(arg, pageId, slot));
+
+  /// Moves a page to [position] (zero based)
+  Future<void> movePage(String pageId, int position) async {
+    await _repository.movePage(arg, pageId, position);
+    await refresh();
+  }
+
+  /// Adds a page with [layout] at [position]; answers the new page's id
+  Future<String> addPage(String layout, {required int position}) async {
+    final page = await _repository.addPage(arg, layout, position: position);
+    await refresh();
+    return page.id;
+  }
+
+  Future<void> removePage(String pageId) async {
+    await _repository.removePage(arg, pageId);
+    await refresh();
+  }
+
+  static String? _text(String text) => text.trim().isEmpty ? null : text.trim();
+}
+
+final bookDetailProvider = AsyncNotifierProvider.autoDispose.family<BookDetailNotifier, BookView, String>(
+  BookDetailNotifier.new,
+);
+
+/// The page layouts (the same for every book)
+final bookLayoutsProvider = FutureProvider.autoDispose<List<BookLayoutResponseDto>>(
+  (ref) => ref.watch(bookApiRepositoryProvider).getLayouts(),
+);
+
+/// The photos of an album to choose from for a slot of a book
+final bookAlbumPhotosProvider = FutureProvider.autoDispose.family<List<AssetResponseDto>, String>(
+  (ref, albumId) => ref.watch(bookApiRepositoryProvider).getAlbumPhotos(albumId),
 );
 
 /// The review of a book (read only in the app: the fixes go through the assistant or the web)

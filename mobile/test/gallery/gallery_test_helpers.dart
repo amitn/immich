@@ -7,6 +7,8 @@ import 'package:immich_mobile/gallery/models/gallery_notification.model.dart';
 import 'package:immich_mobile/gallery/providers/gallery_features.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_images.provider.dart';
 import 'package:immich_mobile/gallery/providers/gallery_navigator.provider.dart';
+import 'package:immich_mobile/gallery/providers/routines.provider.dart';
+import 'package:immich_mobile/gallery/repositories/book_offline_cache.repository.dart';
 import 'package:immich_mobile/providers/infrastructure/toast.provider.dart';
 import 'package:immich_mobile/services/toast.service.dart';
 import 'package:openapi/api.dart';
@@ -120,6 +122,27 @@ class FakeGalleryNavigator implements GalleryNavigator {
   Future<void> shareBook(String bookId) async => calls.add('share book $bookId');
 
   @override
+  Future<void> editBookPage(String bookId, String pageId) async => calls.add('edit book $bookId page $pageId');
+
+  @override
+  Future<void> openBookOnWeb(String bookId) async => calls.add('book on web $bookId');
+
+  /// What pickPhoto answers
+  String? pickedPhoto;
+
+  @override
+  Future<String?> pickPhoto() async {
+    calls.add('pick photo');
+    return pickedPhoto;
+  }
+
+  @override
+  Future<void> openRoutinesInbox() async => calls.add('routines inbox');
+
+  @override
+  Future<void> openRoutineRun(String runId) async => calls.add('routine run $runId');
+
+  @override
   Future<bool> openAssets(List<String> assetIds, {int index = 0}) async {
     calls.add('assets ${assetIds.join(',')} at $index');
     return available;
@@ -152,6 +175,9 @@ class FakeGalleryNavigator implements GalleryNavigator {
       case JournalNotificationTarget(:final pack, :final assetIds):
         await nameInJournal(pack: pack, assetIds: assetIds);
         return true;
+      case RoutineRunNotificationTarget(:final runId):
+        await openRoutineRun(runId);
+        return true;
     }
   }
 }
@@ -181,10 +207,14 @@ List<Override> galleryOverrides({
   FakeGalleryNavigator? navigator,
   FakeToastService? toast,
   bool journals = true,
+  int routinesPending = 0,
+  BookOfflineCache? bookCache,
 }) => [
   galleryFeaturesProvider.overrideWithValue(features),
   galleryJournalsProvider.overrideWithValue(journals && features.gallery),
   galleryImagesProvider.overrideWithValue(images ?? FakeGalleryImages()),
   galleryNavigatorProvider.overrideWithValue(navigator ?? FakeGalleryNavigator()),
   toastServiceProvider.overrideWithValue(toast ?? FakeToastService()),
+  routinesPendingCountProvider.overrideWith((ref) async => routinesPending),
+  bookOfflineCacheProvider.overrideWithValue(bookCache ?? BookOfflineCache.disabled()),
 ];
