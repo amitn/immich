@@ -32,9 +32,11 @@ class BookCropEditor extends HookWidget {
     final state = useState<BookCrop?>(null);
     final baseZoom = useRef(1.0);
 
+    final configuration = createLocalImageConfiguration(context);
+
     // the shape of the photo, from the image itself
     useEffect(() {
-      final stream = image.resolve(createLocalImageConfiguration(context));
+      final stream = image.resolve(configuration);
       final listener = ImageStreamListener((info, _) {
         final ratio = info.image.height == 0 ? 1.0 : info.image.width / info.image.height;
         state.value ??= BookCrop(imageRatio: ratio, slotRatio: slotRatio, crop: crop);
@@ -54,7 +56,7 @@ class BookCropEditor extends HookWidget {
         actions: [
           TextButton(
             key: const Key('book-crop-save'),
-            onPressed: current == null ? null : () => Navigator.of(context).pop(current.rect),
+            onPressed: current == null ? null : () => Navigator.of(context).pop(state.value!.rect),
             child: Text(t.save),
           ),
         ],
@@ -78,7 +80,7 @@ class BookCropEditor extends HookWidget {
                               final height = frame.height / rect.height;
                               return GestureDetector(
                                 key: const Key('book-crop-frame'),
-                                onScaleStart: (_) => baseZoom.value = current.zoom,
+                                onScaleStart: (_) => baseZoom.value = state.value!.zoom,
                                 onScaleUpdate: (details) {
                                   final crop = state.value!;
                                   state.value = crop
@@ -124,7 +126,7 @@ class BookCropEditor extends HookWidget {
                         IconButton(
                           color: Colors.white,
                           tooltip: t.book_crop_zoom_out,
-                          onPressed: () => state.value = current.withZoom(current.zoom / 1.25),
+                          onPressed: () => state.value = state.value!.withZoom(state.value!.zoom / 1.25),
                           icon: const Icon(Icons.zoom_out),
                         ),
                         Expanded(
@@ -134,13 +136,13 @@ class BookCropEditor extends HookWidget {
                             min: 1,
                             max: BookCrop.maxZoom,
                             label: t.book_crop_zoom,
-                            onChanged: (value) => state.value = current.withZoom(value),
+                            onChanged: (value) => state.value = state.value!.withZoom(value),
                           ),
                         ),
                         IconButton(
                           color: Colors.white,
                           tooltip: t.book_crop_zoom_in,
-                          onPressed: () => state.value = current.withZoom(current.zoom * 1.25),
+                          onPressed: () => state.value = state.value!.withZoom(state.value!.zoom * 1.25),
                           icon: const Icon(Icons.zoom_in),
                         ),
                       ],

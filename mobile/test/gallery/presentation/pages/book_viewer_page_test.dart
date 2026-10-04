@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:immich_mobile/gallery/presentation/pages/book_viewer.page.dart';
 import 'package:immich_mobile/gallery/providers/gallery_events.provider.dart';
 import 'package:immich_mobile/gallery/repositories/book_api.repository.dart';
+import 'package:immich_mobile/gallery/repositories/book_offline_cache.repository.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:openapi/api.dart';
 
@@ -14,6 +15,19 @@ import '../../gallery_test_helpers.dart';
 
 class _MockBookApiRepository extends Mock implements BookApiRepository {}
 
+/// Keeps the books in memory, like the device would
+class _MemoryBookCache extends BookOfflineCache {
+  final books = <String, BookDetailResponseDto>{};
+
+  _MemoryBookCache() : super(directory: () async => null);
+
+  @override
+  Future<void> saveBook(BookDetailResponseDto book) async => books[book.id] = book;
+
+  @override
+  Future<BookDetailResponseDto?> loadBook(String bookId) async => books[bookId];
+}
+
 void main() {
   late _MockBookApiRepository repository;
   late GalleryEventBus bus;
@@ -21,6 +35,7 @@ void main() {
   late FakeToastService toast;
   late FakeGalleryImages images;
   late List<(String, int)> savedPdfs;
+  late _MemoryBookCache cache;
 
   setUp(() {
     repository = _MockBookApiRepository();
@@ -29,6 +44,7 @@ void main() {
     toast = FakeToastService();
     images = FakeGalleryImages();
     savedPdfs = [];
+    cache = _MemoryBookCache();
   });
 
   tearDown(() => bus.dispose());
@@ -39,7 +55,7 @@ void main() {
     await tester.pumpConsumerWidget(
       const BookViewerPage(bookId: 'book-1'),
       overrides: [
-        ...galleryOverrides(navigator: navigator, toast: toast, images: images),
+        ...galleryOverrides(navigator: navigator, toast: toast, images: images, bookCache: cache),
         bookApiRepositoryProvider.overrideWithValue(repository),
         galleryEventBusProvider.overrideWithValue(bus),
         bookPdfSaverProvider.overrideWithValue((title, bytes) async => savedPdfs.add((title, bytes.length))),
@@ -233,5 +249,66 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('Page 1 of 3'), findsOneWidget);
+  });
+
+  testWidgets('Edit opens the editor on the page shown', (tester) async {
+    when(() => repository.getBook('book-1')).thenAnswer((_) async => bookDetail('book-1'));
+    await pumpPage(tester);
+
+    await tester.tap(find.byKey(const Key('book-next-page')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('book-edit-button')));
+    await tester.pump();
+
+    expect(navigator.calls, ['edit book book-1 page page-2']);
+  });
+
+  testWidgets('a book without pages offers to add the first one', (tester) async {
+    var book = bookDetail('book-1', pages: 0);
+    when(() => repository.getBook('book-1')).thenAnswer((_) async => book);
+    when(() => repository.getLayouts()).thenAnswer((_) async => [layout('single', 'Single', 1)]);
+    when(() => repository.addPage('book-1', 'single', position: 0)).thenAnswer((_) async {
+      book = bookDetail('book-1', pages: 1);
+      return editablePage('page-1', 0, layout: 'single');
+    });
+    await pumpPage(tester);
+
+    await tester.tap(find.byKey(const Key('book-add-first-page')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('book-layout-single')));
+    await tester.pumpAndSettle();
+
+    verify(() => repository.addPage('book-1', 'single', position: 0)).called(1);
+    expect(navigator.calls, ['edit book book-1 page page-1']);
+  });
+
+  testWidgets('Open in browser opens the web editor', (tester) async {
+    when(() => repository.getBook('book-1')).thenAnswer((_) async => bookDetail('book-1'));
+    await pumpPage(tester);
+
+    await tester.tap(find.byKey(const Key('book-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('book-open-on-web')));
+    await tester.pumpAndSettle();
+
+    expect(navigator.calls, ['book on web book-1']);
+  });
+
+  testWidgets('a book viewed once opens offline, read only', (tester) async {
+    when(() => repository.getBook('book-1')).thenAnswer((_) async => bookDetail('book-1'));
+    await pumpPage(tester);
+    expect(cache.books['book-1']?.pages, hasLength(3));
+
+    // the server can't be reached the next time
+    await tester.pumpWidget(const SizedBox());
+    when(() => repository.getBook('book-1')).thenThrow(ApiException(503, 'offline'));
+    images.requested.clear();
+    await pumpPage(tester);
+
+    expect(find.byKey(const Key('book-offline')), findsOneWidget);
+    expect(find.text('Page 1 of 3'), findsOneWidget);
+    expect(images.requested.where((image) => image.startsWith('page:book-1/page-1@')), isNotEmpty);
+    expect(find.byKey(const Key('book-edit-button')), findsNothing);
+    expect(find.byKey(const Key('book-share-button')), findsNothing);
   });
 }

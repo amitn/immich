@@ -20,6 +20,13 @@ void main() {
   });
 
   group('notificationTargetOf', () {
+    test('a routine run opens the run, with its changes to approve', () {
+      expect(
+        notificationTargetOf(parseNotificationData('{"routineRunId":"run-1","routineId":"routine-1"}')),
+        const RoutineRunNotificationTarget('run-1'),
+      );
+    });
+
     test('a book export or a draft book opens the book', () {
       expect(notificationTargetOf({'bookId': 'book-1'}), const BookNotificationTarget('book-1'));
     });
