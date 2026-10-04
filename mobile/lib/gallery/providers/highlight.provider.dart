@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:immich_mobile/gallery/providers/gallery_events.provider.dart';
 import 'package:immich_mobile/gallery/repositories/highlight_api.repository.dart';
@@ -79,18 +80,29 @@ class HighlightState {
   final bool starting;
   final bool sharing;
 
-  const HighlightState({this.music, this.job, this.starting = false, this.sharing = false});
+  /// An audio file is being uploaded
+  final bool uploadingMusic;
+
+  const HighlightState({
+    this.music,
+    this.job,
+    this.starting = false,
+    this.sharing = false,
+    this.uploadingMusic = false,
+  });
 
   HighlightState copyWith({
     List<HighlightMusicResponseDto>? music,
     HighlightJobResponseDto? Function()? job,
     bool? starting,
     bool? sharing,
+    bool? uploadingMusic,
   }) => HighlightState(
     music: music ?? this.music,
     job: job == null ? this.job : job(),
     starting: starting ?? this.starting,
     sharing: sharing ?? this.sharing,
+    uploadingMusic: uploadingMusic ?? this.uploadingMusic,
   );
 
   /// The video is rendered
@@ -196,7 +208,40 @@ class HighlightController extends StateNotifier<HighlightState> {
   }
 
   void setSharing(bool sharing) => state = state.copyWith(sharing: sharing);
+
+  /// Uploads an audio file picked on the phone; it comes first in the music, and is answered to be chosen
+  Future<HighlightMusicResponseDto> uploadMusic(PickedAudioFile file) async {
+    state = state.copyWith(uploadingMusic: true);
+    try {
+      final track = await _repository.uploadMusic(file.path, filename: file.name);
+      if (mounted) {
+        state = state.copyWith(
+          music: [track, ...?state.music?.where((other) => other.id != track.id)],
+          uploadingMusic: false,
+        );
+      }
+      return track;
+    } catch (_) {
+      if (mounted) {
+        state = state.copyWith(uploadingMusic: false);
+      }
+      rethrow;
+    }
+  }
 }
+
+/// An audio file picked on the phone: where it was copied, and its name (whose extension the server checks)
+typedef PickedAudioFile = ({String path, String name});
+
+/// Picks an audio file with the system's file picker; null when cancelled. Behind a provider so tests can pick.
+final highlightAudioPickerProvider = Provider<Future<PickedAudioFile?> Function()>(
+  (ref) => () async {
+    final result = await FilePicker.pickFiles(type: FileType.audio);
+    final file = result?.files.singleOrNull;
+    final path = file?.path;
+    return file == null || path == null ? null : (path: path, name: file.name);
+  },
+);
 
 final highlightProvider = StateNotifierProvider.autoDispose
     .family<HighlightController, HighlightState, HighlightSource>(
